@@ -6,14 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 option(NUMKIT_WITH_SIMD "Enable Google Highway SIMD acceleration" ON)
-if(DEFINED NK_WITH_SIMD)
-    set(NUMKIT_WITH_SIMD ${NK_WITH_SIMD})
-endif()
-
 option(NUMKIT_WITH_THREADS "Enable multi-threaded parallel execution" ON)
-if(DEFINED NK_WITH_THREADS)
-    set(NUMKIT_WITH_THREADS ${NK_WITH_THREADS})
-endif()
 
 include(FetchContent)
 
@@ -98,8 +91,6 @@ endif()
 add_library(numkit_ops STATIC ${NUMKIT_OPS_SOURCES})
 
 add_library(numkit::ops ALIAS numkit_ops)
-add_library(nk_ops ALIAS numkit_ops)
-add_library(nk::ops ALIAS numkit_ops)
 
 target_include_directories(numkit_ops
     PUBLIC
@@ -112,12 +103,12 @@ target_include_directories(numkit_ops
 target_link_libraries(numkit_ops PUBLIC numkit_value PRIVATE hwy hwy_contrib)
 
 if(NUMKIT_WITH_SIMD)
-    target_compile_definitions(numkit_ops PUBLIC NUMKIT_WITH_SIMD=1 NK_WITH_SIMD=1)
+    target_compile_definitions(numkit_ops PUBLIC NUMKIT_WITH_SIMD=1)
 endif()
 
 if(NUMKIT_WITH_THREADS)
     find_package(Threads REQUIRED)
-    target_compile_definitions(numkit_ops PUBLIC NUMKIT_WITH_THREADS=1 NK_WITH_THREADS=1)
+    target_compile_definitions(numkit_ops PUBLIC NUMKIT_WITH_THREADS=1)
     target_link_libraries(numkit_ops PUBLIC Threads::Threads)
 endif()
 
