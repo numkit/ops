@@ -19,19 +19,19 @@
 
 namespace numkit::ops::detail {
 
-NK_NOINLINE void plusScalar(const double *a, const double *b, double *out, std::size_t n) {
+NUMKIT_NOINLINE void plusScalar(const double *a, const double *b, double *out, std::size_t n) {
     for (std::size_t i = 0; i < n; ++i) out[i] = a[i] + b[i];
 }
 
-NK_NOINLINE void minusScalar(const double *a, const double *b, double *out, std::size_t n) {
+NUMKIT_NOINLINE void minusScalar(const double *a, const double *b, double *out, std::size_t n) {
     for (std::size_t i = 0; i < n; ++i) out[i] = a[i] - b[i];
 }
 
-NK_NOINLINE void timesScalar(const double *a, const double *b, double *out, std::size_t n) {
+NUMKIT_NOINLINE void timesScalar(const double *a, const double *b, double *out, std::size_t n) {
     for (std::size_t i = 0; i < n; ++i) out[i] = a[i] * b[i];
 }
 
-NK_NOINLINE void rdivideScalar(const double *a, const double *b, double *out, std::size_t n) {
+NUMKIT_NOINLINE void rdivideScalar(const double *a, const double *b, double *out, std::size_t n) {
     for (std::size_t i = 0; i < n; ++i) out[i] = a[i] / b[i];
 }
 

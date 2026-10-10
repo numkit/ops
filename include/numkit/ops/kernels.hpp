@@ -19,17 +19,16 @@
 #include <complex>
 #include <cstddef>
 
-// Linkage. Default (static — compiled into nk_ops, a test, or a
-// self-contained artifact): plain. Building the nk_ops_kernels shared lib:
+// Linkage. Default (static — compiled into numkit_ops, a test, or a
+// self-contained artifact): plain. Building the numkit_ops_kernels shared lib:
 // dllexport. A consumer linking that shared lib (a codegen artifact that uses
-// ops kernels): define NK_OPS_USE_DLL -> dllimport. No effect off Windows.
-// Mirrors NK_RT_API (nk_codegen_rt.h).
-#if defined(_WIN32) && defined(NK_OPS_BUILDING_DLL)
-#  define NK_OPS_API __declspec(dllexport)
-#elif defined(_WIN32) && defined(NK_OPS_USE_DLL)
-#  define NK_OPS_API __declspec(dllimport)
+// ops kernels): define NUMKIT_OPS_USE_DLL -> dllimport. No effect off Windows.
+#if defined(_WIN32) && defined(NUMKIT_OPS_BUILDING_DLL)
+#  define NUMKIT_OPS_API __declspec(dllexport)
+#elif defined(_WIN32) && defined(NUMKIT_OPS_USE_DLL)
+#  define NUMKIT_OPS_API __declspec(dllimport)
 #else
-#  define NK_OPS_API
+#  define NUMKIT_OPS_API
 #endif
 
 namespace numkit::ops {
@@ -37,13 +36,13 @@ namespace numkit::ops {
 // C(M×N) = A(M×K) · B(K×N), all column-major (a[k*M+i], b[j*K+k], c[j*M+i]).
 // C is caller-allocated; the kernel zeroes then accumulates. SIMD MulAdd down
 // columns of A under NUMKIT_WITH_SIMD, a portable loop otherwise.
-NK_OPS_API void matmulDouble(const double *a, const double *b, double *c,
+NUMKIT_OPS_API void matmulDouble(const double *a, const double *b, double *c,
                              std::size_t M, std::size_t N, std::size_t K);
 
 // Same, for complex matrices (column-major std::complex<double>). Portable
 // SAXPY loop (no SIMD-complex split); the single call is amortised over O(M·N·K)
 // work, so it carries no per-element overhead vs an inline loop.
-NK_OPS_API void matmulComplex(const std::complex<double> *a, const std::complex<double> *b,
+NUMKIT_OPS_API void matmulComplex(const std::complex<double> *a, const std::complex<double> *b,
                               std::complex<double> *c,
                               std::size_t M, std::size_t N, std::size_t K);
 
@@ -53,10 +52,10 @@ NK_OPS_API void matmulComplex(const std::complex<double> *a, const std::complex<
 // a plain __restrict inline loop already auto-vectorises to match these for
 // cheap arithmetic (A3) — codegen uses them only as the opt-in ops-kernel tier;
 // the inline loop stays the self-contained default.
-NK_OPS_API void plusDouble   (const double *a, const double *b, double *out, std::size_t n);
-NK_OPS_API void minusDouble  (const double *a, const double *b, double *out, std::size_t n);
-NK_OPS_API void timesDouble  (const double *a, const double *b, double *out, std::size_t n);
-NK_OPS_API void rdivideDouble(const double *a, const double *b, double *out, std::size_t n);
+NUMKIT_OPS_API void plusDouble   (const double *a, const double *b, double *out, std::size_t n);
+NUMKIT_OPS_API void minusDouble  (const double *a, const double *b, double *out, std::size_t n);
+NUMKIT_OPS_API void timesDouble  (const double *a, const double *b, double *out, std::size_t n);
+NUMKIT_OPS_API void rdivideDouble(const double *a, const double *b, double *out, std::size_t n);
 
 // Element-wise transcendentals over a DOUBLE buffer: out[i] = fn(x[i]), n
 // elements. Forward to the SIMD fusedTransAffine kernel (scale=1, offset=0) —
@@ -65,15 +64,15 @@ NK_OPS_API void rdivideDouble(const double *a, const double *b, double *out, std
 // on MSVC, so these are a genuine speedup (unlike the cheap-arithmetic ops). The
 // set is the real-total transcendentals (no complex-domain decline): the
 // codegen lowers exactly these inline today and routes them here when opt-in.
-NK_OPS_API void sinDouble  (const double *x, double *out, std::size_t n);
-NK_OPS_API void cosDouble  (const double *x, double *out, std::size_t n);
-NK_OPS_API void tanDouble  (const double *x, double *out, std::size_t n);
-NK_OPS_API void atanDouble (const double *x, double *out, std::size_t n);
-NK_OPS_API void sinhDouble (const double *x, double *out, std::size_t n);
-NK_OPS_API void coshDouble (const double *x, double *out, std::size_t n);
-NK_OPS_API void tanhDouble (const double *x, double *out, std::size_t n);
-NK_OPS_API void expDouble  (const double *x, double *out, std::size_t n);
-NK_OPS_API void asinhDouble(const double *x, double *out, std::size_t n);
-NK_OPS_API void expm1Double(const double *x, double *out, std::size_t n);
+NUMKIT_OPS_API void sinDouble  (const double *x, double *out, std::size_t n);
+NUMKIT_OPS_API void cosDouble  (const double *x, double *out, std::size_t n);
+NUMKIT_OPS_API void tanDouble  (const double *x, double *out, std::size_t n);
+NUMKIT_OPS_API void atanDouble (const double *x, double *out, std::size_t n);
+NUMKIT_OPS_API void sinhDouble (const double *x, double *out, std::size_t n);
+NUMKIT_OPS_API void coshDouble (const double *x, double *out, std::size_t n);
+NUMKIT_OPS_API void tanhDouble (const double *x, double *out, std::size_t n);
+NUMKIT_OPS_API void expDouble  (const double *x, double *out, std::size_t n);
+NUMKIT_OPS_API void asinhDouble(const double *x, double *out, std::size_t n);
+NUMKIT_OPS_API void expm1Double(const double *x, double *out, std::size_t n);
 
 } // namespace numkit::ops

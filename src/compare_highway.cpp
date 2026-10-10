@@ -41,7 +41,7 @@ namespace hn = hwy::HWY_NAMESPACE;
 // true`, matching IEEE. Used only by the Ne loop below; the other 5
 // ops are correct under Highway's ordered semantics (NaN comparison =
 // false matches the C++ scalar baseline for <, >, <=, >=, ==).
-#define NK_IEEE_NE(d, a, b) hn::Not(hn::Eq((a), (b)))
+#define NUMKIT_IEEE_NE(d, a, b) hn::Not(hn::Eq((a), (b)))
 
 // One SIMD vector → up-to-8 mask bits → up-to-8 output bytes. For double
 // `Lanes(d)` is at most 8 across all targets we support, so a single byte
@@ -49,8 +49,8 @@ namespace hn = hwy::HWY_NAMESPACE;
 // straight-line stores after `-O2`.
 // CMP_EXPR(d, va, vb) is an expression that evaluates to a Mask. For
 // most ops it's `hn::Lt(va, vb)` / `hn::Gt(...)` etc.; for Ne it's
-// `NK_IEEE_NE(d, va, vb)` to preserve IEEE NaN semantics.
-#define NK_CMP_LOOP(NAME, CMP_EXPR, SCALAR_OP)                                          \
+// `NUMKIT_IEEE_NE(d, va, vb)` to preserve IEEE NaN semantics.
+#define NUMKIT_CMP_LOOP(NAME, CMP_EXPR, SCALAR_OP)                                      \
     void NAME##VV(const double *HWY_RESTRICT a, const double *HWY_RESTRICT b,           \
                   uint8_t *HWY_RESTRICT out, std::size_t n)                             \
     {                                                                                   \
@@ -106,26 +106,26 @@ namespace hn = hwy::HWY_NAMESPACE;
             out[i] = (s SCALAR_OP b[i]) ? 1 : 0;                                        \
     }
 
-#define NK_VEC_EQ(d, a, b) hn::Eq((a), (b))
-#define NK_VEC_LT(d, a, b) hn::Lt((a), (b))
-#define NK_VEC_GT(d, a, b) hn::Gt((a), (b))
-#define NK_VEC_LE(d, a, b) hn::Le((a), (b))
-#define NK_VEC_GE(d, a, b) hn::Ge((a), (b))
+#define NUMKIT_VEC_EQ(d, a, b) hn::Eq((a), (b))
+#define NUMKIT_VEC_LT(d, a, b) hn::Lt((a), (b))
+#define NUMKIT_VEC_GT(d, a, b) hn::Gt((a), (b))
+#define NUMKIT_VEC_LE(d, a, b) hn::Le((a), (b))
+#define NUMKIT_VEC_GE(d, a, b) hn::Ge((a), (b))
 
-NK_CMP_LOOP(EqLoop, NK_VEC_EQ,  ==)
-NK_CMP_LOOP(NeLoop, NK_IEEE_NE, !=)
-NK_CMP_LOOP(LtLoop, NK_VEC_LT,  < )
-NK_CMP_LOOP(GtLoop, NK_VEC_GT,  > )
-NK_CMP_LOOP(LeLoop, NK_VEC_LE,  <=)
-NK_CMP_LOOP(GeLoop, NK_VEC_GE,  >=)
+NUMKIT_CMP_LOOP(EqLoop, NUMKIT_VEC_EQ,  ==)
+NUMKIT_CMP_LOOP(NeLoop, NUMKIT_IEEE_NE, !=)
+NUMKIT_CMP_LOOP(LtLoop, NUMKIT_VEC_LT,  < )
+NUMKIT_CMP_LOOP(GtLoop, NUMKIT_VEC_GT,  > )
+NUMKIT_CMP_LOOP(LeLoop, NUMKIT_VEC_LE,  <=)
+NUMKIT_CMP_LOOP(GeLoop, NUMKIT_VEC_GE,  >=)
 
-#undef NK_CMP_LOOP
-#undef NK_VEC_EQ
-#undef NK_VEC_LT
-#undef NK_VEC_GT
-#undef NK_VEC_LE
-#undef NK_VEC_GE
-#undef NK_IEEE_NE
+#undef NUMKIT_CMP_LOOP
+#undef NUMKIT_VEC_EQ
+#undef NUMKIT_VEC_LT
+#undef NUMKIT_VEC_GT
+#undef NUMKIT_VEC_LE
+#undef NUMKIT_VEC_GE
+#undef NUMKIT_IEEE_NE
 
 } // namespace HWY_NAMESPACE
 } // namespace numkit::ops
@@ -134,19 +134,19 @@ HWY_AFTER_NAMESPACE();
 #if HWY_ONCE
 namespace numkit::ops {
 
-#define NK_CMP_EXPORT(NAME) \
+#define NUMKIT_CMP_EXPORT(NAME) \
     HWY_EXPORT(NAME##VV);   \
     HWY_EXPORT(NAME##VS);   \
     HWY_EXPORT(NAME##SV);
 
-NK_CMP_EXPORT(EqLoop)
-NK_CMP_EXPORT(NeLoop)
-NK_CMP_EXPORT(LtLoop)
-NK_CMP_EXPORT(GtLoop)
-NK_CMP_EXPORT(LeLoop)
-NK_CMP_EXPORT(GeLoop)
+NUMKIT_CMP_EXPORT(EqLoop)
+NUMKIT_CMP_EXPORT(NeLoop)
+NUMKIT_CMP_EXPORT(LtLoop)
+NUMKIT_CMP_EXPORT(GtLoop)
+NUMKIT_CMP_EXPORT(LeLoop)
+NUMKIT_CMP_EXPORT(GeLoop)
 
-#undef NK_CMP_EXPORT
+#undef NUMKIT_CMP_EXPORT
 
 namespace {
 
@@ -202,7 +202,7 @@ Value dispatchFast(const Value &a, const Value &b,
 
 } // namespace
 
-#define NK_CMP_PUBLIC(FN, NAME)                                                  \
+#define NUMKIT_CMP_PUBLIC(FN, NAME)                                                  \
     Value FN(const Value &a, const Value &b)                                  \
     {                                                                            \
         return dispatchFast(a, b,                                                \
@@ -211,14 +211,14 @@ Value dispatchFast(const Value &a, const Value &b,
             HWY_DYNAMIC_DISPATCH(NAME##SV));                                     \
     }
 
-NK_CMP_PUBLIC(eqFast, EqLoop)
-NK_CMP_PUBLIC(neFast, NeLoop)
-NK_CMP_PUBLIC(ltFast, LtLoop)
-NK_CMP_PUBLIC(gtFast, GtLoop)
-NK_CMP_PUBLIC(leFast, LeLoop)
-NK_CMP_PUBLIC(geFast, GeLoop)
+NUMKIT_CMP_PUBLIC(eqFast, EqLoop)
+NUMKIT_CMP_PUBLIC(neFast, NeLoop)
+NUMKIT_CMP_PUBLIC(ltFast, LtLoop)
+NUMKIT_CMP_PUBLIC(gtFast, GtLoop)
+NUMKIT_CMP_PUBLIC(leFast, LeLoop)
+NUMKIT_CMP_PUBLIC(geFast, GeLoop)
 
-#undef NK_CMP_PUBLIC
+#undef NUMKIT_CMP_PUBLIC
 
 } // namespace numkit::ops
 #endif // HWY_ONCE

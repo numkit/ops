@@ -16,9 +16,9 @@
 // separate TU already prevents the cross-TU merge; this is belt-and-suspenders
 // that keeps the guarantee if whole-program optimization is ever enabled.
 #if defined(_MSC_VER)
-#  define NK_NOINLINE __declspec(noinline)
+#  define NUMKIT_NOINLINE __declspec(noinline)
 #elif defined(__GNUC__) || defined(__clang__)
-#  define NK_NOINLINE __attribute__((noinline))
+#  define NUMKIT_NOINLINE __attribute__((noinline))
 #else
-#  define NK_NOINLINE
+#  define NUMKIT_NOINLINE
 #endif

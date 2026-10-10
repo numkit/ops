@@ -13,7 +13,7 @@
 // auto-vectorizes regardless of how the Highway dispatcher captures its
 // parallel_for worker — sidestepping the [&]-capture-escape that silently
 // descalarized an inline gate loop on MSVC (footgun #1; see
-// bugs/ops/cheap-elementwise-simd-small-n). NK_NOINLINE keeps the body from
+// bugs/ops/cheap-elementwise-simd-small-n). NUMKIT_NOINLINE keeps the body from
 // being merged back into an escaping-lambda context if IPO/LTCG is ever turned
 // on (off today, so the separate TU already suffices).
 //
@@ -30,27 +30,27 @@
 
 namespace numkit::ops {
 
-NK_NOINLINE void fusedAffineScalar(const double *x, double scale, double offset,
+NUMKIT_NOINLINE void fusedAffineScalar(const double *x, double scale, double offset,
                                        double *out, std::size_t n) {
     for (std::size_t i = 0; i < n; ++i) out[i] = scale * x[i] + offset;
 }
 
-NK_NOINLINE void fusedAbsAffineScalar(const double *x, double scale, double offset,
+NUMKIT_NOINLINE void fusedAbsAffineScalar(const double *x, double scale, double offset,
                                           double *out, std::size_t n) {
     for (std::size_t i = 0; i < n; ++i) out[i] = std::fabs(scale * x[i] + offset);
 }
 
-NK_NOINLINE void fusedAbsShiftDivScalar(const double *x, double sub, double div,
+NUMKIT_NOINLINE void fusedAbsShiftDivScalar(const double *x, double sub, double div,
                                             double *out, std::size_t n) {
     for (std::size_t i = 0; i < n; ++i) out[i] = std::fabs((x[i] - sub) / div);
 }
 
-NK_NOINLINE void fusedAbsDiffScalar(const double *x, const double *y,
+NUMKIT_NOINLINE void fusedAbsDiffScalar(const double *x, const double *y,
                                         double *out, std::size_t n) {
     for (std::size_t i = 0; i < n; ++i) out[i] = std::fabs(x[i] - y[i]);
 }
 
-NK_NOINLINE void fusedSqAffineScalar(const double *x, double scale, double offset,
+NUMKIT_NOINLINE void fusedSqAffineScalar(const double *x, double scale, double offset,
                                          double *out, std::size_t n) {
     for (std::size_t i = 0; i < n; ++i) {
         const double v = scale * x[i] + offset;
@@ -58,7 +58,7 @@ NK_NOINLINE void fusedSqAffineScalar(const double *x, double scale, double offse
     }
 }
 
-NK_NOINLINE void fusedSqShiftDivScalar(const double *x, double sub, double div,
+NUMKIT_NOINLINE void fusedSqShiftDivScalar(const double *x, double sub, double div,
                                            double *out, std::size_t n) {
     for (std::size_t i = 0; i < n; ++i) {
         const double v = (x[i] - sub) / div;
@@ -66,7 +66,7 @@ NK_NOINLINE void fusedSqShiftDivScalar(const double *x, double sub, double div,
     }
 }
 
-NK_NOINLINE void fusedSqDiffScalar(const double *x, const double *y,
+NUMKIT_NOINLINE void fusedSqDiffScalar(const double *x, const double *y,
                                        double *out, std::size_t n) {
     for (std::size_t i = 0; i < n; ++i) {
         const double v = x[i] - y[i];

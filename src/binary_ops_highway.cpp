@@ -71,7 +71,7 @@ HWY_INLINE std::size_t alignmentLead(const double *out,
 // in flight, hiding load latency. The remainder (less than 4
 // vectors) goes through a tight 1-vector loop. Same NT-store +
 // alignment rules as the head; FlushStream is dispatcher-level.
-#define NK_BINOP_LOOP(NAME, VEC_OP, SCALAR_OP)                                            \
+#define NUMKIT_BINOP_LOOP(NAME, VEC_OP, SCALAR_OP)                                            \
     void NAME(const double *HWY_RESTRICT a, const double *HWY_RESTRICT b,                 \
               double *HWY_RESTRICT out, std::size_t n)                                    \
     {                                                                                     \
@@ -100,12 +100,12 @@ HWY_INLINE std::size_t alignmentLead(const double *out,
         for (; i < n; ++i) out[i] = a[i] SCALAR_OP b[i];                                  \
     }
 
-NK_BINOP_LOOP(PlusLoop,    Add, +)
-NK_BINOP_LOOP(MinusLoop,   Sub, -)
-NK_BINOP_LOOP(TimesLoop,   Mul, *)
-NK_BINOP_LOOP(RdivideLoop, Div, /)
+NUMKIT_BINOP_LOOP(PlusLoop,    Add, +)
+NUMKIT_BINOP_LOOP(MinusLoop,   Sub, -)
+NUMKIT_BINOP_LOOP(TimesLoop,   Mul, *)
+NUMKIT_BINOP_LOOP(RdivideLoop, Div, /)
 
-#undef NK_BINOP_LOOP
+#undef NUMKIT_BINOP_LOOP
 
 // Matrix multiply (column-major). Three paths:
 //
