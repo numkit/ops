@@ -1,0 +1,9 @@
+build/
+bin/
+lib/
+out/
+.vs/
+*.user
+*.suo
+.cache/
+compile_commands.json
