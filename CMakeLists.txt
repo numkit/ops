@@ -18,16 +18,18 @@ endif()
 include(FetchContent)
 
 # Dependency: numkit/value
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../value/CMakeLists.txt")
-    message(STATUS "Using local numkit/value from ${CMAKE_CURRENT_SOURCE_DIR}/../value")
-    add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../value" _deps/numkit_value)
-else()
-    FetchContent_Declare(
-        numkit_value
-        GIT_REPOSITORY https://github.com/numkit/value.git
-        GIT_TAG main
-    )
-    FetchContent_MakeAvailable(numkit_value)
+if(NOT TARGET numkit_value)
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../value/CMakeLists.txt")
+        message(STATUS "Using local numkit/value from ${CMAKE_CURRENT_SOURCE_DIR}/../value")
+        add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../value" _deps/numkit_value)
+    else()
+        FetchContent_Declare(
+            numkit_value
+            GIT_REPOSITORY https://github.com/numkit/value.git
+            GIT_TAG main
+        )
+        FetchContent_MakeAvailable(numkit_value)
+    endif()
 endif()
 
 # Google Highway (SIMD & cache control)
