@@ -1,0 +1,239 @@
+﻿// toolboxes/linalg/src/pseudo_subspace.cpp
+//
+// pinv / orth / null / subspace â€” implementations and engine adapters.
+// All four are SVD-based; migrated alongside the SVD kernel.
+
+#include <numkit/linalg/pseudo_subspace.hpp>
+#include "linalg_detail.hpp"
+
+#include <numkit/linalg/decompositions.hpp>   // svd_decompose / svd_values
+// Compute-only TU: Value substrate + Error, no engine. The pinv/orth/null/
+// subspace builtins (CallContext wrappers) live in pseudo_subspace_reg.cpp.
+#include <numkit/value/value.hpp>
+#include <numkit/value/error.hpp>
+#include <numkit/value/scratch.hpp>
+#include <numkit/value/span.hpp>
+
+#include <algorithm>
+#include <cmath>
+#include <limits>
+
+namespace numkit::linalg {
+
+namespace {
+
+// Default tolerance for rank-cutoff: max(m,n) * eps(sigma_max).
+double defaultRankTol(std::size_t m, std::size_t n, double sigma_max)
+{
+    return static_cast<double>(std::max(m, n))
+         * sigma_max
+         * std::numeric_limits<double>::epsilon();
+}
+
+} // anonymous namespace
+
+Value pinv(const Value &A, double tol, std::pmr::memory_resource *mr)
+{
+    detail::requireDoubleInput(A, "pinv");
+    detail::require2DMatrix(A, "pinv", "A", "pagepinv");
+    auto [U, S, V] = svd_decompose(A, mr);
+    const std::size_t m = static_cast<std::size_t>(A.dims().dim(0));
+    const std::size_t n = static_cast<std::size_t>(A.dims().dim(1));
+    const std::size_t k = std::min(m, n);
+
+    if (A.isComplex() || U.isComplex() || V.isComplex()) {
+        ScratchArena scratch(mr);
+        ScratchVec<double> Splus(k, 0.0, &scratch);
+        double sigma_max = 0.0;
+        const Complex *sd = S.isComplex() ? S.complexData() : nullptr;
+        const double *sdd = S.isComplex() ? nullptr : S.doubleData();
+        const std::size_t Srows = static_cast<std::size_t>(S.dims().dim(0));
+
+        for (std::size_t i = 0; i < k; ++i) {
+            double sig = sd ? std::abs(sd[i + i * Srows]) : sdd[i + i * Srows];
+            sigma_max = std::max(sigma_max, sig);
+        }
+        const double cutoff = (tol < 0.0) ? defaultRankTol(m, n, sigma_max) : tol;
+
+        for (std::size_t i = 0; i < k; ++i) {
+            double sig = sd ? std::abs(sd[i + i * Srows]) : sdd[i + i * Srows];
+            if (sig > cutoff) Splus[i] = 1.0 / sig;
+        }
+
+        auto out = Value::complexMatrix(n, m, mr);
+        Complex *P = out.complexDataMut();
+        std::fill(P, P + n * m, Complex(0.0, 0.0));
+
+        const Complex *Vd = V.isComplex() ? V.complexData() : nullptr;
+        const double *Vdd = V.isComplex() ? nullptr : V.doubleData();
+        const Complex *Ud = U.isComplex() ? U.complexData() : nullptr;
+        const double *Udd = U.isComplex() ? nullptr : U.doubleData();
+        const std::size_t Vrows = static_cast<std::size_t>(V.dims().dim(0));
+        const std::size_t Urows = static_cast<std::size_t>(U.dims().dim(0));
+
+        for (std::size_t i = 0; i < n; ++i) {
+            for (std::size_t j = 0; j < m; ++j) {
+                Complex s(0.0, 0.0);
+                for (std::size_t a = 0; a < k; ++a) {
+                    if (Splus[a] == 0.0) continue;
+                    Complex v_val = Vd ? Vd[i + a * Vrows] : Complex(Vdd[i + a * Vrows], 0.0);
+                    Complex u_val = Ud ? Ud[j + a * Urows] : Complex(Udd[j + a * Urows], 0.0);
+                    s += v_val * Splus[a] * std::conj(u_val);
+                }
+                P[i + j * n] = s;
+            }
+        }
+        return detail::narrow_if_real(out, mr);
+    }
+
+    const double *S_data = S.doubleData();
+    const std::size_t Srows = static_cast<std::size_t>(S.dims().dim(0));
+
+    double sigma_max = 0.0;
+    for (std::size_t i = 0; i < k; ++i)
+        sigma_max = std::max(sigma_max, S_data[i + i * Srows]);
+    const double cutoff = (tol < 0.0) ? defaultRankTol(m, n, sigma_max) : tol;
+
+    ScratchArena scratch(mr);
+    ScratchVec<double> Splus(n * m, 0.0, &scratch);
+    for (std::size_t i = 0; i < k; ++i) {
+        const double sig = S_data[i + i * Srows];
+        if (sig > cutoff)
+            Splus[i + i * n] = 1.0 / sig;
+    }
+
+    // pinv(A) = V * S^+ * U' -- output is n Ã— m.
+    auto out = Value::matrix(n, m, ValueType::DOUBLE, mr);
+    double *P = out.doubleDataMut();
+    std::fill(P, P + n * m, 0.0);
+
+    const double *Vdata = V.doubleData();
+    const double *Udata = U.doubleData();
+    const std::size_t Vrows = static_cast<std::size_t>(V.dims().dim(0));
+    const std::size_t Urows = static_cast<std::size_t>(U.dims().dim(0));
+
+    for (std::size_t i = 0; i < n; ++i) {
+        for (std::size_t j = 0; j < m; ++j) {
+            double s = 0.0;
+            for (std::size_t a = 0; a < k; ++a) {
+                const double sp = Splus[a + a * n];
+                if (sp == 0.0) continue;
+                s += Vdata[i + a * Vrows] * sp * Udata[j + a * Urows];
+            }
+            P[i + j * n] = s;
+        }
+    }
+    return out;
+}
+
+Value orth(const Value &A, double tol, std::pmr::memory_resource *mr)
+{
+    detail::requireDoubleInput(A, "orth");
+    detail::require2DMatrix(A, "orth", "A", "pagesvd");
+    auto [U, S, V] = svd_decompose(A, mr);
+    const std::size_t m = static_cast<std::size_t>(A.dims().dim(0));
+    const std::size_t n = static_cast<std::size_t>(A.dims().dim(1));
+    const std::size_t k = std::min(m, n);
+
+    const double *S_data = S.doubleData();
+    const std::size_t Srows = static_cast<std::size_t>(S.dims().dim(0));
+    const double sigma_max = (k > 0) ? S_data[0] : 0.0;
+    const double cutoff = (tol < 0.0) ? defaultRankTol(m, n, sigma_max) : tol;
+
+    int r = 0;
+    for (std::size_t i = 0; i < k; ++i)
+        if (S_data[i + i * Srows] > cutoff) ++r;
+
+    auto out = Value::matrix(m, static_cast<std::size_t>(r), ValueType::DOUBLE, mr);
+    if (r == 0) return out;
+    double *Q = out.doubleDataMut();
+    const double *Udata = U.doubleData();
+    const std::size_t Urows = static_cast<std::size_t>(U.dims().dim(0));
+    for (std::size_t j = 0; j < static_cast<std::size_t>(r); ++j)
+        for (std::size_t i = 0; i < m; ++i)
+            Q[i + j * m] = Udata[i + j * Urows];
+    return out;
+}
+
+Value null_basis(const Value &A, double tol, std::pmr::memory_resource *mr)
+{
+    detail::requireDoubleInput(A, "null");
+    detail::require2DMatrix(A, "null");
+    auto [U, S, V] = svd_decompose(A, mr);
+    const std::size_t m = static_cast<std::size_t>(A.dims().dim(0));
+    const std::size_t n = static_cast<std::size_t>(A.dims().dim(1));
+    const std::size_t k = std::min(m, n);
+
+    const double *S_data = S.doubleData();
+    const std::size_t Srows = static_cast<std::size_t>(S.dims().dim(0));
+    const double sigma_max = (k > 0) ? S_data[0] : 0.0;
+    const double cutoff = (tol < 0.0) ? defaultRankTol(m, n, sigma_max) : tol;
+
+    int r = 0;
+    for (std::size_t i = 0; i < k; ++i)
+        if (S_data[i + i * Srows] > cutoff) ++r;
+
+    const std::size_t null_dim = n - static_cast<std::size_t>(r);
+    auto out = Value::matrix(n, null_dim, ValueType::DOUBLE, mr);
+    if (null_dim == 0) return out;
+    double *N = out.doubleDataMut();
+    const double *Vdata = V.doubleData();
+    const std::size_t Vrows = static_cast<std::size_t>(V.dims().dim(0));
+    for (std::size_t j = 0; j < null_dim; ++j) {
+        const std::size_t src = static_cast<std::size_t>(r) + j;
+        for (std::size_t i = 0; i < n; ++i)
+            N[i + j * n] = Vdata[i + src * Vrows];
+    }
+    return out;
+}
+
+Value subspace(const Value &A, const Value &B, std::pmr::memory_resource *mr)
+{
+    detail::requireDoubleInput(A, "subspace", "A", 1);
+    detail::requireDoubleInput(B, "subspace", "B", 2);
+    if (A.dims().ndim() != 2 || B.dims().ndim() != 2)
+        throw Error("subspace: inputs must be 2D matrices",
+                    0, 0, "subspace", "", "numkit:subspace:notMatrix");
+    const std::size_t mA = static_cast<std::size_t>(A.dims().dim(0));
+    const std::size_t mB = static_cast<std::size_t>(B.dims().dim(0));
+    if (mA != mB)
+        throw Error("subspace: inputs must have the same number of rows",
+                    0, 0, "subspace", "", "numkit:subspace:dimMismatch");
+
+    auto Qa = orth(A, -1.0, mr);
+    auto Qb = orth(B, -1.0, mr);
+    const std::size_t na = static_cast<std::size_t>(Qa.dims().dim(1));
+    const std::size_t nb = static_cast<std::size_t>(Qb.dims().dim(1));
+    if (na == 0 || nb == 0) return Value::scalar(0.0, mr);
+
+    // M = Qa' * Qb (na Ã— nb).
+    auto Mout = Value::matrix(na, nb, ValueType::DOUBLE, mr);
+    double *M = Mout.doubleDataMut();
+    const double *Qad = Qa.doubleData();
+    const double *Qbd = Qb.doubleData();
+    for (std::size_t i = 0; i < na; ++i)
+        for (std::size_t j = 0; j < nb; ++j) {
+            double s = 0.0;
+            for (std::size_t k = 0; k < mA; ++k)
+                s += Qad[k + i * mA] * Qbd[k + j * mB];
+            M[i + j * na] = s;
+        }
+
+    // SVD of M -- singular values are cosines of principal angles.
+    auto s = svd_values(Mout, mr);
+    const std::size_t k = s.numel();
+    if (k == 0) return Value::scalar(0.0, mr);
+    const double *sd = s.doubleData();
+    double smin = sd[0];
+    for (std::size_t i = 1; i < k; ++i)
+        if (sd[i] < smin) smin = sd[i];
+    if (smin > 1.0) smin = 1.0;
+    if (smin < 0.0) smin = 0.0;
+    return Value::scalar(std::acos(smin), mr);
+}
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Engine adapters â€” registered in LinalgLibrary::install
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+} // namespace numkit::linalg

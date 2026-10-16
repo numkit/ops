@@ -88,6 +88,18 @@ else()
     )
 endif()
 
+file(GLOB_RECURSE NUMKIT_BUILTIN_COMPUTE_SOURCES
+    "src/builtin/*.cpp"
+    "src/linalg/*.cpp"
+    "src/image_io/*.cpp"
+)
+if(NOT NUMKIT_WITH_SIMD)
+    list(FILTER NUMKIT_BUILTIN_COMPUTE_SOURCES EXCLUDE REGEX ".*_highway\\.cpp$")
+else()
+    list(FILTER NUMKIT_BUILTIN_COMPUTE_SOURCES EXCLUDE REGEX ".*_portable\\.cpp$")
+endif()
+list(APPEND NUMKIT_OPS_SOURCES ${NUMKIT_BUILTIN_COMPUTE_SOURCES})
+
 add_library(numkit_ops STATIC ${NUMKIT_OPS_SOURCES})
 
 add_library(numkit::ops ALIAS numkit_ops)
@@ -95,6 +107,8 @@ add_library(numkit::ops ALIAS numkit_ops)
 target_include_directories(numkit_ops
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/builtin>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/linalg>
         $<INSTALL_INTERFACE:include>
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
