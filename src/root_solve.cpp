@@ -38,7 +38,7 @@ std::pair<double, double> findBracket(FnHandle fn, double x0, std::pmr::memory_r
         if ((fAprev < 0) != (fa < 0)) return {a, aPrev};
     }
     throw Error("fzero: failed to find a bracket containing a sign change near x0", 0, 0, "fzero",
-                "", "nk:fzero:noBracket");
+                "", "numkit:fzero:noBracket");
 }
 
 double brent(FnHandle fn, double a, double b, std::pmr::memory_resource *mr)
@@ -53,7 +53,7 @@ double brent(FnHandle fn, double a, double b, std::pmr::memory_resource *mr)
     if ((fa < 0) == (fb < 0))
         throw Error("fzero: f(a) and f(b) must have opposite signs "
                     "(no sign change in the supplied interval)",
-                    0, 0, "fzero", "", "nk:fzero:noSignChange");
+                    0, 0, "fzero", "", "numkit:fzero:noSignChange");
 
     double c = a, fc = fa, d = b - a, e = d;
     for (int it = 0; it < kMaxIter; ++it) {
@@ -101,7 +101,7 @@ double brent(FnHandle fn, double a, double b, std::pmr::memory_resource *mr)
         fb = evalScalar(fn, b, mr);
     }
     throw Error("fzero: failed to converge within iteration limit", 0, 0, "fzero", "",
-                "nk:fzero:noConverge");
+                "numkit:fzero:noConverge");
 }
 
 double brentMin(FnHandle fn, double a, double b, double tol, std::pmr::memory_resource *mr)

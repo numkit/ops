@@ -100,7 +100,7 @@ public:
         while (bitCount_ < n) {
             if (pos_ >= len_) {
                 throw Error("deflate: unexpected end of stream",
-                            0, 0, "inflateRaw", "", "nk:deflate:truncated");
+                            0, 0, "inflateRaw", "", "numkit:deflate:truncated");
             }
             bitBuf_ |= (static_cast<std::uint32_t>(data_[pos_++]) << bitCount_);
             bitCount_ += 8;
@@ -120,7 +120,7 @@ public:
         if (bitCount_ > 0) alignToByte();
         if (pos_ >= len_) {
             throw Error("deflate: unexpected end of stream",
-                        0, 0, "inflateRaw", "", "nk:deflate:truncated");
+                        0, 0, "inflateRaw", "", "numkit:deflate:truncated");
         }
         return data_[pos_++];
     }
@@ -198,7 +198,7 @@ struct HuffmanTree {
             }
             if (child == 0) {
                 throw Error("deflate: invalid Huffman code in stream",
-                            0, 0, "inflateRaw", "", "nk:deflate:corrupted");
+                            0, 0, "inflateRaw", "", "numkit:deflate:corrupted");
             }
             node = child;
         }
@@ -261,7 +261,7 @@ std::vector<std::uint8_t> inflateRaw(const std::uint8_t *src, std::size_t len,
             std::uint16_t nlen = br.readByte() | (static_cast<std::uint16_t>(br.readByte()) << 8);
             if (static_cast<std::uint16_t>(blen ^ 0xFFFFu) != nlen) {
                 throw Error("deflate: uncompressed block length check failed",
-                            0, 0, "inflateRaw", "", "nk:deflate:corrupted");
+                            0, 0, "inflateRaw", "", "numkit:deflate:corrupted");
             }
             for (std::uint16_t i = 0; i < blen; ++i) {
                 out.push_back(br.readByte());
@@ -542,22 +542,22 @@ std::vector<std::uint8_t> zlibDecompress(const std::uint8_t *src, std::size_t le
                                          std::size_t expectedSizeHint) {
     if (len < 6) {
         throw Error("zlib: stream too short (< 6 bytes)",
-                    0, 0, "zlibDecompress", "", "nk:zlib:truncated");
+                    0, 0, "zlibDecompress", "", "numkit:zlib:truncated");
     }
 
     std::uint8_t cmf = src[0];
     std::uint8_t flg = src[1];
     if (((static_cast<std::uint32_t>(cmf) << 8) + flg) % 31 != 0) {
         throw Error("zlib: invalid header checksum",
-                    0, 0, "zlibDecompress", "", "nk:zlib:badHeader");
+                    0, 0, "zlibDecompress", "", "numkit:zlib:badHeader");
     }
     if ((cmf & 0x0F) != 8) {
         throw Error("zlib: unsupported compression method (only Deflate supported)",
-                    0, 0, "zlibDecompress", "", "nk:zlib:badMethod");
+                    0, 0, "zlibDecompress", "", "numkit:zlib:badMethod");
     }
     if ((flg & 0x20) != 0) {
         throw Error("zlib: preset dictionaries not supported",
-                    0, 0, "zlibDecompress", "", "nk:zlib:fdict");
+                    0, 0, "zlibDecompress", "", "numkit:zlib:fdict");
     }
 
     std::size_t deflateLen = len - 6;
@@ -571,7 +571,7 @@ std::vector<std::uint8_t> zlibDecompress(const std::uint8_t *src, std::size_t le
     std::uint32_t actualAdler = adler32(uncompressed.data(), uncompressed.size());
     if (expectedAdler != actualAdler) {
         throw Error("zlib: Adler-32 checksum mismatch",
-                    0, 0, "zlibDecompress", "", "nk:zlib:adlerMismatch");
+                    0, 0, "zlibDecompress", "", "numkit:zlib:adlerMismatch");
     }
 
     return uncompressed;
