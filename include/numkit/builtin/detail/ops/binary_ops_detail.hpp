@@ -54,6 +54,20 @@ inline numkit::Value coerceLogicalToDouble(const numkit::Value &v,
     return out;
 }
 
+inline numkit::Value coerceCharToDouble(const numkit::Value &v,
+                                        std::pmr::memory_resource *mr)
+{
+    using namespace numkit;
+    if (v.type() != ValueType::CHAR) return v;
+    Value out = numkit::createLike(v, ValueType::DOUBLE, mr);
+    const char *src = v.charData();
+    double *dst = out.doubleDataMut();
+    const size_t n = v.numel();
+    for (size_t i = 0; i < n; ++i)
+        dst[i] = static_cast<double>(static_cast<unsigned char>(src[i]));
+    return out;
+}
+
 void copyColumnMajorDouble(const Value &v, double *dst)
 {
     const std::size_t n = v.numel();
@@ -99,6 +113,67 @@ inline void checkSolveOperandClass(const Value &v, const char *opname)
                 std::string("numkit:") + opname + ":inputType");
 }
 
+// Reference engine behavior for an exactly singular square solve A \ B:
+// partial-pivoting LU continues past zero pivots (leaving U(j,j) == 0)
+// and backward substitution divides by U(j,j) under IEEE-754 arithmetic,
+// yielding an Inf/NaN-filled solution instead of throwing.
+template <typename T>
+void singularSquareSolve(T *A_lu, std::size_t n, T *B_work, std::size_t nrhs, T *X)
+{
+    for (std::size_t j = 0; j < n; ++j) {
+        std::size_t piv = j;
+        double maxAbs = std::abs(A_lu[j + j * n]);
+        for (std::size_t i = j + 1; i < n; ++i) {
+            double v = std::abs(A_lu[i + j * n]);
+            if (v > maxAbs) {
+                maxAbs = v;
+                piv = i;
+            }
+        }
+        if (piv != j) {
+            for (std::size_t c = 0; c < n; ++c)
+                std::swap(A_lu[j + c * n], A_lu[piv + c * n]);
+            for (std::size_t r = 0; r < nrhs; ++r)
+                std::swap(B_work[j + r * n], B_work[piv + r * n]);
+        }
+        const T ajj = A_lu[j + j * n];
+        if (ajj != T(0)) {
+            for (std::size_t i = j + 1; i < n; ++i) {
+                A_lu[i + j * n] /= ajj;
+                const T lij = A_lu[i + j * n];
+                if (lij != T(0)) {
+                    for (std::size_t c = j + 1; c < n; ++c)
+                        A_lu[i + c * n] -= lij * A_lu[j + c * n];
+                }
+            }
+        }
+    }
+    for (std::size_t r = 0; r < nrhs; ++r) {
+        T *b_col = B_work + r * n;
+        for (std::size_t j = 0; j < n; ++j) {
+            const T bj = b_col[j];
+            if (bj != T(0)) {
+                for (std::size_t i = j + 1; i < n; ++i)
+                    b_col[i] -= A_lu[i + j * n] * bj;
+            }
+        }
+        T *x_col = X + r * n;
+        for (std::size_t i = 0; i < n; ++i)
+            x_col[i] = b_col[i];
+        for (std::size_t j = n; j-- > 0;) {
+            x_col[j] /= A_lu[j + j * n];
+            const T xj = x_col[j];
+            if (xj != T(0)) {
+                for (std::size_t i = 0; i < j; ++i) {
+                    const T uij = A_lu[i + j * n];
+                    if (uij != T(0))
+                        x_col[i] -= uij * xj;
+                }
+            }
+        }
+    }
+}
+
 Value matrixSolve(const Value &A, const Value &B, const char *opname, std::pmr::memory_resource *mr)
 {
     // Integer-class matrices reach here only when both operands are
@@ -138,21 +213,24 @@ Value matrixSolve(const Value &A, const Value &B, const char *opname, std::pmr::
         if (A.isComplex()) {
             std::copy(A.complexData(), A.complexData() + m * n, A_buf.begin());
         } else {
-            const double *ad = A.doubleData();
-            for (std::size_t i = 0; i < m * n; ++i) A_buf[i] = Complex(ad[i], 0.0);
+            for (std::size_t i = 0; i < m * n; ++i) A_buf[i] = Complex(A.elemAsDouble(i), 0.0);
         }
         if (B.isComplex()) {
             std::copy(B.complexData(), B.complexData() + m * k, B_buf.begin());
         } else {
-            const double *bd = B.doubleData();
-            for (std::size_t i = 0; i < m * k; ++i) B_buf[i] = Complex(bd[i], 0.0);
+            for (std::size_t i = 0; i < m * k; ++i) B_buf[i] = Complex(B.elemAsDouble(i), 0.0);
         }
         Value X = Value::complexMatrix(n, k, mr);
-        if (!numkit::ops::la_solve(A_buf.data(), m, n, B_buf.data(), k, X.complexDataMut(), &arena))
+        if (!numkit::ops::la_solve(A_buf.data(), m, n, B_buf.data(), k, X.complexDataMut(), &arena)) {
+            if (m == n) {
+                singularSquareSolve(A_buf.data(), n, B_buf.data(), k, X.complexDataMut());
+                return narrowIfReal(X, mr);
+            }
             throw Error(std::string(opname)
                         + ": matrix is singular or rank-deficient",
                         0, 0, opname, "",
                         std::string("numkit:") + opname + ":singular");
+        }
         return narrowIfReal(X, mr);
     }
 
@@ -163,11 +241,16 @@ Value matrixSolve(const Value &A, const Value &B, const char *opname, std::pmr::
 
     Value X = Value::matrix(n, k, ValueType::DOUBLE, mr);
     double *Xd = X.doubleDataMut();
-    if (!numkit::ops::la_solve(A_buf.data(), m, n, B_buf.data(), k, Xd, &arena))
+    if (!numkit::ops::la_solve(A_buf.data(), m, n, B_buf.data(), k, Xd, &arena)) {
+        if (m == n) {
+            singularSquareSolve(A_buf.data(), n, B_buf.data(), k, Xd);
+            return X;
+        }
         throw Error(std::string(opname)
                     + ": matrix is singular or rank-deficient",
                     0, 0, opname, "",
                     std::string("numkit:") + opname + ":singular");
+    }
     return X;
 }
 

@@ -1,4 +1,4 @@
-﻿// toolboxes/linalg/src/eig.cpp
+// toolboxes/linalg/src/eig.cpp
 //
 // Eigenvalue family â€” implementations and engine adapters.
 // Migrated 2026-05-25 from toolboxes/builtin/src/language/arrays/matrix.cpp.
@@ -279,19 +279,59 @@ eig_general_VD(const Value &A, std::pmr::memory_resource *mr)
         }
     }
 
-    // MATLAB semantics: a real eigenproblem with a real spectrum returns
-    // REAL V/D. The complex-Schur pipeline leaves ~1e-16 imaginary dust;
-    // narrow to double when the spectrum and the (unit-norm) vectors are
-    // real to tolerance (bugs: linalg/eig-vector-selection-ahp).
-    {
+    // Reference semantics: for a real input matrix A, any individual real
+    // eigenvalue has exact zero imaginary part and a real eigenvector (the
+    // complex-Schur pipeline multiplies each eigenvector by an arbitrary
+    // unit complex phase and leaves ~1e-16 imaginary dust). When the whole
+    // spectrum is real, narrow V and D to double; when mixed real/complex,
+    // real columns of V and D have exact 0.0 imaginary part so slicing
+    // V(:, k) narrows to real double (bugs: linalg/eig-real-spectrum-complex-typing).
+    if (!A.isComplex()) {
         double aMax = 0.0;
         for (std::size_t i = 0; i < n * n; ++i)
             aMax = std::max(aMax, std::abs(A_c.complexData()[i].real()));
-        const double tol = static_cast<double>(n) *
+        const double tol = 64.0 * static_cast<double>(n) *
                            std::numeric_limits<double>::epsilon() * (1.0 + aMax);
         bool real_spectrum = true;
-        for (std::size_t k = 0; k < n && real_spectrum; ++k)
-            real_spectrum = std::abs(Dd[k + k * n].imag()) <= tol;
+        for (std::size_t k = 0; k < n; ++k) {
+            if (std::abs(Dd[k + k * n].imag()) <= tol) {
+                Dd[k + k * n] = Complex(Dd[k + k * n].real(), 0.0);
+                // Find largest-magnitude component of V(:, k) and rotate out its phase.
+                std::size_t iMax = 0;
+                double maxAbs = 0.0;
+                for (std::size_t i = 0; i < n; ++i) {
+                    double a = std::abs(Vd[i + k * n]);
+                    if (a > maxAbs) {
+                        maxAbs = a;
+                        iMax = i;
+                    }
+                }
+                if (maxAbs > 0.0) {
+                    Complex phase = std::conj(Vd[iMax + k * n]) / maxAbs;
+                    double colImax = 0.0;
+                    for (std::size_t i = 0; i < n; ++i) {
+                        Complex rotated = Vd[i + k * n] * phase;
+                        Vd[i + k * n] = rotated;
+                        colImax = std::max(colImax, std::abs(rotated.imag()));
+                    }
+                    if (colImax <= 1e3 * tol) {
+                        double rNormSq = 0.0;
+                        for (std::size_t i = 0; i < n; ++i) {
+                            double re = Vd[i + k * n].real();
+                            Vd[i + k * n] = Complex(re, 0.0);
+                            rNormSq += re * re;
+                        }
+                        double rNorm = std::sqrt(rNormSq);
+                        if (rNorm > 0.0) {
+                            for (std::size_t i = 0; i < n; ++i)
+                                Vd[i + k * n] = Complex(Vd[i + k * n].real() / rNorm, 0.0);
+                        }
+                    }
+                }
+            } else {
+                real_spectrum = false;
+            }
+        }
         double vImax = 0.0;
         for (std::size_t i = 0; i < n * n; ++i)
             vImax = std::max(vImax, std::abs(Vd[i].imag()));

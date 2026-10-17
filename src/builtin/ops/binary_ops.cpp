@@ -75,6 +75,8 @@ Value plus(const Value &a, const Value &b, std::pmr::memory_resource *mr)
         return Value::stringScalar(a.toString() + std::to_string(b.toScalar()), p);
     if (a.isNumeric() && b.isString())
         return Value::stringScalar(std::to_string(a.toScalar()) + b.toString(), p);
+    if (a.type() == ValueType::CHAR || b.type() == ValueType::CHAR)
+        return plus(coerceCharToDouble(a, p), coerceCharToDouble(b, p), p);
     {
         auto r = dispatchIntegerBinaryOp(a, b, [](auto x, auto y) { return saturateAdd(x, y); }, p);
         if (!r.isUnset()) return r;
@@ -89,6 +91,8 @@ Value minus(const Value &a, const Value &b, std::pmr::memory_resource *mr)
         return emptyArithResult(a, b, p);
     if (a.type() == ValueType::LOGICAL || b.type() == ValueType::LOGICAL)
         return minus(coerceLogicalToDouble(a, p), coerceLogicalToDouble(b, p), p);
+    if (a.type() == ValueType::CHAR || b.type() == ValueType::CHAR)
+        return minus(coerceCharToDouble(a, p), coerceCharToDouble(b, p), p);
     if (a.isComplex() || b.isComplex())
         return elementwiseComplex(a, b, std::minus<Complex>{}, p);
     if (a.type() == ValueType::DOUBLE && b.type() == ValueType::DOUBLE) {
@@ -113,6 +117,8 @@ Value times(const Value &a, const Value &b, std::pmr::memory_resource *mr)
         return emptyArithResult(a, b, p);
     if (a.type() == ValueType::LOGICAL || b.type() == ValueType::LOGICAL)
         return times(coerceLogicalToDouble(a, p), coerceLogicalToDouble(b, p), p);
+    if (a.type() == ValueType::CHAR || b.type() == ValueType::CHAR)
+        return times(coerceCharToDouble(a, p), coerceCharToDouble(b, p), p);
     if (a.isComplex() || b.isComplex())
         return elementwiseComplex(a, b, std::multiplies<Complex>{}, p);
     if (a.type() == ValueType::DOUBLE && b.type() == ValueType::DOUBLE) {
@@ -136,6 +142,8 @@ Value mtimes(const Value &a, const Value &b, std::pmr::memory_resource *mr)
 
     if (a.type() == ValueType::LOGICAL || b.type() == ValueType::LOGICAL)
         return mtimes(coerceLogicalToDouble(a, p), coerceLogicalToDouble(b, p), p);
+    if (a.type() == ValueType::CHAR || b.type() == ValueType::CHAR)
+        return mtimes(coerceCharToDouble(a, p), coerceCharToDouble(b, p), p);
 
     if ((a.dims().is3D() || b.dims().is3D()) && !a.isScalar() && !b.isScalar())
         throw Error("MTIMES is not supported for N-D arrays",
@@ -186,6 +194,8 @@ Value rdivide(const Value &a, const Value &b, std::pmr::memory_resource *mr)
         return emptyArithResult(a, b, p);
     if (a.type() == ValueType::LOGICAL || b.type() == ValueType::LOGICAL)
         return rdivide(coerceLogicalToDouble(a, p), coerceLogicalToDouble(b, p), p);
+    if (a.type() == ValueType::CHAR || b.type() == ValueType::CHAR)
+        return rdivide(coerceCharToDouble(a, p), coerceCharToDouble(b, p), p);
     if (a.isComplex() || b.isComplex())
         return elementwiseComplex(a, b, std::divides<Complex>{}, p);
     if (a.type() == ValueType::DOUBLE && b.type() == ValueType::DOUBLE) {
@@ -221,6 +231,8 @@ Value mrdivide(const Value &a, const Value &b, std::pmr::memory_resource *mr)
     checkSolveOperandClass(b, "mrdivide");
     if (a.type() == ValueType::LOGICAL || b.type() == ValueType::LOGICAL)
         return mrdivide(coerceLogicalToDouble(a, p), coerceLogicalToDouble(b, p), p);
+    if (a.type() == ValueType::CHAR || b.type() == ValueType::CHAR)
+        return mrdivide(coerceCharToDouble(a, p), coerceCharToDouble(b, p), p);
     // Integer operands divide elementwise only with scalar expansion;
     // matrix/matrix integer division is matrix solve, which the reference
     // rejects as a separate integer-linear-algebra class — fall through
@@ -258,6 +270,8 @@ Value mldivide(const Value &a, const Value &b, std::pmr::memory_resource *mr)
     checkSolveOperandClass(b, "mldivide");
     if (a.type() == ValueType::LOGICAL || b.type() == ValueType::LOGICAL)
         return mldivide(coerceLogicalToDouble(a, p), coerceLogicalToDouble(b, p), p);
+    if (a.type() == ValueType::CHAR || b.type() == ValueType::CHAR)
+        return mldivide(coerceCharToDouble(a, p), coerceCharToDouble(b, p), p);
     if (a.isScalar() && b.isScalar()) {
         if (a.isComplex() || b.isComplex()) {
             Complex ca = a.isComplex() ? a.complexData()[0] : Complex(a.doubleData()[0], 0.0);
@@ -312,6 +326,8 @@ Value power(const Value &a, const Value &b, std::pmr::memory_resource *mr)
         return emptyArithResult(a, b, p);
     if (a.type() == ValueType::LOGICAL || b.type() == ValueType::LOGICAL)
         return power(coerceLogicalToDouble(a, p), coerceLogicalToDouble(b, p), p);
+    if (a.type() == ValueType::CHAR || b.type() == ValueType::CHAR)
+        return power(coerceCharToDouble(a, p), coerceCharToDouble(b, p), p);
     if (a.isComplex() || b.isComplex()) {
         auto [ca, cb] = promoteToComplex(a, b, p);
         return Value::complexScalar(std::pow(ca.toComplex(), cb.toComplex()), p);
@@ -352,6 +368,8 @@ Value elementPower(const Value &a, const Value &b, std::pmr::memory_resource *mr
         return emptyArithResult(a, b, p);
     if (a.type() == ValueType::LOGICAL || b.type() == ValueType::LOGICAL)
         return elementPower(coerceLogicalToDouble(a, p), coerceLogicalToDouble(b, p), p);
+    if (a.type() == ValueType::CHAR || b.type() == ValueType::CHAR)
+        return elementPower(coerceCharToDouble(a, p), coerceCharToDouble(b, p), p);
     if (a.isComplex() || b.isComplex()) {
         return elementwiseComplex(
             a, b, [](const Complex &x, const Complex &y) { return std::pow(x, y); }, p);
