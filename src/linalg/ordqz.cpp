@@ -1,4 +1,4 @@
-﻿// toolboxes/linalg/src/ordqz.cpp
+// toolboxes/linalg/src/ordqz.cpp
 //
 // ordqz â€” Reorder Generalized Schur decomposition Q * AA * Z = AA, Q * BB * Z = BB.
 
@@ -132,11 +132,14 @@ std::tuple<Value, Value, Value, Value> ordqz(const Value &AA, const Value &BB,
     if (select.numel() != n)
         throw Error("ordqz: select must have length n", 0, 0, "ordqz", "", "numkit:ordqz:badSelect");
 
+    const bool wantSingle = AA.type() == ValueType::SINGLE || BB.type() == ValueType::SINGLE
+        || Q.type() == ValueType::SINGLE || Z.type() == ValueType::SINGLE;
+    const ValueType rtype = wantSingle ? ValueType::SINGLE : ValueType::DOUBLE;
     if (n == 0) {
-        return {Value::matrix(0, 0, ValueType::DOUBLE, mr),
-                Value::matrix(0, 0, ValueType::DOUBLE, mr),
-                Value::matrix(0, 0, ValueType::DOUBLE, mr),
-                Value::matrix(0, 0, ValueType::DOUBLE, mr)};
+        return {Value::matrix(0, 0, rtype, mr),
+                Value::matrix(0, 0, rtype, mr),
+                Value::matrix(0, 0, rtype, mr),
+                Value::matrix(0, 0, rtype, mr)};
     }
 
     Value AAout = Value::complexMatrix(n, n, mr);
@@ -153,22 +156,22 @@ std::tuple<Value, Value, Value, Value> ordqz(const Value &AA, const Value &BB,
     if (AA.isComplex()) {
         std::copy(AA.complexData(), AA.complexData() + n * n, aad);
     } else {
-        for (std::size_t i = 0; i < n * n; ++i) aad[i] = Complex(AA.doubleData()[i], 0.0);
+        for (std::size_t i = 0; i < n * n; ++i) aad[i] = Complex(AA.elemAsDouble(i), 0.0);
     }
     if (BB.isComplex()) {
         std::copy(BB.complexData(), BB.complexData() + n * n, bbd);
     } else {
-        for (std::size_t i = 0; i < n * n; ++i) bbd[i] = Complex(BB.doubleData()[i], 0.0);
+        for (std::size_t i = 0; i < n * n; ++i) bbd[i] = Complex(BB.elemAsDouble(i), 0.0);
     }
     if (Q.isComplex()) {
         std::copy(Q.complexData(), Q.complexData() + n * n, qd);
     } else {
-        for (std::size_t i = 0; i < n * n; ++i) qd[i] = Complex(Q.doubleData()[i], 0.0);
+        for (std::size_t i = 0; i < n * n; ++i) qd[i] = Complex(Q.elemAsDouble(i), 0.0);
     }
     if (Z.isComplex()) {
         std::copy(Z.complexData(), Z.complexData() + n * n, zd);
     } else {
-        for (std::size_t i = 0; i < n * n; ++i) zd[i] = Complex(Z.doubleData()[i], 0.0);
+        for (std::size_t i = 0; i < n * n; ++i) zd[i] = Complex(Z.elemAsDouble(i), 0.0);
     }
 
     std::vector<uint8_t> sel(n, 0);
@@ -188,10 +191,10 @@ std::tuple<Value, Value, Value, Value> ordqz(const Value &AA, const Value &BB,
         }
     }
 
-    return {detail::narrow_if_real(AAout, mr),
-            detail::narrow_if_real(BBout, mr),
-            detail::narrow_if_real(Qout, mr),
-            detail::narrow_if_real(Zout, mr)};
+    return {detail::narrowDoubleToSingleIf(detail::narrow_if_real(AAout, mr), wantSingle, mr),
+            detail::narrowDoubleToSingleIf(detail::narrow_if_real(BBout, mr), wantSingle, mr),
+            detail::narrowDoubleToSingleIf(detail::narrow_if_real(Qout, mr), wantSingle, mr),
+            detail::narrowDoubleToSingleIf(detail::narrow_if_real(Zout, mr), wantSingle, mr)};
 }
 
 std::tuple<Value, Value, Value, Value> ordqz(const Value &AA, const Value &BB,
@@ -204,8 +207,8 @@ std::tuple<Value, Value, Value, Value> ordqz(const Value &AA, const Value &BB,
     std::uint8_t *sd = select.logicalDataMut();
 
     for (std::size_t i = 0; i < n; ++i) {
-        Complex a = AA.isComplex() ? AA.complexData()[i + i * n] : Complex(AA.doubleData()[i + i * n], 0.0);
-        Complex b = BB.isComplex() ? BB.complexData()[i + i * n] : Complex(BB.doubleData()[i + i * n], 0.0);
+        Complex a = AA.isComplex() ? AA.complexData()[i + i * n] : Complex(AA.elemAsDouble(i + i * n), 0.0);
+        Complex b = BB.isComplex() ? BB.complexData()[i + i * n] : Complex(BB.elemAsDouble(i + i * n), 0.0);
         Complex lambda = (b != Complex(0.0, 0.0)) ? (a / b) : Complex(1e15, 0.0);
 
         if (domain == "lhp") {

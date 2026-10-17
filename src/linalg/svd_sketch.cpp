@@ -1,4 +1,4 @@
-﻿// toolboxes/linalg/src/svd_sketch.cpp
+// toolboxes/linalg/src/svd_sketch.cpp
 //
 // svdsketch & svdappend â€” Randomized low-rank SVD and Incremental SVD.
 
@@ -75,11 +75,15 @@ std::tuple<Value, Value, Value> svdsketch(const Value &A, double tol, std::pmr::
     const std::size_t n = static_cast<std::size_t>(A.dims().dim(1));
     const std::size_t min_mn = std::min(m, n);
 
+    const bool wantSingle = A.type() == ValueType::SINGLE;
+    const ValueType rtype = wantSingle ? ValueType::SINGLE : ValueType::DOUBLE;
     if (min_mn == 0) {
-        return {Value::matrix(m, 0, ValueType::DOUBLE, mr),
-                Value::matrix(0, 0, ValueType::DOUBLE, mr),
-                Value::matrix(n, 0, ValueType::DOUBLE, mr)};
+        return {Value::matrix(m, 0, rtype, mr),
+                Value::matrix(0, 0, rtype, mr),
+                Value::matrix(n, 0, rtype, mr)};
     }
+
+    Value Aw = detail::widenSingleToDouble(A, mr);
 
     // Step 1: Draw Gaussian random test matrix Omega (n x l)
     std::size_t l = std::min(min_mn, static_cast<std::size_t>(15));
@@ -91,7 +95,7 @@ std::tuple<Value, Value, Value> svdsketch(const Value &A, double tol, std::pmr::
     for (std::size_t i = 0; i < n * l; ++i) od[i] = dist(gen);
 
     // Step 2: Y = A * Omega (m x l)
-    Value Y = matMulReal(A, Omega, mr);
+    Value Y = matMulReal(Aw, Omega, mr);
 
     // Step 3: QR of Y: Q * R = Y => Q (m x l)
     auto [Q_full, R_y] = qr_decompose(Y, mr);
@@ -106,7 +110,7 @@ std::tuple<Value, Value, Value> svdsketch(const Value &A, double tol, std::pmr::
 
     // Step 4: B = Q^T * A (l x n)
     Value Qt = matTranspose(Q, mr);
-    Value B = matMulReal(Qt, A, mr);
+    Value B = matMulReal(Qt, Aw, mr);
 
     // Step 5: SVD of B: B = U_b * S * V^T
     auto [Ub, S, V] = svd_decompose(B, mr);
@@ -146,9 +150,9 @@ std::tuple<Value, Value, Value> svdsketch(const Value &A, double tol, std::pmr::
         srd[j + j * rank] = sd[j + j * l];
     }
 
-    return {detail::narrow_if_real(Ur, mr),
-            detail::narrow_if_real(Sr, mr),
-            detail::narrow_if_real(Vr, mr)};
+    return {detail::narrowDoubleToSingleIf(detail::narrow_if_real(Ur, mr), wantSingle, mr),
+            detail::narrowDoubleToSingleIf(detail::narrow_if_real(Sr, mr), wantSingle, mr),
+            detail::narrowDoubleToSingleIf(detail::narrow_if_real(Vr, mr), wantSingle, mr)};
 }
 
 std::tuple<Value, Value, Value> svdappend(const Value &U, const Value &S, const Value &V,
@@ -165,16 +169,23 @@ std::tuple<Value, Value, Value> svdappend(const Value &U, const Value &S, const 
     if (static_cast<std::size_t>(A_new.dims().dim(0)) != m)
         throw Error("svdappend: A_new must have the same number of rows as U", 0, 0, "svdappend", "", "numkit:svdappend:badDims");
 
+    const bool wantSingle = U.type() == ValueType::SINGLE || S.type() == ValueType::SINGLE
+        || V.type() == ValueType::SINGLE || A_new.type() == ValueType::SINGLE;
+    Value Uw = detail::widenSingleToDouble(U, mr);
+    Value Sw = detail::widenSingleToDouble(S, mr);
+    Value Vw = detail::widenSingleToDouble(V, mr);
+    Value A_neww = detail::widenSingleToDouble(A_new, mr);
+
     // Brand algorithm:
     // m_k = U^T * A_new  (k x p)
-    Value Ut = matTranspose(U, mr);
-    Value m_k = matMulReal(Ut, A_new, mr);
+    Value Ut = matTranspose(Uw, mr);
+    Value m_k = matMulReal(Ut, A_neww, mr);
 
     // P = A_new - U * m_k  (m x p)
-    Value Umk = matMulReal(U, m_k, mr);
+    Value Umk = matMulReal(Uw, m_k, mr);
     Value P = Value::matrix(m, p, ValueType::DOUBLE, mr);
     double *pd = P.doubleDataMut();
-    const double *anewd = A_new.doubleData();
+    const double *anewd = A_neww.doubleData();
     const double *umkd = Umk.doubleData();
     for (std::size_t i = 0; i < m * p; ++i) pd[i] = anewd[i] - umkd[i];
 
@@ -201,7 +212,7 @@ std::tuple<Value, Value, Value> svdappend(const Value &U, const Value &S, const 
     double *kd = K.doubleDataMut();
     std::fill(kd, kd + dim * dim, 0.0);
 
-    const double *sd = S.doubleData();
+    const double *sd = Sw.doubleData();
     const double *mkd = m_k.doubleData();
 
     // S block (k x k)
@@ -229,7 +240,7 @@ std::tuple<Value, Value, Value> svdappend(const Value &U, const Value &S, const 
     // Form U_large = [U Qp] (m x (k+p))
     Value U_large = Value::matrix(m, dim, ValueType::DOUBLE, mr);
     double *uld = U_large.doubleDataMut();
-    const double *ud = U.doubleData();
+    const double *ud = Uw.doubleData();
     for (std::size_t j = 0; j < k; ++j) {
         for (std::size_t i = 0; i < m; ++i) uld[i + j * m] = ud[i + j * m];
     }
@@ -243,7 +254,7 @@ std::tuple<Value, Value, Value> svdappend(const Value &U, const Value &S, const 
     double *vld = V_large.doubleDataMut();
     std::fill(vld, vld + n_new * dim, 0.0);
 
-    const double *vd = V.doubleData();
+    const double *vd = Vw.doubleData();
     for (std::size_t j = 0; j < k; ++j) {
         for (std::size_t i = 0; i < n; ++i) vld[i + j * n_new] = vd[i + j * n];
     }
@@ -257,9 +268,9 @@ std::tuple<Value, Value, Value> svdappend(const Value &U, const Value &S, const 
     // Final V_new = V_large * Vk
     Value V_new = matMulReal(V_large, Vk, mr);
 
-    return {detail::narrow_if_real(U_new, mr),
-            detail::narrow_if_real(S_new, mr),
-            detail::narrow_if_real(V_new, mr)};
+    return {detail::narrowDoubleToSingleIf(detail::narrow_if_real(U_new, mr), wantSingle, mr),
+            detail::narrowDoubleToSingleIf(detail::narrow_if_real(S_new, mr), wantSingle, mr),
+            detail::narrowDoubleToSingleIf(detail::narrow_if_real(V_new, mr), wantSingle, mr)};
 }
 
 } // namespace numkit::linalg

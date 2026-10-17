@@ -144,18 +144,21 @@ ldl(const Value &A, bool upper_form, bool p_as_vector, std::pmr::memory_resource
         throw Error("ldl: matrix must be square",
                     0, 0, "ldl", "", "numkit:ldl:NotSquare");
 
+    const bool wantSingle = (A.type() == ValueType::SINGLE);
     if (n == 0) {
         Value L0 = Value::matrix(0, 0, A.type(), mr);
         Value D0 = Value::matrix(0, 0, A.type(), mr);
         Value P0 = p_as_vector ? Value::matrix(1, 0, ValueType::DOUBLE, mr)
-                                : Value::matrix(0, 0, ValueType::DOUBLE, mr);
+                               : Value::matrix(0, 0, wantSingle ? ValueType::SINGLE : ValueType::DOUBLE, mr);
         return {L0, D0, P0};
     }
 
+    const Value Aw = detail::widenSingleToDouble(A, mr);
+
     ScratchArena scratch(mr);
-    if (A.isComplex()) {
+    if (Aw.isComplex()) {
         ScratchVec<Complex> A_herm(n * n, &scratch);
-        std::copy(A.complexData(), A.complexData() + n * n, A_herm.begin());
+        std::copy(Aw.complexData(), Aw.complexData() + n * n, A_herm.begin());
         hermitianise(A_herm.data(), n);
 
         ScratchVec<Complex> L_buf(n * n, &scratch);
@@ -193,7 +196,7 @@ ldl(const Value &A, bool upper_form, bool p_as_vector, std::pmr::memory_resource
     }
 
     ScratchVec<double> A_sym(n * n, &scratch);
-    std::copy(A.doubleData(), A.doubleData() + n * n, A_sym.begin());
+    std::copy(Aw.doubleData(), Aw.doubleData() + n * n, A_sym.begin());
     symmetrise(A_sym.data(), n);
 
     ScratchVec<double> L_buf(n * n, &scratch);
@@ -226,8 +229,11 @@ ldl(const Value &A, bool upper_form, bool p_as_vector, std::pmr::memory_resource
         double *pd = P.doubleDataMut();
         std::fill(pd, pd + n * n, 0.0);
         for (size_t k = 0; k < n; ++k) pd[k + k * n] = 1.0;
+        P = detail::narrowDoubleToSingleIf(P, wantSingle, mr);
     }
-    return {L, D, P};
+    return {detail::narrowDoubleToSingleIf(L, wantSingle, mr),
+            detail::narrowDoubleToSingleIf(D, wantSingle, mr),
+            P};
 }
 
 } // namespace numkit::linalg

@@ -53,17 +53,14 @@ Value poly_of_matrix(const Value &A, std::pmr::memory_resource *mr)
     if (m != n)
         throw Error("poly: matrix must be square (use poly(roots) for vector input)",
                     0, 0, "poly", "", "numkit:poly:notSquare");
+    const bool wantSingle = (A.type() == ValueType::SINGLE);
     if (n == 0) {
         auto out = Value::matrix(1, 1, ValueType::DOUBLE, mr);
         out.doubleDataMut()[0] = 1.0;
-        return out;
+        return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
     }
 
-    // Souriau-Faddeev-LeVerrier: char poly p(Î») = Î»^n + c[1]*Î»^{n-1} + ... + c[n].
-    //   M_0 = 0  ;  c[0] = 1
-    //   for k = 1..n:
-    //     M_k = A * M_{k-1} + c[k-1] * A
-    //     c[k] = -trace(M_k) / k
+    Value Aw = detail::widenSingleToDouble(A, mr);
 
     ScratchArena scratch(mr);
     ScratchVec<double> M(n * n, 0.0, &scratch);
@@ -73,7 +70,7 @@ Value poly_of_matrix(const Value &A, std::pmr::memory_resource *mr)
     double *c = out.doubleDataMut();
     c[0] = 1.0;
 
-    const double *Adata = A.doubleData();
+    const double *Adata = Aw.doubleData();
 
     for (std::size_t k = 1; k <= n; ++k) {
         // Mnext = A * M
@@ -97,7 +94,7 @@ Value poly_of_matrix(const Value &A, std::pmr::memory_resource *mr)
 
         std::swap(M, Mnext);
     }
-    return out;
+    return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
 
 Value eig_general_values(const Value &A, std::pmr::memory_resource *mr)
@@ -112,7 +109,10 @@ Value eig_general_values(const Value &A, std::pmr::memory_resource *mr)
                     0, 0, "eig", "", "numkit:eig:notSquare");
     if (n == 0) return Value::matrix(0, 1, A.type(), mr);
 
-    auto [U, T] = schur_general(A, mr);
+    const bool wantSingle = (A.type() == ValueType::SINGLE);
+    Value Aw = detail::widenSingleToDouble(A, mr);
+
+    auto [U, T] = schur_general(Aw, mr);
     auto out = Value::complexMatrix(n, 1, mr);
     Complex *o = out.complexDataMut();
 
@@ -142,7 +142,7 @@ Value eig_general_values(const Value &A, std::pmr::memory_resource *mr)
             }
         }
     }
-    return detail::narrow_if_real(out, mr);
+    return detail::narrowDoubleToSingleIf(detail::narrow_if_real(out, mr), wantSingle, mr);
 }
 
 std::tuple<Value, Value>
@@ -162,8 +162,11 @@ eig_general_VD(const Value &A, std::pmr::memory_resource *mr)
             Value::matrix(0, 0, A.type(), mr));
     }
 
-    if (!A.isComplex()) {
-        auto eig_vals = eig_general_values(A, mr);
+    const bool wantSingle = (A.type() == ValueType::SINGLE);
+    Value Aw = detail::widenSingleToDouble(A, mr);
+
+    if (!Aw.isComplex()) {
+        auto eig_vals = eig_general_values(Aw, mr);
         bool has_complex = false;
         if (eig_vals.isComplex()) {
             const Complex *ev = eig_vals.complexData();
@@ -192,7 +195,7 @@ eig_general_VD(const Value &A, std::pmr::memory_resource *mr)
             std::fill(V, V + n * n, 0.0);
             std::fill(D, D + n * n, 0.0);
 
-            const double *Adata = A.doubleData();
+            const double *Adata = Aw.doubleData();
 
             for (std::size_t k2 = 0; k2 < n; ++k2) {
                 const double lam = evals[k2];
@@ -207,13 +210,15 @@ eig_general_VD(const Value &A, std::pmr::memory_resource *mr)
                 for (std::size_t i = 0; i < n; ++i)
                     V[i + k2 * n] = Vsdata[i + (nv - 1) * nv];
             }
-            return std::make_tuple(std::move(Vout), std::move(Dout));
+            return std::make_tuple(
+                detail::narrowDoubleToSingleIf(Vout, wantSingle, mr),
+                detail::narrowDoubleToSingleIf(Dout, wantSingle, mr));
         }
     }
 
-    Value A_c = A.isComplex() ? A : Value::complexMatrix(n, n, mr);
-    if (!A.isComplex()) {
-        const double *ad = A.doubleData();
+    Value A_c = Aw.isComplex() ? Aw : Value::complexMatrix(n, n, mr);
+    if (!Aw.isComplex()) {
+        const double *ad = Aw.doubleData();
         Complex *acd = A_c.complexDataMut();
         for (std::size_t i = 0; i < n * n; ++i) acd[i] = Complex(ad[i], 0.0);
     }
@@ -285,7 +290,7 @@ eig_general_VD(const Value &A, std::pmr::memory_resource *mr)
     // spectrum is real, narrow V and D to double; when mixed real/complex,
     // real columns of V and D have exact 0.0 imaginary part so slicing
     // V(:, k) narrows to real double (bugs: linalg/eig-real-spectrum-complex-typing).
-    if (!A.isComplex()) {
+    if (!Aw.isComplex()) {
         double aMax = 0.0;
         for (std::size_t i = 0; i < n * n; ++i)
             aMax = std::max(aMax, std::abs(A_c.complexData()[i].real()));
@@ -341,11 +346,15 @@ eig_general_VD(const Value &A, std::pmr::memory_resource *mr)
                 Vr.doubleDataMut()[i] = Vd[i].real();
                 Dr.doubleDataMut()[i] = Dd[i].real();
             }
-            return std::make_tuple(std::move(Vr), std::move(Dr));
+            return std::make_tuple(
+                detail::narrowDoubleToSingleIf(Vr, wantSingle, mr),
+                detail::narrowDoubleToSingleIf(Dr, wantSingle, mr));
         }
     }
 
-    return std::make_tuple(detail::narrow_if_real(Vout, mr), detail::narrow_if_real(Dout, mr));
+    return std::make_tuple(
+        detail::narrowDoubleToSingleIf(detail::narrow_if_real(Vout, mr), wantSingle, mr),
+        detail::narrowDoubleToSingleIf(detail::narrow_if_real(Dout, mr), wantSingle, mr));
 }
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -469,14 +478,17 @@ eig_symmetric(const Value &A, std::pmr::memory_resource *mr)
                     0, 0, "eig", "", "numkit:eig:notSymmetric");
     if (n == 0) {
         return std::make_tuple(
-            Value::matrix(0, 0, ValueType::DOUBLE, mr),
-            Value::matrix(0, 0, ValueType::DOUBLE, mr));
+            Value::matrix(0, 0, A.type(), mr),
+            Value::matrix(0, 0, A.type(), mr));
     }
+
+    const bool wantSingle = (A.type() == ValueType::SINGLE);
+    Value Aw = detail::widenSingleToDouble(A, mr);
 
     ScratchArena scratch(mr);
     ScratchVec<double> A_work(n * n, &scratch);
     ScratchVec<double> V_work(n * n, &scratch);
-    std::copy(A.doubleData(), A.doubleData() + n * n, A_work.begin());
+    std::copy(Aw.doubleData(), Aw.doubleData() + n * n, A_work.begin());
     jacobiSymInplace(A_work.data(), n, V_work.data(),
                      /*maxSweeps=*/64, /*tol=*/1e-13);
 
@@ -499,18 +511,22 @@ eig_symmetric(const Value &A, std::pmr::memory_resource *mr)
         for (std::size_t i = 0; i < n; ++i)
             V[i + k * n] = V_work[i + src * n];
     }
-    return std::make_tuple(std::move(Vout), std::move(Dout));
+    return std::make_tuple(
+        detail::narrowDoubleToSingleIf(Vout, wantSingle, mr),
+        detail::narrowDoubleToSingleIf(Dout, wantSingle, mr));
 }
 
 Value eig_values(const Value &A, std::pmr::memory_resource *mr)
 {
-    auto [V, D] = eig_symmetric(A, mr);
+    const bool wantSingle = (A.type() == ValueType::SINGLE);
+    Value Aw = detail::widenSingleToDouble(A, mr);
+    auto [V, D] = eig_symmetric(Aw, mr);
     const std::size_t n = static_cast<std::size_t>(D.dims().dim(0));
     auto out = Value::matrix(n, 1, ValueType::DOUBLE, mr);
     const double *Ddata = D.doubleData();
     double *o = out.doubleDataMut();
     for (std::size_t i = 0; i < n; ++i) o[i] = Ddata[i + i * n];
-    return out;
+    return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -714,12 +730,20 @@ hess(const Value &A, std::pmr::memory_resource *mr)
         hessReduceInplace(Hout.complexDataMut(), n, Pout.complexDataMut(), mr);
         return std::make_tuple(detail::narrow_if_real(Pout, mr), detail::narrow_if_real(Hout, mr));
     }
+    const bool wantSingle = (A.type() == ValueType::SINGLE);
+    if (n == 0) {
+        return std::make_tuple(
+            Value::matrix(0, 0, A.type(), mr),
+            Value::matrix(0, 0, A.type(), mr));
+    }
+    Value Aw = detail::widenSingleToDouble(A, mr);
     auto Hout = Value::matrix(n, n, ValueType::DOUBLE, mr);
     auto Pout = Value::matrix(n, n, ValueType::DOUBLE, mr);
-    if (n == 0) return std::make_tuple(std::move(Pout), std::move(Hout));
-    std::copy(A.doubleData(), A.doubleData() + n * n, Hout.doubleDataMut());
+    std::copy(Aw.doubleData(), Aw.doubleData() + n * n, Hout.doubleDataMut());
     hessReduceInplace(Hout.doubleDataMut(), n, Pout.doubleDataMut(), mr);
-    return std::make_tuple(std::move(Pout), std::move(Hout));
+    return std::make_tuple(
+        detail::narrowDoubleToSingleIf(Pout, wantSingle, mr),
+        detail::narrowDoubleToSingleIf(Hout, wantSingle, mr));
 }
 
 Value hess_H_only(const Value &A, std::pmr::memory_resource *mr)
@@ -942,14 +966,22 @@ schur_general(const Value &A, std::pmr::memory_resource *mr)
         return std::make_tuple(detail::narrow_if_real(U, mr), detail::narrow_if_real(T, mr));
     }
 
-    auto U = Value::matrix(n, n, ValueType::DOUBLE, mr);   // Schur vectors (== PÂ·Q)
-    auto T = Value::matrix(n, n, ValueType::DOUBLE, mr);   // real Schur form
-    if (n == 0) return std::make_tuple(std::move(U), std::move(T));
-    std::copy(A.doubleData(), A.doubleData() + n * n, T.doubleDataMut());
+    const bool wantSingle = (A.type() == ValueType::SINGLE);
+    if (n == 0) {
+        return std::make_tuple(
+            Value::matrix(0, 0, A.type(), mr),
+            Value::matrix(0, 0, A.type(), mr));
+    }
+    Value Aw = detail::widenSingleToDouble(A, mr);
+    auto U = Value::matrix(n, n, ValueType::DOUBLE, mr);
+    auto T = Value::matrix(n, n, ValueType::DOUBLE, mr);
+    std::copy(Aw.doubleData(), Aw.doubleData() + n * n, T.doubleDataMut());
     hessReduceInplace(T.doubleDataMut(), n, U.doubleDataMut(), mr);
     francisSchur(T.doubleDataMut(), U.doubleDataMut(), n);
     standardizeSchur2x2(T.doubleDataMut(), U.doubleDataMut(), n);
-    return std::make_tuple(std::move(U), std::move(T));
+    return std::make_tuple(
+        detail::narrowDoubleToSingleIf(U, wantSingle, mr),
+        detail::narrowDoubleToSingleIf(T, wantSingle, mr));
 }
 
 Value sylvester_sym(const Value &A, const Value &B, const Value &C,
@@ -971,14 +1003,21 @@ Value sylvester_sym(const Value &A, const Value &B, const Value &C,
         throw Error("sylvester: C must be n Ã— m where A is nÃ—n, B is mÃ—m",
                     0, 0, "sylvester", "", "numkit:sylvester:badC");
 
-    auto [Va, Da] = eig_symmetric(A, mr);   // throws if non-sym
-    auto [Vb, Db] = eig_symmetric(B, mr);   // throws if non-sym
+    const bool wantSingle = (A.type() == ValueType::SINGLE ||
+                             B.type() == ValueType::SINGLE ||
+                             C.type() == ValueType::SINGLE);
+    Value Aw = detail::widenSingleToDouble(A, mr);
+    Value Bw = detail::widenSingleToDouble(B, mr);
+    Value Cw = detail::widenSingleToDouble(C, mr);
+
+    auto [Va, Da] = eig_symmetric(Aw, mr);   // throws if non-sym
+    auto [Vb, Db] = eig_symmetric(Bw, mr);   // throws if non-sym
 
     const double *Vad = Va.doubleData();
     const double *Dad = Da.doubleData();
     const double *Vbd = Vb.doubleData();
     const double *Dbd = Db.doubleData();
-    const double *Cd  = C.doubleData();
+    const double *Cd  = Cw.doubleData();
 
     ScratchArena scratch(mr);
     ScratchVec<double> Y(n * m, &scratch);
@@ -1031,7 +1070,7 @@ Value sylvester_sym(const Value &A, const Value &B, const Value &C,
                 s += tmp[i + k * n] * Vbd[j + k * m];
             X[i + j * n] = s;
         }
-    return out;
+    return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -1061,7 +1100,8 @@ Value buildCompanion(Span<const Value> coeffs, std::pmr::memory_resource *mr)
     // B = inv(Ak) * Ai  for i = 0..k-1.
     // Compute via la_solve once per i â€” cheaper than forming inv(Ak)
     // explicitly when n is moderate. Here we do form inv() for clarity.
-    Value Ak_inv = inv(coeffs[k], mr);
+    Value Ak_w = detail::widenSingleToDouble(coeffs[k], mr);
+    Value Ak_inv = inv(Ak_w, mr);
 
     auto L = Value::matrix(N, N, ValueType::DOUBLE, mr);
     double *Ld = L.doubleDataMut();
@@ -1080,7 +1120,8 @@ Value buildCompanion(Span<const Value> coeffs, std::pmr::memory_resource *mr)
     // Compute block product directly into L.
     const double *Akid = Ak_inv.doubleData();
     for (std::size_t i = 0; i < k; ++i) {
-        const double *Aid = coeffs[i].doubleData();
+        Value Ai_w = detail::widenSingleToDouble(coeffs[i], mr);
+        const double *Aid = Ai_w.doubleData();
         for (std::size_t r = 0; r < n; ++r)
             for (std::size_t c = 0; c < n; ++c) {
                 double s = 0.0;
@@ -1092,6 +1133,13 @@ Value buildCompanion(Span<const Value> coeffs, std::pmr::memory_resource *mr)
             }
     }
     return L;
+}
+
+bool anySingleCoeffs(Span<const Value> coeffs)
+{
+    for (const auto &c : coeffs)
+        if (c.type() == ValueType::SINGLE) return true;
+    return false;
 }
 
 void validatePolyeigCoeffs(Span<const Value> coeffs)
@@ -1121,7 +1169,7 @@ Value polyeig_values(Span<const Value> coeffs, std::pmr::memory_resource *mr)
     // Eigenvalues of L are the polynomial eigenvalues.
     // The companion is generally non-symmetric â†’ use char-poly path
     // (returns complex column when needed).
-    return eig_general_values(L, mr);
+    return detail::narrowDoubleToSingleIf(eig_general_values(L, mr), anySingleCoeffs(coeffs), mr);
 }
 
 std::tuple<Value, Value>
@@ -1135,8 +1183,6 @@ polyeig_VE(Span<const Value> coeffs, std::pmr::memory_resource *mr)
     Value L = buildCompanion(coeffs, mr);
     auto [V_big, D_big] = eig_general_VD(L, mr);   // throws on complex eigvals
 
-    // V is N Ã— N; the polynomial eigenvectors are the top n rows of
-    // each column of V_big. Output V: n Ã— N.
     auto V = Value::matrix(n, N, ValueType::DOUBLE, mr);
     auto e = Value::matrix(N, 1, ValueType::DOUBLE, mr);
     double *Vd = V.doubleDataMut();
@@ -1149,7 +1195,10 @@ polyeig_VE(Span<const Value> coeffs, std::pmr::memory_resource *mr)
         for (std::size_t r = 0; r < n; ++r)
             Vd[r + j * n] = Vbd[r + j * N];
     }
-    return std::make_tuple(std::move(V), std::move(e));
+    const bool wantSingle = anySingleCoeffs(coeffs);
+    return std::make_tuple(
+        detail::narrowDoubleToSingleIf(V, wantSingle, mr),
+        detail::narrowDoubleToSingleIf(e, wantSingle, mr));
 }
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -1168,11 +1217,8 @@ Value ordeig(const Value &T, std::pmr::memory_resource *mr)
         throw Error("ordeig: T must be square",
                     0, 0, "ordeig", "", "numkit:ordeig:notSquare");
     if (n == 0)
-        return Value::matrix(0, 1, ValueType::DOUBLE, mr);
+        return Value::matrix(0, 1, T.type(), mr);
 
-    // Complex Schur form is upper triangular: the eigenvalues are the
-    // diagonal. (The real quasi-triangular form with 2Ã—2 blocks is the
-    // doubleData path below.)
     if (T.isComplex()) {
         const Complex *Tc = T.complexData();
         bool any_complex = false;
@@ -1190,7 +1236,9 @@ Value ordeig(const Value &T, std::pmr::memory_resource *mr)
         return out;
     }
 
-    const double *Td = T.doubleData();
+    const bool wantSingle = (T.type() == ValueType::SINGLE);
+    Value Tw = detail::widenSingleToDouble(T, mr);
+    const double *Td = Tw.doubleData();
 
     // First pass: detect 2Ã—2 blocks (non-zero sub-diagonal entries
     // T(i+1, i)). Eigenvalues from them are complex conjugate pairs.
@@ -1238,7 +1286,7 @@ Value ordeig(const Value &T, std::pmr::memory_resource *mr)
     auto out = Value::matrix(n, 1, ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
     for (std::size_t k = 0; k < n; ++k) od[k] = out_complex[k].real();
-    return out;
+    return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
 
 } // namespace numkit::linalg

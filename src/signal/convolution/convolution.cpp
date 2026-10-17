@@ -81,8 +81,10 @@ static bool convRowOut(const Value &a, const Value &b)
 Value conv(const Value &aIn, const Value &bIn, const std::string &shape, std::pmr::memory_resource *mr)
 {
     conv_argcheck(aIn, bIn, shape);
+    const bool wantSingle = (aIn.type() == ValueType::SINGLE ||
+                             bIn.type() == ValueType::SINGLE);
     auto needsPromote = [](const Value &v) {
-        return !v.isComplex() && (v.isLogical() || isIntegerType(v.type()));
+        return !v.isComplex() && (v.isLogical() || isIntegerType(v.type()) || v.type() == ValueType::SINGLE);
     };
     Value aHold, bHold;
     const bool aProm = needsPromote(aIn);
@@ -157,7 +159,7 @@ Value conv(const Value &aIn, const Value &bIn, const std::string &shape, std::pm
                  : Value::matrix(outLen, 1, ValueType::DOUBLE, mr);
     for (size_t i = 0; i < outLen; ++i)
         r.doubleDataMut()[i] = c[outStart + i];
-    return r;
+    return detail::narrowDoubleToSingleIf(r, wantSingle, mr);
 }
 
 // ── deconv ────────────────────────────────────────────────────────────
@@ -384,34 +386,20 @@ Value cropConv2(const double *full, size_t fullR, size_t fullC, size_t M, size_t
                  0, 0, "conv2", "", "numkit:conv2:badShape");
 }
 
-// conv2 / filter2 / convn argcheck: the reference accepts every numeric
-// class plus logical (result double) and rejects N-D input, so logical /
-// integer inputs are promoted here and single / complex voice their own
-// capability-gap identifiers (the 2-D kernels are double-only).
 static void convMatrixArgcheck(const Value &v, std::string_view fn,
                                std::string_view argName, int argNum)
 {
     const ValueType t = v.type();
-    if (t == ValueType::DOUBLE || t == ValueType::COMPLEX)
+    if (t == ValueType::DOUBLE || t == ValueType::SINGLE || t == ValueType::COMPLEX)
         return;
     if (t == ValueType::LOGICAL || isIntegerType(t))
         return;                       // promoted by the caller
-    if (t == ValueType::SINGLE)
-        throw Error(std::string(fn) + ": input " + std::to_string(argNum)
-                        + " (" + std::string(argName)
-                        + "): single inputs are not supported yet — convert "
-                          "with double() (got a " + detail::shapeOf(v)
-                        + " single array).",
-                    0, 0, std::string(fn), "",
-                    "numkit:" + std::string(fn) + ":singleUnsupported");
     detail::throwInputType(v, fn, argName, argNum, "numeric or logical");
 }
 
-// Promote logical/integer input to double in place of the caller's Value
-// (same coercion conv uses; the reference returns double for these).
 static Value convPromoteIfNeeded(const Value &v, std::pmr::memory_resource *mr)
 {
-    if (!v.isComplex() && (v.isLogical() || isIntegerType(v.type())))
+    if (!v.isComplex() && (v.isLogical() || isIntegerType(v.type()) || v.type() == ValueType::SINGLE))
         return convPromoteToDouble(v, mr);
     return Value();                   // empty ⇒ use v unchanged
 }
@@ -454,6 +442,8 @@ Value conv2(const Value &A, const Value &B, const std::string &shape, std::pmr::
     if (A.dims().ndim() > 2 || B.dims().ndim() > 2)
         throw Error("conv2: N-D arrays are not supported",
                      0, 0, "conv2", "", "numkit:conv2:nd");
+    const bool wantSingle = (A.type() == ValueType::SINGLE ||
+                             B.type() == ValueType::SINGLE);
     Value aHold = convPromoteIfNeeded(A, mr);
     Value bHold = convPromoteIfNeeded(B, mr);
     const Value &a = aHold.isEmpty() ? A : aHold;
@@ -463,7 +453,7 @@ Value conv2(const Value &A, const Value &B, const std::string &shape, std::pmr::
     const size_t P = b.dims().rows(), Q = b.dims().cols();
     const bool anyCplx = a.isComplex() || b.isComplex();
     if (M == 0 || N == 0 || P == 0 || Q == 0) {
-        return Value::matrix(0, 0, anyCplx ? ValueType::COMPLEX : ValueType::DOUBLE, mr);
+        return Value::matrix(0, 0, anyCplx ? ValueType::COMPLEX : (wantSingle ? ValueType::SINGLE : ValueType::DOUBLE), mr);
     }
     if (anyCplx) {
         Value ar = extractPartValue(a, false, mr);
@@ -491,7 +481,8 @@ Value conv2(const Value &A, const Value &B, const std::string &shape, std::pmr::
     ScratchVec<double> full(fullR * fullC, &scratch);
     ops::conv2Direct(a.doubleData(), M, N, b.doubleData(), P, Q, full.data());
 
-    return cropConv2(full.data(), fullR, fullC, M, N, P, Q, shape, mr);
+    return detail::narrowDoubleToSingleIf(
+        cropConv2(full.data(), fullR, fullC, M, N, P, Q, shape, mr), wantSingle, mr);
 }
 
 Value filter2(const Value &h, const Value &X, const std::string &shape, std::pmr::memory_resource *mr)
@@ -502,6 +493,8 @@ Value filter2(const Value &h, const Value &X, const std::string &shape, std::pmr
     if (h.dims().ndim() > 2 || X.dims().ndim() > 2)
         throw Error("filter2: N-D arrays are not supported",
                      0, 0, "filter2", "", "numkit:filter2:nd");
+    const bool wantSingle = (h.type() == ValueType::SINGLE ||
+                             X.type() == ValueType::SINGLE);
     Value hHold = convPromoteIfNeeded(h, mr);
     Value xHold = convPromoteIfNeeded(X, mr);
     const Value &hh = hHold.isEmpty() ? h : hHold;
@@ -523,7 +516,7 @@ Value filter2(const Value &h, const Value &X, const std::string &shape, std::pmr
     for (size_t j = 0; j < Q; ++j)
         for (size_t i = 0; i < P; ++i)
             dst[j * P + i] = src[(Q - 1 - j) * P + (P - 1 - i)];
-    return conv2(xx, hf, shape, mr);
+    return detail::narrowDoubleToSingleIf(conv2(xx, hf, shape, mr), wantSingle, mr);
 }
 
 Value convn(const Value &A, const Value &B, const std::string &shape, std::pmr::memory_resource *mr)
@@ -531,6 +524,8 @@ Value convn(const Value &A, const Value &B, const std::string &shape, std::pmr::
     convMatrixArgcheck(A, "convn", "A", 1);
     convMatrixArgcheck(B, "convn", "B", 2);
     detail::validateShapeOption(shape, "convn");
+    const bool wantSingle = (A.type() == ValueType::SINGLE ||
+                             B.type() == ValueType::SINGLE);
     Value aHold = convPromoteIfNeeded(A, mr);
     Value bHold = convPromoteIfNeeded(B, mr);
     const Value &a = aHold.isEmpty() ? A : aHold;
@@ -558,10 +553,10 @@ Value convn(const Value &A, const Value &B, const std::string &shape, std::pmr::
     const int da = a.dims().ndim(), db = b.dims().ndim();
     const int nd = std::max(da, db);
     if (nd <= 1) {
-        return conv(a, b, shape, mr);
+        return detail::narrowDoubleToSingleIf(conv(a, b, shape, mr), wantSingle, mr);
     }
     if (nd == 2) {
-        return conv2(a, b, shape, mr);
+        return detail::narrowDoubleToSingleIf(conv2(a, b, shape, mr), wantSingle, mr);
     }
     if (nd > 3) {
         std::vector<size_t> sa(static_cast<size_t>(nd), 1);
@@ -571,7 +566,7 @@ Value convn(const Value &A, const Value &B, const std::string &shape, std::pmr::
             if (d < da) sa[static_cast<size_t>(d)] = a.dims().dim(d);
             if (d < db) sb[static_cast<size_t>(d)] = b.dims().dim(d);
             if (sa[static_cast<size_t>(d)] == 0 || sb[static_cast<size_t>(d)] == 0)
-                return Value::matrix(0, 0, ValueType::DOUBLE, mr);
+                return Value::matrix(0, 0, wantSingle ? ValueType::SINGLE : ValueType::DOUBLE, mr);
             sfull[static_cast<size_t>(d)] = sa[static_cast<size_t>(d)] + sb[static_cast<size_t>(d)] - 1;
         }
         std::vector<size_t> strideFull(static_cast<size_t>(nd), 1);
@@ -610,7 +605,7 @@ Value convn(const Value &A, const Value &B, const std::string &shape, std::pmr::
             }
         }
 
-        if (shape == "full") return fullV;
+        if (shape == "full") return detail::narrowDoubleToSingleIf(fullV, wantSingle, mr);
 
         std::vector<size_t> sout(static_cast<size_t>(nd), 1);
         std::vector<size_t> off(static_cast<size_t>(nd), 0);
@@ -622,7 +617,7 @@ Value convn(const Value &A, const Value &B, const std::string &shape, std::pmr::
         } else if (shape == "valid") {
             for (int d = 0; d < nd; ++d) {
                 if (sa[static_cast<size_t>(d)] < sb[static_cast<size_t>(d)])
-                    return Value::matrix(0, 0, ValueType::DOUBLE, mr);
+                    return Value::matrix(0, 0, wantSingle ? ValueType::SINGLE : ValueType::DOUBLE, mr);
                 sout[static_cast<size_t>(d)] = sa[static_cast<size_t>(d)] - sb[static_cast<size_t>(d)] + 1;
                 off[static_cast<size_t>(d)] = sb[static_cast<size_t>(d)] - 1;
             }
@@ -644,7 +639,7 @@ Value convn(const Value &A, const Value &B, const std::string &shape, std::pmr::
             }
             cd[ic] = out[fullIdx];
         }
-        return cropV;
+        return detail::narrowDoubleToSingleIf(cropV, wantSingle, mr);
     }
     // 3-D: direct nested-loop convolution.
     const size_t M = a.dims().rows(), N = a.dims().cols();
@@ -653,7 +648,7 @@ Value convn(const Value &A, const Value &B, const std::string &shape, std::pmr::
     const size_t Pp = (b.dims().ndim() == 3) ? b.dims().pages() : 1;
     const size_t outR = M + P - 1, outC = N + Q - 1, outP = Mp + Pp - 1;
     if (M == 0 || N == 0 || P == 0 || Q == 0 || Mp == 0 || Pp == 0) {
-        return Value::matrix(0, 0, ValueType::DOUBLE, mr);
+        return Value::matrix(0, 0, wantSingle ? ValueType::SINGLE : ValueType::DOUBLE, mr);
     }
 
     auto outV = Value::matrix3d(outR, outC, outP, ValueType::DOUBLE, mr);
@@ -685,7 +680,7 @@ Value convn(const Value &A, const Value &B, const std::string &shape, std::pmr::
         }
     }
 
-    if (shape == "full") return outV;
+    if (shape == "full") return detail::narrowDoubleToSingleIf(outV, wantSingle, mr);
     if (shape == "same") {
         // Center-crop to A's shape. floor(P/2) offset matches MATLAB's
         // conv2 / convn 'same' rule for both even and odd kernel sizes.
@@ -701,14 +696,14 @@ Value convn(const Value &A, const Value &B, const std::string &shape, std::pmr::
                         out[(pp + p0) * pageStrideOut
                             + (cc + c0) * outR
                             + (rr + r0)];
-        return crop;
+        return detail::narrowDoubleToSingleIf(crop, wantSingle, mr);
     }
     if (shape == "valid") {
         const size_t outR2 = (M >= P)  ? M  - P  + 1 : 0;
         const size_t outC2 = (N >= Q)  ? N  - Q  + 1 : 0;
         const size_t outP2 = (Mp >= Pp)? Mp - Pp + 1 : 0;
         if (outR2 == 0 || outC2 == 0 || outP2 == 0)
-            return Value::matrix(0, 0, ValueType::DOUBLE, mr);
+            return Value::matrix(0, 0, wantSingle ? ValueType::SINGLE : ValueType::DOUBLE, mr);
         auto crop = Value::matrix3d(outR2, outC2, outP2, ValueType::DOUBLE, mr);
         double *cd = crop.doubleDataMut();
         for (size_t pp = 0; pp < outP2; ++pp)
@@ -718,7 +713,7 @@ Value convn(const Value &A, const Value &B, const std::string &shape, std::pmr::
                         out[(pp + Pp - 1) * pageStrideOut
                             + (cc + Q - 1) * outR
                             + (rr + P - 1)];
-        return crop;
+        return detail::narrowDoubleToSingleIf(crop, wantSingle, mr);
     }
     throw Error("convn: shape must be 'full', 'same', or 'valid'",
                  0, 0, "convn", "", "numkit:convn:badShape");

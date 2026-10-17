@@ -1,4 +1,4 @@
-﻿// toolboxes/linalg/src/linalg_detail.hpp
+// toolboxes/linalg/src/linalg_detail.hpp
 //
 // PRIVATE (src-level) header â€” NOT part of the public linalg API.
 // Templated kernel access layer helpers for double & std::complex<double>.
@@ -46,31 +46,57 @@ inline std::string shapeOf(const Value &v)
 // Factorization / norm family (svd, pinv, orth, null, rank, subspace,
 // norm, eig, pagesvd, pagepinv, pagenorm): the reference accepts single
 // or double, real or complex, and rejects logical, integer classes,
-// char, string and cell as one inputType class. The kernels below
-// consume double/complex buffers only, so single is rejected here with
-// its own identifier instead of a raw buffer error
-// (bugs/opened/linalg/single-float-inputs.md).
+// char, string and cell as one inputType class.
 inline void requireDoubleInput(const Value &A, std::string_view fn,
                                std::string_view argName = "A",
                                int argNum = 1)
 {
     const ValueType t = A.type();
-    if (t == ValueType::DOUBLE || t == ValueType::COMPLEX)
+    if (t == ValueType::DOUBLE || t == ValueType::COMPLEX || t == ValueType::SINGLE)
         return;
     const std::string who = std::string(fn) + ": input "
                             + std::to_string(argNum) + " ("
                             + std::string(argName) + ")";
-    if (t == ValueType::SINGLE)
-        throw Error(who + ": single inputs are not supported yet â€” "
-                    "convert with double() (got a " + shapeOf(A)
-                        + " single array).",
-                    0, 0, std::string(fn), "",
-                    "numkit:" + std::string(fn) + ":singleUnsupported");
-    throw Error(who + " must be a double or complex double matrix "
+    throw Error(who + " must be a single, double or complex matrix "
                     "(got a " + shapeOf(A) + " " + mtypeName(t)
                         + " array).",
                 0, 0, std::string(fn), "",
                 "numkit:" + std::string(fn) + ":inputType");
+}
+
+inline Value widenSingleToDouble(const Value &v, std::pmr::memory_resource *mr = nullptr)
+{
+    if (v.type() != ValueType::SINGLE)
+        return v;
+    Value out = (v.dims().ndim() == 3)
+        ? Value::matrix3d(v.dims().dim(0), v.dims().dim(1), v.dims().dim(2), ValueType::DOUBLE, mr)
+        : Value::matrix(v.dims().rows(), v.dims().cols(), ValueType::DOUBLE, mr);
+    const float *sd = v.singleData();
+    double *dd = out.doubleDataMut();
+    const std::size_t n = v.numel();
+    for (std::size_t i = 0; i < n; ++i)
+        dd[i] = static_cast<double>(sd[i]);
+    return out;
+}
+
+inline Value narrowDoubleToSingle(const Value &v, std::pmr::memory_resource *mr = nullptr)
+{
+    if (v.type() != ValueType::DOUBLE)
+        return v;
+    Value out = (v.dims().ndim() == 3)
+        ? Value::matrix3d(v.dims().dim(0), v.dims().dim(1), v.dims().dim(2), ValueType::SINGLE, mr)
+        : Value::matrix(v.dims().rows(), v.dims().cols(), ValueType::SINGLE, mr);
+    const double *dd = v.doubleData();
+    float *sd = out.singleDataMut();
+    const std::size_t n = v.numel();
+    for (std::size_t i = 0; i < n; ++i)
+        sd[i] = static_cast<float>(dd[i]);
+    return out;
+}
+
+inline Value narrowDoubleToSingleIf(const Value &v, bool wantSingle, std::pmr::memory_resource *mr = nullptr)
+{
+    return wantSingle ? narrowDoubleToSingle(v, mr) : v;
 }
 
 // Matrix predicate family (isbanded, isdiag, istril, istriu,

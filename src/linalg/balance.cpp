@@ -137,12 +137,19 @@ balance_impl(const Value &A, bool noperm, std::pmr::memory_resource *mr)
         throw Error("balance: matrix must be square",
                     0, 0, "balance", "", "numkit:balance:NotSquare");
 
+    const bool wantSingle = (A.type() == ValueType::SINGLE);
+    const Value Aw = detail::widenSingleToDouble(A, mr);
+
     BalanceResult R;
-    R.B = Value::matrix(n, n, A.type(), mr);
+    R.B = Value::matrix(n, n, Aw.type(), mr);
     R.d_col = Value::matrix(n == 0 ? 0 : n, n == 0 ? 0 : 1, ValueType::DOUBLE, mr);
     R.perm_col = Value::matrix(n == 0 ? 0 : n, n == 0 ? 0 : 1, ValueType::DOUBLE, mr);
 
-    if (n == 0) return R;
+    if (n == 0) {
+        R.B = detail::narrowDoubleToSingleIf(R.B, wantSingle, mr);
+        R.d_col = detail::narrowDoubleToSingleIf(R.d_col, wantSingle, mr);
+        return R;
+    }
 
     ScratchArena scratch(mr);
     ScratchVec<double> d(n, &scratch);
@@ -150,8 +157,8 @@ balance_impl(const Value &A, bool noperm, std::pmr::memory_resource *mr)
     double *pd = R.perm_col.doubleDataMut();
     size_t low = 0, high = (n > 0) ? n - 1 : 0;
 
-    if (A.isComplex()) {
-        std::copy(A.complexData(), A.complexData() + n * n, R.B.complexDataMut());
+    if (Aw.isComplex()) {
+        std::copy(Aw.complexData(), Aw.complexData() + n * n, R.B.complexDataMut());
         if (!noperm) {
             balancePermute(R.B.complexDataMut(), n, low, high, pd);
         } else {
@@ -159,7 +166,7 @@ balance_impl(const Value &A, bool noperm, std::pmr::memory_resource *mr)
         }
         balanceScale(R.B.complexDataMut(), n, d.data(), low, high);
     } else {
-        std::copy(A.doubleData(), A.doubleData() + n * n, R.B.doubleDataMut());
+        std::copy(Aw.doubleData(), Aw.doubleData() + n * n, R.B.doubleDataMut());
         if (!noperm) {
             balancePermute(R.B.doubleDataMut(), n, low, high, pd);
         } else {
@@ -171,6 +178,8 @@ balance_impl(const Value &A, bool noperm, std::pmr::memory_resource *mr)
     double *dd = R.d_col.doubleDataMut();
     for (size_t i = 0; i < n; ++i) dd[i] = d[i];
 
+    R.B = detail::narrowDoubleToSingleIf(R.B, wantSingle, mr);
+    R.d_col = detail::narrowDoubleToSingleIf(R.d_col, wantSingle, mr);
     return R;
 }
 

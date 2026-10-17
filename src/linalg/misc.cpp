@@ -37,16 +37,25 @@ double matrix_inf_norm(const T *A, size_t M, size_t N)
 
 template <typename T>
 void rref_kernel(T *B, size_t M, size_t N, bool have_tol, double tol_user,
-                 ScratchVec<double> &jb_buf)
+                 ScratchVec<double> &jb_buf, bool isSingle = false)
 {
     double tol = tol_user;
     if (!have_tol) {
         const double anorm = matrix_inf_norm(B, M, N);
-        const double eps = std::numeric_limits<double>::epsilon();
-        const double eps_anorm = (anorm == 0.0) ? eps
-                                                 : std::nextafter(anorm,
-                                                       std::numeric_limits<double>::infinity()) - anorm;
-        tol = static_cast<double>(std::max(M, N)) * eps_anorm;
+        if (isSingle) {
+            const float anorm_f = static_cast<float>(anorm);
+            const float eps_f = std::numeric_limits<float>::epsilon();
+            const double eps_anorm = (anorm_f == 0.0f)
+                ? static_cast<double>(eps_f)
+                : static_cast<double>(std::nextafter(anorm_f, std::numeric_limits<float>::infinity()) - anorm_f);
+            tol = static_cast<double>(std::max(M, N)) * eps_anorm;
+        } else {
+            const double eps = std::numeric_limits<double>::epsilon();
+            const double eps_anorm = (anorm == 0.0) ? eps
+                                                     : std::nextafter(anorm,
+                                                           std::numeric_limits<double>::infinity()) - anorm;
+            tol = static_cast<double>(std::max(M, N)) * eps_anorm;
+        }
     }
 
     size_t i = 0;
@@ -99,21 +108,23 @@ rref(const Value &A, bool have_tol, double tol_user, std::pmr::memory_resource *
         throw Error("rref: input must be 2D",
                     0, 0, "rref", "", "numkit:rref:Not2D");
 
+    const bool wantSingle = (A.type() == ValueType::SINGLE);
     const size_t M = A.dims().rows();
     const size_t N = A.dims().cols();
     if (M == 0 || N == 0) {
-        Value R = Value::matrix(M, N, ValueType::DOUBLE, mr);
+        Value R = Value::matrix(M, N, wantSingle ? ValueType::SINGLE : ValueType::DOUBLE, mr);
         Value jb = Value::matrix(1, 0, ValueType::DOUBLE, mr);
         return {R, jb};
     }
 
+    const Value Aw = detail::widenSingleToDouble(A, mr);
     ScratchArena scratch(mr);
     ScratchVec<double> jb_buf(0, &scratch);
 
-    if (A.isComplex()) {
+    if (Aw.isComplex()) {
         ScratchVec<Complex> B(M * N, &scratch);
-        std::copy(A.complexData(), A.complexData() + M * N, B.begin());
-        rref_kernel(B.data(), M, N, have_tol, tol_user, jb_buf);
+        std::copy(Aw.complexData(), Aw.complexData() + M * N, B.begin());
+        rref_kernel(B.data(), M, N, have_tol, tol_user, jb_buf, wantSingle);
 
         Value R = Value::complexMatrix(M, N, mr);
         std::copy(B.begin(), B.end(), R.complexDataMut());
@@ -123,13 +134,13 @@ rref(const Value &A, bool have_tol, double tol_user, std::pmr::memory_resource *
                                  ValueType::DOUBLE, mr);
         if (!jb_buf.empty())
             std::copy(jb_buf.begin(), jb_buf.end(), jb.doubleDataMut());
-        return {R, jb};
+        return {detail::narrowDoubleToSingleIf(R, wantSingle, mr), jb};
     }
 
     Value R = Value::matrix(M, N, ValueType::DOUBLE, mr);
     ScratchVec<double> B(M * N, &scratch);
-    std::copy(A.doubleData(), A.doubleData() + M * N, B.begin());
-    rref_kernel(B.data(), M, N, have_tol, tol_user, jb_buf);
+    std::copy(Aw.doubleData(), Aw.doubleData() + M * N, B.begin());
+    rref_kernel(B.data(), M, N, have_tol, tol_user, jb_buf, wantSingle);
 
     std::copy(B.begin(), B.end(), R.doubleDataMut());
 
@@ -137,7 +148,7 @@ rref(const Value &A, bool have_tol, double tol_user, std::pmr::memory_resource *
                              ValueType::DOUBLE, mr);
     if (!jb_buf.empty())
         std::copy(jb_buf.begin(), jb_buf.end(), jb.doubleDataMut());
-    return {R, jb};
+    return {detail::narrowDoubleToSingleIf(R, wantSingle, mr), jb};
 }
 
 // planerot: G * [x; y] = [r; 0] where r = hypot(x, y).
@@ -151,6 +162,7 @@ planerot(const Value &xy, std::pmr::memory_resource *mr)
         throw Error("planerot: complex input not supported",
                     0, 0, "planerot", "", "numkit:planerot:NoComplex");
 
+    const bool wantSingle = (xy.type() == ValueType::SINGLE);
     const double x = xy.elemAsDouble(0);
     const double y = xy.elemAsDouble(1);
 
@@ -162,7 +174,8 @@ planerot(const Value &xy, std::pmr::memory_resource *mr)
     if (x == 0.0 && y == 0.0) {
         gd[0] = 1.0; gd[1] = 0.0; gd[2] = 0.0; gd[3] = 1.0;
         yd[0] = 0.0; yd[1] = 0.0;
-        return {G, yo};
+        return {detail::narrowDoubleToSingleIf(G, wantSingle, mr),
+                detail::narrowDoubleToSingleIf(yo, wantSingle, mr)};
     }
 
     const double r = std::hypot(x, y);
@@ -174,7 +187,8 @@ planerot(const Value &xy, std::pmr::memory_resource *mr)
     gd[3] = c;
     yd[0] = r;
     yd[1] = 0.0;
-    return {G, yo};
+    return {detail::narrowDoubleToSingleIf(G, wantSingle, mr),
+            detail::narrowDoubleToSingleIf(yo, wantSingle, mr)};
 }
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•

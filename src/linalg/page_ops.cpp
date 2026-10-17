@@ -1,4 +1,4 @@
-﻿// toolboxes/linalg/src/page_ops.cpp
+// toolboxes/linalg/src/page_ops.cpp
 //
 // Page-wise linalg ops on 3-D arrays. All wrappers iterate over
 // pages and dispatch to the 2-D variant.
@@ -50,12 +50,18 @@ Value pageView(const Value &A, std::size_t p, std::size_t m, std::size_t n,
         return out;
     }
     auto out = Value::matrix(m, n, ValueType::DOUBLE, mr);
+    if (A.type() == ValueType::SINGLE) {
+        const float *src = A.singleData() + p * m * n;
+        double *dst = out.doubleDataMut();
+        for (std::size_t i = 0; i < m * n; ++i)
+            dst[i] = static_cast<double>(src[i]);
+        return out;
+    }
     const double *src = A.doubleData() + p * m * n;
     std::copy(src, src + m * n, out.doubleDataMut());
     return out;
 }
 
-// Return (m, n, pages) for a 2-D or 3-D Value. Throws on rank â‰¥ 4.
 std::tuple<std::size_t, std::size_t, std::size_t>
 pageShape(const Value &A, const char *who)
 {
@@ -80,10 +86,6 @@ Value makePageOutput(std::size_t m, std::size_t n, std::size_t pages, bool input
 
 } // anonymous namespace
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// pageinv
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
 Value pageinv(const Value &A, std::pmr::memory_resource *mr)
 {
     detail::requireDoubleInput(A, "pageinv");
@@ -91,13 +93,16 @@ Value pageinv(const Value &A, std::pmr::memory_resource *mr)
     if (m != n)
         throw Error("pageinv: each page must be square",
                     0, 0, "pageinv", "", "numkit:pageinv:notSquare");
+    const bool wantSingle = A.type() == ValueType::SINGLE;
     auto out = makePageOutput(m, n, pages, A.dims().ndim() == 3, mr);
-    if (m == 0) return out;
+    if (m == 0) return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
+
+    Value Aw = detail::widenSingleToDouble(A, mr);
 
     ScratchArena scratch(mr);
     ScratchVec<double> A_buf(m * n, &scratch);
     ScratchVec<double> I_buf(n * n, &scratch);
-    const double *src = A.doubleData();
+    const double *src = Aw.doubleData();
     double *dst = out.doubleDataMut();
     const std::size_t stride = m * n;
 
@@ -110,26 +115,19 @@ Value pageinv(const Value &A, std::pmr::memory_resource *mr)
             throw Error("pageinv: page is singular",
                         0, 0, "pageinv", "", "numkit:pageinv:singular");
     }
-    return out;
+    return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
-
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// pageeig
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 Value pageeig_values(const Value &A, std::pmr::memory_resource *mr)
 {
-    // Before the 2-D dispatch: the try/catch below falls back to the
-    // general path on ANY Error, so the type contract must fire here,
-    // voiced for pageeig.
     detail::requireDoubleInput(A, "pageeig");
     auto [m, n, pages] = pageShape(A, "pageeig");
     if (m != n)
         throw Error("pageeig: each page must be square",
                     0, 0, "pageeig", "", "numkit:pageeig:notSquare");
 
+    const bool wantSingle = A.type() == ValueType::SINGLE;
     if (A.dims().ndim() == 2) {
-        // Reuse 2-D dispatch â€” symmetric â†’ real eigvals; non-sym â†’ general.
         try { return eig_values(A, mr); }
         catch (const Error &) { return eig_general_values(A, mr); }
     }
@@ -146,7 +144,7 @@ Value pageeig_values(const Value &A, std::pmr::memory_resource *mr)
                         0, 0, "pageeig", "", "numkit:pageeig:complex");
         std::copy(evs.doubleData(), evs.doubleData() + n, od + p * n);
     }
-    return out;
+    return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
 
 std::tuple<Value, Value>
@@ -157,6 +155,7 @@ pageeig_VD(const Value &A, std::pmr::memory_resource *mr)
         throw Error("pageeig: each page must be square",
                     0, 0, "pageeig", "", "numkit:pageeig:notSquare");
 
+    const bool wantSingle = A.type() == ValueType::SINGLE;
     if (A.dims().ndim() == 2) {
         try { return eig_symmetric(A, mr); }
         catch (const Error &) { return eig_general_VD(A, mr); }
@@ -180,12 +179,10 @@ pageeig_VD(const Value &A, std::pmr::memory_resource *mr)
         std::copy(Vp.doubleData(), Vp.doubleData() + stride, Vd + p * stride);
         std::copy(Dp.doubleData(), Dp.doubleData() + stride, Dd + p * stride);
     }
-    return std::make_tuple(std::move(V), std::move(D));
+    return std::make_tuple(
+        detail::narrowDoubleToSingleIf(V, wantSingle, mr),
+        detail::narrowDoubleToSingleIf(D, wantSingle, mr));
 }
-
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// pagesvd
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 Value pagesvd_values(const Value &A, std::pmr::memory_resource *mr)
 {
@@ -193,6 +190,7 @@ Value pagesvd_values(const Value &A, std::pmr::memory_resource *mr)
     auto [m, n, pages] = pageShape(A, "pagesvd");
     const std::size_t k = std::min(m, n);
 
+    const bool wantSingle = A.type() == ValueType::SINGLE;
     if (A.dims().ndim() == 2)
         return svd_values(A, mr);
 
@@ -203,7 +201,7 @@ Value pagesvd_values(const Value &A, std::pmr::memory_resource *mr)
         auto sv = svd_values(pg, mr);
         std::copy(sv.doubleData(), sv.doubleData() + k, od + p * k);
     }
-    return out;
+    return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
 
 std::tuple<Value, Value, Value>
@@ -212,6 +210,7 @@ pagesvd_decompose(const Value &A, std::pmr::memory_resource *mr)
     detail::requireDoubleInput(A, "pagesvd");
     auto [m, n, pages] = pageShape(A, "pagesvd");
 
+    const bool wantSingle = A.type() == ValueType::SINGLE;
     if (A.dims().ndim() == 2)
         return svd_decompose(A, mr);
 
@@ -229,37 +228,34 @@ pagesvd_decompose(const Value &A, std::pmr::memory_resource *mr)
         std::copy(s.doubleData(), s.doubleData() + sStride, Sd + p * sStride);
         std::copy(v.doubleData(), v.doubleData() + vStride, Vd + p * vStride);
     }
-    return std::make_tuple(std::move(U), std::move(S), std::move(V));
+    return std::make_tuple(
+        detail::narrowDoubleToSingleIf(U, wantSingle, mr),
+        detail::narrowDoubleToSingleIf(S, wantSingle, mr),
+        detail::narrowDoubleToSingleIf(V, wantSingle, mr));
 }
-
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// pagepinv
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 Value pagepinv(const Value &A, double tol, std::pmr::memory_resource *mr)
 {
     detail::requireDoubleInput(A, "pagepinv");
     auto [m, n, pages] = pageShape(A, "pagepinv");
 
+    const bool wantSingle = A.type() == ValueType::SINGLE;
     if (A.dims().ndim() == 2)
         return pinv(A, tol, mr);
 
-    // Output is (n Ã— m Ã— pages) â€” pinv swaps shape.
     auto out = Value::matrix3d(n, m, pages, ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
-    const std::size_t inStride = m * n, outStride = n * m;
+    const std::size_t outStride = n * m;
     for (std::size_t p = 0; p < pages; ++p) {
         auto pg = pageView(A, p, m, n, mr);
-        auto pi = pinv(pg, tol, mr);
+        if (wantSingle && tol < 0.0) {
+            pg = detail::narrowDoubleToSingle(pg, mr);
+        }
+        auto pi = detail::widenSingleToDouble(pinv(pg, tol, mr), mr);
         std::copy(pi.doubleData(), pi.doubleData() + outStride, od + p * outStride);
-        (void) inStride;
     }
-    return out;
+    return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
-
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// pagenorm
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 namespace {
 
@@ -278,6 +274,7 @@ Value pagenorm(const Value &A, double p, std::pmr::memory_resource *mr)
     detail::requireDoubleInput(A, "pagenorm");
     auto [m, n, pages] = pageShape(A, "pagenorm");
 
+    const bool wantSingle = A.type() == ValueType::SINGLE;
     if (A.dims().ndim() == 2)
         return scalarNormDispatch(A, p, /*fro=*/false, /*inf=*/false, mr);
 
@@ -288,12 +285,8 @@ Value pagenorm(const Value &A, double p, std::pmr::memory_resource *mr)
         auto sv = scalarNormDispatch(pg, p, /*fro=*/false, /*inf=*/false, mr);
         od[pp] = sv.toScalar();
     }
-    return out;
+    return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
-
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// pagemldivide / pagemrdivide / pagelsqminnorm
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 namespace {
 
@@ -341,6 +334,7 @@ Value pagemldivide(const Value &A, const Value &B, std::pmr::memory_resource *mr
         throw Error("pagemldivide: row counts of A and B must match",
                     0, 0, "pagemldivide", "", "numkit:pagemldivide:badRows");
 
+    const bool wantSingle = A.type() == ValueType::SINGLE || B.type() == ValueType::SINGLE;
     const bool any3d = A.dims().ndim() == 3 || B.dims().ndim() == 3;
     const bool anyCx = A.isComplex() || B.isComplex();
     const ValueType outT = anyCx ? ValueType::COMPLEX : ValueType::DOUBLE;
@@ -353,8 +347,6 @@ Value pagemldivide(const Value &A, const Value &B, std::pmr::memory_resource *mr
         auto ap = pageOfA(A, p, mA, nA, mr);
         auto bp = pageOfA(B, p, mB, nB, mr);
         auto xp = linsolve(ap, bp, mr);
-        // linsolve narrows all-real solutions to double even for complex
-        // inputs â€” copy element-wise into the (possibly complex) page.
         if (anyCx) {
             std::complex<double> *dst = out.complexDataMut() + p * outStride;
             if (xp.isComplex()) {
@@ -370,13 +362,11 @@ Value pagemldivide(const Value &A, const Value &B, std::pmr::memory_resource *mr
             std::copy(xs, xs + outStride, dst);
         }
     }
-    return out;
+    return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
 
 Value pagemrdivide(const Value &A, const Value &B, std::pmr::memory_resource *mr)
 {
-    // X * B = A  â‡”  B' * X' = A'  â‡”  X' = B' \ A'.
-    // We use that identity instead of duplicating the QR/LU dispatch.
     detail::requireDoubleInput(A, "pagemrdivide", "A", 1);
     detail::requireDoubleInput(B, "pagemrdivide", "B", 2);
     std::size_t pages = 0;
@@ -389,6 +379,7 @@ Value pagemrdivide(const Value &A, const Value &B, std::pmr::memory_resource *mr
         throw Error("pagemrdivide: column counts of A and B must match",
                     0, 0, "pagemrdivide", "", "numkit:pagemrdivide:badCols");
 
+    const bool wantSingle = A.type() == ValueType::SINGLE || B.type() == ValueType::SINGLE;
     const bool any3d = A.dims().ndim() == 3 || B.dims().ndim() == 3;
     const bool anyCx = A.isComplex() || B.isComplex();
     const ValueType outT = anyCx ? ValueType::COMPLEX : ValueType::DOUBLE;
@@ -400,9 +391,6 @@ Value pagemrdivide(const Value &A, const Value &B, std::pmr::memory_resource *mr
     for (std::size_t p = 0; p < pages; ++p) {
         auto ap = pageOfA(A, p, mA, nA, mr);
         auto bp = pageOfA(B, p, mB, nB, mr);
-        // Transpose Ap â†’ ap_T (nA Ã— mA) and Bp â†’ bp_T (nB Ã— mB) for
-        // the "(B' \ A')' " identity. Each transpose keeps its source's
-        // class â€” linsolve promotes to complex when either page is.
         auto ap_T = Value::matrix(nA, mA, ap.type(), mr);
         auto bp_T = Value::matrix(nB, mB, bp.type(), mr);
         if (ap.isComplex()) {
@@ -431,9 +419,7 @@ Value pagemrdivide(const Value &A, const Value &B, std::pmr::memory_resource *mr
                 for (std::size_t j = 0; j < nB; ++j)
                     bt[j + i * nB] = bs[i + j * mB];
         }
-        auto xt = linsolve(bp_T, ap_T, mr);  // (nB Ã— mA), since nA == nB
-        // Transpose xt back into out[:, :, p]; xt may be narrowed to
-        // double even for complex inputs â€” write element-wise.
+        auto xt = linsolve(bp_T, ap_T, mr);
         if (anyCx) {
             const std::complex<double> *xc = xt.isComplex() ? xt.complexData() : nullptr;
             const double *xd = xc ? nullptr : xt.doubleData();
@@ -450,7 +436,7 @@ Value pagemrdivide(const Value &A, const Value &B, std::pmr::memory_resource *mr
                     dst[i + j * mA] = xs[j + i * mB];
         }
     }
-    return out;
+    return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
 
 Value pagelsqminnorm(const Value &A, const Value &B, bool have_tol, double tol_user,
@@ -468,6 +454,7 @@ Value pagelsqminnorm(const Value &A, const Value &B, bool have_tol, double tol_u
         throw Error("pagelsqminnorm: row counts of A and B must match",
                     0, 0, "pagelsqminnorm", "", "numkit:pagelsqminnorm:badRows");
 
+    const bool wantSingle = A.type() == ValueType::SINGLE || B.type() == ValueType::SINGLE;
     const bool any3d = A.dims().ndim() == 3 || B.dims().ndim() == 3;
     auto out = any3d
         ? Value::matrix3d(nA, nB, pages, ValueType::DOUBLE, mr)
@@ -478,10 +465,13 @@ Value pagelsqminnorm(const Value &A, const Value &B, bool have_tol, double tol_u
     for (std::size_t p = 0; p < pages; ++p) {
         auto ap = pageOfA(A, p, mA, nA, mr);
         auto bp = pageOfA(B, p, mB, nB, mr);
-        auto xp = lsqminnorm(ap, bp, have_tol, tol_user, mr);
+        if (wantSingle && !have_tol) {
+            ap = detail::narrowDoubleToSingle(ap, mr);
+        }
+        auto xp = detail::widenSingleToDouble(lsqminnorm(ap, bp, have_tol, tol_user, mr), mr);
         std::copy(xp.doubleData(), xp.doubleData() + outStride, od + p * outStride);
     }
-    return out;
+    return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•

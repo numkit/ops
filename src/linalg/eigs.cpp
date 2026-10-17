@@ -1,4 +1,4 @@
-﻿// toolboxes/linalg/src/eigs.cpp
+// toolboxes/linalg/src/eigs.cpp
 //
 // eigs & svds: Subset of eigenvalues / singular values.
 
@@ -39,7 +39,7 @@ std::tuple<Value, Value> eig_auto(const Value &A, std::pmr::memory_resource *mr)
     Complex *dd = D.complexDataMut();
     std::fill(dd, dd + n * n, Complex(0.0, 0.0));
     for (std::size_t i = 0; i < n; ++i) {
-        dd[i + i * n] = e.isComplex() ? e.complexData()[i] : Complex(e.doubleData()[i], 0.0);
+        dd[i + i * n] = e.isComplex() ? e.complexData()[i] : Complex(e.elemAsDouble(i), 0.0);
     }
     return {detail::narrow_if_real(U, mr), detail::narrow_if_real(D, mr)};
 }
@@ -55,15 +55,19 @@ Value eigs_values(const Value &A, std::size_t k, std::pmr::memory_resource *mr)
     if (n != static_cast<std::size_t>(A.dims().dim(1)))
         throw Error("eigs: matrix must be square", 0, 0, "eigs", "", "numkit:eigs:notSquare");
 
-    if (n == 0 || k == 0) return Value::matrix(0, 1, ValueType::DOUBLE, mr);
+    const bool wantSingle = A.type() == ValueType::SINGLE;
+    if (n == 0 || k == 0)
+        return Value::matrix(0, 1, wantSingle ? ValueType::SINGLE : ValueType::DOUBLE, mr);
     if (k > n) k = n;
+
+    Value Aw = detail::widenSingleToDouble(A, mr);
 
     // Full eig. Symmetric real A takes the precise Jacobi path; complex
     // or nonsymmetric A takes the Schur route (eig_values itself is the
     // symmetric-only entry).
-    Value ev = (A.isComplex() || !isSymmetricApprox(A, 1e-10))
-                   ? eig_general_values(A, mr)
-                   : eig_values(A, mr);
+    Value ev = (Aw.isComplex() || !isSymmetricApprox(Aw, 1e-10))
+                   ? eig_general_values(Aw, mr)
+                   : eig_values(Aw, mr);
     const std::size_t num_eig = ev.numel();
 
     ScratchArena scratch(mr);
@@ -83,7 +87,7 @@ Value eigs_values(const Value &A, std::size_t k, std::pmr::memory_resource *mr)
     Complex *od = out.complexDataMut();
     for (std::size_t i = 0; i < k; ++i) od[i] = pairs[i].val;
 
-    return detail::narrow_if_real(out, mr);
+    return detail::narrowDoubleToSingleIf(detail::narrow_if_real(out, mr), wantSingle, mr);
 }
 
 std::tuple<Value, Value> eigs(const Value &A, std::size_t k, std::pmr::memory_resource *mr)
@@ -95,14 +99,18 @@ std::tuple<Value, Value> eigs(const Value &A, std::size_t k, std::pmr::memory_re
     if (n != static_cast<std::size_t>(A.dims().dim(1)))
         throw Error("eigs: matrix must be square", 0, 0, "eigs", "", "numkit:eigs:notSquare");
 
+    const bool wantSingle = A.type() == ValueType::SINGLE;
+    const ValueType rtype = wantSingle ? ValueType::SINGLE : ValueType::DOUBLE;
     if (n == 0 || k == 0) {
-        return {Value::matrix(0, 0, ValueType::DOUBLE, mr),
-                Value::matrix(0, 0, ValueType::DOUBLE, mr)};
+        return {Value::matrix(0, 0, rtype, mr),
+                Value::matrix(0, 0, rtype, mr)};
     }
     if (k > n) k = n;
 
+    Value Aw = detail::widenSingleToDouble(A, mr);
+
     // Full eig decomposition A * V = V * D
-    auto [V, D] = eig_auto(A, mr);
+    auto [V, D] = eig_auto(Aw, mr);
 
     ScratchArena scratch(mr);
     ScratchVec<EigenPair> pairs(n, &scratch);
@@ -131,7 +139,8 @@ std::tuple<Value, Value> eigs(const Value &A, std::size_t k, std::pmr::memory_re
         }
     }
 
-    return {detail::narrow_if_real(Vk, mr), detail::narrow_if_real(Dk, mr)};
+    return {detail::narrowDoubleToSingleIf(detail::narrow_if_real(Vk, mr), wantSingle, mr),
+            detail::narrowDoubleToSingleIf(detail::narrow_if_real(Dk, mr), wantSingle, mr)};
 }
 
 Value svds_values(const Value &A, std::size_t k, std::pmr::memory_resource *mr)
@@ -143,14 +152,17 @@ Value svds_values(const Value &A, std::size_t k, std::pmr::memory_resource *mr)
     const std::size_t n = static_cast<std::size_t>(A.dims().dim(1));
     const std::size_t min_mn = std::min(m, n);
 
-    if (min_mn == 0 || k == 0) return Value::matrix(0, 1, ValueType::DOUBLE, mr);
+    const bool wantSingle = A.type() == ValueType::SINGLE;
+    if (min_mn == 0 || k == 0)
+        return Value::matrix(0, 1, wantSingle ? ValueType::SINGLE : ValueType::DOUBLE, mr);
     if (k > min_mn) k = min_mn;
 
-    Value sv = svd_values(A, mr);
+    Value Aw = detail::widenSingleToDouble(A, mr);
+    Value sv = svd_values(Aw, mr);
     Value out = Value::matrix(k, 1, ValueType::DOUBLE, mr);
     std::copy(sv.doubleData(), sv.doubleData() + k, out.doubleDataMut());
 
-    return out;
+    return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
 
 std::tuple<Value, Value, Value> svds(const Value &A, std::size_t k, std::pmr::memory_resource *mr)
@@ -162,14 +174,17 @@ std::tuple<Value, Value, Value> svds(const Value &A, std::size_t k, std::pmr::me
     const std::size_t n = static_cast<std::size_t>(A.dims().dim(1));
     const std::size_t min_mn = std::min(m, n);
 
+    const bool wantSingle = A.type() == ValueType::SINGLE;
+    const ValueType rtype = wantSingle ? ValueType::SINGLE : ValueType::DOUBLE;
     if (min_mn == 0 || k == 0) {
-        return {Value::matrix(m, 0, ValueType::DOUBLE, mr),
-                Value::matrix(0, 0, ValueType::DOUBLE, mr),
-                Value::matrix(n, 0, ValueType::DOUBLE, mr)};
+        return {Value::matrix(m, 0, rtype, mr),
+                Value::matrix(0, 0, rtype, mr),
+                Value::matrix(n, 0, rtype, mr)};
     }
     if (k > min_mn) k = min_mn;
 
-    auto [U, S, V] = svd_decompose(A, mr);
+    Value Aw = detail::widenSingleToDouble(A, mr);
+    auto [U, S, V] = svd_decompose(Aw, mr);
 
     auto Uk = Value::matrix(m, k, U.type(), mr);
     auto Sk = Value::matrix(k, k, S.type(), mr);
@@ -215,9 +230,9 @@ std::tuple<Value, Value, Value> svds(const Value &A, std::size_t k, std::pmr::me
         }
     }
 
-    return {detail::narrow_if_real(Uk, mr),
-            detail::narrow_if_real(Sk, mr),
-            detail::narrow_if_real(Vk, mr)};
+    return {detail::narrowDoubleToSingleIf(detail::narrow_if_real(Uk, mr), wantSingle, mr),
+            detail::narrowDoubleToSingleIf(detail::narrow_if_real(Sk, mr), wantSingle, mr),
+            detail::narrowDoubleToSingleIf(detail::narrow_if_real(Vk, mr), wantSingle, mr)};
 }
 
 } // namespace numkit::linalg

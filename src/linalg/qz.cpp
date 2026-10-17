@@ -1,4 +1,4 @@
-﻿// toolboxes/linalg/src/qz.cpp
+// toolboxes/linalg/src/qz.cpp
 //
 // qz â€” Generalized Schur decomposition [AA, BB, Q, Z] = qz(A, B).
 
@@ -98,11 +98,13 @@ std::tuple<Value, Value, Value, Value> qz(const Value &A, const Value &B,
         static_cast<std::size_t>(B.dims().dim(1)) != n)
         throw Error("qz: A and B must be square matrices of the same size", 0, 0, "qz", "", "numkit:qz:badDims");
 
+    const bool wantSingle = A.type() == ValueType::SINGLE || B.type() == ValueType::SINGLE;
+    const ValueType rtype = wantSingle ? ValueType::SINGLE : ValueType::DOUBLE;
     if (n == 0) {
-        return {Value::matrix(0, 0, ValueType::DOUBLE, mr),
-                Value::matrix(0, 0, ValueType::DOUBLE, mr),
-                Value::matrix(0, 0, ValueType::DOUBLE, mr),
-                Value::matrix(0, 0, ValueType::DOUBLE, mr)};
+        return {Value::matrix(0, 0, rtype, mr),
+                Value::matrix(0, 0, rtype, mr),
+                Value::matrix(0, 0, rtype, mr),
+                Value::matrix(0, 0, rtype, mr)};
     }
 
     ScratchArena scratch(mr);
@@ -119,15 +121,13 @@ std::tuple<Value, Value, Value, Value> qz(const Value &A, const Value &B,
     if (A.isComplex()) {
         std::copy(A.complexData(), A.complexData() + n * n, Ac.begin());
     } else {
-        const double *ad = A.doubleData();
-        for (std::size_t i = 0; i < n * n; ++i) Ac[i] = Complex(ad[i], 0.0);
+        for (std::size_t i = 0; i < n * n; ++i) Ac[i] = Complex(A.elemAsDouble(i), 0.0);
     }
 
     if (B.isComplex()) {
         std::copy(B.complexData(), B.complexData() + n * n, Bc.begin());
     } else {
-        const double *bd = B.doubleData();
-        for (std::size_t i = 0; i < n * n; ++i) Bc[i] = Complex(bd[i], 0.0);
+        for (std::size_t i = 0; i < n * n; ++i) Bc[i] = Complex(B.elemAsDouble(i), 0.0);
     }
 
     // Step 1: Reduce B to upper-triangular using QR and apply to A, Q
@@ -254,13 +254,12 @@ std::tuple<Value, Value, Value, Value> qz(const Value &A, const Value &B,
     std::copy(Ac.begin(), Ac.end(), AA_out.complexDataMut());
     std::copy(Bc.begin(), Bc.end(), BB_out.complexDataMut());
     std::copy(Qc.begin(), Qc.end(), Q_out.complexDataMut());
-    std::copy(Zc.begin(), Zc.end(), Zc.begin());
     std::copy(Zc.begin(), Zc.end(), Z_out.complexDataMut());
 
-    return {detail::narrow_if_real(AA_out, mr),
-            detail::narrow_if_real(BB_out, mr),
-            detail::narrow_if_real(Q_out, mr),
-            detail::narrow_if_real(Z_out, mr)};
+    return {detail::narrowDoubleToSingleIf(detail::narrow_if_real(AA_out, mr), wantSingle, mr),
+            detail::narrowDoubleToSingleIf(detail::narrow_if_real(BB_out, mr), wantSingle, mr),
+            detail::narrowDoubleToSingleIf(detail::narrow_if_real(Q_out, mr), wantSingle, mr),
+            detail::narrowDoubleToSingleIf(detail::narrow_if_real(Z_out, mr), wantSingle, mr)};
 }
 
 } // namespace numkit::linalg

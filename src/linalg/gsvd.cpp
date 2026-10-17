@@ -1,4 +1,4 @@
-﻿// toolboxes/linalg/src/gsvd.cpp
+// toolboxes/linalg/src/gsvd.cpp
 //
 // gsvd â€” Generalized Singular Value Decomposition.
 
@@ -45,7 +45,12 @@ Value gsvd_values(const Value &A, const Value &B, std::pmr::memory_resource *mr)
     if (static_cast<std::size_t>(Bc.dims().dim(1)) != n)
         throw Error("gsvd: A and B must have the same number of columns", 0, 0, "gsvd", "", "numkit:gsvd:badDims");
 
-    if (m == 0 || n == 0 || p == 0) return Value::matrix(0, 1, ValueType::DOUBLE, mr);
+    const bool wantSingle = Ac.type() == ValueType::SINGLE || Bc.type() == ValueType::SINGLE;
+    if (m == 0 || n == 0 || p == 0)
+        return Value::matrix(0, 1, wantSingle ? ValueType::SINGLE : ValueType::DOUBLE, mr);
+
+    Ac = detail::widenSingleToDouble(Ac, mr);
+    Bc = detail::widenSingleToDouble(Bc, mr);
 
     // Step 1: Stack K = [A; B] ((m+p) x n)
     auto K = Value::matrix(m + p, n, (Ac.isComplex() || Bc.isComplex()) ? ValueType::COMPLEX : ValueType::DOUBLE, mr);
@@ -116,14 +121,12 @@ Value gsvd_values(const Value &A, const Value &B, std::pmr::memory_resource *mr)
     }
 
     std::sort(sd, sd + num_vals);
-    return sigmas;
+    return detail::narrowDoubleToSingleIf(sigmas, wantSingle, mr);
 }
 
 std::tuple<Value, Value, Value, Value, Value> gsvd(const Value &A, const Value &B,
                                                    std::pmr::memory_resource *mr)
 {
-    // See gsvd_values: ONLY logical coerces to double; integer/char
-    // reach the gate and are rejected (R2025b probes).
     Value Ac = (A.type() == ValueType::LOGICAL)
                    ? detail::coerceToDoubleMatrix(A, mr) : A;
     Value Bc = (B.type() == ValueType::LOGICAL)
@@ -138,13 +141,18 @@ std::tuple<Value, Value, Value, Value, Value> gsvd(const Value &A, const Value &
     if (static_cast<std::size_t>(Bc.dims().dim(1)) != n)
         throw Error("gsvd: A and B must have the same number of columns", 0, 0, "gsvd", "", "numkit:gsvd:badDims");
 
+    const bool wantSingle = Ac.type() == ValueType::SINGLE || Bc.type() == ValueType::SINGLE;
+    const ValueType rtype = wantSingle ? ValueType::SINGLE : ValueType::DOUBLE;
     if (m == 0 || n == 0 || p == 0) {
-        return {Value::matrix(m, m, ValueType::DOUBLE, mr),
-                Value::matrix(p, p, ValueType::DOUBLE, mr),
-                Value::matrix(n, n, ValueType::DOUBLE, mr),
-                Value::matrix(m, n, ValueType::DOUBLE, mr),
-                Value::matrix(p, n, ValueType::DOUBLE, mr)};
+        return {Value::matrix(m, m, rtype, mr),
+                Value::matrix(p, p, rtype, mr),
+                Value::matrix(n, n, rtype, mr),
+                Value::matrix(m, n, rtype, mr),
+                Value::matrix(p, n, rtype, mr)};
     }
+
+    Ac = detail::widenSingleToDouble(Ac, mr);
+    Bc = detail::widenSingleToDouble(Bc, mr);
 
     // Step 1: Stack K = [A; B] ((m+p) x n)
     auto K = Value::matrix(m + p, n, (Ac.isComplex() || Bc.isComplex()) ? ValueType::COMPLEX : ValueType::DOUBLE, mr);
@@ -258,17 +266,9 @@ std::tuple<Value, Value, Value, Value, Value> gsvd(const Value &A, const Value &
         }
     }
 
-    // Step 4: V = (Q2 * W) * S^{-1} with S = sqrt(I âˆ’ CÂ²).
-    // (Q2Â·W)'Â·(Q2Â·W) = W'(I âˆ’ Q1'Q1)W = I âˆ’ CÂ² = SÂ², so normalizing the
-    // columns of Q2Â·W by s_j yields the orthonormal V of the CS
-    // decomposition DIRECTLY â€” a second SVD introduces a spurious Z that
-    // breaks the A = UÂ·CÂ·X' identity whenever it is not identity
-    // (repeated singular values). Zero s_j columns (B rank-deficient
-    // there) contribute ~0 to B = VÂ·SÂ·X'; they stay zero.
     auto V = Value::matrix(p, n, Q2_W.isComplex() ? ValueType::COMPLEX : ValueType::DOUBLE, mr);
     auto S_out = Value::matrix(p, n, Q2_W.type(), mr);
     {
-        // C is the mÃ—n diagonal factor of Q1's SVD; read its diagonal.
         const bool C_is_cx = C.isComplex();
         const Complex *C_cx = C_is_cx ? C.complexData() : nullptr;
         const double *C_re = C_is_cx ? nullptr : C.doubleData();
@@ -306,7 +306,7 @@ std::tuple<Value, Value, Value, Value, Value> gsvd(const Value &A, const Value &
         }
     }
 
-    // Step 5: X = Rk^H * W (shared W â€” see Step 4 note).
+    // Step 5: X = Rk^H * W (shared W — see Step 4 note).
     auto X = Value::matrix(n, n, (Rk.isComplex() || W.isComplex()) ? ValueType::COMPLEX : ValueType::DOUBLE, mr);
     if (X.isComplex()) {
         Complex *xd = X.complexDataMut();
@@ -335,11 +335,11 @@ std::tuple<Value, Value, Value, Value, Value> gsvd(const Value &A, const Value &
         }
     }
 
-    return {detail::narrow_if_real(U, mr),
-            detail::narrow_if_real(V, mr),
-            detail::narrow_if_real(X, mr),
-            detail::narrow_if_real(C, mr),
-            detail::narrow_if_real(S_out, mr)};
+    return {detail::narrowDoubleToSingleIf(detail::narrow_if_real(U, mr), wantSingle, mr),
+            detail::narrowDoubleToSingleIf(detail::narrow_if_real(V, mr), wantSingle, mr),
+            detail::narrowDoubleToSingleIf(detail::narrow_if_real(X, mr), wantSingle, mr),
+            detail::narrowDoubleToSingleIf(detail::narrow_if_real(C, mr), wantSingle, mr),
+            detail::narrowDoubleToSingleIf(detail::narrow_if_real(S_out, mr), wantSingle, mr)};
 }
 
 } // namespace numkit::linalg

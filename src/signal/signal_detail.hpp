@@ -13,8 +13,10 @@
 #include <numkit/value/value.hpp>
 #include <numkit/value/value_type.hpp>   // mtypeName (argcheck got-clauses)
 
+#include <memory_resource>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace numkit::signal::detail {
 
@@ -43,8 +45,7 @@ inline void throwInputType(const Value &v, std::string_view fn,
 }
 
 // Numeric-or-logical family (conv, bitrevorder, ifft 'symmetric'):
-// every numeric class plus logical passes (the compute coerces to double
-// and the reference returns double); char, string, cell and struct are
+// every numeric class plus logical passes; char, string, cell and struct are
 // rejected as one inputType class.
 inline void requireNumericOrLogicalInput(const Value &v, std::string_view fn,
                                          std::string_view argName = "x",
@@ -55,47 +56,74 @@ inline void requireNumericOrLogicalInput(const Value &v, std::string_view fn,
     throwInputType(v, fn, argName, argNum, "numeric or logical");
 }
 
-// Same, but single is an honest capability gap: the kernels consume
-// double buffers and the reference returns single-classed results, so
-// single gets its own identifier instead of a raw buffer error
-// (bugs/opened/signal/single-float-inputs.md).
 inline void requireNumericSignalInput(const Value &v, std::string_view fn,
                                       std::string_view argName = "x",
                                       int argNum = 1)
 {
-    if (v.type() == ValueType::SINGLE)
-        throw Error(std::string(fn) + ": input " + std::to_string(argNum)
-                        + " (" + std::string(argName)
-                        + "): single inputs are not supported yet — convert "
-                          "with double() (got a " + shapeOf(v)
-                        + " single array).",
-                    0, 0, std::string(fn), "",
-                    "numkit:" + std::string(fn) + ":singleUnsupported");
     requireNumericOrLogicalInput(v, fn, argName, argNum);
 }
 
 // Float family (the reference's "must be double or single" class):
-// double and complex double pass, single is stubbed, logical / integer /
+// double, single, and complex double pass; logical / integer /
 // char / cell are rejected (the reference rejects them as invalidType).
 inline void requireFloatInput(const Value &v, std::string_view fn,
                               std::string_view argName = "x", int argNum = 1)
 {
     const ValueType t = v.type();
-    // EMPTY passes: it behaves as a 0x0 double everywhere downstream
-    // (medfilt1([]) is legal; the TreeWalker materializes [] as EMPTY
-    // where the VM uses a 0x0 double — the gate must not split them).
-    if (t == ValueType::DOUBLE || t == ValueType::COMPLEX
-        || t == ValueType::EMPTY)
+    if (t == ValueType::DOUBLE || t == ValueType::SINGLE
+        || t == ValueType::COMPLEX || t == ValueType::EMPTY)
         return;
-    if (t == ValueType::SINGLE)
-        throw Error(std::string(fn) + ": input " + std::to_string(argNum)
-                        + " (" + std::string(argName)
-                        + "): single inputs are not supported yet — convert "
-                          "with double() (got a " + shapeOf(v)
-                        + " single array).",
-                    0, 0, std::string(fn), "",
-                    "numkit:" + std::string(fn) + ":singleUnsupported");
-    throwInputType(v, fn, argName, argNum, "a double or complex double array");
+    throwInputType(v, fn, argName, argNum, "a double or single array");
+}
+
+inline Value widenSingleToDouble(const Value &v, std::pmr::memory_resource *mr)
+{
+    if (v.type() != ValueType::SINGLE) return v;
+    const auto &d = v.dims();
+    Value out;
+    if (d.ndim() <= 2) {
+        out = Value::matrix(d.rows(), d.cols(), ValueType::DOUBLE, mr);
+    } else if (d.ndim() == 3) {
+        out = Value::matrix3d(d.rows(), d.cols(), d.pages(), ValueType::DOUBLE, mr);
+    } else {
+        std::vector<std::size_t> od(static_cast<std::size_t>(d.ndim()));
+        for (int k = 0; k < d.ndim(); ++k) od[static_cast<std::size_t>(k)] = d.dim(k);
+        out = Value::matrixND(od.data(), d.ndim(), ValueType::DOUBLE, mr);
+    }
+    const float *src = v.singleData();
+    double *dst = out.doubleDataMut();
+    const std::size_t n = v.numel();
+    for (std::size_t i = 0; i < n; ++i)
+        dst[i] = static_cast<double>(src[i]);
+    return out;
+}
+
+inline Value narrowDoubleToSingle(const Value &v, std::pmr::memory_resource *mr)
+{
+    if (v.type() != ValueType::DOUBLE) return v;
+    const auto &d = v.dims();
+    Value out;
+    if (d.ndim() <= 2) {
+        out = Value::matrix(d.rows(), d.cols(), ValueType::SINGLE, mr);
+    } else if (d.ndim() == 3) {
+        out = Value::matrix3d(d.rows(), d.cols(), d.pages(), ValueType::SINGLE, mr);
+    } else {
+        std::vector<std::size_t> od(static_cast<std::size_t>(d.ndim()));
+        for (int k = 0; k < d.ndim(); ++k) od[static_cast<std::size_t>(k)] = d.dim(k);
+        out = Value::matrixND(od.data(), d.ndim(), ValueType::SINGLE, mr);
+    }
+    const double *src = v.doubleData();
+    float *dst = out.singleDataMut();
+    const std::size_t n = v.numel();
+    for (std::size_t i = 0; i < n; ++i)
+        dst[i] = static_cast<float>(src[i]);
+    return out;
+}
+
+inline Value narrowDoubleToSingleIf(const Value &v, bool wantSingle,
+                                    std::pmr::memory_resource *mr)
+{
+    return wantSingle ? narrowDoubleToSingle(v, mr) : v;
 }
 
 // Real float family (medfilt1): the reference additionally rejects

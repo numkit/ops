@@ -1,4 +1,4 @@
-﻿// toolboxes/linalg/src/ordschur.cpp
+// toolboxes/linalg/src/ordschur.cpp
 //
 // ordschur â€” Reorder Schur decomposition A = U * T * U^H.
 
@@ -111,9 +111,11 @@ std::tuple<Value, Value> ordschur(const Value &U, const Value &T,
     if (select.numel() != n)
         throw Error("ordschur: select must have length n", 0, 0, "ordschur", "", "numkit:ordschur:badSelect");
 
+    const bool wantSingle = U.type() == ValueType::SINGLE || T.type() == ValueType::SINGLE;
+    const ValueType rtype = wantSingle ? ValueType::SINGLE : ValueType::DOUBLE;
     if (n == 0) {
-        return {Value::matrix(0, 0, ValueType::DOUBLE, mr),
-                Value::matrix(0, 0, ValueType::DOUBLE, mr)};
+        return {Value::matrix(0, 0, rtype, mr),
+                Value::matrix(0, 0, rtype, mr)};
     }
 
     ScratchArena scratch(mr);
@@ -124,15 +126,13 @@ std::tuple<Value, Value> ordschur(const Value &U, const Value &T,
     if (T.isComplex()) {
         std::copy(T.complexData(), T.complexData() + n * n, Tc.begin());
     } else {
-        const double *td = T.doubleData();
-        for (std::size_t i = 0; i < n * n; ++i) Tc[i] = Complex(td[i], 0.0);
+        for (std::size_t i = 0; i < n * n; ++i) Tc[i] = Complex(T.elemAsDouble(i), 0.0);
     }
 
     if (U.isComplex()) {
         std::copy(U.complexData(), U.complexData() + n * n, Uc.begin());
     } else {
-        const double *ud = U.doubleData();
-        for (std::size_t i = 0; i < n * n; ++i) Uc[i] = Complex(ud[i], 0.0);
+        for (std::size_t i = 0; i < n * n; ++i) Uc[i] = Complex(U.elemAsDouble(i), 0.0);
     }
 
     if (select.type() == ValueType::LOGICAL) {
@@ -158,7 +158,8 @@ std::tuple<Value, Value> ordschur(const Value &U, const Value &T,
     std::copy(Uc.begin(), Uc.end(), U_out.complexDataMut());
     std::copy(Tc.begin(), Tc.end(), T_out.complexDataMut());
 
-    return {detail::narrow_if_real(U_out, mr), detail::narrow_if_real(T_out, mr)};
+    return {detail::narrowDoubleToSingleIf(detail::narrow_if_real(U_out, mr), wantSingle, mr),
+            detail::narrowDoubleToSingleIf(detail::narrow_if_real(T_out, mr), wantSingle, mr)};
 }
 
 std::tuple<Value, Value> ordschur(const Value &U, const Value &T,
@@ -172,7 +173,7 @@ std::tuple<Value, Value> ordschur(const Value &U, const Value &T,
     uint8_t *sd = select.logicalDataMut();
 
     for (std::size_t i = 0; i < n; ++i) {
-        Complex val = T.isComplex() ? T.complexData()[i + i * n] : Complex(T.doubleData()[i + i * n], 0.0);
+        Complex val = T.isComplex() ? T.complexData()[i + i * n] : Complex(T.elemAsDouble(i + i * n), 0.0);
         bool s = false;
         if (domain == "lhp") {
             s = (val.real() < 0.0);

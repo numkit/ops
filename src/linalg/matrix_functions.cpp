@@ -65,15 +65,18 @@ Value expm(const Value &A, std::pmr::memory_resource *mr)
                     0, 0, "expm", "", "numkit:expm:notSquare");
     if (n == 0) return Value::matrix(0, 0, A.type(), mr);
 
+    const bool wantSingle = A.type() == ValueType::SINGLE;
+    Value Aw = detail::widenSingleToDouble(A, mr);
+
     // Padé(6) coefficients (Higham table 10.4).
     static constexpr double c[7] = {
         1.0, 1.0/2.0, 5.0/44.0, 1.0/66.0, 1.0/792.0, 1.0/15840.0, 1.0/665280.0
     };
 
     ScratchArena scratch(mr);
-    if (A.isComplex()) {
+    if (Aw.isComplex()) {
         ScratchVec<Complex> A_s(n * n, &scratch);
-        std::copy(A.complexData(), A.complexData() + n * n, A_s.begin());
+        std::copy(Aw.complexData(), Aw.complexData() + n * n, A_s.begin());
 
         const double a_norm = mat1Norm(A_s.data(), n);
         int s = 0;
@@ -145,7 +148,7 @@ Value expm(const Value &A, std::pmr::memory_resource *mr)
 
     // Padé(6) scaling-and-squaring (real).
     ScratchVec<double> A_s(n * n, &scratch);
-    std::copy(A.doubleData(), A.doubleData() + n * n, A_s.begin());
+    std::copy(Aw.doubleData(), Aw.doubleData() + n * n, A_s.begin());
 
     const double a_norm = mat1Norm(A_s.data(), n);
     int s = 0;
@@ -216,7 +219,7 @@ Value expm(const Value &A, std::pmr::memory_resource *mr)
             std::copy(tmp.begin(), tmp.end(), X);
         }
     }
-    return out;
+    return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
 
 namespace {
@@ -227,9 +230,11 @@ Value applyScalarFnSym(const Value &A, double (*f)(double),
                        const char *fnName, const char *errId,
                        std::pmr::memory_resource *mr)
 {
-    auto [V, D] = eig_symmetric(A, mr);
+    const bool wantSingle = A.type() == ValueType::SINGLE;
+    Value Aw = detail::widenSingleToDouble(A, mr);
+    auto [V, D] = eig_symmetric(Aw, mr);
     const std::size_t n = static_cast<std::size_t>(D.dims().dim(0));
-    if (n == 0) return Value::matrix(0, 0, ValueType::DOUBLE, mr);
+    if (n == 0) return Value::matrix(0, 0, wantSingle ? ValueType::SINGLE : ValueType::DOUBLE, mr);
 
     const double *Vdata = V.doubleData();
     const double *Ddata = D.doubleData();
@@ -256,7 +261,7 @@ Value applyScalarFnSym(const Value &A, double (*f)(double),
                 s += Vdata[i + k * n] * fD[k] * Vdata[j + k * n];
             R[i + j * n] = s;
         }
-    return out;
+    return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
 
 } // anonymous namespace
@@ -281,10 +286,13 @@ Value sqrtm(const Value &A, std::pmr::memory_resource *mr)
     const std::size_t n = static_cast<std::size_t>(A.dims().dim(0));
     if (n != static_cast<std::size_t>(A.dims().dim(1)))
         throw Error("sqrtm: matrix must be square", 0, 0, "sqrtm", "", "numkit:sqrtm:notSquare");
-    if (n == 0) return Value::matrix(0, 0, ValueType::DOUBLE, mr);
+    const bool wantSingle = A.type() == ValueType::SINGLE;
+    if (n == 0) return Value::matrix(0, 0, wantSingle ? ValueType::SINGLE : ValueType::DOUBLE, mr);
+
+    Value Aw = detail::widenSingleToDouble(A, mr);
 
     // Schur decomposition A = U * T * U^H
-    auto [U, T] = schur_general(A, mr);
+    auto [U, T] = schur_general(Aw, mr);
 
     ScratchArena scratch(mr);
     ScratchVec<Complex> Tc(n * n, &scratch);
@@ -304,8 +312,6 @@ Value sqrtm(const Value &A, std::pmr::memory_resource *mr)
         for (std::size_t i = 0; i < n * n; ++i) Uc[i] = Complex(ud[i], 0.0);
     }
 
-    // BjÃ¶rckâ€“Hammarling algorithm for R^2 = T:
-    // Diagonal entries: R_{i,i} = sqrt(T_{i,i})
     for (std::size_t i = 0; i < n; ++i) {
         Rc[i + i * n] = std::sqrt(Tc[i + i * n]);
     }
@@ -352,16 +358,11 @@ Value sqrtm(const Value &A, std::pmr::memory_resource *mr)
         }
     }
 
-    return detail::narrow_if_real(out, mr);
+    return detail::narrowDoubleToSingleIf(detail::narrow_if_real(out, mr), wantSingle, mr);
 }
 
 Value sylvester(const Value &A, const Value &B, const Value &C, std::pmr::memory_resource *mr)
 {
-    // Class contract probed R2025b (probe66/67): single or double only
-    // (integer/logical/char reject with inputType); ANY single input
-    // makes the result single; NaN/Inf inputs reject (inputWithNaNInf);
-    // empty operands reject with the reference's compatible-size
-    // diagnostic (not an empty result).
     for (const Value *v : {&A, &B, &C}) {
         const ValueType vt = v->type();
         if (vt != ValueType::DOUBLE && vt != ValueType::COMPLEX
@@ -411,9 +412,6 @@ Value sylvester(const Value &A, const Value &B, const Value &C, std::pmr::memory
                     0, 0, "sylvester", "",
                     "numkit:sylvester:inputMustBeCompatibleSize");
 
-    // Widen single operands to double for the Schur kernel; the result
-    // narrows back to single below (the reference computes in single
-    // arithmetic â€” parity uses closeness predicates on single paths).
     auto widen = [&](const Value &v) -> Value {
         if (v.type() != ValueType::SINGLE)
             return v;
@@ -475,7 +473,6 @@ Value sylvester(const Value &A, const Value &B, const Value &C, std::pmr::memory
         }
     }
 
-    // Bartelsâ€“Stewart algorithm: solve T_A * Y + Y * T_B = C_tilde
     ScratchVec<Complex> Y(m * n, Complex(0.0, 0.0), &scratch);
     for (std::size_t j = 0; j < n; ++j) {
         for (std::intptr_t i = static_cast<std::intptr_t>(m) - 1; i >= 0; --i) {
@@ -487,9 +484,6 @@ Value sylvester(const Value &A, const Value &B, const Value &C, std::pmr::memory
             for (std::size_t k = 0; k < j; ++k) {
                 s -= Y[ui + k * m] * Tb[k + j * n];
             }
-            // Plain division, like the reference: a zero diagonal sum
-            // (degenerate A = B = 0 systems) yields NaN rather than a
-            // silently regularized 0 (probed R2025b, probe67 C06).
             const Complex denom = Ta[ui + ui * m] + Tb[j + j * n];
             Y[ui + j * m] = s / denom;
         }
@@ -520,9 +514,6 @@ Value sylvester(const Value &A, const Value &B, const Value &C, std::pmr::memory
     }
 
     Value res = detail::narrow_if_real(std::move(out), mr);
-    // All-real inputs -> real result even in the degenerate zero system:
-    // the complex pipeline yields Complex(NaN, NaN) there where the
-    // reference's real solver answers a plain real NaN (probe67 C06).
     if (!A.isComplex() && !B.isComplex() && !C.isComplex()
         && res.isComplex()) {
         Value r = Value::matrix(m, n, ValueType::DOUBLE, mr);
@@ -552,10 +543,13 @@ Value logm(const Value &A, std::pmr::memory_resource *mr)
     const std::size_t n = static_cast<std::size_t>(A.dims().dim(0));
     if (n != static_cast<std::size_t>(A.dims().dim(1)))
         throw Error("logm: matrix must be square", 0, 0, "logm", "", "numkit:logm:notSquare");
-    if (n == 0) return Value::matrix(0, 0, ValueType::DOUBLE, mr);
+    const bool wantSingle = A.type() == ValueType::SINGLE;
+    if (n == 0) return Value::matrix(0, 0, wantSingle ? ValueType::SINGLE : ValueType::DOUBLE, mr);
+
+    Value Aw = detail::widenSingleToDouble(A, mr);
 
     // Schur decomposition A = U * T * U^H
-    auto [U, T] = schur_general(A, mr);
+    auto [U, T] = schur_general(Aw, mr);
 
     ScratchArena scratch(mr);
     ScratchVec<Complex> Tc(n * n, &scratch);
@@ -574,8 +568,6 @@ Value logm(const Value &A, std::pmr::memory_resource *mr)
         for (std::size_t i = 0; i < n * n; ++i) Uc[i] = Complex(ud[i], 0.0);
     }
 
-    // Inverse scaling and squaring on triangular T:
-    // Compute T_s = sqrtm^{s}(T) until ||T_s - I||_1 < 0.5
     int s_count = 0;
     auto matDiffNorm = [](const Complex *M, std::size_t n) -> double {
         double max_col = 0.0;
@@ -609,7 +601,6 @@ Value logm(const Value &A, std::pmr::memory_resource *mr)
         s_count++;
     }
 
-    // Taylor series log(I + E) = sum_{k=1}^16 (-1)^{k-1}/k E^k on upper-triangular E
     ScratchVec<Complex> E(n * n, Complex(0.0, 0.0), &scratch);
     for (std::size_t i = 0; i < n; ++i) {
         for (std::size_t j = 0; j < n; ++j) {
@@ -622,7 +613,6 @@ Value logm(const Value &A, std::pmr::memory_resource *mr)
     for (std::size_t i = 0; i < n; ++i) Ek[i + i * n] = Complex(1.0, 0.0); // E^0
 
     for (int k = 1; k <= 24; ++k) {
-        // Ek = Ek * E
         ScratchVec<Complex> Ek_next(n * n, Complex(0.0, 0.0), &scratch);
         for (std::size_t i = 0; i < n; ++i) {
             for (std::size_t j = i; j < n; ++j) {
@@ -641,11 +631,9 @@ Value logm(const Value &A, std::pmr::memory_resource *mr)
         }
     }
 
-    // Multiply by 2^s
     double scale = std::pow(2.0, s_count);
     for (std::size_t i = 0; i < n * n; ++i) logT[i] *= scale;
 
-    // Reconstruct X = U * logT * U^H
     ScratchVec<Complex> logT_Uh(n * n, Complex(0.0, 0.0), &scratch);
     for (std::size_t i = 0; i < n; ++i) {
         for (std::size_t j = 0; j < n; ++j) {
@@ -669,20 +657,11 @@ Value logm(const Value &A, std::pmr::memory_resource *mr)
         }
     }
 
-    return detail::narrow_if_real(out, mr);
+    return detail::narrowDoubleToSingleIf(detail::narrow_if_real(out, mr), wantSingle, mr);
 }
-
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// expmv â€” action of matrix exponential on a vector
-// (Sidje 1998 simplified; fixed Krylov dimension)
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 Value expmv(double t, const Value &A, const Value &v, std::pmr::memory_resource *mr)
 {
-    // The reference engine's expmv rejects every operand shape with a
-    // nonColumnVector error in R2025b (even the textbook happy path), so
-    // this contract is nk-defined: A carries the float contract, v is
-    // read by coercion (numeric, logical and char all coerce).
     detail::requireDoubleInput(A, "expmv", "A", 1);
     {
         const ValueType vt = v.type();
@@ -704,9 +683,12 @@ Value expmv(double t, const Value &A, const Value &v, std::pmr::memory_resource 
     if (v.numel() != n)
         throw Error("expmv: length(v) must equal size(A, 1)",
                     0, 0, "expmv", "", "numkit:expmv:badV");
-    if (n == 0) return Value::matrix(0, 1, ValueType::DOUBLE, mr);
+    const bool wantSingle = A.type() == ValueType::SINGLE || v.type() == ValueType::SINGLE;
+    if (n == 0)
+        return Value::matrix(0, 1, wantSingle ? ValueType::SINGLE : ValueType::DOUBLE, mr);
 
-    // beta = ||v||â‚‚
+    Value Aw = detail::widenSingleToDouble(A, mr);
+
     double beta = 0.0;
     for (std::size_t i = 0; i < n; ++i) {
         const double vi = v.elemAsDouble(i);
@@ -716,7 +698,7 @@ Value expmv(double t, const Value &A, const Value &v, std::pmr::memory_resource 
     if (beta == 0.0) {
         auto z = Value::matrix(n, 1, ValueType::DOUBLE, mr);
         std::fill(z.doubleDataMut(), z.doubleDataMut() + n, 0.0);
-        return z;
+        return detail::narrowDoubleToSingleIf(z, wantSingle, mr);
     }
 
     const std::size_t m = std::min<std::size_t>(30, n);   // Krylov dim
@@ -729,11 +711,10 @@ Value expmv(double t, const Value &A, const Value &v, std::pmr::memory_resource 
     // V[:, 0] = v / beta
     for (std::size_t i = 0; i < n; ++i) V[i + 0 * n] = v.elemAsDouble(i) / beta;
 
-    const double *Ad = A.doubleData();
+    const double *Ad = Aw.doubleData();
     std::size_t m_eff = m;    // may shrink on lucky breakdown
 
     for (std::size_t j = 0; j < m; ++j) {
-        // work = A Â· V[:, j]
         for (std::size_t i = 0; i < n; ++i) {
             double s = 0.0;
             for (std::size_t k = 0; k < n; ++k) s += Ad[i + k * n] * V[k + j * n];
@@ -751,31 +732,24 @@ Value expmv(double t, const Value &A, const Value &v, std::pmr::memory_resource 
         for (std::size_t k = 0; k < n; ++k) hjp1 += work[k] * work[k];
         hjp1 = std::sqrt(hjp1);
         if (hjp1 < 1e-14) {
-            // Lucky breakdown â€” exact eigenspace found.
             m_eff = j + 1;
             break;
         }
-        // Store sub-diagonal into H (within square block: only if j+1 < m).
         if (j + 1 < m) H[(j + 1) + j * m] = hjp1;
-        // V[:, j+1] = work / hjp1
         for (std::size_t k = 0; k < n; ++k) V[k + (j + 1) * n] = work[k] / hjp1;
     }
 
-    // Trim H to m_eff Ã— m_eff if breakdown shortened the basis.
     Value Hsq = Value::matrix(m_eff, m_eff, ValueType::DOUBLE, mr);
     double *Hsd = Hsq.doubleDataMut();
     for (std::size_t j = 0; j < m_eff; ++j)
         for (std::size_t i = 0; i < m_eff; ++i)
             Hsd[i + j * m_eff] = (i < m && j < m) ? H[i + j * m] : 0.0;
 
-    // Scale by t: H Â· t.
     for (std::size_t k = 0; k < m_eff * m_eff; ++k) Hsd[k] *= t;
 
-    // F = expm(t Â· H), pick first column. F is m_eff Ã— m_eff.
     auto F = expm(Hsq, mr);
     const double *Fd = F.doubleData();
 
-    // w = beta Â· V[:, 0..m_eff-1] Â· F[:, 0]
     auto out = Value::matrix(n, 1, ValueType::DOUBLE, mr);
     double *wd = out.doubleDataMut();
     for (std::size_t i = 0; i < n; ++i) {
@@ -783,12 +757,8 @@ Value expmv(double t, const Value &A, const Value &v, std::pmr::memory_resource 
         for (std::size_t k = 0; k < m_eff; ++k) s += V[i + k * n] * Fd[k + 0 * m_eff];
         wd[i] = beta * s;
     }
-    return out;
+    return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
-
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// funm â€” general matrix function evaluator via Schurâ€“Parlett
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 static Value funm_eval(const Value &A, std::function<Complex(Complex)> f, std::pmr::memory_resource *mr)
 {
@@ -798,10 +768,13 @@ static Value funm_eval(const Value &A, std::function<Complex(Complex)> f, std::p
     const std::size_t n = static_cast<std::size_t>(A.dims().dim(0));
     if (n != static_cast<std::size_t>(A.dims().dim(1)))
         throw Error("funm: matrix must be square", 0, 0, "funm", "", "numkit:funm:notSquare");
-    if (n == 0) return Value::matrix(0, 0, ValueType::DOUBLE, mr);
+    const bool wantSingle = A.type() == ValueType::SINGLE;
+    if (n == 0) return Value::matrix(0, 0, wantSingle ? ValueType::SINGLE : ValueType::DOUBLE, mr);
+
+    Value Aw = detail::widenSingleToDouble(A, mr);
 
     // Schur decomposition A = U * T * U^H
-    auto [U, T] = schur_general(A, mr);
+    auto [U, T] = schur_general(Aw, mr);
 
     ScratchArena scratch(mr);
     ScratchVec<Complex> Tc(n * n, &scratch);
@@ -874,7 +847,7 @@ static Value funm_eval(const Value &A, std::function<Complex(Complex)> f, std::p
         }
     }
 
-    return detail::narrow_if_real(out, mr);
+    return detail::narrowDoubleToSingleIf(detail::narrow_if_real(out, mr), wantSingle, mr);
 }
 
 Value funm(const Value &A, std::function<Complex(Complex)> f, std::pmr::memory_resource *mr)

@@ -1,4 +1,4 @@
-﻿// toolboxes/linalg/src/solvers.cpp
+// toolboxes/linalg/src/solvers.cpp
 //
 // linsolve / lsqminnorm / lsqnonneg â€” and engine adapters.
 // Migrated 2026-05-25 from toolboxes/builtin/src/language/arrays/{matrix,lsq}.cpp.
@@ -43,23 +43,27 @@ Value linsolve(const Value &A, const Value &B, std::pmr::memory_resource *mr)
         throw Error("linsolve: A and B must have the same number of rows",
                     0, 0, "linsolve", "", "numkit:linsolve:badDims");
 
-    if (A.isComplex() || B.isComplex()) {
+    const bool wantSingle = A.type() == ValueType::SINGLE || B.type() == ValueType::SINGLE;
+    Value Aw = detail::widenSingleToDouble(A, mr);
+    Value Bw = detail::widenSingleToDouble(B, mr);
+
+    if (Aw.isComplex() || Bw.isComplex()) {
         if (m == n) {
             ScratchArena scratch(mr);
             ScratchVec<detail::Complex> A_buf(m * n, &scratch);
             ScratchVec<detail::Complex> B_buf(m * nrhs, &scratch);
 
-            if (A.isComplex()) {
-                std::copy(A.complexData(), A.complexData() + m * n, A_buf.begin());
+            if (Aw.isComplex()) {
+                std::copy(Aw.complexData(), Aw.complexData() + m * n, A_buf.begin());
             } else {
-                const double *ad = A.doubleData();
+                const double *ad = Aw.doubleData();
                 for (std::size_t i = 0; i < m * n; ++i) A_buf[i] = ad[i];
             }
 
-            if (B.isComplex()) {
-                std::copy(B.complexData(), B.complexData() + m * nrhs, B_buf.begin());
+            if (Bw.isComplex()) {
+                std::copy(Bw.complexData(), Bw.complexData() + m * nrhs, B_buf.begin());
             } else {
-                const double *bd = B.doubleData();
+                const double *bd = Bw.doubleData();
                 for (std::size_t i = 0; i < m * nrhs; ++i) B_buf[i] = bd[i];
             }
 
@@ -68,10 +72,10 @@ Value linsolve(const Value &A, const Value &B, std::pmr::memory_resource *mr)
                 throw Error("linsolve: A is singular or rank-deficient",
                             0, 0, "linsolve", "", "numkit:linsolve:singular");
             }
-            return detail::narrow_if_real(out, mr);
+            return detail::narrowDoubleToSingleIf(detail::narrow_if_real(out, mr), wantSingle, mr);
         } else if (m > n) {
-            Value Ac = A;
-            Value Bc = B;
+            Value Ac = Aw;
+            Value Bc = Bw;
             if (!Ac.isComplex()) {
                 Value tmp = Value::complexMatrix(m, n, mr);
                 std::complex<double> *cd = tmp.complexDataMut();
@@ -120,7 +124,7 @@ Value linsolve(const Value &A, const Value &B, std::pmr::memory_resource *mr)
                     Xd[static_cast<std::size_t>(i) + col * n] = s / diag;
                 }
             }
-            return detail::narrow_if_real(X, mr);
+            return detail::narrowDoubleToSingleIf(detail::narrow_if_real(X, mr), wantSingle, mr);
         } else {
             throw Error("linsolve: complex wide matrices (m < n) deferred",
                         0, 0, "linsolve", "", "numkit:linsolve:wide");
@@ -129,11 +133,11 @@ Value linsolve(const Value &A, const Value &B, std::pmr::memory_resource *mr)
 
     ScratchArena scratch(mr);
     auto out = Value::matrix(n, nrhs, ValueType::DOUBLE, mr);
-    if (!numkit::ops::la_solve(A.doubleData(), m, n, B.doubleData(), nrhs,
+    if (!numkit::ops::la_solve(Aw.doubleData(), m, n, Bw.doubleData(), nrhs,
                                out.doubleDataMut(), &scratch))
         throw Error("linsolve: A is singular or rank-deficient",
                     0, 0, "linsolve", "", "numkit:linsolve:singular");
-    return out;
+    return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
 
 Value lsqminnorm(const Value &A, const Value &B, bool have_tol, double tol_user,
@@ -150,12 +154,11 @@ Value lsqminnorm(const Value &A, const Value &B, bool have_tol, double tol_user,
         throw Error("lsqminnorm: A and B must have same number of rows",
                     0, 0, "lsqminnorm", "", "numkit:lsqminnorm:DimMismatch");
 
-    Value Ap = pinv(A, have_tol ? tol_user : -1.0, mr);
-    return numkit::builtin::mtimes(Ap, B, mr);
+    const bool wantSingle = A.type() == ValueType::SINGLE || B.type() == ValueType::SINGLE;
+    Value Ap = detail::widenSingleToDouble(pinv(A, have_tol ? tol_user : -1.0, mr), mr);
+    Value Bw = detail::widenSingleToDouble(B, mr);
+    return detail::narrowDoubleToSingleIf(numkit::builtin::mtimes(Ap, Bw, mr), wantSingle, mr);
 }
-
-// â”€â”€ lsqnonneg â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Lawson-Hanson active-set NNLS. NnlsResult declared in solvers.hpp.
 
 NnlsResult
 lsqnonneg_impl(const Value &C, const Value &d, std::pmr::memory_resource *mr)
@@ -171,6 +174,9 @@ lsqnonneg_impl(const Value &C, const Value &d, std::pmr::memory_resource *mr)
     if (d.numel() != M)
         throw Error("lsqnonneg: C and d must have compatible sizes",
                     0, 0, "lsqnonneg", "", "numkit:lsqnonneg:DimMismatch");
+
+    const bool wantSingle = C.type() == ValueType::SINGLE || d.type() == ValueType::SINGLE;
+    Value Cw = detail::widenSingleToDouble(C, mr);
 
     NnlsResult R;
     R.exitflag = 1;
@@ -188,10 +194,14 @@ lsqnonneg_impl(const Value &C, const Value &d, std::pmr::memory_resource *mr)
     R.resnorm = 0.0;
     for (size_t i = 0; i < M; ++i) R.resnorm += rd[i] * rd[i];
 
-    if (N == 0) return R;
+    if (N == 0) {
+        R.x = detail::narrowDoubleToSingleIf(R.x, wantSingle, mr);
+        R.residual = detail::narrowDoubleToSingleIf(R.residual, wantSingle, mr);
+        return R;
+    }
 
     ScratchArena scratch(mr);
-    const double *Cd = C.doubleData();
+    const double *Cd = Cw.doubleData();
 
     double cnorm = 0.0;
     for (size_t k = 0; k < M * N; ++k) cnorm = std::max(cnorm, std::abs(Cd[k]));
@@ -309,6 +319,8 @@ lsqnonneg_impl(const Value &C, const Value &d, std::pmr::memory_resource *mr)
     }
 
     R.iterations = outer_iter;
+    R.x = detail::narrowDoubleToSingleIf(R.x, wantSingle, mr);
+    R.residual = detail::narrowDoubleToSingleIf(R.residual, wantSingle, mr);
     return R;
 }
 

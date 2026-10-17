@@ -1,4 +1,4 @@
-﻿// toolboxes/linalg/src/norms.cpp
+// toolboxes/linalg/src/norms.cpp
 //
 // Vector / matrix norms â€” implementations and engine adapters.
 // Migrated from toolboxes/builtin/src/language/arrays/{matrix,predicates}.cpp.
@@ -39,13 +39,12 @@ inline std::size_t lin(std::size_t i, std::size_t j, std::size_t R) { return i +
 inline double absLin(const Value &x, std::size_t i)
 {
     return x.isComplex() ? std::abs(x.complexData()[i])
-                         : std::fabs(x.doubleData()[i]);
+                         : std::fabs(x.elemAsDouble(i));
 }
 
 // vecnorm's own contract: like the float family but logical is rejected
 // too (reference-probed 2026-09-18: "First argument must be single or
-// double"). single stays accepted â€” the element reads coerce; the
-// double result class is filed with the single gap.
+// double").
 void vecnorm_argcheck(const Value &A)
 {
     const ValueType t = A.type();
@@ -63,22 +62,24 @@ void vecnorm_argcheck(const Value &A)
 Value norm_value(const Value &x, double p, std::pmr::memory_resource *mr)
 {
     detail::requireDoubleInput(x, "norm", "x");
-    if (x.numel() == 0) return Value::scalar(0.0, mr);
+    const bool wantSingle = x.type() == ValueType::SINGLE;
+    if (x.numel() == 0)
+        return detail::narrowDoubleToSingleIf(Value::scalar(0.0, mr), wantSingle, mr);
 
     if (isVectorShape(x)) {
         const std::size_t n = x.numel();
         if (p == 2.0) {
             double s = 0.0;
             for (std::size_t i = 0; i < n; ++i) { const double a = absLin(x, i); s += a * a; }
-            return Value::scalar(std::sqrt(s), mr);
+            return detail::narrowDoubleToSingleIf(Value::scalar(std::sqrt(s), mr), wantSingle, mr);
         } else if (p == 1.0) {
             double s = 0.0;
             for (std::size_t i = 0; i < n; ++i) s += absLin(x, i);
-            return Value::scalar(s, mr);
+            return detail::narrowDoubleToSingleIf(Value::scalar(s, mr), wantSingle, mr);
         } else {
             double s = 0.0;
             for (std::size_t i = 0; i < n; ++i) s += std::pow(absLin(x, i), p);
-            return Value::scalar(std::pow(s, 1.0 / p), mr);
+            return detail::narrowDoubleToSingleIf(Value::scalar(std::pow(s, 1.0 / p), mr), wantSingle, mr);
         }
     }
 
@@ -97,8 +98,9 @@ Value norm_value(const Value &x, double p, std::pmr::memory_resource *mr)
                         "(needs complex SVD); use 'fro' or a vector norm",
                         0, 0, "norm", "", "numkit:norm:complexSpectral");
         auto sv = svd_values(x, mr);
-        if (sv.numel() == 0) return Value::scalar(0.0, mr);
-        return Value::scalar(sv.doubleData()[0], mr);
+        if (sv.numel() == 0)
+            return detail::narrowDoubleToSingleIf(Value::scalar(0.0, mr), wantSingle, mr);
+        return detail::narrowDoubleToSingleIf(Value::scalar(sv.elemAsDouble(0), mr), wantSingle, mr);
     }
     if (p == 1.0) {
         double mx = 0.0;
@@ -107,7 +109,7 @@ Value norm_value(const Value &x, double p, std::pmr::memory_resource *mr)
             for (std::size_t i = 0; i < m; ++i) s += absLin(x, i + j * m);
             mx = std::max(mx, s);
         }
-        return Value::scalar(mx, mr);
+        return detail::narrowDoubleToSingleIf(Value::scalar(mx, mr), wantSingle, mr);
     }
     throw Error("norm: matrix p-norms only support 1, 2, inf, 'fro'",
                 0, 0, "norm", "", "numkit:norm:badP");
@@ -116,13 +118,15 @@ Value norm_value(const Value &x, double p, std::pmr::memory_resource *mr)
 Value norm_inf(const Value &x, std::pmr::memory_resource *mr)
 {
     detail::requireDoubleInput(x, "norm", "x");
-    if (x.numel() == 0) return Value::scalar(0.0, mr);
+    const bool wantSingle = x.type() == ValueType::SINGLE;
+    if (x.numel() == 0)
+        return detail::narrowDoubleToSingleIf(Value::scalar(0.0, mr), wantSingle, mr);
     if (isVectorShape(x)) {
         const std::size_t n = x.numel();
         double mx = 0.0;
         for (std::size_t i = 0; i < n; ++i)
             mx = std::max(mx, absLin(x, i));
-        return Value::scalar(mx, mr);
+        return detail::narrowDoubleToSingleIf(Value::scalar(mx, mr), wantSingle, mr);
     }
     // Matrix inf-norm: max row sum.
     if (x.dims().ndim() != 2)
@@ -136,32 +140,28 @@ Value norm_inf(const Value &x, std::pmr::memory_resource *mr)
         for (std::size_t j = 0; j < n; ++j) s += absLin(x, i + j * m);
         mx = std::max(mx, s);
     }
-    return Value::scalar(mx, mr);
+    return detail::narrowDoubleToSingleIf(Value::scalar(mx, mr), wantSingle, mr);
 }
 
 Value norm_fro(const Value &x, std::pmr::memory_resource *mr)
 {
     detail::requireDoubleInput(x, "norm", "x");
+    const bool wantSingle = x.type() == ValueType::SINGLE;
     const std::size_t n = x.numel();
-    if (n == 0) return Value::scalar(0.0, mr);
+    if (n == 0)
+        return detail::narrowDoubleToSingleIf(Value::scalar(0.0, mr), wantSingle, mr);
     double s = 0.0;
     for (std::size_t i = 0; i < n; ++i) { const double a = absLin(x, i); s += a * a; }
-    return Value::scalar(std::sqrt(s), mr);
+    return detail::narrowDoubleToSingleIf(Value::scalar(std::sqrt(s), mr), wantSingle, mr);
 }
 
-// vecnorm(A [, p [, dim]]) â€” vector p-norm along dim.
-//   defaults: p = 2, dim = first non-singleton dimension.
-//   p = Inf  â†’ max(|A|)
-//   p = -Inf â†’ min(|A|)
-//   else     â†’ (sum |A|^p) ^ (1/p)
-//
-// Output shape matches A with the reduced dim collapsed to length 1.
 Value vecnorm(const Value &A, double p, int dim, std::pmr::memory_resource *mr)
 {
     vecnorm_argcheck(A);
     if (A.dims().is3D())
         throw Error("vecnorm: 3-D arrays not supported",
                     0, 0, "vecnorm", "", "numkit:vecnorm:3D");
+    const bool wantSingle = A.type() == ValueType::SINGLE;
     const size_t R = A.dims().rows();
     const size_t C = A.dims().cols();
 
@@ -213,32 +213,25 @@ Value vecnorm(const Value &A, double p, int dim, std::pmr::memory_resource *mr)
         return std::abs(A.elemAsDouble(lin(i, j, R)));
     };
 
-    // Special case: completely empty input (0Ã—0) produces scalar 0
-    // (matches MATLAB convention: vecnorm([]) â†’ 0, not 0Ã—0 empty).
     if (R == 0 && C == 0)
-        return Value::scalar(0.0, mr);
+        return detail::narrowDoubleToSingleIf(Value::scalar(0.0, mr), wantSingle, mr);
 
     if (dim == 1) {
-        // Reduce along rows: output is (1 Ã— C). For 0Ã—N input, produces
-        // a row of zeros (empty-norm convention). For MÃ—0 input, output
-        // is 1Ã—0 (no columns to fill).
         Value out = Value::matrix(1, C, ValueType::DOUBLE, mr);
-        if (C == 0) return out;
+        if (C == 0) return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
         double *od = out.doubleDataMut();
         for (size_t j = 0; j < C; ++j) {
             od[j] = p_norm([&](size_t k){ return getAbs(k, j); }, R);
         }
-        return out;
+        return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
     }
-    // dim == 2: reduce along cols, output (R Ã— 1). For 0Ã—N â†’ 0Ã—1; for
-    // MÃ—0 â†’ MÃ—1 col of zeros.
     Value out = Value::matrix(R, 1, ValueType::DOUBLE, mr);
-    if (R == 0) return out;
+    if (R == 0) return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
     double *od = out.doubleDataMut();
     for (size_t i = 0; i < R; ++i) {
         od[i] = p_norm([&](size_t k){ return getAbs(i, k); }, C);
     }
-    return out;
+    return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•

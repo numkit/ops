@@ -965,9 +965,6 @@ static Value cztVector(const Complex *xData, std::size_t N, int m, Complex w, Co
 Value czt(const Value &x, int m, Complex w, Complex a, std::pmr::memory_resource *mr)
 {
     using Cd = std::complex<double>;
-    // Contract (probed R2025b): double/single/complex pass (single is a
-    // capability gap — the chirp-z kernel is double/complex only),
-    // logical/integer are rejected with an invalidType class.
     detail::requireFloatInput(x, "czt");
     if (x.isEmpty()) return Value::complexMatrix(0, 0, mr);
 
@@ -987,8 +984,7 @@ Value czt(const Value &x, int m, Complex w, Complex a, std::pmr::memory_resource
             const Cd *xc = x.complexData();
             for (std::size_t i = 0; i < N; ++i) buf[i] = xc[i];
         } else {
-            const double *xr = x.doubleData();
-            for (std::size_t i = 0; i < N; ++i) buf[i] = Cd(xr[i], 0.0);
+            for (std::size_t i = 0; i < N; ++i) buf[i] = Cd(x.elemAsDouble(i), 0.0);
         }
         Value y = cztVector(buf.data(), N, m, w, a, mr);
         // Match input shape (row vector → row, column → column).
@@ -1019,8 +1015,7 @@ Value czt(const Value &x, int m, Complex w, Complex a, std::pmr::memory_resource
             const Cd *xc = x.complexData();
             for (std::size_t r = 0; r < R; ++r) col[r] = xc[c * R + r];
         } else {
-            const double *xr = x.doubleData();
-            for (std::size_t r = 0; r < R; ++r) col[r] = Cd(xr[c * R + r], 0.0);
+            for (std::size_t r = 0; r < R; ++r) col[r] = Cd(x.elemAsDouble(c * R + r), 0.0);
         }
         Value y = cztVector(col.data(), R, m, w, a, mr);
         const Cd *yd = y.complexData();

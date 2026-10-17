@@ -1,4 +1,4 @@
-﻿// toolboxes/linalg/src/decompositions.cpp
+// toolboxes/linalg/src/decompositions.cpp
 //
 // chol / lu / qr / svd â€” implementations and engine adapters.
 // Migrated from toolboxes/builtin/src/language/arrays/matrix.cpp.
@@ -105,8 +105,11 @@ Value chol(const Value &A, std::pmr::memory_resource *mr)
     if (m == 0)
         return Value::matrix(0, 0, A.type(), mr);
 
-    if (A.isComplex()) {
-        const auto *ad = A.complexData();
+    const bool wantSingle = (A.type() == ValueType::SINGLE);
+    const Value Aw = detail::widenSingleToDouble(A, mr);
+
+    if (Aw.isComplex()) {
+        const auto *ad = Aw.complexData();
         for (std::size_t j = 0; j < n; ++j) {
             if (std::abs(ad[j + j * n].imag()) > 1e-11)
                 throw Error("chol: matrix is not positive-definite", 0, 0, "chol", "", "numkit:chol:notPosDef");
@@ -116,22 +119,22 @@ Value chol(const Value &A, std::pmr::memory_resource *mr)
             }
         }
         auto R = Value::complexMatrix(n, n, mr);
-        if (cholUpperFactorBlockedImpl(A.complexData(), R.complexDataMut(), n) != 0)
+        if (cholUpperFactorBlockedImpl(Aw.complexData(), R.complexDataMut(), n) != 0)
             throw Error("chol: matrix is not positive-definite",
                         0, 0, "chol", "", "numkit:chol:notPosDef");
-        return detail::narrow_if_real(R);
+        return detail::narrowDoubleToSingleIf(detail::narrow_if_real(R), wantSingle, mr);
     } else {
         auto R = Value::matrix(n, n, ValueType::DOUBLE, mr);
-        if (cholUpperFactorBlocked(A.doubleData(), R.doubleDataMut(), n) != 0)
+        if (cholUpperFactorBlocked(Aw.doubleData(), R.doubleDataMut(), n) != 0)
             throw Error("chol: matrix is not positive-definite",
                         0, 0, "chol", "", "numkit:chol:notPosDef");
-        return R;
+        return detail::narrowDoubleToSingleIf(R, wantSingle, mr);
     }
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ────────────────────────────────────────────────────────────────────────
 // LU
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ────────────────────────────────────────────────────────────────────────
 
 namespace {
 
@@ -209,10 +212,18 @@ lu_decompose(const Value &A, std::pmr::memory_resource *mr)
         throw Error("lu: square matrix required for [L,U,P] form",
                     0, 0, "lu", "", "numkit:lu:notSquare");
 
-    if (A.isComplex()) {
-        return lu_decompose_impl<detail::Complex>(A, mr);
+    const bool wantSingle = (A.type() == ValueType::SINGLE);
+    const Value Aw = detail::widenSingleToDouble(A, mr);
+
+    auto [L, U, P] = Aw.isComplex()
+        ? lu_decompose_impl<detail::Complex>(Aw, mr)
+        : lu_decompose_impl<double>(Aw, mr);
+    if (wantSingle) {
+        L = detail::narrowDoubleToSingle(L, mr);
+        U = detail::narrowDoubleToSingle(U, mr);
+        P = detail::narrowDoubleToSingle(P, mr);
     }
-    return lu_decompose_impl<double>(A, mr);
+    return std::make_tuple(std::move(L), std::move(U), std::move(P));
 }
 
 Value lu_combined(const Value &A, std::pmr::memory_resource *mr)
@@ -227,10 +238,13 @@ Value lu_combined(const Value &A, std::pmr::memory_resource *mr)
         throw Error("lu: square matrix required",
                     0, 0, "lu", "", "numkit:lu:notSquare");
 
-    if (A.isComplex()) {
-        return lu_combined_impl<detail::Complex>(A, mr);
+    const bool wantSingle = (A.type() == ValueType::SINGLE);
+    const Value Aw = detail::widenSingleToDouble(A, mr);
+
+    if (Aw.isComplex()) {
+        return detail::narrowDoubleToSingleIf(lu_combined_impl<detail::Complex>(Aw, mr), wantSingle, mr);
     }
-    return lu_combined_impl<double>(A, mr);
+    return detail::narrowDoubleToSingleIf(lu_combined_impl<double>(Aw, mr), wantSingle, mr);
 }
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -451,16 +465,22 @@ qr_decompose(const Value &A, std::pmr::memory_resource *mr)
         throw Error("qr: number of rows must be >= number of columns "
                     "(wide matrices via row-pivoted QR are deferred)",
                     0, 0, "qr", "", "numkit:qr:wide");
-    if (A.isComplex()) {
+    const bool wantSingle = (A.type() == ValueType::SINGLE);
+    const Value Aw = detail::widenSingleToDouble(A, mr);
+    if (Aw.isComplex()) {
         auto Q = Value::complexMatrix(m, m, mr);
         auto R = Value::complexMatrix(m, n, mr);
-        qrFullHouseholder(A.complexData(), m, n, Q.complexDataMut(), R.complexDataMut(), mr);
-        return std::make_tuple(detail::narrow_if_real(Q, mr), detail::narrow_if_real(R, mr));
+        qrFullHouseholder(Aw.complexData(), m, n, Q.complexDataMut(), R.complexDataMut(), mr);
+        return std::make_tuple(
+            detail::narrowDoubleToSingleIf(detail::narrow_if_real(Q, mr), wantSingle, mr),
+            detail::narrowDoubleToSingleIf(detail::narrow_if_real(R, mr), wantSingle, mr));
     }
     auto Q = Value::matrix(m, m, ValueType::DOUBLE, mr);
     auto R = Value::matrix(m, n, ValueType::DOUBLE, mr);
-    qrFullHouseholder(A.doubleData(), m, n, Q.doubleDataMut(), R.doubleDataMut(), mr);
-    return std::make_tuple(std::move(Q), std::move(R));
+    qrFullHouseholder(Aw.doubleData(), m, n, Q.doubleDataMut(), R.doubleDataMut(), mr);
+    return std::make_tuple(
+        detail::narrowDoubleToSingleIf(Q, wantSingle, mr),
+        detail::narrowDoubleToSingleIf(R, wantSingle, mr));
 }
 
 Value qr_R_only(const Value &A, std::pmr::memory_resource *mr)
@@ -474,17 +494,19 @@ Value qr_R_only(const Value &A, std::pmr::memory_resource *mr)
     if (m < n)
         throw Error("qr: number of rows must be >= number of columns",
                     0, 0, "qr", "", "numkit:qr:wide");
+    const bool wantSingle = (A.type() == ValueType::SINGLE);
+    const Value Aw = detail::widenSingleToDouble(A, mr);
     ScratchArena scratch(mr);
-    if (A.isComplex()) {
+    if (Aw.isComplex()) {
         ScratchVec<detail::Complex> Q_unused(m * m, &scratch);
         auto R = Value::complexMatrix(m, n, mr);
-        qrFullHouseholder(A.complexData(), m, n, Q_unused.data(), R.complexDataMut(), mr);
-        return detail::narrow_if_real(R, mr);
+        qrFullHouseholder(Aw.complexData(), m, n, Q_unused.data(), R.complexDataMut(), mr);
+        return detail::narrowDoubleToSingleIf(detail::narrow_if_real(R, mr), wantSingle, mr);
     }
     ScratchVec<double> Q_unused(m * m, &scratch);
     auto R = Value::matrix(m, n, ValueType::DOUBLE, mr);
-    qrFullHouseholder(A.doubleData(), m, n, Q_unused.data(), R.doubleDataMut(), mr);
-    return R;
+    qrFullHouseholder(Aw.doubleData(), m, n, Q_unused.data(), R.doubleDataMut(), mr);
+    return detail::narrowDoubleToSingleIf(R, wantSingle, mr);
 }
 
 std::tuple<Value, Value>
@@ -501,19 +523,25 @@ qr_pivoted(const Value &A, std::vector<std::size_t> &perm,
         throw Error("qr: number of rows must be >= number of columns "
                     "(wide matrices via row-pivoted QR are deferred)",
                     0, 0, "qr", "", "numkit:qr:wide");
+    const bool wantSingle = (A.type() == ValueType::SINGLE);
+    const Value Aw = detail::widenSingleToDouble(A, mr);
     perm.assign(n, 0);
-    if (A.isComplex()) {
+    if (Aw.isComplex()) {
         auto Q = Value::complexMatrix(m, m, mr);
         auto R = Value::complexMatrix(m, n, mr);
-        qrPivotedHouseholder(A.complexData(), m, n,
+        qrPivotedHouseholder(Aw.complexData(), m, n,
                              Q.complexDataMut(), R.complexDataMut(), perm.data(), mr);
-        return std::make_tuple(detail::narrow_if_real(Q, mr), detail::narrow_if_real(R, mr));
+        return std::make_tuple(
+            detail::narrowDoubleToSingleIf(detail::narrow_if_real(Q, mr), wantSingle, mr),
+            detail::narrowDoubleToSingleIf(detail::narrow_if_real(R, mr), wantSingle, mr));
     }
     auto Q = Value::matrix(m, m, ValueType::DOUBLE, mr);
     auto R = Value::matrix(m, n, ValueType::DOUBLE, mr);
-    qrPivotedHouseholder(A.doubleData(), m, n,
+    qrPivotedHouseholder(Aw.doubleData(), m, n,
                          Q.doubleDataMut(), R.doubleDataMut(), perm.data(), mr);
-    return std::make_tuple(std::move(Q), std::move(R));
+    return std::make_tuple(
+        detail::narrowDoubleToSingleIf(Q, wantSingle, mr),
+        detail::narrowDoubleToSingleIf(R, wantSingle, mr));
 }
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -605,15 +633,18 @@ svd_decompose(const Value &A, std::pmr::memory_resource *mr)
                     0, 0, "svd", "", "numkit:svd:notMatrix");
     const std::size_t m_in = static_cast<std::size_t>(A.dims().dim(0));
     const std::size_t n_in = static_cast<std::size_t>(A.dims().dim(1));
+    const bool wantSingle = (A.type() == ValueType::SINGLE);
 
     if (m_in == 0 || n_in == 0) {
         return std::make_tuple(
-            detail::make_matrix<double>(m_in, m_in, mr),
-            detail::make_matrix<double>(m_in, n_in, mr),
-            detail::make_matrix<double>(n_in, n_in, mr));
+            detail::narrowDoubleToSingleIf(detail::make_matrix<double>(m_in, m_in, mr), wantSingle, mr),
+            detail::narrowDoubleToSingleIf(detail::make_matrix<double>(m_in, n_in, mr), wantSingle, mr),
+            detail::narrowDoubleToSingleIf(detail::make_matrix<double>(n_in, n_in, mr), wantSingle, mr));
     }
 
-    if (A.isComplex()) {
+    const Value Aw = detail::widenSingleToDouble(A, mr);
+
+    if (Aw.isComplex()) {
         const bool transposed = (m_in < n_in);
         const std::size_t m = transposed ? n_in : m_in;
         const std::size_t n = transposed ? m_in : n_in;
@@ -622,7 +653,7 @@ svd_decompose(const Value &A, std::pmr::memory_resource *mr)
         ScratchVec<Complex> A_work(m * n, &scratch);
         ScratchVec<Complex> V_work(n * n, &scratch);
 
-        const Complex *A_data = A.complexData();
+        const Complex *A_data = Aw.complexData();
         if (!transposed) {
             std::copy(A_data, A_data + m * n, A_work.begin());
         } else {
@@ -715,7 +746,7 @@ svd_decompose(const Value &A, std::pmr::memory_resource *mr)
     ScratchVec<double> A_work(m * n, &scratch);
     ScratchVec<double> V_work(n * n, &scratch);
 
-    const double *A_data = A.doubleData();
+    const double *A_data = Aw.doubleData();
     if (!transposed) {
         std::copy(A_data, A_data + m * n, A_work.begin());
     } else {
@@ -788,21 +819,29 @@ svd_decompose(const Value &A, std::pmr::memory_resource *mr)
     }
 
     if (!transposed) {
-        return std::make_tuple(std::move(Uout), std::move(Sout), std::move(Vout));
+        return std::make_tuple(
+            detail::narrowDoubleToSingleIf(Uout, wantSingle, mr),
+            detail::narrowDoubleToSingleIf(Sout, wantSingle, mr),
+            detail::narrowDoubleToSingleIf(Vout, wantSingle, mr));
     }
-    // Transposed case fix-up: SVD(A^T) â†” SVD(A) with U/V swapped and S transposed.
+    // Transposed case fix-up: SVD(A^T) ↔ SVD(A) with U/V swapped and S transposed.
     auto S_out_tr = Value::matrix(m_in, n_in, ValueType::DOUBLE, mr);
     double *St = S_out_tr.doubleDataMut();
     std::fill(St, St + m_in * n_in, 0.0);
     const std::size_t k_diag = std::min(m_in, n_in);
     for (std::size_t k = 0; k < k_diag; ++k)
         St[k + k * m_in] = S[k + k * m];
-    return std::make_tuple(std::move(Vout), std::move(S_out_tr), std::move(Uout));
+    return std::make_tuple(
+        detail::narrowDoubleToSingleIf(Vout, wantSingle, mr),
+        detail::narrowDoubleToSingleIf(S_out_tr, wantSingle, mr),
+        detail::narrowDoubleToSingleIf(Uout, wantSingle, mr));
 }
 
 Value svd_values(const Value &A, std::pmr::memory_resource *mr)
 {
-    auto [U, S, V] = svd_decompose(A, mr);
+    detail::requireDoubleInput(A, "svd");
+    const bool wantSingle = (A.type() == ValueType::SINGLE);
+    auto [U, S, V] = svd_decompose(detail::widenSingleToDouble(A, mr), mr);
     const std::size_t m = static_cast<std::size_t>(S.dims().dim(0));
     const std::size_t n = static_cast<std::size_t>(S.dims().dim(1));
     const std::size_t k = std::min(m, n);
@@ -811,17 +850,17 @@ Value svd_values(const Value &A, std::pmr::memory_resource *mr)
     double *out = sv.doubleDataMut();
     for (std::size_t i = 0; i < k; ++i)
         out[i] = S_data[i + i * m];
-    return sv;
+    return detail::narrowDoubleToSingleIf(sv, wantSingle, mr);
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ────────────────────────────────────────────────────────────────────────
 // QR rank-1 update / column insert / column delete
-// (Daniel-Gragg-Kaufman-Stewart 1976; Golub & Van Loan Â§6.5)
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// (Daniel-Gragg-Kaufman-Stewart 1976; Golub & Van Loan §6.5)
+// ────────────────────────────────────────────────────────────────────────
 
 namespace {
 
-// Compute the Givens rotation (c, s) that zeros y in [x; y] â†’ [r; 0].
+// Compute the Givens rotation (c, s) that zeros y in [x; y] → [r; 0].
 // Returns r = hypot(x, y). c = x/r, s = y/r. Edge-case-safe.
 inline void givens(double x, double y, double &c, double &s, double &r)
 {
@@ -832,9 +871,9 @@ inline void givens(double x, double y, double &c, double &s, double &r)
     s = y / r;
 }
 
-// Apply Givens rotation (c, s) to rows i and j of an mÃ—n matrix M
-// (column-major). Rotates row i â† c*row_i + s*row_j;
-//                  row j â† -s*row_i + c*row_j.
+// Apply Givens rotation (c, s) to rows i and j of an m×n matrix M
+// (column-major). Rotates row i ← c*row_i + s*row_j;
+//                  row j ← -s*row_i + c*row_j.
 void applyGivensRows(double *M, std::size_t leadDim, std::size_t ncols,
                      std::size_t i, std::size_t j, double c, double s)
 {
@@ -846,8 +885,8 @@ void applyGivensRows(double *M, std::size_t leadDim, std::size_t ncols,
     }
 }
 
-// Apply Givens rotation (c, s) to columns i and j of an mÃ—n matrix M
-// (column-major). col_i â† c*col_i + s*col_j; col_j â† -s*col_i + c*col_j.
+// Apply Givens rotation (c, s) to columns i and j of an m×n matrix M
+// (column-major). col_i ← c*col_i + s*col_j; col_j ← -s*col_i + c*col_j.
 void applyGivensCols(double *M, std::size_t leadDim, std::size_t nrows,
                      std::size_t i, std::size_t j, double c, double s)
 {
@@ -873,18 +912,23 @@ qrupdate(const Value &Q, const Value &R, const Value &u, const Value &v,
     const std::size_t mr2 = static_cast<std::size_t>(R.dims().dim(0));
     const std::size_t n  = static_cast<std::size_t>(R.dims().dim(1));
     if (mq != m || mr2 != m)
-        throw Error("qrupdate: Q must be mÃ—m and R must be mÃ—n",
+        throw Error("qrupdate: Q must be m×m and R must be m×n",
                     0, 0, "qrupdate", "", "numkit:qrupdate:badShape");
     if (u.numel() != m || v.numel() != n)
         throw Error("qrupdate: length(u) must equal size(R, 1) and length(v) must equal size(R, 2)",
                     0, 0, "qrupdate", "", "numkit:qrupdate:badVec");
 
+    const bool wantSingle = (Q.type() == ValueType::SINGLE || R.type() == ValueType::SINGLE
+                             || u.type() == ValueType::SINGLE || v.type() == ValueType::SINGLE);
+    const Value Qw = detail::widenSingleToDouble(Q, mr);
+    const Value Rw = detail::widenSingleToDouble(R, mr);
+
     auto Q1 = Value::matrix(m, m, ValueType::DOUBLE, mr);
     auto R1 = Value::matrix(m, n, ValueType::DOUBLE, mr);
     double *Qd = Q1.doubleDataMut();
     double *Rd = R1.doubleDataMut();
-    std::copy(Q.doubleData(), Q.doubleData() + m * m, Qd);
-    std::copy(R.doubleData(), R.doubleData() + m * n, Rd);
+    std::copy(Qw.doubleData(), Qw.doubleData() + m * m, Qd);
+    std::copy(Rw.doubleData(), Rw.doubleData() + m * n, Rd);
 
     ScratchArena scratch(mr);
     ScratchVec<double> w(m, &scratch);
@@ -897,7 +941,7 @@ qrupdate(const Value &Q, const Value &R, const Value &u, const Value &v,
 
     // Bring w down to a single non-zero in position 0 via Givens
     // rotations chained from bottom (m-1) to (0). Apply mirrored
-    // rotations to Q (cols) and R (rows) to preserve A = Q Â· R.
+    // rotations to Q (cols) and R (rows) to preserve A = Q · R.
     for (std::size_t i = m - 1; i > 0; --i) {
         double c, s, r;
         givens(w[i - 1], w[i], c, s, r);
@@ -927,7 +971,9 @@ qrupdate(const Value &Q, const Value &R, const Value &u, const Value &v,
             applyGivensRows(Rd + (i + 1) * m, m, n - i - 1, i, i + 1, c, s);
         applyGivensCols(Qd, m, m, i, i + 1, c, s);
     }
-    return std::make_tuple(std::move(Q1), std::move(R1));
+    return std::make_tuple(
+        detail::narrowDoubleToSingleIf(Q1, wantSingle, mr),
+        detail::narrowDoubleToSingleIf(R1, wantSingle, mr));
 }
 
 std::tuple<Value, Value>
@@ -941,7 +987,7 @@ qrinsert(const Value &Q, const Value &R, std::size_t k_1based, const Value &x,
     const std::size_t n = static_cast<std::size_t>(R.dims().dim(1));
     if (static_cast<std::size_t>(Q.dims().dim(1)) != m
         || static_cast<std::size_t>(R.dims().dim(0)) != m)
-        throw Error("qrinsert: Q must be mÃ—m and R must be mÃ—n",
+        throw Error("qrinsert: Q must be m×m and R must be m×n",
                     0, 0, "qrinsert", "", "numkit:qrinsert:badShape");
     if (x.numel() != m)
         throw Error("qrinsert: x must have length size(Q, 1)",
@@ -951,10 +997,15 @@ qrinsert(const Value &Q, const Value &R, std::size_t k_1based, const Value &x,
                     0, 0, "qrinsert", "", "numkit:qrinsert:badK");
     const std::size_t k = k_1based - 1;
 
+    const bool wantSingle = (Q.type() == ValueType::SINGLE || R.type() == ValueType::SINGLE
+                             || x.type() == ValueType::SINGLE);
+    const Value Qw = detail::widenSingleToDouble(Q, mr);
+    const Value Rw = detail::widenSingleToDouble(R, mr);
+
     // y = Q' * x (length m).
     ScratchArena scratch(mr);
     ScratchVec<double> y(m, &scratch);
-    const double *Qd_in = Q.doubleData();
+    const double *Qd_in = Qw.doubleData();
     for (std::size_t i = 0; i < m; ++i) {
         double s = 0.0;
         for (std::size_t r2 = 0; r2 < m; ++r2)
@@ -962,12 +1013,12 @@ qrinsert(const Value &Q, const Value &R, std::size_t k_1based, const Value &x,
         y[i] = s;
     }
 
-    // Build new R (m Ã— n+1) by inserting y at column k between R(:,0:k-1)
-    // and R(:,k:n-1). Q stays m Ã— m (will be updated in place by mirrored
+    // Build new R (m × n+1) by inserting y at column k between R(:,0:k-1)
+    // and R(:,k:n-1). Q stays m × m (will be updated in place by mirrored
     // col rotations).
     auto R1 = Value::matrix(m, n + 1, ValueType::DOUBLE, mr);
     double *Rd = R1.doubleDataMut();
-    const double *Rd_in = R.doubleData();
+    const double *Rd_in = Rw.doubleData();
     for (std::size_t j = 0; j < k; ++j)
         std::copy(Rd_in + j * m, Rd_in + (j + 1) * m, Rd + j * m);
     std::copy(y.begin(), y.end(), Rd + k * m);
@@ -992,7 +1043,9 @@ qrinsert(const Value &Q, const Value &R, std::size_t k_1based, const Value &x,
         // Mirror on Q's cols i-1, i.
         applyGivensCols(Qd, m, m, i - 1, i, c, s);
     }
-    return std::make_tuple(std::move(Q1), std::move(R1));
+    return std::make_tuple(
+        detail::narrowDoubleToSingleIf(Q1, wantSingle, mr),
+        detail::narrowDoubleToSingleIf(R1, wantSingle, mr));
 }
 
 std::tuple<Value, Value>
@@ -1006,7 +1059,7 @@ qrdelete(const Value &Q, const Value &R, std::size_t k_1based,
     const std::size_t n = static_cast<std::size_t>(R.dims().dim(1));
     if (static_cast<std::size_t>(Q.dims().dim(1)) != m
         || static_cast<std::size_t>(R.dims().dim(0)) != m)
-        throw Error("qrdelete: Q must be mÃ—m and R must be mÃ—n",
+        throw Error("qrdelete: Q must be m×m and R must be m×n",
                     0, 0, "qrdelete", "", "numkit:qrdelete:badShape");
     if (n == 0)
         throw Error("qrdelete: R has no columns to delete",
@@ -1016,10 +1069,14 @@ qrdelete(const Value &Q, const Value &R, std::size_t k_1based,
                     0, 0, "qrdelete", "", "numkit:qrdelete:badK");
     const std::size_t k = k_1based - 1;
 
-    // New R is m Ã— (n-1) â€” drop column k, shift columns k+1..n-1 left.
+    const bool wantSingle = (Q.type() == ValueType::SINGLE || R.type() == ValueType::SINGLE);
+    const Value Qw = detail::widenSingleToDouble(Q, mr);
+    const Value Rw = detail::widenSingleToDouble(R, mr);
+
+    // New R is m × (n-1) — drop column k, shift columns k+1..n-1 left.
     auto R1 = Value::matrix(m, n - 1, ValueType::DOUBLE, mr);
     double *Rd = R1.doubleDataMut();
-    const double *Rd_in = R.doubleData();
+    const double *Rd_in = Rw.doubleData();
     for (std::size_t j = 0; j < k; ++j)
         std::copy(Rd_in + j * m, Rd_in + (j + 1) * m, Rd + j * m);
     for (std::size_t j = k + 1; j < n; ++j)
@@ -1027,7 +1084,7 @@ qrdelete(const Value &Q, const Value &R, std::size_t k_1based,
 
     auto Q1 = Value::matrix(m, m, ValueType::DOUBLE, mr);
     double *Qd = Q1.doubleDataMut();
-    std::copy(Q.doubleData(), Q.doubleData() + m * m, Qd);
+    std::copy(Qw.doubleData(), Qw.doubleData() + m * m, Qd);
 
     // After dropping column k, rows k..min(m-1, n-1) have a "bulge"
     // immediately below the diagonal that needs to be chased away
@@ -1043,12 +1100,14 @@ qrdelete(const Value &Q, const Value &R, std::size_t k_1based,
                             i, i + 1, c, s);
         applyGivensCols(Qd, m, m, i, i + 1, c, s);
     }
-    return std::make_tuple(std::move(Q1), std::move(R1));
+    return std::make_tuple(
+        detail::narrowDoubleToSingleIf(Q1, wantSingle, mr),
+        detail::narrowDoubleToSingleIf(R1, wantSingle, mr));
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// cholupdate â€” rank-1 Cholesky update/downdate
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ────────────────────────────────────────────────────────────────────────
+// cholupdate — rank-1 Cholesky update/downdate
+// ────────────────────────────────────────────────────────────────────────
 
 Value cholupdate(const Value &R, const Value &x, int sign,
                  std::pmr::memory_resource *mr)
@@ -1068,21 +1127,16 @@ Value cholupdate(const Value &R, const Value &x, int sign,
     if (sign != 1 && sign != -1)
         throw Error("cholupdate: sign must be '+' (1) or '-' (-1)",
                     0, 0, "cholupdate", "", "numkit:cholupdate:badSign");
+    const bool wantSingle = (R.type() == ValueType::SINGLE || x.type() == ValueType::SINGLE);
     if (n == 0)
-        return Value::matrix(0, 0, ValueType::DOUBLE, mr);
+        return Value::matrix(0, 0, wantSingle ? ValueType::SINGLE : ValueType::DOUBLE, mr);
+
+    const Value Rw = detail::widenSingleToDouble(R, mr);
 
     if (sign == 1) {
-        // Rank-1 update (Golub & Van Loan, Algorithm 6.5.1).
-        // For k = 0..n-1:
-        //   r = sqrt(R(k,k)^2 + x(k)^2)
-        //   c = R(k,k) / r,  s = x(k) / r
-        //   R(k,k) = r
-        //   for j = k+1..n-1:
-        //     R(k,j)' = c*R(k,j) + s*x(j)
-        //     x(j)'   = c*x(j) - s*R(k,j)
         auto out = Value::matrix(n, n, ValueType::DOUBLE, mr);
         double *Rd = out.doubleDataMut();
-        std::copy(R.doubleData(), R.doubleData() + n * n, Rd);
+        std::copy(Rw.doubleData(), Rw.doubleData() + n * n, Rd);
 
         ScratchArena scratch(mr);
         ScratchVec<double> xb(n, &scratch);
@@ -1102,21 +1156,14 @@ Value cholupdate(const Value &R, const Value &x, int sign,
                 xb[j]         = c * xb[j] - s * Rkj;
             }
         }
-        return out;
+        return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
     }
 
     // Downdate.
-    //
-    // KNOWN GAP: MATLAB uses LINPACK's stable Saunders 1972 method
-    // (solve R'Â·p = x; Givens rotations on [Î±; p]). We use the
-    // straight-forward O(nÂ³) path: form B = R'Â·R âˆ’ xÂ·x' and chol(B).
-    // Algebraically identical, numerically equivalent at machine
-    // precision for well-conditioned R, and clearly signals
-    // non-PD via chol's existing throw.
     ScratchArena scratch(mr);
     ScratchVec<double> B(n * n, &scratch);
-    const double *Rd = R.doubleData();
-    // B = R'Â·R
+    const double *Rd = Rw.doubleData();
+    // B = R'·R
     for (std::size_t j = 0; j < n; ++j)
         for (std::size_t i = 0; i < n; ++i) {
             double sum = 0.0;
@@ -1124,7 +1171,7 @@ Value cholupdate(const Value &R, const Value &x, int sign,
                 sum += Rd[k + i * n] * Rd[k + j * n];
             B[i + j * n] = sum;
         }
-    // B -= xÂ·x'
+    // B -= x·x'
     for (std::size_t j = 0; j < n; ++j) {
         const double xj = x.elemAsDouble(j);
         for (std::size_t i = 0; i < n; ++i)
@@ -1134,7 +1181,7 @@ Value cholupdate(const Value &R, const Value &x, int sign,
     auto Btmp = Value::matrix(n, n, ValueType::DOUBLE, mr);
     std::copy(B.begin(), B.end(), Btmp.doubleDataMut());
     try {
-        return chol(Btmp, mr);
+        return detail::narrowDoubleToSingleIf(chol(Btmp, mr), wantSingle, mr);
     } catch (const Error &) {
         throw Error("cholupdate: downdate would break positive-definiteness",
                     0, 0, "cholupdate", "", "numkit:cholupdate:downdateFailed");
