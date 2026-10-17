@@ -570,6 +570,7 @@ Value paddata(const Value &x, size_t len, std::pmr::memory_resource *mr = nullpt
 /// @param mr Memory resource.
 /// @return Padded array.
 Value paddata(const Value &x, size_t len, int dim, const std::string &side = "right", std::pmr::memory_resource *mr = nullptr);
+Value paddata(const Value &x, size_t len, int dim, const std::string &side, double fillValue, std::pmr::memory_resource *mr = nullptr);
 
 /// @brief Trims data array to specified length (`trimdata(x, len)`).
 /// @param x Input array.
@@ -594,6 +595,7 @@ Value trimdata(const Value &x, size_t len, int dim, const std::string &side = "r
 /// @param mr Memory resource.
 /// @return Resized vector.
 Value resize(const Value &v, size_t n, std::pmr::memory_resource *mr = nullptr);
+Value resize(const Value &v, size_t n, int dim, const std::string &side, double fillValue = 0.0, std::pmr::memory_resource *mr = nullptr);
 
 /// @brief Converts subscript indices to linear index (`sub2ind(siz, i, j, ...)`).
 /// @param siz Array size vector.

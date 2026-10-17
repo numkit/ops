@@ -1302,7 +1302,7 @@ Value extractBefore(const Value &s, const Value &p, std::pmr::memory_resource *m
 }
 
 
-Value extractBetween(const Value &s, const Value &start, const Value &end, std::pmr::memory_resource *mr)
+Value extractBetween(const Value &s, const Value &start, const Value &end, bool inclusive, std::pmr::memory_resource *mr)
 {
     const std::string ss = s.toString();
     const auto matches = findAllBetweenPairs(ss, start, end);
@@ -1311,10 +1311,17 @@ Value extractBetween(const Value &s, const Value &start, const Value &end, std::
     auto c = Value::cell(matches.size(), 1, mr);
     for (size_t i = 0; i < matches.size(); ++i) {
         const auto &m = matches[i];
-        const std::string inner = ss.substr(m.openEnd, m.closeBegin - m.openEnd);
+        const size_t beg = inclusive ? m.openBegin : m.openEnd;
+        const size_t endIdx = inclusive ? m.closeEnd : m.closeBegin;
+        const std::string inner = ss.substr(beg, endIdx - beg);
         c.cellAt(i) = strLikeOf(s, inner, mr);
     }
     return c;
+}
+
+Value extractBetween(const Value &s, const Value &start, const Value &end, std::pmr::memory_resource *mr)
+{
+    return extractBetween(s, start, end, false, mr);
 }
 
 Value insertAfter(const Value &s, const Value &p, const Value &newText, std::pmr::memory_resource *mr)
@@ -1342,7 +1349,7 @@ Value insertBefore(const Value &s, const Value &p, const Value &newText, std::pm
     return mapStringPreserveClass(s, op, mr);
 }
 
-Value eraseBetween(const Value &s, const Value &start, const Value &end, std::pmr::memory_resource *mr)
+Value eraseBetween(const Value &s, const Value &start, const Value &end, bool inclusive, std::pmr::memory_resource *mr)
 {
     const std::string ss = s.toString();
     const auto matches = findAllBetweenPairs(ss, start, end);
@@ -1353,14 +1360,21 @@ Value eraseBetween(const Value &s, const Value &start, const Value &end, std::pm
     out.reserve(ss.size());
     size_t cursor = 0;
     for (const auto &m : matches) {
-        out.append(ss, cursor, m.openEnd - cursor);   // up to and including opening delim
-        cursor = m.closeBegin;                          // skip the inner text
+        const size_t keepUntil = inclusive ? m.openBegin : m.openEnd;
+        const size_t resumeAt  = inclusive ? m.closeEnd  : m.closeBegin;
+        out.append(ss, cursor, keepUntil - cursor);
+        cursor = resumeAt;
     }
     out.append(ss, cursor, ss.size() - cursor);
     return strLikeOf(s, out, mr);
 }
 
-Value replaceBetween(const Value &s, const Value &start, const Value &end, const Value &newText, std::pmr::memory_resource *mr)
+Value eraseBetween(const Value &s, const Value &start, const Value &end, std::pmr::memory_resource *mr)
+{
+    return eraseBetween(s, start, end, false, mr);
+}
+
+Value replaceBetween(const Value &s, const Value &start, const Value &end, const Value &newText, bool inclusive, std::pmr::memory_resource *mr)
 {
     const std::string ss = s.toString();
     const std::string nt = newText.toString();
@@ -1370,12 +1384,19 @@ Value replaceBetween(const Value &s, const Value &start, const Value &end, const
     out.reserve(ss.size());
     size_t cursor = 0;
     for (const auto &m : matches) {
-        out.append(ss, cursor, m.openEnd - cursor);   // copy through opening delim
-        out.append(nt);                                // replacement text
-        cursor = m.closeBegin;                          // resume at closing delim
+        const size_t keepUntil = inclusive ? m.openBegin : m.openEnd;
+        const size_t resumeAt  = inclusive ? m.closeEnd  : m.closeBegin;
+        out.append(ss, cursor, keepUntil - cursor);
+        out.append(nt);
+        cursor = resumeAt;
     }
     out.append(ss, cursor, ss.size() - cursor);
     return strLikeOf(s, out, mr);
+}
+
+Value replaceBetween(const Value &s, const Value &start, const Value &end, const Value &newText, std::pmr::memory_resource *mr)
+{
+    return replaceBetween(s, start, end, newText, false, mr);
 }
 
 // ── Pack 23 ──────────────────────────────────────────────────────────

@@ -378,6 +378,7 @@ Value replace(const Value &s, const Value &oldPat, const Value &newPat, std::pmr
 /// @return Text with range replaced.
 /// @see extractBetween, eraseBetween
 Value replaceBetween(const Value &s, const Value &start, const Value &end, const Value &newText, std::pmr::memory_resource *mr = nullptr);
+Value replaceBetween(const Value &s, const Value &start, const Value &end, const Value &newText, bool inclusive, std::pmr::memory_resource *mr = nullptr);
 
 /// @brief Extracts substrings after specified pattern or position (`extractAfter(s, p)`).
 /// @param s Input string array.
@@ -400,6 +401,7 @@ Value extractBefore(const Value &s, const Value &p, std::pmr::memory_resource *m
 /// @param mr Memory resource.
 /// @return Extracted substring.
 Value extractBetween(const Value &s, const Value &start, const Value &end, std::pmr::memory_resource *mr = nullptr);
+Value extractBetween(const Value &s, const Value &start, const Value &end, bool inclusive, std::pmr::memory_resource *mr = nullptr);
 
 /// @brief Inserts text after specified position or pattern (`insertAfter(s, p, newText)`).
 /// @param s Original string.
@@ -424,6 +426,7 @@ Value insertBefore(const Value &s, const Value &p, const Value &newText, std::pm
 /// @param mr Memory resource.
 /// @return Modified string.
 Value eraseBetween(const Value &s, const Value &start, const Value &end, std::pmr::memory_resource *mr = nullptr);
+Value eraseBetween(const Value &s, const Value &start, const Value &end, bool inclusive, std::pmr::memory_resource *mr = nullptr);
 
 /// @brief Extracts substring matching pattern (`extract(s, pat)`).
 /// @param s Input string.

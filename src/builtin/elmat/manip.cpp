@@ -863,24 +863,125 @@ Value repelem(const Value &x, const Value &rCounts, const Value &cCounts,
 // inputs only — the pad cell is `0` (matches MATLAB R2024 default).
 
 
+Value paddata(const Value &v, size_t n, int dim, const std::string &side, double fillValue, std::pmr::memory_resource *mr)
+{
+    if (!v.isEmpty() && v.type() != ValueType::DOUBLE)
+        throw Error("paddata: only DOUBLE inputs supported",
+                     0, 0, "paddata", "", "numkit:paddata:type");
+    const auto &d = v.dims();
+    if (d.ndim() > 2)
+        throw Error("paddata: only 1-D or 2-D inputs supported",
+                     0, 0, "paddata", "", "numkit:paddata:rank");
+
+    std::string sd = side;
+    for (char &c : sd) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    if (sd != "right" && sd != "trailing" && sd != "left" && sd != "leading" && sd != "both")
+        throw Error("paddata: side must be 'trailing', 'leading', or 'both'",
+                     0, 0, "paddata", "", "numkit:paddata:badSide");
+
+    // Determine operating dimension: 1 = rows, 2 = cols.
+    int opDim = dim;
+    if (opDim <= 0) {
+        if (d.rows() == 1 && d.cols() >= 1) opDim = 2;
+        else if (d.rows() == 0 && d.cols() == 0) opDim = 2;
+        else opDim = 1;
+    }
+
+    const size_t R = d.rows(), C = d.cols();
+    const size_t cur = (opDim == 1) ? R : C;
+    if (cur >= n) return v;
+
+    const size_t padTotal = n - cur;
+    size_t padBefore = 0;
+    if (sd == "left" || sd == "leading") padBefore = padTotal;
+    else if (sd == "both")               padBefore = padTotal / 2;
+
+    if (opDim == 1) {
+        const size_t outC = (R == 0 && C == 0) ? 1 : C;
+        auto out = Value::matrix(n, outC, ValueType::DOUBLE, mr);
+        double *dst = out.doubleDataMut();
+        for (size_t i = 0; i < n * outC; ++i) dst[i] = fillValue;
+        if (R > 0 && C > 0) {
+            const double *src = v.doubleData();
+            for (size_t c = 0; c < C; ++c)
+                std::memcpy(dst + c * n + padBefore, src + c * R, R * sizeof(double));
+        }
+        return out;
+    } else {
+        const size_t outR = (R == 0 && C == 0) ? 1 : R;
+        auto out = Value::matrix(outR, n, ValueType::DOUBLE, mr);
+        double *dst = out.doubleDataMut();
+        for (size_t i = 0; i < outR * n; ++i) dst[i] = fillValue;
+        if (R > 0 && C > 0) {
+            const double *src = v.doubleData();
+            std::memcpy(dst + padBefore * outR, src, R * C * sizeof(double));
+        }
+        return out;
+    }
+}
+
 Value paddata(const Value &v, size_t n, std::pmr::memory_resource *mr)
 {
     if (!isVectorLike(v))
         throw Error("paddata: vector input required",
                      0, 0, "paddata", "", "numkit:paddata:notVector");
+    return paddata(v, n, 0, "trailing", 0.0, mr);
+}
+
+Value paddata(const Value &x, size_t len, int dim, const std::string &side, std::pmr::memory_resource *mr)
+{
+    return paddata(x, len, dim, side, 0.0, mr);
+}
+
+Value trimdata(const Value &v, size_t n, int dim, const std::string &side, std::pmr::memory_resource *mr)
+{
     if (!v.isEmpty() && v.type() != ValueType::DOUBLE)
-        throw Error("paddata: only DOUBLE inputs supported",
-                     0, 0, "paddata", "", "numkit:paddata:type");
-    const size_t cur = v.numel();
-    if (cur >= n) return v;
+        throw Error("trimdata: only DOUBLE inputs supported",
+                     0, 0, "trimdata", "", "numkit:trimdata:type");
     const auto &d = v.dims();
-    const bool col = (d.cols() == 1 && d.rows() > 1);
-    auto out = col ? Value::matrix(n, 1, ValueType::DOUBLE, mr)
-                   : Value::matrix(1, n, ValueType::DOUBLE, mr);
-    double *dst = out.doubleDataMut();
-    if (cur > 0) std::memcpy(dst, v.doubleData(), cur * sizeof(double));
-    for (size_t i = cur; i < n; ++i) dst[i] = 0.0;
-    return out;
+    if (d.ndim() > 2)
+        throw Error("trimdata: only 1-D or 2-D inputs supported",
+                     0, 0, "trimdata", "", "numkit:trimdata:rank");
+
+    std::string sd = side;
+    for (char &c : sd) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    if (sd != "right" && sd != "trailing" && sd != "left" && sd != "leading" && sd != "both")
+        throw Error("trimdata: side must be 'trailing', 'leading', or 'both'",
+                     0, 0, "trimdata", "", "numkit:trimdata:badSide");
+
+    int opDim = dim;
+    if (opDim <= 0) {
+        if (d.rows() == 1 && d.cols() >= 1) opDim = 2;
+        else opDim = 1;
+    }
+
+    const size_t R = d.rows(), C = d.cols();
+    const size_t cur = (opDim == 1) ? R : C;
+    if (cur <= n) return v;
+
+    const size_t trimTotal = cur - n;
+    size_t keepStart = 0;
+    if (sd == "left" || sd == "leading") keepStart = trimTotal;
+    else if (sd == "both")               keepStart = trimTotal / 2;
+
+    if (opDim == 1) {
+        auto out = Value::matrix(n, C, ValueType::DOUBLE, mr);
+        if (n > 0 && C > 0) {
+            const double *src = v.doubleData();
+            double *dst = out.doubleDataMut();
+            for (size_t c = 0; c < C; ++c)
+                std::memcpy(dst + c * n, src + c * R + keepStart, n * sizeof(double));
+        }
+        return out;
+    } else {
+        auto out = Value::matrix(R, n, ValueType::DOUBLE, mr);
+        if (R > 0 && n > 0) {
+            const double *src = v.doubleData();
+            double *dst = out.doubleDataMut();
+            std::memcpy(dst, src + keepStart * R, R * n * sizeof(double));
+        }
+        return out;
+    }
 }
 
 Value trimdata(const Value &v, size_t n, std::pmr::memory_resource *mr)
@@ -888,32 +989,26 @@ Value trimdata(const Value &v, size_t n, std::pmr::memory_resource *mr)
     if (!isVectorLike(v))
         throw Error("trimdata: vector input required",
                      0, 0, "trimdata", "", "numkit:trimdata:notVector");
-    if (!v.isEmpty() && v.type() != ValueType::DOUBLE)
-        throw Error("trimdata: only DOUBLE inputs supported",
-                     0, 0, "trimdata", "", "numkit:trimdata:type");
-    const size_t cur = v.numel();
-    if (cur <= n) return v;
+    return trimdata(v, n, 0, "trailing", mr);
+}
+
+Value resize(const Value &v, size_t n, int dim, const std::string &side, double fillValue, std::pmr::memory_resource *mr)
+{
     const auto &d = v.dims();
-    const bool col = (d.cols() == 1 && d.rows() > 1);
-    auto out = col ? Value::matrix(n, 1, ValueType::DOUBLE, mr)
-                   : Value::matrix(1, n, ValueType::DOUBLE, mr);
-    if (n > 0) std::memcpy(out.doubleDataMut(), v.doubleData(), n * sizeof(double));
-    return out;
+    int opDim = dim;
+    if (opDim <= 0) {
+        if (d.rows() == 1 && d.cols() >= 1) opDim = 2;
+        else if (d.rows() == 0 && d.cols() == 0) opDim = 2;
+        else opDim = 1;
+    }
+    const size_t cur = (opDim == 1) ? d.rows() : d.cols();
+    return (cur < n) ? paddata(v, n, dim, side, fillValue, mr)
+                     : trimdata(v, n, dim, side, mr);
 }
 
 Value resize(const Value &v, size_t n, std::pmr::memory_resource *mr)
 {
     return (v.numel() < n) ? paddata(v, n, mr) : trimdata(v, n, mr);
-}
-
-Value paddata(const Value &x, size_t len, int /*dim*/, const std::string &/*side*/, std::pmr::memory_resource *mr)
-{
-    return paddata(x, len, mr);
-}
-
-Value trimdata(const Value &x, size_t len, int /*dim*/, const std::string &/*side*/, std::pmr::memory_resource *mr)
-{
-    return trimdata(x, len, mr);
 }
 
 Value head(const Value &x, size_t k, std::pmr::memory_resource *mr)
