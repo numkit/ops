@@ -29,9 +29,102 @@ namespace numkit::builtin {
 
 // ── Arithmetic ──────────────────────────────────────────────────────────
 
+namespace {
+
+bool isTfStruct(const Value &v)
+{
+    return v.isStruct() && v.numel() == 1 && v.hasField("kind")
+           && (v.field("kind").isChar() || v.field("kind").isString())
+           && v.field("kind").toString() == "tf"
+           && v.hasField("num") && v.hasField("den");
+}
+
+bool isTfOrScalarGain(const Value &v)
+{
+    return isTfStruct(v) || (v.isNumeric() && !v.isComplex() && v.numel() == 1);
+}
+
+struct TfPolyPair {
+    std::vector<double> num;
+    std::vector<double> den;
+    double Ts = -1.0;
+};
+
+TfPolyPair extractTfPoly(const Value &v)
+{
+    if (isTfStruct(v)) {
+        const Value &nv = v.field("num");
+        const Value &dv = v.field("den");
+        TfPolyPair out;
+        out.num.resize(nv.numel());
+        out.den.resize(dv.numel());
+        for (size_t i = 0; i < nv.numel(); ++i) out.num[i] = nv.elemAsDouble(i);
+        for (size_t i = 0; i < dv.numel(); ++i) out.den[i] = dv.elemAsDouble(i);
+        out.Ts = v.hasField("Ts") ? v.field("Ts").toScalar() : 0.0;
+        return out;
+    }
+    return {{v.toScalar()}, {1.0}, -1.0};
+}
+
+double combineTfTs(double Ts1, double Ts2, const char *op)
+{
+    if (Ts1 == 0.0 && Ts2 == 0.0) return 0.0;
+    if (Ts1 == Ts2) return Ts1;
+    if (Ts1 == -1.0) return Ts2;
+    if (Ts2 == -1.0) return Ts1;
+    throw Error(std::string(op) + ": transfer function sample times must match",
+                0, 0, op, "", std::string("numkit:") + op + ":TsMismatch");
+}
+
+std::vector<double> polyConv(const std::vector<double> &a, const std::vector<double> &b)
+{
+    if (a.empty() || b.empty()) return {};
+    std::vector<double> y(a.size() + b.size() - 1, 0.0);
+    for (size_t i = 0; i < a.size(); ++i)
+        for (size_t j = 0; j < b.size(); ++j)
+            y[i + j] += a[i] * b[j];
+    return y;
+}
+
+std::vector<double> polyAddRightAligned(const std::vector<double> &a,
+                                        const std::vector<double> &b,
+                                        double bSign)
+{
+    const size_t na = a.size(), nb = b.size();
+    const size_t n = std::max(na, nb);
+    std::vector<double> y(n, 0.0);
+    for (size_t i = 0; i < na; ++i) y[n - na + i] += a[i];
+    for (size_t i = 0; i < nb; ++i) y[n - nb + i] += bSign * b[i];
+    return y;
+}
+
+Value buildTfValue(const std::vector<double> &num, const std::vector<double> &den,
+                   double Ts, std::pmr::memory_resource *mr)
+{
+    Value nv = Value::matrix(1, num.size(), ValueType::DOUBLE, mr);
+    if (!num.empty()) std::copy(num.begin(), num.end(), nv.doubleDataMut());
+    Value dv = Value::matrix(1, den.size(), ValueType::DOUBLE, mr);
+    if (!den.empty()) std::copy(den.begin(), den.end(), dv.doubleDataMut());
+    Value s = Value::structure(mr);
+    s.field("kind") = Value::fromString("tf", mr);
+    s.field("Ts") = Value::scalar(Ts, mr);
+    s.field("num") = std::move(nv);
+    s.field("den") = std::move(dv);
+    return s;
+}
+
+} // namespace
+
 Value plus(const Value &a, const Value &b, std::pmr::memory_resource *mr)
 {
     std::pmr::memory_resource *p = mr;
+    if ((isTfStruct(a) || isTfStruct(b)) && isTfOrScalarGain(a) && isTfOrScalarGain(b)) {
+        auto ta = extractTfPoly(a);
+        auto tb = extractTfPoly(b);
+        auto num = polyAddRightAligned(polyConv(ta.num, tb.den), polyConv(tb.num, ta.den), +1.0);
+        auto den = polyConv(ta.den, tb.den);
+        return buildTfValue(num, den, combineTfTs(ta.Ts, tb.Ts, "plus"), p);
+    }
     if (a.isEmpty() || b.isEmpty())
         return emptyArithResult(a, b, p);
     // MATLAB auto-coerces logical to double for arithmetic. See BUGS.md #24.
@@ -87,6 +180,13 @@ Value plus(const Value &a, const Value &b, std::pmr::memory_resource *mr)
 Value minus(const Value &a, const Value &b, std::pmr::memory_resource *mr)
 {
     std::pmr::memory_resource *p = mr;
+    if ((isTfStruct(a) || isTfStruct(b)) && isTfOrScalarGain(a) && isTfOrScalarGain(b)) {
+        auto ta = extractTfPoly(a);
+        auto tb = extractTfPoly(b);
+        auto num = polyAddRightAligned(polyConv(ta.num, tb.den), polyConv(tb.num, ta.den), -1.0);
+        auto den = polyConv(ta.den, tb.den);
+        return buildTfValue(num, den, combineTfTs(ta.Ts, tb.Ts, "minus"), p);
+    }
     if (a.isEmpty() || b.isEmpty())
         return emptyArithResult(a, b, p);
     if (a.type() == ValueType::LOGICAL || b.type() == ValueType::LOGICAL)
@@ -139,6 +239,14 @@ Value times(const Value &a, const Value &b, std::pmr::memory_resource *mr)
 Value mtimes(const Value &a, const Value &b, std::pmr::memory_resource *mr)
 {
     std::pmr::memory_resource *p = mr;
+
+    if ((isTfStruct(a) || isTfStruct(b)) && isTfOrScalarGain(a) && isTfOrScalarGain(b)) {
+        auto ta = extractTfPoly(a);
+        auto tb = extractTfPoly(b);
+        auto num = polyConv(ta.num, tb.num);
+        auto den = polyConv(ta.den, tb.den);
+        return buildTfValue(num, den, combineTfTs(ta.Ts, tb.Ts, "mtimes"), p);
+    }
 
     if (a.type() == ValueType::LOGICAL || b.type() == ValueType::LOGICAL)
         return mtimes(coerceLogicalToDouble(a, p), coerceLogicalToDouble(b, p), p);

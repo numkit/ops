@@ -290,11 +290,39 @@ Value filtfilt(const Value &b, const Value &a, const Value &x, std::pmr::memory_
         an[i] = ad[i] / a0;
 
     const size_t nfilt = std::max(nb, na);
+    const size_t stateLen = (nfilt > 0) ? (nfilt - 1) : 0;
 
-    // Edge-reflect padding, length 3 * nfilt on each side (capped at nx - 1)
-    size_t nEdge = 3 * nfilt;
-    if (nEdge >= nx)
+    // Steady-state step-response initial conditions zi: solve (I - A)*zi = rhs
+    // where rhs[k] = b[k+1] - b[0]*a[k+1]. The companion/DF2T system telescopes:
+    //   (1 + sum_{k=1..m} a[k]) * zi[0] = sum_{k=0..m-1} rhs[k]
+    //   zi[k+1] = zi[k] + a[k+1]*zi[0] - rhs[k].
+    auto zi = ScratchVec<double>(stateLen, &scratch);
+    if (stateLen > 0) {
+        auto rhs = ScratchVec<double>(stateLen, &scratch);
+        double sumRhs = 0.0;
+        double sumA = 1.0;
+        for (size_t k = 0; k < stateLen; ++k) {
+            const double bk1 = (k + 1 < nb) ? bn[k + 1] : 0.0;
+            const double ak1 = (k + 1 < na) ? an[k + 1] : 0.0;
+            rhs[k] = bk1 - bn[0] * ak1;
+            sumRhs += rhs[k];
+            sumA += ak1;
+        }
+        if (std::abs(sumA) > 1e-14) {
+            zi[0] = sumRhs / sumA;
+            for (size_t k = 0; k + 1 < stateLen; ++k) {
+                const double ak1 = (k + 1 < na) ? an[k + 1] : 0.0;
+                zi[k + 1] = zi[k] + ak1 * zi[0] - rhs[k];
+            }
+        }
+    }
+
+    // Edge-reflect padding, length 3 * (nfilt - 1) on each side (capped at nx - 1)
+    size_t nEdge = 3 * stateLen;
+    if (nx > 0 && nEdge >= nx)
         nEdge = nx - 1;
+    else if (nx == 0)
+        nEdge = 0;
 
     const size_t extLen = nx + 2 * nEdge;
     auto ext = ScratchVec<double>(extLen, &scratch);
@@ -305,14 +333,26 @@ Value filtfilt(const Value &b, const Value &a, const Value &x, std::pmr::memory_
     for (size_t i = 0; i < nEdge; ++i)
         ext[nEdge + nx + i] = 2.0 * xd[nx - 1] - xd[nx - 2 - i];
 
-    auto fwd = applyFilterDf2t(bn.data(), nb, an.data(), na, ext.data(), extLen, &scratch);
+    auto ziScaled = ScratchVec<double>(stateLen, &scratch);
+    if (stateLen > 0 && extLen > 0) {
+        for (size_t k = 0; k < stateLen; ++k)
+            ziScaled[k] = zi[k] * ext[0];
+    }
+    auto fwd = applyFilterDf2t(bn.data(), nb, an.data(), na, ext.data(), extLen, &scratch,
+                               stateLen > 0 ? ziScaled.data() : nullptr, stateLen);
     std::reverse(fwd.begin(), fwd.end());
-    auto bwd = applyFilterDf2t(bn.data(), nb, an.data(), na, fwd.data(), fwd.size(), &scratch);
+    if (stateLen > 0 && !fwd.empty()) {
+        for (size_t k = 0; k < stateLen; ++k)
+            ziScaled[k] = zi[k] * fwd[0];
+    }
+    auto bwd = applyFilterDf2t(bn.data(), nb, an.data(), na, fwd.data(), fwd.size(), &scratch,
+                               stateLen > 0 ? ziScaled.data() : nullptr, stateLen);
     std::reverse(bwd.begin(), bwd.end());
 
     auto r = createLike(x, ValueType::DOUBLE, mr);
     double *y = r.doubleDataMut();
-    std::memcpy(y, bwd.data() + nEdge, nx * sizeof(double));
+    if (nx > 0)
+        std::memcpy(y, bwd.data() + nEdge, nx * sizeof(double));
     return r;
 }
 
