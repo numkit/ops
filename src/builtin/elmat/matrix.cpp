@@ -732,14 +732,20 @@ Value reshapeND(const Value &x, Span<const size_t> dims, std::pmr::memory_resour
         return x.objectReshape(Dims(dims.data(), static_cast<int>(nDims)), mr);
 
     if (x.type() == ValueType::CELL || x.type() == ValueType::STRING) {
-        if (nDims > 3)
-            throw Error("reshape: ND CELL/STRING (>3) not yet supported",
-                         0, 0, "reshape", "", "numkit:reshape:cellND");
-        // Fall through to legacy path for 2D / 3D cell.
-        const size_t r = nDims > 0 ? dims[0] : 1;
-        const size_t c = nDims > 1 ? dims[1] : 1;
-        const size_t p = nDims > 2 ? dims[2] : 0;
-        return reshape(x, r, c, p, mr);
+        if (nDims <= 3) {
+            const size_t r = nDims > 0 ? dims[0] : 1;
+            const size_t c = nDims > 1 ? dims[1] : 1;
+            const size_t p = nDims > 2 ? dims[2] : 0;
+            return reshape(x, r, c, p, mr);
+        }
+        Value r = (x.type() == ValueType::CELL)
+            ? Value::cellND(dims.data(), static_cast<int>(nDims), mr)
+            : Value::stringArrayND(dims.data(), static_cast<int>(nDims), mr);
+        auto &src = x.cellDataVec();
+        auto &dst = r.cellDataVec();
+        for (size_t i = 0; i < src.size() && i < dst.size(); ++i)
+            dst[i] = src[i];
+        return r;
     }
 
     auto r = createMatrixND(dims.data(), nDims, x.type(), mr);
