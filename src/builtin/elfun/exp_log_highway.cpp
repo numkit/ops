@@ -7,7 +7,7 @@
 // primitives (SLEEF-derived polynomial approximations; ULP <= 4
 // across all supported targets).
 //
-// The complex and scalar paths mirror exp_log_portable.cpp exactly —
+// The complex and scalar paths mirror exp_log_portable.cpp exactly â€”
 // SIMD doesn't help there. Parity vs the scalar reference is
 // verified in toolboxes/builtin/tests/simd_parity_test.cpp.
 
@@ -27,7 +27,7 @@
 #include <stdexcept>
 
 #undef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE "elfun/exp_log_highway.cpp"
+#define HWY_TARGET_INCLUDE "builtin/elfun/exp_log_highway.cpp"
 #include <hwy/foreach_target.h>
 #include <hwy/highway.h>
 #include <hwy/contrib/math/math-inl.h>
@@ -63,7 +63,7 @@ void LogLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_
 }
 
 // Tier-2 wrappers over Highway's contrib/math primitives (SLEEF-derived,
-// ULP <= ~4). expm1 / log1p / log2 had no SIMD path before — they were
+// ULP <= ~4). expm1 / log1p / log2 had no SIMD path before â€” they were
 // scalar std::* calls in exponents.cpp.
 void Expm1Loop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_t n)
 {
@@ -95,7 +95,7 @@ void Log2Loop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size
     for (; i < n; ++i) out[i] = std::log2(in[i]);
 }
 
-// log10 had no SIMD path before — it was a scalar std::log10 in
+// log10 had no SIMD path before â€” it was a scalar std::log10 in
 // exponents.cpp, ~10x slower than the vectorised log. reallog reuses
 // LogLoop (it is log with a negative-input domain guard).
 void Log10Loop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_t n)
@@ -188,7 +188,7 @@ namespace {
 // Shared shape for exp/log: delegate complex / scalar to the
 // reference path, route real vectors through the dispatcher. When
 // `hint` is a uniquely-owned heap double of matching shape, steal
-// its buffer instead of allocating a fresh result — saves the
+// its buffer instead of allocating a fresh result â€” saves the
 // per-call N-element mr that dominates at large N. See the
 // docblock on abs() in math/elementary/misc.hpp for the full hint contract.
 template <typename LoopDispatch, typename ScalarOp, typename ComplexOp>
@@ -216,7 +216,7 @@ Value unaryRealDouble(const Value &x, Value *hint, LoopDispatch loop, ScalarOp s
 
     const double *in  = x.doubleData();
     double       *out = r.doubleDataMut();
-    // Transcendentals are heavier per element than +/-/.* — pays off
+    // Transcendentals are heavier per element than +/-/.* â€” pays off
     // earlier, hence the smaller threshold.
     numkit::detail::parallel_for(x.numel(), numkit::detail::kTranscendentalThreshold,
         [=](std::size_t s, std::size_t e) {
@@ -257,8 +257,8 @@ Value exp(const Value &x, Value *hint, std::pmr::memory_resource *mr)
 }
 
 // log: MATLAB promotes a *scalar* negative input to complex (so
-// log(-1) → i·π), but the element-wise path on a real vector just
-// produces NaN for negatives — same as std::log. The SIMD Log()
+// log(-1) â†’ iÂ·Ï€), but the element-wise path on a real vector just
+// produces NaN for negatives â€” same as std::log. The SIMD Log()
 // mirrors that behaviour.
 static bool anyNegative(const Value &x);  // defined below (shared with sqrt)
 
@@ -307,7 +307,7 @@ Value expm1(const Value &x, std::pmr::memory_resource *mr)
 
 // log1p of a real x as a (possibly) complex value, accurate per element:
 //   x >= -1 : log1p(x)  (real; -Inf at x == -1)
-//   x <  -1 : 1+x < 0 → log|1+x| + i·π   (MATLAB principal branch)
+//   x <  -1 : 1+x < 0 â†’ log|1+x| + iÂ·Ï€   (MATLAB principal branch)
 static inline Complex log1pRealToComplex(double x)
 {
     constexpr double kPi = 3.141592653589793;
@@ -323,7 +323,7 @@ static inline bool anyLessThanMinusOne(const Value &x)
 }
 
 // log1p(x) = log(1+x). For x < -1 the argument 1+x is negative, so MATLAB
-// returns a complex value (log1p(-2) = log(-1) = i·π) and any element < -1
+// returns a complex value (log1p(-2) = log(-1) = iÂ·Ï€) and any element < -1
 // promotes the whole real array to complex. Complex input uses log(1+z). The
 // real (x >= -1) path keeps the accurate libm/SIMD log1p (so log1p(1e-15) is
 // 1e-15, not the lossy log(1+1e-15)).
@@ -390,7 +390,7 @@ Value reallog(const Value &x, std::pmr::memory_resource *mr)
 {
     auto scalarOp = [](double v) {
         if (v < 0.0)
-            throw std::runtime_error("reallog produced complex result — use log(...) instead");
+            throw std::runtime_error("reallog produced complex result â€” use log(...) instead");
         return std::log(v);
     };
     if (x.isComplex() || x.isScalar() || x.type() != ValueType::DOUBLE)
@@ -400,7 +400,7 @@ Value reallog(const Value &x, std::pmr::memory_resource *mr)
     const std::size_t n  = x.numel();
     for (std::size_t i = 0; i < n; ++i)
         if (in[i] < 0.0)
-            throw std::runtime_error("reallog produced complex result — use log(...) instead");
+            throw std::runtime_error("reallog produced complex result â€” use log(...) instead");
 
     Value r = createLike(x, ValueType::DOUBLE, mr);
     if (n == 0)
@@ -413,7 +413,7 @@ Value reallog(const Value &x, std::pmr::memory_resource *mr)
     return r;
 }
 
-// True if any real element is < 0 (NaN compares false → stays real). sqrt of
+// True if any real element is < 0 (NaN compares false â†’ stays real). sqrt of
 // such an input goes complex; if ANY element is negative the WHOLE array is
 // promoted to complex (MATLAB: sqrt([-1 4]) = [0+1i 2]).
 static bool anyNegative(const Value &x)
@@ -444,7 +444,7 @@ Value realsqrt(const Value &x, std::pmr::memory_resource *mr)
 {
     auto scalarOp = [](double v) {
         if (v < 0.0)
-            throw std::runtime_error("realsqrt produced complex result — use sqrt(...) instead");
+            throw std::runtime_error("realsqrt produced complex result â€” use sqrt(...) instead");
         return std::sqrt(v);
     };
     if (x.isComplex() || x.isScalar() || x.type() != ValueType::DOUBLE)
@@ -454,7 +454,7 @@ Value realsqrt(const Value &x, std::pmr::memory_resource *mr)
     const std::size_t n  = x.numel();
     for (std::size_t i = 0; i < n; ++i)
         if (in[i] < 0.0)
-            throw std::runtime_error("realsqrt produced complex result — use sqrt(...) instead");
+            throw std::runtime_error("realsqrt produced complex result â€” use sqrt(...) instead");
 
     Value r = createLike(x, ValueType::DOUBLE, mr);
     if (n == 0)

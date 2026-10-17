@@ -12,7 +12,7 @@
 #include <cstddef>
 
 #undef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE "elfun/rounding_highway.cpp"
+#define HWY_TARGET_INCLUDE "builtin/elfun/rounding_highway.cpp"
 #include <hwy/foreach_target.h>
 #include <hwy/highway.h>
 
@@ -48,7 +48,7 @@ void FloorLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::siz
 
 void FixLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_t n)
 {
-    // fix() = std::trunc — round toward zero.
+    // fix() = std::trunc â€” round toward zero.
     const hn::ScalableTag<double> d;
     const std::size_t N = hn::Lanes(d);
     std::size_t i = 0;

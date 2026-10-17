@@ -10,7 +10,7 @@
 // supported targets). Highway has no Cosh; we compose from Exp.
 // Highway has no Tan; we compose from Sin/Cos (handled in trigonometry.cpp).
 //
-// The complex and scalar paths mirror trig_portable.cpp exactly —
+// The complex and scalar paths mirror trig_portable.cpp exactly â€”
 // SIMD doesn't help there. Parity vs the scalar reference is
 // verified in toolboxes/builtin/tests/simd_parity_test.cpp.
 
@@ -30,7 +30,7 @@
 #include <limits>
 
 #undef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE "elfun/trig_highway.cpp"
+#define HWY_TARGET_INCLUDE "builtin/elfun/trig_highway.cpp"
 #include <hwy/foreach_target.h>
 #include <hwy/highway.h>
 #include <hwy/contrib/math/math-inl.h>
@@ -65,7 +65,7 @@ void CosLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_
     for (; i < n; ++i) out[i] = std::cos(in[i]);
 }
 
-// ── Hyperbolic (Highway has Sinh and Tanh; Cosh is composed below) ───
+// â”€â”€ Hyperbolic (Highway has Sinh and Tanh; Cosh is composed below) â”€â”€â”€
 
 void SinhLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_t n)
 {
@@ -91,7 +91,7 @@ void TanhLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size
     for (; i < n; ++i) out[i] = std::tanh(in[i]);
 }
 
-// cosh(x) = (e^x + e^-x) / 2 — composed from Highway Exp.
+// cosh(x) = (e^x + e^-x) / 2 â€” composed from Highway Exp.
 void CoshLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_t n)
 {
     const hn::ScalableTag<double> d;
@@ -107,7 +107,7 @@ void CoshLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size
     for (; i < n; ++i) out[i] = std::cosh(in[i]);
 }
 
-// ── Inverse trig ─────────────────────────────────────────────────────
+// â”€â”€ Inverse trig â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 void AsinLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_t n)
 {
@@ -169,7 +169,7 @@ void AtanhLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::siz
     for (; i < n; ++i) out[i] = std::atanh(in[i]);
 }
 
-// tan(x) = sin(x) / cos(x) — composed because Highway has no Tan.
+// tan(x) = sin(x) / cos(x) â€” composed because Highway has no Tan.
 // tan via SLEEF's xtan kernel (Cody-Waite range reduction + a single
 // degree-7 polynomial in the half-angle + the tan double-angle formula),
 // replacing the old Div(Sin, Cos) which evaluated two full transcendentals.
@@ -248,7 +248,7 @@ void AcoshLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::siz
     for (; i < n; ++i) out[i] = std::acosh(in[i]);
 }
 
-// ── Atan2 / Hypot (binary) ───────────────────────────────────────────
+// â”€â”€ Atan2 / Hypot (binary) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 void Atan2Loop(const double *HWY_RESTRICT y, const double *HWY_RESTRICT x,
                double *HWY_RESTRICT out, std::size_t n)
@@ -264,9 +264,9 @@ void Atan2Loop(const double *HWY_RESTRICT y, const double *HWY_RESTRICT x,
     for (; i < n; ++i) out[i] = std::atan2(y[i], x[i]);
 }
 
-// hypot(a, b) = sqrt(a² + b²). Highway has Sqrt but no Hypot;
+// hypot(a, b) = sqrt(aÂ² + bÂ²). Highway has Sqrt but no Hypot;
 // composing this way is fast but loses std::hypot's overflow-safe
-// scaling for |a|, |b| > sqrt(DBL_MAX) ≈ 1.34e154. Scalar tail uses
+// scaling for |a|, |b| > sqrt(DBL_MAX) â‰ˆ 1.34e154. Scalar tail uses
 // std::hypot. For typical inputs (well within the safe range) the
 // SIMD path is correct to ULP and matches MATLAB.
 void HypotLoop(const double *HWY_RESTRICT a, const double *HWY_RESTRICT b,
@@ -283,12 +283,12 @@ void HypotLoop(const double *HWY_RESTRICT a, const double *HWY_RESTRICT b,
     for (; i < n; ++i) out[i] = std::hypot(a[i], b[i]);
 }
 
-// ── Degree variants: SIMD bulk path. ─────────────────────────────────
+// â”€â”€ Degree variants: SIMD bulk path. â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
-// MATLAB preserves exact zeros / ±1 at integer multiples of 90° on
+// MATLAB preserves exact zeros / Â±1 at integer multiples of 90Â° on
 // scalar input (e.g. sind(180) == 0 exactly, not ~1.2e-16). The
 // public-API scalar fast-path (in trig_highway.cpp / trig_portable.cpp)
-// keeps the snap. The SIMD vector path does NOT snap — for typical
+// keeps the snap. The SIMD vector path does NOT snap â€” for typical
 // 1M-pt sweeps the inputs are not exact integer multiples of 90.
 // (Bench-OK; if a downstream consumer needs vector-path exact-zero
 // snapping, add a post-pass that overrides multiples of 90.)
@@ -393,7 +393,7 @@ void Atan2dLoop(const double *HWY_RESTRICT y, const double *HWY_RESTRICT x,
     for (; i < n; ++i) out[i] = std::atan2(y[i], x[i]) * deg_consts::kRad2Deg;
 }
 
-// ── Multiple-of-π variants. ──────────────────────────────────────────
+// â”€â”€ Multiple-of-Ï€ variants. â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // Vectorised sin(pi*x) / cos(pi*x) via SLEEF's exact octant reduction
 // (q = nearest even integer to 4x, computed in int64 lanes so the range
@@ -508,16 +508,16 @@ HWY_EXPORT(HypotLoop);
 
 namespace {
 
-// Constants for degree / multiple-of-π variants (scalar path).
+// Constants for degree / multiple-of-Ï€ variants (scalar path).
 // kept in the anonymous namespace so they don't leak.
 constexpr double kDeg2Rad = 3.14159265358979323846 / 180.0;
 constexpr double kRad2Deg = 180.0 / 3.14159265358979323846;
 constexpr double kPi      = 3.14159265358979323846;
 
-// Snap exact integer multiples of 90° to exact 0 / ±1 / ±Inf.
+// Snap exact integer multiples of 90Â° to exact 0 / Â±1 / Â±Inf.
 // Used by the scalar fast-path for sind / cosd / tand to match
 // MATLAB exactly (e.g. sind(180) == 0 not ~1.2e-16). The vector
-// SIMD path skips this — bench inputs rarely hit exact multiples.
+// SIMD path skips this â€” bench inputs rarely hit exact multiples.
 inline double sind_scalar(double x)
 {
     if (!std::isfinite(x)) return std::numeric_limits<double>::quiet_NaN();
@@ -560,7 +560,7 @@ inline double cospi_scalar(double x) { return detail::cospi_kernel(x); }
 // Shared shape for sin/cos: delegate complex / scalar to the
 // reference path, route real vectors through the dispatcher. When
 // `hint` is a uniquely-owned heap double of matching shape, steal
-// its buffer instead of allocating a fresh result — saves the
+// its buffer instead of allocating a fresh result â€” saves the
 // per-call N-element mr that dominates at large N. See the
 // docblock on abs() in math/elementary/misc.hpp for the full hint contract.
 template <typename LoopDispatch, typename ScalarOp, typename ComplexOp>
@@ -589,7 +589,7 @@ Value unaryRealDouble(const Value &x, Value *hint, LoopDispatch loop, ScalarOp s
 
     const double *in  = x.doubleData();
     double       *out = r.doubleDataMut();
-    // Transcendentals are heavier per element than +/-/.* — pays off
+    // Transcendentals are heavier per element than +/-/.* â€” pays off
     // earlier, hence the smaller threshold.
     numkit::detail::parallel_for(x.numel(), numkit::detail::kTranscendentalThreshold,
         [=](std::size_t s, std::size_t e) {
@@ -614,7 +614,7 @@ Value cos(const Value &x, Value *hint, std::pmr::memory_resource *mr)
         }, [](double v) { return std::cos(v); }, [](const Complex &c) { return std::cos(c); }, mr);
 }
 
-// ── Hyperbolic + inverse trig: SIMD-dispatched real-vector path. ─────
+// â”€â”€ Hyperbolic + inverse trig: SIMD-dispatched real-vector path. â”€â”€â”€â”€â”€
 //
 // Wrap unaryRealDouble; complex / scalar paths delegate to std::,
 // matching the portable backend bit-for-bit.
@@ -677,10 +677,10 @@ Complex asinRealToComplex(double v)
 Complex atanhRealToComplex(double v)
 {
     if (std::isnan(v))         return Complex(v, 0.0);
-    if (v >= -1.0 && v <= 1.0) return Complex(std::atanh(v), 0.0);  // real (±Inf at ±1)
+    if (v >= -1.0 && v <= 1.0) return Complex(std::atanh(v), 0.0);  // real (Â±Inf at Â±1)
     return Complex(std::atanh(1.0 / v), v > 0.0 ? kHalfPiInvTrig : -kHalfPiInvTrig);
 }
-// True if any real element is < 1 (NaN compares false → stays real). acosh of
+// True if any real element is < 1 (NaN compares false â†’ stays real). acosh of
 // such an input goes complex; any out-of-range element promotes the array.
 bool anyLessThanOne(const Value &x)
 {
@@ -736,7 +736,7 @@ Value atanh(const Value &x, std::pmr::memory_resource *mr)
 {
     if (x.isComplex())
         return unaryComplex(x, [](const Complex &c) { return std::atanh(c); }, mr);
-    // |x|>1 → complex (scalar AND array). Use the MATLAB branch via the formula
+    // |x|>1 â†’ complex (scalar AND array). Use the MATLAB branch via the formula
     // (std::atanh flips the imaginary sign for x<-1).
     if (anyOutsideUnitInterval(x))
         return mapRealToComplexUnit(x, atanhRealToComplex, mr);
@@ -754,7 +754,7 @@ Value tan(const Value &x, std::pmr::memory_resource *mr)
 
 Value acosh(const Value &x, std::pmr::memory_resource *mr)
 {
-    // MATLAB promotes any element |x|<1 to complex (acosh(0.5) → 1.0472i, not
+    // MATLAB promotes any element |x|<1 to complex (acosh(0.5) â†’ 1.0472i, not
     // NaN); if ANY element is < 1 the whole array is promoted. std::acosh's
     // complex branch matches MATLAB, so apply it directly.
     if (x.isComplex())
@@ -768,7 +768,7 @@ Value acosh(const Value &x, std::pmr::memory_resource *mr)
         }, [](double v) { return std::acosh(v); }, [](const Complex &c) { return std::acosh(c); }, mr);
 }
 
-// atan2 is binary: y, x → P. Real same-shape case uses the SIMD
+// atan2 is binary: y, x â†’ P. Real same-shape case uses the SIMD
 // loop; mixed/broadcast/complex cases fall through to the generic
 // scalar scaffold.
 Value atan2(const Value &y, const Value &x, std::pmr::memory_resource *mr)
@@ -794,10 +794,10 @@ Value atan2(const Value &y, const Value &x, std::pmr::memory_resource *mr)
     return elementwiseDouble(y, x, [](double yy, double xx) { return std::atan2(yy, xx); }, mr);
 }
 
-// ── Degree variants + sinpi/cospi: SIMD-dispatched real-vector path ──
+// â”€â”€ Degree variants + sinpi/cospi: SIMD-dispatched real-vector path â”€â”€
 //
 // Scalar path uses the snap-helpers above to preserve MATLAB's exact
-// 0 / ±1 / ±Inf at integer multiples of 90 (degree variants) or ½
+// 0 / Â±1 / Â±Inf at integer multiples of 90 (degree variants) or Â½
 // (sinpi/cospi). Vector SIMD path multiplies-and-calls Sin/Cos/Atan
 // without snapping; for typical bench inputs this is correct to ULP.
 
@@ -900,7 +900,7 @@ Value cospi(const Value &x, std::pmr::memory_resource *mr)
         }, cospi_scalar, [](const Complex &c) { return std::cos(kPi * c); }, mr);
 }
 
-// hypot binary: same shape pattern as atan2 — same-shape real path
+// hypot binary: same shape pattern as atan2 â€” same-shape real path
 // goes SIMD; mixed/scalar/complex falls back to std::hypot via the
 // generic scaffold.
 Value hypot(const Value &a, const Value &b, std::pmr::memory_resource *mr)

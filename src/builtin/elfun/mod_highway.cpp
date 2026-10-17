@@ -7,7 +7,7 @@
 // bit-identical to the scalar reference in math/arithmetic/misc.cpp.
 // Integer-typed operands, complex, empties and broadcasting fall back to
 // the scalar elementwiseDouble path in misc.cpp (these never call here).
-// rem stays scalar — it needs an exact fmod that Highway has no primitive
+// rem stays scalar â€” it needs an exact fmod that Highway has no primitive
 // for; the a - trunc(a/b)*b approximation drifts from std::fmod.
 
 #include "mod_simd.hpp"
@@ -16,7 +16,7 @@
 #include <cstddef>
 
 #undef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE "elfun/mod_highway.cpp"
+#define HWY_TARGET_INCLUDE "builtin/elfun/mod_highway.cpp"
 #include <hwy/foreach_target.h>
 #include <hwy/highway.h>
 

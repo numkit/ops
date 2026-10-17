@@ -15,7 +15,7 @@
 #include <cstdint>
 
 #undef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE "datafun/isfinite_highway.cpp"
+#define HWY_TARGET_INCLUDE "builtin/datafun/isfinite_highway.cpp"
 #include <hwy/foreach_target.h>
 #include <hwy/highway.h>
 
@@ -47,7 +47,7 @@ void scanLoopImpl(const double *HWY_RESTRICT in, uint8_t *HWY_RESTRICT out,
 }
 
 // IsNaNLoop / IsInfLoop / IsFiniteLoop: tight scalar loops with
-// hoisted pointers — auto-vectorizes well on x86 because std::isnan
+// hoisted pointers â€” auto-vectorizes well on x86 because std::isnan
 // is a single ucomisd instruction. Compared to the original
 // `r.logicalDataMut()[i] = std::isnan(x.doubleData()[i])` pattern
 // that re-fetched the pointers per iteration, the speedup mostly

@@ -4,7 +4,7 @@
 // sech, csch, coth, secd, cscd, cotd, and their inverse forms (asec,
 // acsc, acot, asech, acsch, acoth, asecd, acscd, acotd). All composed
 // from Highway's contrib/math primitives (Cos, Sin, Sinh, Acos, Asin,
-// Atan, Acosh, Asinh, Atanh) — the reciprocal forms emit a SIMD divide
+// Atan, Acosh, Asinh, Atanh) â€” the reciprocal forms emit a SIMD divide
 // or a primary-on-1/x.
 //
 // Out-of-domain elements (e.g. asec(0.5) which MATLAB returns as
@@ -30,7 +30,7 @@
 #include <cstddef>
 
 #undef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE "elfun/trig_recip_highway.cpp"
+#define HWY_TARGET_INCLUDE "builtin/elfun/trig_recip_highway.cpp"
 #include <hwy/foreach_target.h>
 #include <hwy/highway.h>
 #include <hwy/contrib/math/math-inl.h>
@@ -46,7 +46,7 @@ constexpr double kDeg2Rad = 3.14159265358979323846 / 180.0;
 constexpr double kRad2Deg = 180.0 / 3.14159265358979323846;
 }
 
-// ── Forward reciprocal: sec / csc / cot ────────────────────────────
+// â”€â”€ Forward reciprocal: sec / csc / cot â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 void SecLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_t n)
 {
@@ -86,8 +86,8 @@ void CotLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_
     for (; i < n; ++i) out[i] = std::cos(in[i]) / std::sin(in[i]);
 }
 
-// ── Hyperbolic reciprocal: sech / csch / coth ──────────────────────
-// Highway has Sinh and Tanh but not Cosh — compose cosh from Exp.
+// â”€â”€ Hyperbolic reciprocal: sech / csch / coth â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Highway has Sinh and Tanh but not Cosh â€” compose cosh from Exp.
 
 static HWY_INLINE auto CoshVec(const hn::ScalableTag<double> d, hn::Vec<hn::ScalableTag<double>> v)
 {
@@ -135,8 +135,8 @@ void CothLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size
     for (; i < n; ++i) out[i] = std::cosh(in[i]) / std::sinh(in[i]);
 }
 
-// ── Degree reciprocal: secd / cscd / cotd ──────────────────────────
-// Vector path skips the integer-multiple-of-90° snap (matches the
+// â”€â”€ Degree reciprocal: secd / cscd / cotd â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Vector path skips the integer-multiple-of-90Â° snap (matches the
 // degree forms in trig_highway.cpp). Scalar fast-path in trig_recip_*.cpp
 // keeps the snap.
 
@@ -183,7 +183,7 @@ void CotdLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size
                                 / std::sin(in[i] * recip_consts::kDeg2Rad);
 }
 
-// ── Inverse reciprocal: asec / acsc / acot ─────────────────────────
+// â”€â”€ Inverse reciprocal: asec / acsc / acot â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // MATLAB returns complex for out-of-domain inputs (e.g. asec(0.5)).
 // Vector path produces NaN there; scalar fallback in trig_recip_*.cpp
 // detects this and returns a complex Value.
@@ -227,7 +227,7 @@ void AcotLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size
     for (; i < n; ++i) out[i] = std::atan(1.0 / in[i]);
 }
 
-// ── Inverse hyperbolic reciprocal: asech / acsch / acoth ───────────
+// â”€â”€ Inverse hyperbolic reciprocal: asech / acsch / acoth â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 void AsechLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_t n)
 {
@@ -268,7 +268,7 @@ void AcothLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::siz
     for (; i < n; ++i) out[i] = std::atanh(1.0 / in[i]);
 }
 
-// ── Inverse degree reciprocal: asecd / acscd / acotd ───────────────
+// â”€â”€ Inverse degree reciprocal: asecd / acscd / acotd â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 void AsecdLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_t n)
 {
@@ -345,8 +345,8 @@ constexpr double kDeg2Rad = 3.14159265358979323846 / 180.0;
 constexpr double kRad2Deg = 180.0 / 3.14159265358979323846;
 
 // Snap helpers reused from the degree forms (sind/cosd/tand) for the
-// scalar fast-path of secd/cscd/cotd. MATLAB exposes exact 0 / ±1 /
-// ±Inf at integer multiples of 90° on scalar input.
+// scalar fast-path of secd/cscd/cotd. MATLAB exposes exact 0 / Â±1 /
+// Â±Inf at integer multiples of 90Â° on scalar input.
 inline double sind_scalar(double x)
 {
     if (!std::isfinite(x)) return std::numeric_limits<double>::quiet_NaN();
@@ -394,7 +394,7 @@ Value unaryRealDoubleRecip(const Value &x, LoopDispatch loop, ScalarOp scalarOp,
 
 } // namespace
 
-// ── Forward reciprocal ─────────────────────────────────────────────
+// â”€â”€ Forward reciprocal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 Value sec(const Value &x, std::pmr::memory_resource *mr)
 {
@@ -417,7 +417,7 @@ Value cot(const Value &x, std::pmr::memory_resource *mr)
         }, [](double v) { return std::cos(v) / std::sin(v); }, [](const Complex &c) { return std::cos(c) / std::sin(c); }, mr);
 }
 
-// ── Hyperbolic reciprocal ──────────────────────────────────────────
+// â”€â”€ Hyperbolic reciprocal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 Value sech(const Value &x, std::pmr::memory_resource *mr)
 {
@@ -440,7 +440,7 @@ Value coth(const Value &x, std::pmr::memory_resource *mr)
         }, [](double v) { return std::cosh(v) / std::sinh(v); }, [](const Complex &c) { return std::cosh(c) / std::sinh(c); }, mr);
 }
 
-// ── Degree reciprocal: scalar path keeps the integer-multiple-of-90° snap.
+// â”€â”€ Degree reciprocal: scalar path keeps the integer-multiple-of-90Â° snap.
 
 Value secd(const Value &x, std::pmr::memory_resource *mr)
 {
@@ -465,8 +465,8 @@ Value cotd(const Value &x, std::pmr::memory_resource *mr)
         }, mr);
 }
 
-// ── Inverse reciprocal: scalar fast-path keeps the in-domain
-// complex fallback (asec(0.5) → complex in MATLAB).
+// â”€â”€ Inverse reciprocal: scalar fast-path keeps the in-domain
+// complex fallback (asec(0.5) â†’ complex in MATLAB).
 
 Value asec(const Value &x, std::pmr::memory_resource *mr)
 {
@@ -503,7 +503,7 @@ Value acot(const Value &x, std::pmr::memory_resource *mr)
         }, [](double v) { return std::atan(1.0 / v); }, [](const Complex &c) { return std::atan(Complex(1.0) / c); }, mr);
 }
 
-// ── Inverse hyperbolic reciprocal ──────────────────────────────────
+// â”€â”€ Inverse hyperbolic reciprocal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 Value asech(const Value &x, std::pmr::memory_resource *mr)
 {
@@ -540,7 +540,7 @@ Value acoth(const Value &x, std::pmr::memory_resource *mr)
         }, [](double v) { return std::atanh(1.0 / v); }, [](const Complex &c) { return std::atanh(Complex(1.0) / c); }, mr);
 }
 
-// ── Inverse degree reciprocal ──────────────────────────────────────
+// â”€â”€ Inverse degree reciprocal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 Value asecd(const Value &x, std::pmr::memory_resource *mr)
 {

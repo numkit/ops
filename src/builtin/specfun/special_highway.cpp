@@ -12,8 +12,8 @@
 //
 // erf: the SLEEF u1 kernel for |x| <= 2.5 is reproduced exactly here (dd
 // polynomial + 16th-power reciprocal). |x| > 2.5, |x| < 1e-8, and the
-// special values (±0, ±Inf, NaN) fall back to the scalar reference
-// std::erf — correct everywhere, with the common [1e-8, 2.5] range
+// special values (Â±0, Â±Inf, NaN) fall back to the scalar reference
+// std::erf â€” correct everywhere, with the common [1e-8, 2.5] range
 // vectorised. The expk-based >2.5 vector branch lands together with
 // erfc/gamma (which need expk anyway). Parity vs the scalar reference is
 // checked in toolboxes/builtin/tests/simd_parity_test.cpp.
@@ -30,7 +30,7 @@
 #include <cstddef>
 
 #undef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE "specfun/special_highway.cpp"
+#define HWY_TARGET_INCLUDE "builtin/specfun/special_highway.cpp"
 #include <hwy/foreach_target.h>
 #include <hwy/highway.h>
 
@@ -40,7 +40,7 @@ namespace HWY_NAMESPACE {
 
 namespace hn = hwy::HWY_NAMESPACE;
 
-// ── double-double (dd) arithmetic, FMA path (mirrors SLEEF src/common/dd.h)
+// â”€â”€ double-double (dd) arithmetic, FMA path (mirrors SLEEF src/common/dd.h)
 // V is a Highway double vector. A dd value is a hi/lo pair (x is the
 // rounded value, y the error term). MulAdd(a,b,c)=a*b+c, MulSub(a,b,c)=
 // a*b-c, NegMulAdd(a,b,c)=c-a*b.
@@ -130,7 +130,7 @@ HWY_INLINE DD<V> poly4dd(D d, V x, V c3, DD<V> c2, DD<V> c1, DD<V> c0)
     return dd_mla_v(hn::Mul(x, x), poly2dd(d, x, c3, c2), poly2dd_b(x, c1, c0));
 }
 
-// ── Estrin polynomial helpers (mirror src/common/estrin.h). MLA == MulAdd.
+// â”€â”€ Estrin polynomial helpers (mirror src/common/estrin.h). MLA == MulAdd.
 template <class V> HWY_INLINE V P2(V x, V c1, V c0) { return hn::MulAdd(x, c1, c0); }
 template <class V> HWY_INLINE V P4(V x, V x2, V c3, V c2, V c1, V c0)
 { return hn::MulAdd(x2, hn::MulAdd(x, c3, c2), hn::MulAdd(x, c1, c0)); }
@@ -210,7 +210,7 @@ void ErfLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_
     const std::size_t N = hn::Lanes(d);
     using V = decltype(hn::Zero(d));
 
-    // SLEEF xerf_u1 — two coefficient sets, selected per lane by |x| <= 2.5.
+    // SLEEF xerf_u1 â€” two coefficient sets, selected per lane by |x| <= 2.5.
     // Index 0..4 are the POLY21 high terms (d4..d0); 5..20 are cf..c0. All
     // copied verbatim from sleefsimddp.c (the |x|<=2.5 set and the >2.5 set).
     static const double A_lo[21] = {

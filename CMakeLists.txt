@@ -36,31 +36,32 @@ set(HWY_ENABLE_EXAMPLES OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(highway)
 
 set(NUMKIT_OPS_SOURCES
-    src/matlab_mt19937.cpp
-    src/rng.cpp
-    src/la_solve.cpp
-    src/compression/deflate.cpp
+    src/rng/matlab_mt19937.cpp
+    src/rng/rng.cpp
+    src/blas/la_solve.cpp
     src/blas/blas1_highway.cpp
     src/blas/blas2_highway.cpp
     src/blas/blas3_highway.cpp
-    src/root_solve.cpp
-    src/conv.cpp
-    src/iir_filter.cpp
-    src/quantile_select.cpp
+    src/compression/deflate.cpp
+    src/dsp/conv.cpp
+    src/dsp/iir_filter.cpp
+    src/optim/root_solve.cpp
+    src/kernels/quantile_select.cpp
+    src/kernels/binary_scalar.cpp
+    src/kernels/kernels.cpp
     src/fused/fused_complex.cpp
-    src/binary_scalar.cpp
     src/fused/fused_scalar.cpp
-    src/kernels.cpp
 )
 
 if(NUMKIT_WITH_THREADS)
-    list(APPEND NUMKIT_OPS_SOURCES src/thread_pool.cpp)
+    list(APPEND NUMKIT_OPS_SOURCES src/kernels/thread_pool.cpp)
 endif()
 
 if(NUMKIT_WITH_SIMD)
     list(APPEND NUMKIT_OPS_SOURCES
-        src/binary_ops_highway.cpp
-        src/compare_highway.cpp
+        src/kernels/binary_ops_highway.cpp
+        src/kernels/compare_highway.cpp
+        src/kernels/nan_reductions_highway.cpp
         src/fused/fused_affine_clamp_highway.cpp
         src/fused/fused_affine_highway.cpp
         src/fused/fused_axpby_highway.cpp
@@ -76,29 +77,31 @@ if(NUMKIT_WITH_SIMD)
         src/fft/fft_stockham_highway.cpp
         src/fft/fft_r2_soa_highway.cpp
         src/fft/fft_r4_soa_highway.cpp
-        src/nan_reductions_highway.cpp
     )
 else()
     list(APPEND NUMKIT_OPS_SOURCES
-        src/binary_ops_portable.cpp
-        src/compare_portable.cpp
+        src/kernels/binary_ops_portable.cpp
+        src/kernels/compare_portable.cpp
+        src/kernels/nan_reductions_portable.cpp
         src/fused/fused_kernels_portable.cpp
         src/fft/fft_portable.cpp
-        src/nan_reductions_portable.cpp
     )
 endif()
 
-file(GLOB_RECURSE NUMKIT_BUILTIN_COMPUTE_SOURCES
+file(GLOB_RECURSE NUMKIT_COMPUTE_DOMAIN_SOURCES
     "src/builtin/*.cpp"
     "src/linalg/*.cpp"
+    "src/signal/*.cpp"
+    "src/ode/*.cpp"
+    "src/optim/local/*.cpp"
     "src/image_io/*.cpp"
 )
 if(NOT NUMKIT_WITH_SIMD)
-    list(FILTER NUMKIT_BUILTIN_COMPUTE_SOURCES EXCLUDE REGEX ".*_highway\\.cpp$")
+    list(FILTER NUMKIT_COMPUTE_DOMAIN_SOURCES EXCLUDE REGEX ".*_highway\\.cpp$")
 else()
-    list(FILTER NUMKIT_BUILTIN_COMPUTE_SOURCES EXCLUDE REGEX ".*_portable\\.cpp$")
+    list(FILTER NUMKIT_COMPUTE_DOMAIN_SOURCES EXCLUDE REGEX ".*_portable\\.cpp$")
 endif()
-list(APPEND NUMKIT_OPS_SOURCES ${NUMKIT_BUILTIN_COMPUTE_SOURCES})
+list(APPEND NUMKIT_OPS_SOURCES ${NUMKIT_COMPUTE_DOMAIN_SOURCES})
 
 add_library(numkit_ops STATIC ${NUMKIT_OPS_SOURCES})
 
@@ -107,11 +110,19 @@ add_library(numkit::ops ALIAS numkit_ops)
 target_include_directories(numkit_ops
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/builtin>
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/linalg>
         $<INSTALL_INTERFACE:include>
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/numkit/builtin/detail
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/numkit/builtin/detail/datafun
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/numkit/builtin/detail/datatypes
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/numkit/builtin/detail/elfun
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/numkit/builtin/detail/elmat
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/numkit/builtin/detail/ops
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/numkit/builtin/detail/polyfun
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/numkit/builtin/detail/specfun
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/numkit/builtin/detail/strfun
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/numkit/linalg/detail
 )
 
 target_link_libraries(numkit_ops PUBLIC numkit_value PRIVATE hwy hwy_contrib)

@@ -26,7 +26,7 @@
 #include <limits>
 
 #undef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE "datafun/cumsum_highway.cpp"
+#define HWY_TARGET_INCLUDE "builtin/datafun/cumsum_highway.cpp"
 #include <hwy/foreach_target.h>
 #include <hwy/highway.h>
 
@@ -37,13 +37,13 @@ namespace HWY_NAMESPACE {
 namespace hn = hwy::HWY_NAMESPACE;
 
 // IMPORTANT: AVX2 `ShiftLeftLanes` lowers to `_mm256_slli_si256` which
-// shifts each 128-bit half independently — so for a 4-lane double
+// shifts each 128-bit half independently â€” so for a 4-lane double
 // vector `[a, b, c, d]`, ShiftLeftLanes<1> gives `[0, a, 0, c]`, NOT
 // `[0, a, b, c]`. We need a true cross-lane slide. Highway's
 // `SlideUpLanes(d, v, amt)` handles this correctly across all targets.
 
 // Sum-specific scan: identity is 0, which matches SlideUpLanes' zero-
-// fill — no IfThenElse correction needed.
+// fill â€” no IfThenElse correction needed.
 template <class D>
 HWY_INLINE auto inVectorScanSum(D d, hn::VFromD<D> v)
 {
@@ -223,7 +223,7 @@ void cummaxScan(const double *src, double *dst, std::size_t n)
 {
     if (n == 0) return;
     const std::size_t start = copyLeadingNaN(src, dst, n);
-    if (start == n) return; // all-NaN — done
+    if (start == n) return; // all-NaN â€” done
     // First non-NaN seeds the running max (matches scalar semantics).
     dst[start] = src[start];
     if (start + 1 == n) return;

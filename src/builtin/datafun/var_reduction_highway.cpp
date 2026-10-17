@@ -1,10 +1,10 @@
 // toolboxes/builtin/src/math/elementary/backends/var_reduction_highway.cpp
 //
 // Highway dynamic-dispatch two-pass variance kernel (P5). Two scans:
-//   pass 1: lane-parallel sum → mean
+//   pass 1: lane-parallel sum â†’ mean
 //   pass 2: lane-parallel sum of (x - mean)^2 via FMA (Highway MulAdd)
-//          → variance after dividing by n or n-1.
-// 4× unrolled accumulators per pass keep enough independent ops in
+//          â†’ variance after dividing by n or n-1.
+// 4Ã— unrolled accumulators per pass keep enough independent ops in
 // flight to hide load-to-use latency on the wide pipelines.
 
 #include "var_reduction.hpp"
@@ -13,7 +13,7 @@
 #include <cstddef>
 
 #undef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE "datafun/var_reduction_highway.cpp"
+#define HWY_TARGET_INCLUDE "builtin/datafun/var_reduction_highway.cpp"
 #include <hwy/foreach_target.h>
 #include <hwy/highway.h>
 
@@ -43,7 +43,7 @@ double SumScanLoop(const double *HWY_RESTRICT p, std::size_t n)
     return s;
 }
 
-// In-place accumulate: dst += src. 4× unrolled for ILP, regular
+// In-place accumulate: dst += src. 4Ã— unrolled for ILP, regular
 // cached stores (caller reads dst again on the next column-pass iter).
 void AddIntoLoop(double *HWY_RESTRICT dst, const double *HWY_RESTRICT src,
                  std::size_t n)
@@ -137,7 +137,7 @@ double varianceTwoPass(const double *p, std::size_t n, int normFlag)
 {
     if (n == 0) return std::nan("");
     // MATLAB: variance of a single observation is 0 for BOTH the N-1
-    // (default) and N normalizations — not NaN from the 0/0 of N-1.
+    // (default) and N normalizations â€” not NaN from the 0/0 of N-1.
     if (n == 1) return 0.0;
     const double mean  = sumScan(p, n) / static_cast<double>(n);
     const double ss    = sumSquaredDeviationsScan(p, n, mean);

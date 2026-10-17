@@ -22,9 +22,9 @@
 
 #include <hwy/cache_control.h>
 
-// ── Highway dynamic-dispatch boilerplate ────────────────────────────────
+// â”€â”€ Highway dynamic-dispatch boilerplate â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 #undef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE "elfun/abs_highway.cpp"
+#define HWY_TARGET_INCLUDE "builtin/elfun/abs_highway.cpp"
 #include <hwy/foreach_target.h>   // includes this file once per target
 #include <hwy/highway.h>
 
@@ -39,7 +39,7 @@ namespace hn = hwy::HWY_NAMESPACE;
 // target namespace because it doesn't benefit from vectorisation.
 //
 // Uses the same head/body/tail NT-store pattern as the binary ops in
-// binary_ops_highway.cpp — see the comment block there for the
+// binary_ops_highway.cpp â€” see the comment block there for the
 // rationale. abs is also a write-once-discard-rest pattern at large N
 // so the cache-bypass payoff is similar.
 void AbsLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_t n)
@@ -56,7 +56,7 @@ void AbsLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_
     for (std::size_t k = 0; k < head; ++k, ++i)
         out[i] = std::fabs(in[i]);
 
-    // 4× unrolled body — independent loads + ops + Stream stores.
+    // 4Ã— unrolled body â€” independent loads + ops + Stream stores.
     const std::size_t step4 = 4 * N;
     for (; i + step4 <= n; i += step4) {
         hn::Stream(hn::Abs(hn::LoadU(d, in + i + 0 * N)), d, out + i + 0 * N);
@@ -75,7 +75,7 @@ void AbsLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_
 } // namespace numkit::builtin
 HWY_AFTER_NAMESPACE();
 
-// ── Single external definition (only compiled on the final pass) ────────
+// â”€â”€ Single external definition (only compiled on the final pass) â”€â”€â”€â”€â”€â”€â”€â”€
 #if HWY_ONCE
 
 namespace numkit::builtin {
@@ -87,7 +87,7 @@ Value abs(const Value &x, Value *hint, std::pmr::memory_resource *mr)
     // Integer types keep their class and saturate (abs(int8(-128))=127 int8).
     if (isIntegerType(x.type()))
         return absIntegerSaturate(x, mr);
-    // Complex goes through scalar std::abs(Complex) — SIMD double-lane
+    // Complex goes through scalar std::abs(Complex) â€” SIMD double-lane
     // implementations don't help here (sqrt of sum-of-squares with
     // cancellation pitfalls). Keep the reference path for correctness.
     if (x.isComplex()) {
@@ -99,8 +99,8 @@ Value abs(const Value &x, Value *hint, std::pmr::memory_resource *mr)
         return r;
     }
 
-    // Single stays single (scalar and matrix — the matrix path used to
-    // throw "Not a double array"; bugs/opened → closed
+    // Single stays single (scalar and matrix â€” the matrix path used to
+    // throw "Not a double array"; bugs/opened â†’ closed
     // runtime/abs-single-matrix.md). Memory-bound loop; no SIMD payoff.
     if (x.type() == ValueType::SINGLE) {
         Value r = createLike(x, ValueType::SINGLE, mr);
@@ -131,7 +131,7 @@ Value abs(const Value &x, Value *hint, std::pmr::memory_resource *mr)
         return Value::scalar(std::fabs(x.toScalar()), mr);
 
     // Output-reuse fast path: caller-provided hint is a heap double of
-    // matching shape with unique ownership — steal its buffer instead
+    // matching shape with unique ownership â€” steal its buffer instead
     // of allocating fresh. Skips the per-call N-element mr that
     // dominates at large N (1.8 ms at N=1M vs 0.5 ms for the kernel).
     Value r;

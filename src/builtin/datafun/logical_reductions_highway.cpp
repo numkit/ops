@@ -2,19 +2,19 @@
 //
 // Highway dynamic-dispatch any() / all() with early-exit. Replaces the
 // applyAlongDim+promoteToDouble path that used to dominate the bench
-// (320 ms / 339 ms for 1M doubles → see project_perf_optimization_plan.md
+// (320 ms / 339 ms for 1M doubles â†’ see project_perf_optimization_plan.md
 // Phase P1).
 //
 // Three wins over the old path:
 //   1. LOGICAL input is scanned as bytes (32 elems/AVX2 vector vs 4
-//      doubles), no LOGICAL→DOUBLE promote pass.
-//   2. Vector / dim=1 (column) input is contiguous → SIMD scan with
+//      doubles), no LOGICALâ†’DOUBLE promote pass.
+//   2. Vector / dim=1 (column) input is contiguous â†’ SIMD scan with
 //      `AllFalse(Ne(v, 0))` decides 4-vector chunks at once.
 //   3. Early-exit: any() returns at the first vector containing a
 //      non-zero; all() returns at the first vector containing a zero.
 //
 // Scalar fallback for dim=2/3 (strided across column-major / page
-// strides) — gather isn't a win here and the slice is usually small.
+// strides) â€” gather isn't a win here and the slice is usually small.
 
 #include <numkit/builtin/elmat.hpp>
 
@@ -30,7 +30,7 @@
 #include <cstdint>
 
 #undef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE "datafun/logical_reductions_highway.cpp"
+#define HWY_TARGET_INCLUDE "builtin/datafun/logical_reductions_highway.cpp"
 #include <hwy/foreach_target.h>
 #include <hwy/highway.h>
 
@@ -40,9 +40,9 @@ namespace HWY_NAMESPACE {
 
 namespace hn = hwy::HWY_NAMESPACE;
 
-// ── SIMD scans (unit-stride only) ───────────────────────────────────────
+// â”€â”€ SIMD scans (unit-stride only) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Each scans contiguous `n` elems and returns the boolean answer for
-// any() / all(). 4× unrolled to keep load + compare in flight while the
+// any() / all(). 4Ã— unrolled to keep load + compare in flight while the
 // branch predictor handles the per-block exit test.
 
 bool AnyDoubleScan(const double *HWY_RESTRICT p, std::size_t n)
@@ -233,7 +233,7 @@ Value logicalReduceImpl(const Value &x, int dim, std::pmr::memory_resource *mr)
     const int d = numkit::ops::resolveDim(x, dim, IsAny ? "any" : "all");
     const auto &dd = x.dims();
 
-    // ND fallback: rank ≥ 4 — use stride arithmetic.
+    // ND fallback: rank â‰¥ 4 â€” use stride arithmetic.
     if (dd.ndim() >= 4 && d >= 1 && d <= dd.ndim()) {
         ScratchArena scratch(mr);
         auto shape = numkit::ops::outShapeForDimND(&scratch, x, d);
