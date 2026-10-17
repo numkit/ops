@@ -1001,16 +1001,20 @@ Value czt(const Value &x, int m, Complex w, Complex a, std::pmr::memory_resource
         return yCol;
     }
 
-    if (d.is3D())
-        throw Error("czt: 3-D input not supported",
-                     0, 0, "czt", "", "numkit:czt:unsupportedNd");
-
-    // Matrix: czt each column independently.
-    Value out = Value::complexMatrix(static_cast<std::size_t>(m), C, mr);
+    // Matrix / N-D: czt each column along dim 1 independently.
+    const int nd = d.ndim();
+    std::vector<std::size_t> outDims(static_cast<std::size_t>(nd));
+    outDims[0] = static_cast<std::size_t>(m);
+    for (int i = 1; i < nd; ++i)
+        outDims[static_cast<std::size_t>(i)] = d.dim(i);
+    Value out = (nd <= 2)
+        ? Value::complexMatrix(static_cast<std::size_t>(m), C, mr)
+        : Value::matrixND(outDims.data(), nd, ValueType::COMPLEX, mr);
     Cd *od = out.complexDataMut();
+    const std::size_t nCols = (R > 0) ? (x.numel() / R) : 0;
     ScratchArena arena(mr);
     ScratchVec<Cd> col(R, &arena);
-    for (std::size_t c = 0; c < C; ++c) {
+    for (std::size_t c = 0; c < nCols; ++c) {
         if (x.isComplex()) {
             const Cd *xc = x.complexData();
             for (std::size_t r = 0; r < R; ++r) col[r] = xc[c * R + r];

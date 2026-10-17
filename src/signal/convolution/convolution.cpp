@@ -496,11 +496,88 @@ Value convn(const Value &A, const Value &B, const std::string &shape, std::pmr::
     if (nd == 2) {
         return conv2(a, b, shape, mr);
     }
-    if (nd != 3) {
-        // The reference supports arbitrary-rank convn; the N-D kernel
-        // here stops at 3-D (bugs/opened/signal/nd-and-matrix-gaps.md).
-        throw Error("convn: only 1-D, 2-D, 3-D inputs supported",
-                     0, 0, "convn", "", "numkit:convn:nd");
+    if (nd > 3) {
+        std::vector<size_t> sa(static_cast<size_t>(nd), 1);
+        std::vector<size_t> sb(static_cast<size_t>(nd), 1);
+        std::vector<size_t> sfull(static_cast<size_t>(nd), 1);
+        for (int d = 0; d < nd; ++d) {
+            if (d < da) sa[static_cast<size_t>(d)] = a.dims().dim(d);
+            if (d < db) sb[static_cast<size_t>(d)] = b.dims().dim(d);
+            if (sa[static_cast<size_t>(d)] == 0 || sb[static_cast<size_t>(d)] == 0)
+                return Value::matrix(0, 0, ValueType::DOUBLE, mr);
+            sfull[static_cast<size_t>(d)] = sa[static_cast<size_t>(d)] + sb[static_cast<size_t>(d)] - 1;
+        }
+        std::vector<size_t> strideFull(static_cast<size_t>(nd), 1);
+        for (int d = 1; d < nd; ++d)
+            strideFull[static_cast<size_t>(d)] =
+                strideFull[static_cast<size_t>(d - 1)] * sfull[static_cast<size_t>(d - 1)];
+
+        Value fullV = Value::matrixND(sfull.data(), nd, ValueType::DOUBLE, mr);
+        double *out = fullV.doubleDataMut();
+        const double *Ad = a.doubleData();
+        const double *Bd = b.doubleData();
+        const size_t na = a.numel(), nb = b.numel();
+
+        std::vector<size_t> ca(static_cast<size_t>(nd), 0);
+        std::vector<size_t> cb(static_cast<size_t>(nd), 0);
+        for (size_t ib = 0; ib < nb; ++ib) {
+            size_t tmpB = ib;
+            size_t baseOffB = 0;
+            for (int d = 0; d < nd; ++d) {
+                const size_t c = tmpB % sb[static_cast<size_t>(d)];
+                tmpB /= sb[static_cast<size_t>(d)];
+                cb[static_cast<size_t>(d)] = c;
+                baseOffB += c * strideFull[static_cast<size_t>(d)];
+            }
+            const double bv = Bd[ib];
+            if (bv == 0.0) continue;
+            for (size_t ia = 0; ia < na; ++ia) {
+                size_t tmpA = ia;
+                size_t outIdx = baseOffB;
+                for (int d = 0; d < nd; ++d) {
+                    const size_t c = tmpA % sa[static_cast<size_t>(d)];
+                    tmpA /= sa[static_cast<size_t>(d)];
+                    outIdx += c * strideFull[static_cast<size_t>(d)];
+                }
+                out[outIdx] += Ad[ia] * bv;
+            }
+        }
+
+        if (shape == "full") return fullV;
+
+        std::vector<size_t> sout(static_cast<size_t>(nd), 1);
+        std::vector<size_t> off(static_cast<size_t>(nd), 0);
+        if (shape == "same") {
+            for (int d = 0; d < nd; ++d) {
+                sout[static_cast<size_t>(d)] = sa[static_cast<size_t>(d)];
+                off[static_cast<size_t>(d)] = sb[static_cast<size_t>(d)] / 2;
+            }
+        } else if (shape == "valid") {
+            for (int d = 0; d < nd; ++d) {
+                if (sa[static_cast<size_t>(d)] < sb[static_cast<size_t>(d)])
+                    return Value::matrix(0, 0, ValueType::DOUBLE, mr);
+                sout[static_cast<size_t>(d)] = sa[static_cast<size_t>(d)] - sb[static_cast<size_t>(d)] + 1;
+                off[static_cast<size_t>(d)] = sb[static_cast<size_t>(d)] - 1;
+            }
+        } else {
+            throw Error("convn: shape must be 'full', 'same', or 'valid'",
+                         0, 0, "convn", "", "numkit:convn:badShape");
+        }
+
+        Value cropV = Value::matrixND(sout.data(), nd, ValueType::DOUBLE, mr);
+        double *cd = cropV.doubleDataMut();
+        const size_t ncrop = cropV.numel();
+        for (size_t ic = 0; ic < ncrop; ++ic) {
+            size_t tmp = ic;
+            size_t fullIdx = 0;
+            for (int d = 0; d < nd; ++d) {
+                const size_t c = tmp % sout[static_cast<size_t>(d)];
+                tmp /= sout[static_cast<size_t>(d)];
+                fullIdx += (c + off[static_cast<size_t>(d)]) * strideFull[static_cast<size_t>(d)];
+            }
+            cd[ic] = out[fullIdx];
+        }
+        return cropV;
     }
     // 3-D: direct nested-loop convolution.
     const size_t M = a.dims().rows(), N = a.dims().cols();
