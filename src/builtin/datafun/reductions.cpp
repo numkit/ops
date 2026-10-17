@@ -258,12 +258,25 @@ Value linspace(double a, double b, size_t n, std::pmr::memory_resource *mr)
     auto r = Value::matrix(1, n, ValueType::DOUBLE, mr);
     if (n == 0)
         return r;
+    double *out = r.doubleDataMut();
     if (n == 1) {
-        r.doubleDataMut()[0] = b;
+        out[0] = b;
+        return r;
+    }
+    const double n1 = static_cast<double>(n - 1);
+    if (a == -b) {
+        const double step = b / n1;
+        for (size_t i = 0; i < n; ++i)
+            out[i] = (2.0 * static_cast<double>(i) - n1) * step;
+        out[0] = a;
+        out[n - 1] = b;
+        if (n % 2 == 1) out[n / 2] = 0.0;
         return r;
     }
     for (size_t i = 0; i < n; ++i)
-        r.doubleDataMut()[i] = a + (b - a) * static_cast<double>(i) / static_cast<double>(n - 1);
+        out[i] = a + (b - a) * static_cast<double>(i) / n1;
+    out[0] = a;
+    out[n - 1] = b;
     return r;
 }
 

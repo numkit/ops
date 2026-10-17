@@ -163,7 +163,7 @@ eig_general_VD(const Value &A, std::pmr::memory_resource *mr)
     }
 
     if (!A.isComplex()) {
-        auto eig_vals = numkit::builtin::roots(poly_of_matrix(A, mr), mr);
+        auto eig_vals = eig_general_values(A, mr);
         bool has_complex = false;
         if (eig_vals.isComplex()) {
             const Complex *ev = eig_vals.complexData();
@@ -184,7 +184,6 @@ eig_general_VD(const Value &A, std::pmr::memory_resource *mr)
                 const double *ev = eig_vals.doubleData();
                 for (std::size_t i = 0; i < n; ++i) evals[i] = ev[i];
             }
-            std::sort(evals.begin(), evals.end());
 
             auto Vout = Value::matrix(n, n, ValueType::DOUBLE, mr);
             auto Dout = Value::matrix(n, n, ValueType::DOUBLE, mr);
@@ -759,11 +758,22 @@ namespace {
 // Classical bulge-chasing implicit double-shift QR (Golub & Van Loan Â§7.5).
 void francisSchur(double *H, double *Z, std::size_t n)
 {
-    if (n < 3) return;   // â‰¤2Ã—2 is already (quasi-)triangular
+    if (n < 3) return;   // <=2x2 is already (quasi-)triangular
     auto h = [&](std::size_t i, std::size_t j) -> double & { return H[i + j * n]; };
     auto z = [&](std::size_t i, std::size_t j) -> double & { return Z[i + j * n]; };
     const double eps = std::numeric_limits<double>::epsilon();
     const int    N   = static_cast<int>(n);
+
+    double hnorm = 0.0;
+    for (std::size_t j = 0; j < n; ++j) {
+        double colSum = 0.0;
+        const std::size_t iEnd = std::min(n, j + 2);
+        for (std::size_t i = 0; i < iEnd; ++i)
+            colSum += std::fabs(h(i, j));
+        if (colSum > hnorm) hnorm = colSum;
+    }
+    if (hnorm == 0.0) return;
+    const double smlnum = std::numeric_limits<double>::min() * (static_cast<double>(n) / eps);
 
     int p = N - 1;          // bottom of the active (un-deflated) block
     int iter = 0;
@@ -772,23 +782,27 @@ void francisSchur(double *H, double *Z, std::size_t n)
         int l = p;
         while (l > 0) {
             double s = std::fabs(h(l - 1, l - 1)) + std::fabs(h(l, l));
-            if (s == 0.0) s = 1.0;
-            if (std::fabs(h(l, l - 1)) <= eps * s) { h(l, l - 1) = 0.0; break; }
+            if (s == 0.0) s = hnorm;
+            if (std::fabs(h(l, l - 1)) <= std::max(eps * s, smlnum)) {
+                h(l, l - 1) = 0.0;
+                break;
+            }
             --l;
         }
-        if (l == p)       { p -= 1; iter = 0; continue; }   // 1Ã—1 converged
-        if (l == p - 1)   { p -= 2; iter = 0; continue; }   // 2Ã—2 converged
-        if (++iter > 200) break;                             // give up (non-convergence)
+        if (l == p)       { p -= 1; iter = 0; continue; }   // 1x1 converged
+        if (l == p - 1)   { p -= 2; iter = 0; continue; }   // 2x2 converged
+        if (++iter > 600) { p -= 2; iter = 0; continue; }   // force deflation of stubborn block
 
-        // Double shift from the trailing 2Ã—2: trace s, determinant t.
+        // Double shift from the trailing 2x2: trace s, determinant t.
         double s = h(p - 1, p - 1) + h(p, p);
         double t = h(p - 1, p - 1) * h(p, p) - h(p - 1, p) * h(p, p - 1);
-        if (iter % 30 == 0) {           // exceptional shift to break cycles
-            const double e = std::fabs(h(p, p - 1)) + std::fabs(h(p - 1, p - 2));
-            s = 1.5 * e;
-            t = e * e;
+        if (iter % 10 == 0) {           // LAPACK dlahqr exceptional shift to break symmetry cycles
+            const double e = std::fabs(h(p, p - 1)) + (p >= 2 ? std::fabs(h(p - 1, p - 2)) : 0.0);
+            const double d1 = h(p, p) + 0.75 * e;
+            s = 2.0 * d1;
+            t = d1 * d1 - 0.4375 * e * e;
         }
-        // First column of (HÂ² âˆ’ sH + tI) on the active block â€” bulge seed.
+        // First column of (H^2 - sH + tI) on the active block - bulge seed.
         double x = h(l, l) * h(l, l) + h(l, l + 1) * h(l + 1, l) - s * h(l, l) + t;
         double y = h(l + 1, l) * (h(l, l) + h(l + 1, l + 1) - s);
         double w = (l + 2 <= p) ? h(l + 1, l) * h(l + 2, l + 1) : 0.0;
