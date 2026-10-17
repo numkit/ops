@@ -1,4 +1,4 @@
-﻿// toolboxes/linalg/src/misc.cpp
+// toolboxes/linalg/src/misc.cpp
 //
 // Miscellaneous linalg utilities: rref + planerot.
 // Migrated 2026-05-25 from toolboxes/builtin/src/language/arrays/linalg_extras.cpp.
@@ -22,7 +22,8 @@ namespace numkit::linalg {
 
 namespace {
 
-double matrix_inf_norm(const double *A, size_t M, size_t N)
+template <typename T>
+double matrix_inf_norm(const T *A, size_t M, size_t N)
 {
     if (M == 0 || N == 0) return 0.0;
     double maxv = 0.0;
@@ -32,6 +33,59 @@ double matrix_inf_norm(const double *A, size_t M, size_t N)
         if (s > maxv) maxv = s;
     }
     return maxv;
+}
+
+template <typename T>
+void rref_kernel(T *B, size_t M, size_t N, bool have_tol, double tol_user,
+                 ScratchVec<double> &jb_buf)
+{
+    double tol = tol_user;
+    if (!have_tol) {
+        const double anorm = matrix_inf_norm(B, M, N);
+        const double eps = std::numeric_limits<double>::epsilon();
+        const double eps_anorm = (anorm == 0.0) ? eps
+                                                 : std::nextafter(anorm,
+                                                       std::numeric_limits<double>::infinity()) - anorm;
+        tol = static_cast<double>(std::max(M, N)) * eps_anorm;
+    }
+
+    size_t i = 0;
+    for (size_t j = 0; j < N && i < M; ++j) {
+        size_t piv_row = i;
+        double piv_val = std::abs(B[i + j * M]);
+        for (size_t k = i + 1; k < M; ++k) {
+            double v = std::abs(B[k + j * M]);
+            if (v > piv_val) { piv_val = v; piv_row = k; }
+        }
+
+        if (piv_val <= tol) {
+            for (size_t k = i; k < M; ++k) B[k + j * M] = T(0.0);
+            continue;
+        }
+
+        if (piv_row != i) {
+            for (size_t jj = 0; jj < N; ++jj) {
+                std::swap(B[i + jj * M], B[piv_row + jj * M]);
+            }
+        }
+
+        T piv = B[i + j * M];
+        for (size_t jj = 0; jj < N; ++jj) B[i + jj * M] /= piv;
+        B[i + j * M] = T(1.0);
+
+        for (size_t k = 0; k < M; ++k) {
+            if (k == i) continue;
+            T f = B[k + j * M];
+            if (f == T(0.0)) continue;
+            for (size_t jj = 0; jj < N; ++jj) {
+                B[k + jj * M] -= f * B[i + jj * M];
+            }
+            B[k + j * M] = T(0.0);
+        }
+
+        jb_buf.push_back(static_cast<double>(j + 1));
+        ++i;
+    }
 }
 
 } // namespace
@@ -47,67 +101,35 @@ rref(const Value &A, bool have_tol, double tol_user, std::pmr::memory_resource *
 
     const size_t M = A.dims().rows();
     const size_t N = A.dims().cols();
-    Value R = Value::matrix(M, N, ValueType::DOUBLE, mr);
     if (M == 0 || N == 0) {
+        Value R = Value::matrix(M, N, ValueType::DOUBLE, mr);
         Value jb = Value::matrix(1, 0, ValueType::DOUBLE, mr);
         return {R, jb};
     }
 
     ScratchArena scratch(mr);
-    ScratchVec<double> B(M * N, &scratch);
-    if (A.isComplex())
-        throw Error("rref: complex input not supported in v1",
-                    0, 0, "rref", "", "numkit:rref:NoComplex");
-    std::copy(A.doubleData(), A.doubleData() + M * N, B.begin());
-
-    double tol = tol_user;
-    if (!have_tol) {
-        const double anorm = matrix_inf_norm(B.data(), M, N);
-        const double eps = std::numeric_limits<double>::epsilon();
-        const double eps_anorm = (anorm == 0.0) ? eps
-                                                 : std::nextafter(anorm,
-                                                       std::numeric_limits<double>::infinity()) - anorm;
-        tol = static_cast<double>(std::max(M, N)) * eps_anorm;
-    }
-
     ScratchVec<double> jb_buf(0, &scratch);
-    size_t i = 0;
-    for (size_t j = 0; j < N && i < M; ++j) {
-        size_t piv_row = i;
-        double piv_val = std::abs(B[i + j * M]);
-        for (size_t k = i + 1; k < M; ++k) {
-            double v = std::abs(B[k + j * M]);
-            if (v > piv_val) { piv_val = v; piv_row = k; }
-        }
 
-        if (piv_val <= tol) {
-            for (size_t k = i; k < M; ++k) B[k + j * M] = 0.0;
-            continue;
-        }
+    if (A.isComplex()) {
+        ScratchVec<Complex> B(M * N, &scratch);
+        std::copy(A.complexData(), A.complexData() + M * N, B.begin());
+        rref_kernel(B.data(), M, N, have_tol, tol_user, jb_buf);
 
-        if (piv_row != i) {
-            for (size_t jj = 0; jj < N; ++jj) {
-                std::swap(B[i + jj * M], B[piv_row + jj * M]);
-            }
-        }
+        Value R = Value::complexMatrix(M, N, mr);
+        std::copy(B.begin(), B.end(), R.complexDataMut());
+        R = detail::narrow_if_real(R, mr);
 
-        double piv = B[i + j * M];
-        for (size_t jj = 0; jj < N; ++jj) B[i + jj * M] /= piv;
-        B[i + j * M] = 1.0;
-
-        for (size_t k = 0; k < M; ++k) {
-            if (k == i) continue;
-            double f = B[k + j * M];
-            if (f == 0.0) continue;
-            for (size_t jj = 0; jj < N; ++jj) {
-                B[k + jj * M] -= f * B[i + jj * M];
-            }
-            B[k + j * M] = 0.0;
-        }
-
-        jb_buf.push_back(static_cast<double>(j + 1));
-        ++i;
+        Value jb = Value::matrix(jb_buf.empty() ? 0 : 1, jb_buf.size(),
+                                 ValueType::DOUBLE, mr);
+        if (!jb_buf.empty())
+            std::copy(jb_buf.begin(), jb_buf.end(), jb.doubleDataMut());
+        return {R, jb};
     }
+
+    Value R = Value::matrix(M, N, ValueType::DOUBLE, mr);
+    ScratchVec<double> B(M * N, &scratch);
+    std::copy(A.doubleData(), A.doubleData() + M * N, B.begin());
+    rref_kernel(B.data(), M, N, have_tol, tol_user, jb_buf);
 
     std::copy(B.begin(), B.end(), R.doubleDataMut());
 

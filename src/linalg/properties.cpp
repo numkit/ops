@@ -1,4 +1,4 @@
-﻿// toolboxes/linalg/src/properties.cpp
+// toolboxes/linalg/src/properties.cpp
 //
 // inv / det / trace / rank / cond / normest / rcond â€” and engine adapters.
 // Migrated from toolboxes/builtin/src/language/arrays/{matrix,linalg_extras}.cpp.
@@ -50,9 +50,10 @@ double defaultRankTol(std::size_t m, std::size_t n, double sigma_max)
          * std::numeric_limits<double>::epsilon();
 }
 
-// 1-norm of a column-major MÃ—N matrix: max column sum of |a_ij|.
-// Used by rcond.
-double matrix_one_norm(const double *A, size_t M, size_t N)
+// 1-norm of a column-major M×N matrix: max column sum of |a_ij|.
+// Used by rcond and condest.
+template <typename T>
+double matrix_one_norm(const T *A, size_t M, size_t N)
 {
     if (M == 0 || N == 0) return 0.0;
     double maxv = 0.0;
@@ -62,6 +63,13 @@ double matrix_one_norm(const double *A, size_t M, size_t N)
         if (s > maxv) maxv = s;
     }
     return maxv;
+}
+
+double value_one_norm(const Value &A, size_t M, size_t N)
+{
+    if (A.isComplex())
+        return matrix_one_norm(A.complexData(), M, N);
+    return matrix_one_norm(A.doubleData(), M, N);
 }
 
 } // anonymous namespace
@@ -104,7 +112,7 @@ Value inv(const Value &A, std::pmr::memory_resource *mr)
 Value trace(const Value &A, std::pmr::memory_resource *mr)
 {
     // The reference coerces numeric and logical inputs to double before
-    // summing the diagonal â€” trace(int32(A)) and trace(true(n)) both
+    // summing the diagonal — trace(int32(A)) and trace(true(n)) both
     // answer a double; char/string/cell are rejected (R2025b probes
     // 2026-09-18). single answers single there; we coerce and return
     // double (bugs/opened/linalg/single-float-inputs.md).
@@ -122,7 +130,7 @@ Value trace(const Value &A, std::pmr::memory_resource *mr)
     const std::size_t m = static_cast<std::size_t>(A.dims().dim(0));
     const std::size_t n = static_cast<std::size_t>(A.dims().dim(1));
     const std::size_t k = std::min(m, n);
-    // trace = sum of the diagonal; complex-aware (unlike eig/svd/â€¦, this needs
+    // trace = sum of the diagonal; complex-aware (unlike eig/svd/…, this needs
     // no complex factorization). An all-zero-imaginary result narrows to real
     // (MATLAB R2025b: trace([1+1i 2;3 4]) = 5+1i; trace(complex([1 2;3 4])) = 5).
     if (A.isComplex()) {
@@ -230,9 +238,9 @@ Value cond_2norm(const Value &A, std::pmr::memory_resource *mr)
     return Value::scalar(sigma_max / sigma_min, mr);
 }
 
-// cond(A, p) â€” generic p-norm condition number.
-//   cond(A, p) = ||A||_p Â· ||inv(A)||_p
-// p_kind: 1 â†’ 1-norm, 2 â†’ 2-norm, 3 â†’ Inf-norm, 4 â†’ Frobenius.
+// cond(A, p) — generic p-norm condition number.
+//   cond(A, p) = ||A||_p · ||inv(A)||_p
+// p_kind: 1 → 1-norm, 2 → 2-norm, 3 → Inf-norm, 4 → Frobenius.
 Value cond_pnorm(const Value &A, int p_kind, std::pmr::memory_resource *mr)
 {
     detail::requireDoubleInput(A, "cond");
@@ -278,11 +286,6 @@ Value cond_pnorm(const Value &A, int p_kind, std::pmr::memory_resource *mr)
 
 Value normest(const Value &A, std::pmr::memory_resource *mr)
 {
-    // The reference coerces logical and char operands to double
-    // (normest(true(2)) = 2, normest('ab') = norm([97 98])); integer
-    // classes, string and cell are rejected. single answers single
-    // there; we coerce and return double
-    // (bugs/opened/linalg/single-float-inputs.md). R2025b probes.
     const ValueType t = A.type();
     if (t != ValueType::DOUBLE && t != ValueType::COMPLEX
         && t != ValueType::SINGLE && t != ValueType::LOGICAL
@@ -296,13 +299,6 @@ Value normest(const Value &A, std::pmr::memory_resource *mr)
     return Value::scalar(sv.doubleData()[0], mr);
 }
 
-// rcond â€” reciprocal 1-norm condition estimate (cheap path).
-//
-// KNOWN GAP: MATLAB uses LAPACK's dgecon (1-norm reverse-iteration
-// estimator from Higham 1988). Our impl agrees with MATLAB on
-// well-conditioned cases but differs slightly on near-singular A
-// because the LAPACK estimator approximates ||inv(A)||_1 without
-// computing inv(A) itself.
 Value rcond(const Value &A, std::pmr::memory_resource *mr)
 {
     detail::requireDoubleInput(A, "rcond");
@@ -316,11 +312,8 @@ Value rcond(const Value &A, std::pmr::memory_resource *mr)
                     0, 0, "rcond", "", "numkit:rcond:NotSquare");
     if (M == 0)
         return Value::scalar(std::numeric_limits<double>::infinity(), mr);
-    if (A.isComplex())
-        throw Error("rcond: complex input not supported in v1",
-                    0, 0, "rcond", "", "numkit:rcond:NoComplex");
 
-    const double anorm = matrix_one_norm(A.doubleData(), M, N);
+    const double anorm = value_one_norm(A, M, N);
     if (anorm == 0.0) return Value::scalar(0.0, mr);
 
     Value Ainv;
@@ -329,30 +322,15 @@ Value rcond(const Value &A, std::pmr::memory_resource *mr)
     } catch (...) {
         return Value::scalar(0.0, mr);
     }
-    const double inv_norm = matrix_one_norm(Ainv.doubleData(), M, N);
+    const double inv_norm = value_one_norm(Ainv, M, N);
     if (!std::isfinite(inv_norm) || inv_norm == 0.0)
         return Value::scalar(0.0, mr);
     return Value::scalar(1.0 / (anorm * inv_norm), mr);
 }
 
-// condest â€” 1-norm condition estimate. Reciprocal of rcond (cheap path).
-//
-// KNOWN GAP: MATLAB's condest uses Higham 1988's blocked 1-norm power-
-// iteration estimator (LAPACK dlacn1) which approximates norm(inv(A),1)
-// in O(nÂ²) per iteration without forming inv(A). Our impl computes
-// norm(A,1) * norm(inv(A),1) exactly. Matches MATLAB on well-conditioned
-// A; on near-singular A returns the EXACT condition number while MATLAB
-// returns an approximation.
 Value condest(const Value &A, std::pmr::memory_resource *mr)
 {
     detail::requireDoubleInput(A, "condest");
-    // The 1-norm estimator consumes a real buffer; complex condest is a
-    // kernel gap (bugs/opened/linalg/complex-kernel-gaps.md).
-    if (A.isComplex())
-        throw Error("condest: complex input is not supported yet â€” the "
-                    "1-norm estimator is real-only (got a "
-                        + detail::shapeOf(A) + " complex array).",
-                    0, 0, "condest", "", "numkit:condest:complexUnsupported");
     if (A.dims().is3D())
         throw Error("condest: input must be 2D",
                     0, 0, "condest", "", "numkit:condest:Not2D");
@@ -364,7 +342,7 @@ Value condest(const Value &A, std::pmr::memory_resource *mr)
     if (M == 0)
         return Value::scalar(0.0, mr);
 
-    const double anorm = matrix_one_norm(A.doubleData(), M, N);
+    const double anorm = value_one_norm(A, M, N);
     if (anorm == 0.0)
         return Value::scalar(std::numeric_limits<double>::infinity(), mr);
 
@@ -374,38 +352,15 @@ Value condest(const Value &A, std::pmr::memory_resource *mr)
     } catch (...) {
         return Value::scalar(std::numeric_limits<double>::infinity(), mr);
     }
-    const double inv_norm = matrix_one_norm(Ainv.doubleData(), M, N);
+    const double inv_norm = value_one_norm(Ainv, M, N);
     if (!std::isfinite(inv_norm))
         return Value::scalar(std::numeric_limits<double>::infinity(), mr);
     return Value::scalar(anorm * inv_norm, mr);
 }
 
-// condeig â€” eigenvalue condition numbers.
-//
-// For each eigenvalue Î»_i with right eigenvector x_i (unit norm) and
-// left eigenvector y_i (unit norm, satisfying y_i' A = Î»_i y_i'), the
-// condition number is
-//   s_i = 1 / |y_i' x_i|
-// which equals 1/|cos Î¸_i| where Î¸_i is the angle between x_i and y_i.
-//
-// Implementation: V = right eigvecs from eig; left eigvecs are columns
-// of inv(V)' (LAPACK convention). Compute s_i = ||V(:,i)|| Â· ||W(:,i)||
-// / |W(:,i)' V(:,i)| where W = inv(V)'. For perfectly conditioned A
-// (symmetric / normal), V is orthogonal and s_i == 1 for every i.
-//
-// Symmetric A short-circuits to a vector of 1s â€” much cheaper than the
-// general path and bit-equal to MATLAB.
 Value condeig(const Value &A, std::pmr::memory_resource *mr)
 {
     detail::requireDoubleInput(A, "condeig");
-    // The eigenvector-based estimator consumes real buffers; complex
-    // condeig is a kernel gap
-    // (bugs/opened/linalg/complex-kernel-gaps.md).
-    if (A.isComplex())
-        throw Error("condeig: complex input is not supported yet â€” the "
-                    "condition estimator is real-only (got a "
-                        + detail::shapeOf(A) + " complex array).",
-                    0, 0, "condeig", "", "numkit:condeig:complexUnsupported");
     if (A.dims().ndim() != 2)
         throw Error("condeig: input must be a 2D matrix",
                     0, 0, "condeig", "", "numkit:condeig:notMatrix");
@@ -417,34 +372,72 @@ Value condeig(const Value &A, std::pmr::memory_resource *mr)
     if (n == 0)
         return Value::matrix(0, 1, ValueType::DOUBLE, mr);
 
-    // Symmetric short-circuit: every eigenvalue is perfectly conditioned.
-    // Tolerance follows the threshold used inside eig_symmetric.
-    auto isSymmetric = [&]() -> bool {
-        const double *p = A.doubleData();
-        const double tol = 1e-10;
-        for (std::size_t i = 0; i < n; ++i)
-            for (std::size_t j = i + 1; j < n; ++j) {
-                const double d = std::fabs(p[i + j * n] - p[j + i * n]);
-                const double s = std::max(std::fabs(p[i + j * n]),
-                                           std::fabs(p[j + i * n]));
-                if (d > tol * (1.0 + s)) return false;
+    // Real symmetric short-circuit: every eigenvalue is perfectly conditioned.
+    if (!A.isComplex()) {
+        auto isSymmetric = [&]() -> bool {
+            const double *p = A.doubleData();
+            const double tol = 1e-10;
+            for (std::size_t i = 0; i < n; ++i)
+                for (std::size_t j = i + 1; j < n; ++j) {
+                    const double d = std::fabs(p[i + j * n] - p[j + i * n]);
+                    const double s = std::max(std::fabs(p[i + j * n]),
+                                               std::fabs(p[j + i * n]));
+                    if (d > tol * (1.0 + s)) return false;
+                }
+            return true;
+        };
+        if (isSymmetric()) {
+            auto out = Value::matrix(n, 1, ValueType::DOUBLE, mr);
+            double *o = out.doubleDataMut();
+            for (std::size_t i = 0; i < n; ++i) o[i] = 1.0;
+            return out;
+        }
+    }
+
+    auto [V, D] = eig_general_VD(A, mr);
+
+    ScratchArena scratch(mr);
+    auto out = Value::matrix(n, 1, ValueType::DOUBLE, mr);
+    double *s = out.doubleDataMut();
+
+    if (V.isComplex()) {
+        ScratchVec<Complex> V_buf(n * n, &scratch);
+        ScratchVec<Complex> I_buf(n * n, Complex(0.0, 0.0), &scratch);
+        std::copy(V.complexData(), V.complexData() + n * n, V_buf.begin());
+        for (std::size_t i = 0; i < n; ++i) I_buf[i + i * n] = Complex(1.0, 0.0);
+
+        ScratchVec<Complex> Vinv(n * n, &scratch);
+        if (!numkit::ops::la_solve(V_buf.data(), n, n, I_buf.data(), n,
+                                   Vinv.data(), &scratch))
+            throw Error("condeig: right eigenvector matrix is singular",
+                        0, 0, "condeig", "", "numkit:condeig:singular");
+
+        const Complex *vd = V.complexData();
+        for (std::size_t i = 0; i < n; ++i) {
+            double v_norm = 0.0;
+            for (std::size_t k = 0; k < n; ++k)
+                v_norm += std::norm(vd[k + i * n]);
+            v_norm = std::sqrt(v_norm);
+
+            double w_norm = 0.0;
+            for (std::size_t k = 0; k < n; ++k)
+                w_norm += std::norm(Vinv[i + k * n]);
+            w_norm = std::sqrt(w_norm);
+
+            Complex dot(0.0, 0.0);
+            for (std::size_t k = 0; k < n; ++k)
+                dot += Vinv[i + k * n] * vd[k + i * n];
+
+            const double abs_dot = std::abs(dot);
+            if (abs_dot < 1e-300) {
+                s[i] = std::numeric_limits<double>::infinity();
+            } else {
+                s[i] = v_norm * w_norm / abs_dot;
             }
-        return true;
-    };
-    if (isSymmetric()) {
-        auto out = Value::matrix(n, 1, ValueType::DOUBLE, mr);
-        double *o = out.doubleDataMut();
-        for (std::size_t i = 0; i < n; ++i) o[i] = 1.0;
+        }
         return out;
     }
 
-    // General path. eig_general_VD returns real-eigenvalue cases only;
-    // complex eigvecs are deferred to Francis QR.
-    auto [V, D] = eig_general_VD(A, mr);
-
-    // W = inv(V)' â€” its columns are the left eigenvectors. Compute via
-    // la_solve on V to get inv(V) directly without going through pinv.
-    ScratchArena scratch(mr);
     ScratchVec<double> V_buf(n * n, &scratch);
     ScratchVec<double> I_buf(n * n, 0.0, &scratch);
     std::copy(V.doubleData(), V.doubleData() + n * n, V_buf.begin());
@@ -456,26 +449,20 @@ Value condeig(const Value &A, std::pmr::memory_resource *mr)
         throw Error("condeig: right eigenvector matrix is singular",
                     0, 0, "condeig", "", "numkit:condeig:singular");
 
-    auto out = Value::matrix(n, 1, ValueType::DOUBLE, mr);
-    double *s = out.doubleDataMut();
     const double *vd = V.doubleData();
     for (std::size_t i = 0; i < n; ++i) {
-        // Right eigvec V(:, i)
         double v_norm = 0.0;
         for (std::size_t k = 0; k < n; ++k)
             v_norm += vd[k + i * n] * vd[k + i * n];
         v_norm = std::sqrt(v_norm);
 
-        // Left eigvec = i-th column of W = inv(V)' = i-th ROW of inv(V).
         double w_norm = 0.0;
         for (std::size_t k = 0; k < n; ++k) {
-            const double w_k = Vinv[i + k * n];   // inv(V)[i, k]
+            const double w_k = Vinv[i + k * n];
             w_norm += w_k * w_k;
         }
         w_norm = std::sqrt(w_norm);
 
-        // Inner product y_i' x_i where y_i is the i-th row of inv(V).
-        // Right eigvec V(:, i) is column. So y_i' x_i = sum_k Vinv[i, k] * V[k, i].
         double dot = 0.0;
         for (std::size_t k = 0; k < n; ++k)
             dot += Vinv[i + k * n] * vd[k + i * n];

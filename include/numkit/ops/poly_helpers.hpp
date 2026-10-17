@@ -54,25 +54,23 @@ inline void polyEvalHorner(const Complex *c, std::size_t n,
 // practical SOS / roots() usage rarely exceeds this.
 inline ScratchVec<Complex>
 polyRootsDurandKerner(std::pmr::memory_resource *mr,
-                      const double *coeffs, std::size_t coeffsN)
+                      const Complex *coeffs, std::size_t coeffsN)
 {
     std::size_t lo = 0, hi = coeffsN;
-    while (lo < hi && coeffs[lo] == 0.0) ++lo;
+    while (lo < hi && coeffs[lo] == Complex(0.0, 0.0)) ++lo;
     std::size_t origZeros = 0;
-    while (hi > lo && coeffs[hi - 1] == 0.0) { --hi; ++origZeros; }
+    while (hi > lo && coeffs[hi - 1] == Complex(0.0, 0.0)) { --hi; ++origZeros; }
     if (hi - lo <= 1)
         return ScratchVec<Complex>(origZeros, Complex(0.0, 0.0), mr);
 
     ScratchVec<Complex> c(hi - lo, mr);
     for (std::size_t i = 0; i < c.size(); ++i)
-        c[i] = Complex(coeffs[lo + i] / coeffs[lo], 0.0);
+        c[i] = coeffs[lo + i] / coeffs[lo];
     const std::size_t n = c.size() - 1;
 
-    // Initial guesses on the Cauchy-bound circle, offset to avoid
-    // a real-axis cluster (factor of e^{j·0.4} chosen empirically).
     double maxCoef = 0.0;
     for (std::size_t i = 1; i <= n; ++i)
-        maxCoef = std::max(maxCoef, std::abs(c[i].real()));
+        maxCoef = std::max(maxCoef, std::abs(c[i]));
     const double R = 1.0 + maxCoef;
     ScratchVec<Complex> roots(n, mr);
     constexpr double kTwoPi = 6.28318530717958647692;
@@ -103,6 +101,16 @@ polyRootsDurandKerner(std::pmr::memory_resource *mr,
     for (std::size_t i = 0; i < origZeros; ++i)
         roots.push_back(Complex(0.0, 0.0));
     return roots;
+}
+
+inline ScratchVec<Complex>
+polyRootsDurandKerner(std::pmr::memory_resource *mr,
+                      const double *coeffs, std::size_t coeffsN)
+{
+    ScratchVec<Complex> cc(coeffsN, mr);
+    for (std::size_t i = 0; i < coeffsN; ++i)
+        cc[i] = Complex(coeffs[i], 0.0);
+    return polyRootsDurandKerner(mr, cc.data(), coeffsN);
 }
 
 // Expand a list of polynomial roots into a real-coefficient polynomial

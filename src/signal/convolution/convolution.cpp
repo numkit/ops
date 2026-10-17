@@ -392,7 +392,7 @@ static void convMatrixArgcheck(const Value &v, std::string_view fn,
                                std::string_view argName, int argNum)
 {
     const ValueType t = v.type();
-    if (t == ValueType::DOUBLE)
+    if (t == ValueType::DOUBLE || t == ValueType::COMPLEX)
         return;
     if (t == ValueType::LOGICAL || isIntegerType(t))
         return;                       // promoted by the caller
@@ -404,13 +404,6 @@ static void convMatrixArgcheck(const Value &v, std::string_view fn,
                         + " single array).",
                     0, 0, std::string(fn), "",
                     "numkit:" + std::string(fn) + ":singleUnsupported");
-    if (t == ValueType::COMPLEX)
-        throw Error(std::string(fn) + ": input " + std::to_string(argNum)
-                        + " (" + std::string(argName)
-                        + "): complex inputs are not supported yet (got a "
-                        + detail::shapeOf(v) + " complex array).",
-                    0, 0, std::string(fn), "",
-                    "numkit:" + std::string(fn) + ":complexUnsupported");
     detail::throwInputType(v, fn, argName, argNum, "numeric or logical");
 }
 
@@ -421,6 +414,34 @@ static Value convPromoteIfNeeded(const Value &v, std::pmr::memory_resource *mr)
     if (!v.isComplex() && (v.isLogical() || isIntegerType(v.type())))
         return convPromoteToDouble(v, mr);
     return Value();                   // empty ⇒ use v unchanged
+}
+
+static Value allocLike(const Value &v, ValueType t, std::pmr::memory_resource *mr)
+{
+    const auto &d = v.dims();
+    if (d.ndim() <= 2) return Value::matrix(d.rows(), d.cols(), t, mr);
+    if (d.ndim() == 3) return Value::matrix3d(d.rows(), d.cols(), d.pages(), t, mr);
+    std::vector<size_t> od(static_cast<size_t>(d.ndim()));
+    for (int k = 0; k < d.ndim(); ++k) od[static_cast<size_t>(k)] = d.dim(k);
+    return Value::matrixND(od.data(), d.ndim(), t, mr);
+}
+
+static Value extractPartValue(const Value &v, bool imagPart, std::pmr::memory_resource *mr)
+{
+    Value out = allocLike(v, ValueType::DOUBLE, mr);
+    double *od = out.doubleDataMut();
+    const size_t n = v.numel();
+    if (v.isComplex()) {
+        const Complex *cd = v.complexData();
+        for (size_t i = 0; i < n; ++i)
+            od[i] = imagPart ? cd[i].imag() : cd[i].real();
+    } else if (imagPart) {
+        std::fill(od, od + n, 0.0);
+    } else {
+        for (size_t i = 0; i < n; ++i)
+            od[i] = v.elemAsDouble(i);
+    }
+    return out;
 }
 
 } // namespace
@@ -440,8 +461,29 @@ Value conv2(const Value &A, const Value &B, const std::string &shape, std::pmr::
 
     const size_t M = a.dims().rows(), N = a.dims().cols();
     const size_t P = b.dims().rows(), Q = b.dims().cols();
+    const bool anyCplx = a.isComplex() || b.isComplex();
     if (M == 0 || N == 0 || P == 0 || Q == 0) {
-        return Value::matrix(0, 0, ValueType::DOUBLE, mr);
+        return Value::matrix(0, 0, anyCplx ? ValueType::COMPLEX : ValueType::DOUBLE, mr);
+    }
+    if (anyCplx) {
+        Value ar = extractPartValue(a, false, mr);
+        Value ai = extractPartValue(a, true, mr);
+        Value br = extractPartValue(b, false, mr);
+        Value bi = extractPartValue(b, true, mr);
+        Value rr = conv2(ar, br, shape, mr);
+        const size_t nOut = rr.numel();
+        Value ri = b.isComplex() ? conv2(ar, bi, shape, mr) : allocLike(rr, ValueType::DOUBLE, mr);
+        Value ir = a.isComplex() ? conv2(ai, br, shape, mr) : allocLike(rr, ValueType::DOUBLE, mr);
+        Value ii = (a.isComplex() && b.isComplex()) ? conv2(ai, bi, shape, mr) : allocLike(rr, ValueType::DOUBLE, mr);
+        Value out = allocLike(rr, ValueType::COMPLEX, mr);
+        Complex *od = out.complexDataMut();
+        const double *rrd = rr.doubleData();
+        const double *rid = ri.doubleData();
+        const double *ird = ir.doubleData();
+        const double *iid = ii.doubleData();
+        for (size_t i = 0; i < nOut; ++i)
+            od[i] = Complex(rrd[i] - iid[i], rid[i] + ird[i]);
+        return out;
     }
 
     const size_t fullR = M + P - 1, fullC = N + Q - 1;
@@ -456,8 +498,6 @@ Value filter2(const Value &h, const Value &X, const std::string &shape, std::pmr
 {
     convMatrixArgcheck(h, "filter2", "h", 1);
     convMatrixArgcheck(X, "filter2", "X", 2);
-    // Validate the shape HERE so the error is voiced as filter2, not by
-    // the conv2 delegation below.
     detail::validateShapeOption(shape, "filter2");
     if (h.dims().ndim() > 2 || X.dims().ndim() > 2)
         throw Error("filter2: N-D arrays are not supported",
@@ -467,9 +507,16 @@ Value filter2(const Value &h, const Value &X, const std::string &shape, std::pmr
     const Value &hh = hHold.isEmpty() ? h : hHold;
     const Value &xx = xHold.isEmpty() ? X : xHold;
 
-    // filter2(h, X, shape) = conv2(X, rot90(h, 2), shape).
-    // rot90(h, 2) flips rows + cols: out[i,j] = h[P-1-i, Q-1-j].
     const size_t P = hh.dims().rows(), Q = hh.dims().cols();
+    if (hh.isComplex()) {
+        auto hf = Value::matrix(P, Q, ValueType::COMPLEX, mr);
+        const Complex *src = hh.complexData();
+        Complex *dst       = hf.complexDataMut();
+        for (size_t j = 0; j < Q; ++j)
+            for (size_t i = 0; i < P; ++i)
+                dst[j * P + i] = src[(Q - 1 - j) * P + (P - 1 - i)];
+        return conv2(xx, hf, shape, mr);
+    }
     auto hf = Value::matrix(P, Q, ValueType::DOUBLE, mr);
     const double *src = hh.doubleData();
     double *dst       = hf.doubleDataMut();
@@ -488,6 +535,26 @@ Value convn(const Value &A, const Value &B, const std::string &shape, std::pmr::
     Value bHold = convPromoteIfNeeded(B, mr);
     const Value &a = aHold.isEmpty() ? A : aHold;
     const Value &b = bHold.isEmpty() ? B : bHold;
+    if (a.isComplex() || b.isComplex()) {
+        Value ar = extractPartValue(a, false, mr);
+        Value ai = extractPartValue(a, true, mr);
+        Value br = extractPartValue(b, false, mr);
+        Value bi = extractPartValue(b, true, mr);
+        Value rr = convn(ar, br, shape, mr);
+        const size_t nOut = rr.numel();
+        Value ri = b.isComplex() ? convn(ar, bi, shape, mr) : allocLike(rr, ValueType::DOUBLE, mr);
+        Value ir = a.isComplex() ? convn(ai, br, shape, mr) : allocLike(rr, ValueType::DOUBLE, mr);
+        Value ii = (a.isComplex() && b.isComplex()) ? convn(ai, bi, shape, mr) : allocLike(rr, ValueType::DOUBLE, mr);
+        Value out = allocLike(rr, ValueType::COMPLEX, mr);
+        Complex *od = out.complexDataMut();
+        const double *rrd = rr.doubleData();
+        const double *rid = ri.doubleData();
+        const double *ird = ir.doubleData();
+        const double *iid = ii.doubleData();
+        for (size_t i = 0; i < nOut; ++i)
+            od[i] = Complex(rrd[i] - iid[i], rid[i] + ird[i]);
+        return out;
+    }
     const int da = a.dims().ndim(), db = b.dims().ndim();
     const int nd = std::max(da, db);
     if (nd <= 1) {

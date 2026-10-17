@@ -1,4 +1,4 @@
-﻿// toolboxes/linalg/src/matrix_functions.cpp
+// toolboxes/linalg/src/matrix_functions.cpp
 //
 // Matrix functions â€” expm, logm_sym, sqrtm_sym + engine adapters.
 // Migrated 2026-05-25 from toolboxes/builtin/src/language/arrays/matrix.cpp.
@@ -24,26 +24,27 @@ namespace numkit::linalg {
 
 namespace {
 
-// Multiply two nÃ—n column-major matrices: C = A * B (no aliasing).
-void matMul(const double *A, const double *B, double *C, std::size_t n)
+template <typename T>
+void matMul(const T *A, const T *B, T *C, std::size_t n)
 {
-    std::fill(C, C + n * n, 0.0);
+    std::fill(C, C + n * n, T(0.0));
     for (std::size_t j = 0; j < n; ++j)
         for (std::size_t k = 0; k < n; ++k) {
-            const double bkj = B[k + j * n];
-            if (bkj == 0.0) continue;
+            const T bkj = B[k + j * n];
+            if (bkj == T(0.0)) continue;
             for (std::size_t i = 0; i < n; ++i)
                 C[i + j * n] += A[i + k * n] * bkj;
         }
 }
 
-// 1-norm of an nÃ—n matrix.
-double mat1Norm(const double *A, std::size_t n)
+// 1-norm of an n×n matrix.
+template <typename T>
+double mat1Norm(const T *A, std::size_t n)
 {
     double mx = 0.0;
     for (std::size_t j = 0; j < n; ++j) {
         double s = 0.0;
-        for (std::size_t i = 0; i < n; ++i) s += std::fabs(A[i + j * n]);
+        for (std::size_t i = 0; i < n; ++i) s += std::abs(A[i + j * n]);
         mx = std::max(mx, s);
     }
     return mx;
@@ -54,14 +55,6 @@ double mat1Norm(const double *A, std::size_t n)
 Value expm(const Value &A, std::pmr::memory_resource *mr)
 {
     detail::requireDoubleInput(A, "expm");
-    // The PadÃ© scaling-and-squaring kernel below consumes a real buffer;
-    // complex expm is a kernel gap
-    // (bugs/opened/linalg/complex-kernel-gaps.md).
-    if (A.isComplex())
-        throw Error("expm: complex input is not supported yet â€” the "
-                    "scaling-and-squaring kernel is real-only (got a "
-                        + detail::shapeOf(A) + " complex array).",
-                    0, 0, "expm", "", "numkit:expm:complexUnsupported");
     if (A.dims().ndim() != 2)
         throw Error("expm: input must be a 2D matrix",
                     0, 0, "expm", "", "numkit:expm:notMatrix");
@@ -70,10 +63,87 @@ Value expm(const Value &A, std::pmr::memory_resource *mr)
     if (m != n)
         throw Error("expm: matrix must be square",
                     0, 0, "expm", "", "numkit:expm:notSquare");
-    if (n == 0) return Value::matrix(0, 0, ValueType::DOUBLE, mr);
+    if (n == 0) return Value::matrix(0, 0, A.type(), mr);
 
-    // PadÃ©(6) scaling-and-squaring.
+    // Padé(6) coefficients (Higham table 10.4).
+    static constexpr double c[7] = {
+        1.0, 1.0/2.0, 5.0/44.0, 1.0/66.0, 1.0/792.0, 1.0/15840.0, 1.0/665280.0
+    };
+
     ScratchArena scratch(mr);
+    if (A.isComplex()) {
+        ScratchVec<Complex> A_s(n * n, &scratch);
+        std::copy(A.complexData(), A.complexData() + n * n, A_s.begin());
+
+        const double a_norm = mat1Norm(A_s.data(), n);
+        int s = 0;
+        if (a_norm > 0.5) {
+            s = static_cast<int>(std::ceil(std::log2(a_norm / 0.5)));
+            if (s < 0) s = 0;
+            const double scale = 1.0 / std::pow(2.0, s);
+            for (std::size_t i = 0; i < n * n; ++i) A_s[i] *= scale;
+        }
+
+        ScratchVec<Complex> A2(n * n, &scratch);
+        ScratchVec<Complex> A4(n * n, &scratch);
+        ScratchVec<Complex> A6(n * n, &scratch);
+        matMul(A_s.data(), A_s.data(), A2.data(), n);
+        matMul(A2.data(), A2.data(), A4.data(), n);
+        matMul(A2.data(), A4.data(), A6.data(), n);
+
+        ScratchVec<Complex> P(n * n, Complex(0.0, 0.0), &scratch);
+        ScratchVec<Complex> Q(n * n, Complex(0.0, 0.0), &scratch);
+        for (std::size_t i = 0; i < n; ++i) {
+            P[i + i * n] = Complex(c[0], 0.0);
+            Q[i + i * n] = Complex(c[0], 0.0);
+        }
+        for (std::size_t i = 0; i < n * n; ++i) {
+            P[i] += c[1] * A_s[i];
+            Q[i] -= c[1] * A_s[i];
+        }
+        for (std::size_t i = 0; i < n * n; ++i) {
+            P[i] += c[2] * A2[i];
+            Q[i] += c[2] * A2[i];
+        }
+        ScratchVec<Complex> A3(n * n, &scratch);
+        matMul(A_s.data(), A2.data(), A3.data(), n);
+        for (std::size_t i = 0; i < n * n; ++i) {
+            P[i] += c[3] * A3[i];
+            Q[i] -= c[3] * A3[i];
+        }
+        for (std::size_t i = 0; i < n * n; ++i) {
+            P[i] += c[4] * A4[i];
+            Q[i] += c[4] * A4[i];
+        }
+        ScratchVec<Complex> A5(n * n, &scratch);
+        matMul(A_s.data(), A4.data(), A5.data(), n);
+        for (std::size_t i = 0; i < n * n; ++i) {
+            P[i] += c[5] * A5[i];
+            Q[i] -= c[5] * A5[i];
+        }
+        for (std::size_t i = 0; i < n * n; ++i) {
+            P[i] += c[6] * A6[i];
+            Q[i] += c[6] * A6[i];
+        }
+
+        auto out = Value::complexMatrix(n, n, mr);
+        if (!numkit::ops::la_solve(Q.data(), n, n, P.data(), n,
+                                   out.complexDataMut(), &scratch))
+            throw Error("expm: Padé denominator is singular",
+                        0, 0, "expm", "", "numkit:expm:singular");
+
+        if (s > 0) {
+            ScratchVec<Complex> tmp(n * n, &scratch);
+            Complex *X = out.complexDataMut();
+            for (int k = 0; k < s; ++k) {
+                matMul(X, X, tmp.data(), n);
+                std::copy(tmp.begin(), tmp.end(), X);
+            }
+        }
+        return detail::narrow_if_real(out, mr);
+    }
+
+    // Padé(6) scaling-and-squaring (real).
     ScratchVec<double> A_s(n * n, &scratch);
     std::copy(A.doubleData(), A.doubleData() + n * n, A_s.begin());
 
@@ -85,11 +155,6 @@ Value expm(const Value &A, std::pmr::memory_resource *mr)
         const double scale = 1.0 / std::pow(2.0, s);
         for (std::size_t i = 0; i < n * n; ++i) A_s[i] *= scale;
     }
-
-    // PadÃ©(6) coefficients (Higham table 10.4).
-    static constexpr double c[7] = {
-        1.0, 1.0/2.0, 5.0/44.0, 1.0/66.0, 1.0/792.0, 1.0/15840.0, 1.0/665280.0
-    };
 
     // Powers A^2, A^4, A^6.
     ScratchVec<double> A2(n * n, &scratch);
@@ -140,7 +205,7 @@ Value expm(const Value &A, std::pmr::memory_resource *mr)
     auto out = Value::matrix(n, n, ValueType::DOUBLE, mr);
     if (!numkit::ops::la_solve(Q.data(), n, n, P.data(), n,
                                             out.doubleDataMut(), &scratch))
-        throw Error("expm: PadÃ© denominator is singular",
+        throw Error("expm: Padé denominator is singular",
                     0, 0, "expm", "", "numkit:expm:singular");
 
     if (s > 0) {

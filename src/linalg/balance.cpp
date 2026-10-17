@@ -1,4 +1,4 @@
-﻿// toolboxes/linalg/src/balance.cpp
+// toolboxes/linalg/src/balance.cpp
 //
 // MATLAB balance: diagonal-similarity scaling and permutation for eigenvalue computations.
 // Parlett-Reinsch (1969) algorithm; same as EISPACK `balanc`.
@@ -21,7 +21,8 @@ namespace numkit::linalg {
 namespace {
 
 // Parlett-Reinsch permutation phase: isolate rows/columns with zero off-diagonal entries
-void balancePermute(double *B, size_t n, size_t &low, size_t &high, double *p)
+template <typename T>
+void balancePermute(T *B, size_t n, size_t &low, size_t &high, double *p)
 {
     for (size_t i = 0; i < n; ++i) p[i] = static_cast<double>(i + 1);
     if (n <= 1) { low = 0; high = (n == 0) ? 0 : n - 1; return; }
@@ -39,7 +40,7 @@ void balancePermute(double *B, size_t n, size_t &low, size_t &high, double *p)
             bool isolated = true;
             for (size_t j = low; j <= high; ++j) {
                 if (j == ui) continue;
-                if (B[ui + j * n] != 0.0) { isolated = false; break; }
+                if (B[ui + j * n] != T(0.0)) { isolated = false; break; }
             }
             if (isolated) {
                 p[high] = static_cast<double>(ui + 1);
@@ -60,7 +61,7 @@ void balancePermute(double *B, size_t n, size_t &low, size_t &high, double *p)
             bool isolated = true;
             for (size_t i = low; i <= high; ++i) {
                 if (i == j) continue;
-                if (B[i + j * n] != 0.0) { isolated = false; break; }
+                if (B[i + j * n] != T(0.0)) { isolated = false; break; }
             }
             if (isolated) {
                 p[low] = static_cast<double>(j + 1);
@@ -77,7 +78,8 @@ void balancePermute(double *B, size_t n, size_t &low, size_t &high, double *p)
 }
 
 // Parlett-Reinsch scaling phase on submatrix B[low..high, low..high]
-void balanceScale(double *B, size_t n, double *d, size_t low, size_t high)
+template <typename T>
+void balanceScale(T *B, size_t n, double *d, size_t low, size_t high)
 {
     constexpr double radix = 2.0;
     constexpr double sqrdx = radix * radix;
@@ -134,18 +136,13 @@ balance_impl(const Value &A, bool noperm, std::pmr::memory_resource *mr)
     if (A.dims().cols() != n)
         throw Error("balance: matrix must be square",
                     0, 0, "balance", "", "numkit:balance:NotSquare");
-    if (A.isComplex())
-        throw Error("balance: complex input not supported in v1",
-                    0, 0, "balance", "", "numkit:balance:NoComplex");
 
     BalanceResult R;
-    R.B = Value::matrix(n, n, ValueType::DOUBLE, mr);
+    R.B = Value::matrix(n, n, A.type(), mr);
     R.d_col = Value::matrix(n == 0 ? 0 : n, n == 0 ? 0 : 1, ValueType::DOUBLE, mr);
     R.perm_col = Value::matrix(n == 0 ? 0 : n, n == 0 ? 0 : 1, ValueType::DOUBLE, mr);
 
     if (n == 0) return R;
-
-    std::copy(A.doubleData(), A.doubleData() + n * n, R.B.doubleDataMut());
 
     ScratchArena scratch(mr);
     ScratchVec<double> d(n, &scratch);
@@ -153,13 +150,23 @@ balance_impl(const Value &A, bool noperm, std::pmr::memory_resource *mr)
     double *pd = R.perm_col.doubleDataMut();
     size_t low = 0, high = (n > 0) ? n - 1 : 0;
 
-    if (!noperm) {
-        balancePermute(R.B.doubleDataMut(), n, low, high, pd);
+    if (A.isComplex()) {
+        std::copy(A.complexData(), A.complexData() + n * n, R.B.complexDataMut());
+        if (!noperm) {
+            balancePermute(R.B.complexDataMut(), n, low, high, pd);
+        } else {
+            for (size_t i = 0; i < n; ++i) pd[i] = static_cast<double>(i + 1);
+        }
+        balanceScale(R.B.complexDataMut(), n, d.data(), low, high);
     } else {
-        for (size_t i = 0; i < n; ++i) pd[i] = static_cast<double>(i + 1);
+        std::copy(A.doubleData(), A.doubleData() + n * n, R.B.doubleDataMut());
+        if (!noperm) {
+            balancePermute(R.B.doubleDataMut(), n, low, high, pd);
+        } else {
+            for (size_t i = 0; i < n; ++i) pd[i] = static_cast<double>(i + 1);
+        }
+        balanceScale(R.B.doubleDataMut(), n, d.data(), low, high);
     }
-
-    balanceScale(R.B.doubleDataMut(), n, d.data(), low, high);
 
     double *dd = R.d_col.doubleDataMut();
     for (size_t i = 0; i < n; ++i) dd[i] = d[i];

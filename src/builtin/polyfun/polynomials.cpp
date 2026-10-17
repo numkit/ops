@@ -22,26 +22,25 @@ namespace numkit::builtin {
 
 Value roots(const Value &p, std::pmr::memory_resource *mr)
 {
-    if (p.type() == ValueType::COMPLEX)
-        throw Error("roots: complex coefficient input is not supported",
-                     0, 0, "roots", "", "numkit:roots:complex");
     if (!p.dims().isVector() && !p.isScalar() && !p.isEmpty())
         throw Error("roots: argument must be a vector",
                      0, 0, "roots", "", "numkit:roots:notVector");
 
     ScratchArena scratch(mr);
-
-    // Read coefficients as DOUBLE (promote integer/single/logical).
     const std::size_t n = p.numel();
-    auto coeffs = ScratchVec<double>(n, &scratch);
-    for (std::size_t i = 0; i < n; ++i)
-        coeffs[i] = p.elemAsDouble(i);
-
-    auto rs = numkit::ops::polyRootsDurandKerner(&scratch, coeffs.data(), coeffs.size());
+    ScratchVec<Complex> rs(&scratch);
+    if (p.type() == ValueType::COMPLEX) {
+        rs = numkit::ops::polyRootsDurandKerner(&scratch, p.complexData(), n);
+    } else {
+        auto coeffs = ScratchVec<double>(n, &scratch);
+        for (std::size_t i = 0; i < n; ++i)
+            coeffs[i] = p.elemAsDouble(i);
+        rs = numkit::ops::polyRootsDurandKerner(&scratch, coeffs.data(), coeffs.size());
+    }
     const std::size_t k = rs.size();
 
-    // If every root is real, return a real column. Otherwise return COMPLEX.
-    bool anyComplex = false;
+    // If every root is real and input was real, return a real column. Otherwise return COMPLEX.
+    bool anyComplex = (p.type() == ValueType::COMPLEX);
     for (const auto &r : rs)
         if (std::abs(r.imag()) > 1e-12 * (std::abs(r.real()) + 1.0)) {
             anyComplex = true;
