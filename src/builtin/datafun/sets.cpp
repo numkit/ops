@@ -239,7 +239,7 @@ Value uniqueRows(const Value &x, bool stable, std::pmr::memory_resource *mr)
                 uniqRows.push_back(r);
             }
         }
-        return numkit::ops::collectRowsByIndex(mr, x, uniqRows.data(), uniqRows.size());
+        return numkit::ops::collectRowsByIndex(x, uniqRows.data(), uniqRows.size(), mr);
     }
 
     std::pmr::unordered_map<RowKey, size_t, RowKeyHash, RowKeyEq> firstIdx(&scratch);
@@ -262,7 +262,7 @@ Value uniqueRows(const Value &x, bool stable, std::pmr::memory_resource *mr)
               });
     uniqRows.insert(uniqRows.end(), nanRows.begin(), nanRows.end());
 
-    return numkit::ops::collectRowsByIndex(mr, x, uniqRows.data(), uniqRows.size());
+    return numkit::ops::collectRowsByIndex(x, uniqRows.data(), uniqRows.size(), mr);
 }
 
 std::tuple<Value, Value, Value>
@@ -313,7 +313,7 @@ uniqueRowsWithIndices(const Value &x, bool stable, bool last,
             ia[i] = static_cast<double>(uniqRows[i] + 1);
 
         return std::make_tuple(
-            numkit::ops::collectRowsByIndex(mr, x, uniqRows.data(), uniqRows.size()),
+            numkit::ops::collectRowsByIndex(x, uniqRows.data(), uniqRows.size(), mr),
             std::move(iaCol), std::move(icRow));
     }
 
@@ -362,7 +362,7 @@ uniqueRowsWithIndices(const Value &x, bool stable, bool last,
     for (size_t i = 0; i < uniqRows.size(); ++i)
         ia[i] = static_cast<double>(uniqRows[i] + 1);
 
-    return std::make_tuple(numkit::ops::collectRowsByIndex(mr, x, uniqRows.data(), uniqRows.size()),
+    return std::make_tuple(numkit::ops::collectRowsByIndex(x, uniqRows.data(), uniqRows.size(), mr),
                            std::move(iaCol), std::move(icRow));
 }
 

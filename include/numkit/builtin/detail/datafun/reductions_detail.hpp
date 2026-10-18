@@ -183,7 +183,7 @@ allocMinMaxOutputs(const Value &x, int redDim, ValueType outType, std::pmr::memo
 {
     if (x.dims().ndim() >= 4 && redDim >= 1 && redDim <= x.dims().ndim()) {
         ScratchArena scratch(mr);
-        auto shape = numkit::ops::outShapeForDimND(&scratch, x, redDim);
+        auto shape = numkit::ops::outShapeForDimND(x, redDim, &scratch);
         return {Value::matrixND(shape.data(), (int) shape.size(), outType, mr),
                 Value::matrixND(shape.data(), (int) shape.size(), ValueType::DOUBLE, mr)};
     }
@@ -348,7 +348,7 @@ allocComplexMinMaxOutputs(const Value &x, int redDim, std::pmr::memory_resource 
 {
     if (x.dims().ndim() >= 4 && redDim >= 1 && redDim <= x.dims().ndim()) {
         ScratchArena scratch(mr);
-        auto shape = numkit::ops::outShapeForDimND(&scratch, x, redDim);
+        auto shape = numkit::ops::outShapeForDimND(x, redDim, &scratch);
         return {Value::matrixND(shape.data(), (int) shape.size(), ValueType::COMPLEX, mr),
                 Value::matrixND(shape.data(), (int) shape.size(), ValueType::DOUBLE,  mr)};
     }

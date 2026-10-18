@@ -91,7 +91,7 @@ Value logicalReduceImpl(const Value &x, int dim, std::pmr::memory_resource *mr)
     // ND fallback: rank ≥ 4 — stride arithmetic via scanSlice.
     if (dd.ndim() >= 4 && d >= 1 && d <= dd.ndim()) {
         ScratchArena scratch(mr);
-        auto shape = numkit::ops::outShapeForDimND(&scratch, x, d);
+        auto shape = numkit::ops::outShapeForDimND(x, d, &scratch);
         Value out = Value::matrixND(shape.data(),
                                       static_cast<int>(shape.size()),
                                       ValueType::LOGICAL, mr);

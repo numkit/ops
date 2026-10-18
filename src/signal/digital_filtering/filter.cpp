@@ -182,8 +182,8 @@ static FilterState runFilter(const FilterPlan &p, const Value &b,
             ScratchVec<Complex> zf(p.stateLen, &cs);
             auto out = applyFilterDf2tComplex(bc.data(), p.nb, ac.data(),
                                               p.na, xc.data() + s * p.sigLen,
-                                              p.sigLen, &cs, ziRun, ziRunLen,
-                                              p.stateLen ? zf.data() : nullptr);
+                                              p.sigLen, ziRun, ziRunLen,
+                                              p.stateLen ? zf.data() : nullptr, &cs);
             for (size_t i = 0; i < p.sigLen; ++i)
                 yc[s * p.sigLen + i] = out[i];
             if (p.stateLen)
@@ -244,9 +244,9 @@ static FilterState runFilter(const FilterPlan &p, const Value &b,
         }
         ScratchVec<double> zf(p.stateLen, &scratch);
         auto out = applyFilterDf2t(bn.data(), p.nb, an.data(), p.na,
-                                   xd + s * p.sigLen, p.sigLen, &scratch,
+                                   xd + s * p.sigLen, p.sigLen,
                                    ziRun, ziRunLen,
-                                   p.stateLen ? zf.data() : nullptr);
+                                   p.stateLen ? zf.data() : nullptr, &scratch);
         std::memcpy(y + s * p.sigLen, out.data(), p.sigLen * sizeof(double));
         if (p.stateLen)
             std::memcpy(zfData + s * p.stateLen, zf.data(),
@@ -338,15 +338,15 @@ Value filtfilt(const Value &b, const Value &a, const Value &x, std::pmr::memory_
         for (size_t k = 0; k < stateLen; ++k)
             ziScaled[k] = zi[k] * ext[0];
     }
-    auto fwd = applyFilterDf2t(bn.data(), nb, an.data(), na, ext.data(), extLen, &scratch,
-                               stateLen > 0 ? ziScaled.data() : nullptr, stateLen);
+    auto fwd = applyFilterDf2t(bn.data(), nb, an.data(), na, ext.data(), extLen,
+                               stateLen > 0 ? ziScaled.data() : nullptr, stateLen, nullptr, &scratch);
     std::reverse(fwd.begin(), fwd.end());
     if (stateLen > 0 && !fwd.empty()) {
         for (size_t k = 0; k < stateLen; ++k)
             ziScaled[k] = zi[k] * fwd[0];
     }
-    auto bwd = applyFilterDf2t(bn.data(), nb, an.data(), na, fwd.data(), fwd.size(), &scratch,
-                               stateLen > 0 ? ziScaled.data() : nullptr, stateLen);
+    auto bwd = applyFilterDf2t(bn.data(), nb, an.data(), na, fwd.data(), fwd.size(),
+                               stateLen > 0 ? ziScaled.data() : nullptr, stateLen, nullptr, &scratch);
     std::reverse(bwd.begin(), bwd.end());
 
     auto r = createLike(x, ValueType::DOUBLE, mr);

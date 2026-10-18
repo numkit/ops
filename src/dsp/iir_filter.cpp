@@ -14,8 +14,8 @@ namespace numkit::ops {
 
 ScratchVec<double> applyFilterDf2t(const double *bn, std::size_t nb, const double *an,
                                    std::size_t na, const double *input, std::size_t len,
-                                   std::pmr::memory_resource *mr, const double *zi,
-                                   std::size_t ziLen, double *zfOut)
+                                   const double *zi, std::size_t ziLen, double *zfOut,
+                                   std::pmr::memory_resource *mr)
 {
     const std::size_t  nfilt = std::max(nb, na);
     ScratchVec<double> out(len, mr);
@@ -37,8 +37,8 @@ ScratchVec<double> applyFilterDf2t(const double *bn, std::size_t nb, const doubl
 
 ScratchVec<Complex> applyFilterDf2tComplex(const Complex *bn, std::size_t nb, const Complex *an,
                                            std::size_t na, const Complex *input, std::size_t len,
-                                           std::pmr::memory_resource *mr, const Complex *zi,
-                                           std::size_t ziLen, Complex *zfOut)
+                                           const Complex *zi, std::size_t ziLen, Complex *zfOut,
+                                           std::pmr::memory_resource *mr)
 {
     const std::size_t   nfilt = std::max(nb, na);
     ScratchVec<Complex> out(len, mr);

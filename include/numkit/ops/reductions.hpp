@@ -109,8 +109,8 @@ inline size_t sliceCountForDim(const Value &x, int dim)
 // (like mode returning value+count) the caller must allocate two
 // MValues and capture both buffers in F's closure.
 template <typename F>
-void forEachSlice(std::pmr::memory_resource *mr,
-                  const Value &x, int dim, F &&f)
+void forEachSlice(const Value &x, int dim, F &&f,
+                  std::pmr::memory_resource *mr = nullptr)
 {
     const auto &d = x.dims();
     const size_t R = d.rows(), C = d.cols(), P = d.is3D() ? d.pages() : 1;
@@ -177,8 +177,8 @@ void forEachSlice(std::pmr::memory_resource *mr,
 // caller threads in `mr` (typically the same arena that backs the
 // reduction's per-slice scratch) so the shape buffer never hits the
 // global heap.
-inline ScratchVec<size_t> outShapeForDimND(std::pmr::memory_resource *mr,
-                                            const Value &x, int dim)
+inline ScratchVec<size_t> outShapeForDimND(const Value &x, int dim,
+                                            std::pmr::memory_resource *mr = nullptr)
 {
     const auto &d = x.dims();
     ScratchVec<size_t> shape(d.ndim(), mr);
@@ -195,8 +195,8 @@ inline ScratchVec<size_t> outShapeForDimND(std::pmr::memory_resource *mr,
 //
 // `mr` backs the per-call scratch buffer (see forEachSlice).
 template <typename F>
-void forEachSliceND(std::pmr::memory_resource *mr,
-                    const Value &x, int dim, double *dst, F &&f)
+void forEachSliceND(const Value &x, int dim, double *dst, F &&f,
+                    std::pmr::memory_resource *mr = nullptr)
 {
     const auto &d = x.dims();
     const int redAxis = dim - 1;
@@ -247,7 +247,7 @@ void forEachSliceND(std::pmr::memory_resource *mr,
 // Returns an Value with the dim collapsed to 1. dim==-1 means "reduce
 // all elements to a single scalar" (vector/scalar case).
 template <typename F>
-Value applyAlongDim(const Value &x, int dim, F &&f, std::pmr::memory_resource *mr)
+Value applyAlongDim(const Value &x, int dim, F &&f, std::pmr::memory_resource *mr = nullptr)
 {
     // 2D/3D empty: collapse to 0×0 (legacy behaviour; MATLAB's
     // shape-preservation for empty 2D inputs was never wired up here).
@@ -269,20 +269,20 @@ Value applyAlongDim(const Value &x, int dim, F &&f, std::pmr::memory_resource *m
     // ND fallback for rank ≥ 4. dim out-of-range was already mapped by
     // validateDim → ndim+1 sentinel, but we may receive dim ∈ [1, ndim].
     if (x.dims().ndim() >= 4 && dim >= 1 && dim <= x.dims().ndim()) {
-        auto shape = outShapeForDimND(&scratch, x, dim);
+        auto shape = outShapeForDimND(x, dim, &scratch);
         Value out = Value::matrixND(shape.data(),
                                       static_cast<int>(shape.size()),
                                       ValueType::DOUBLE, mr);
         double *dst = out.doubleDataMut();
-        forEachSliceND(&scratch, x, dim, dst, std::forward<F>(f));
+        forEachSliceND(x, dim, dst, std::forward<F>(f), &scratch);
         return out;
     }
     auto outShape = outShapeForDim(x, dim);
     Value out = createMatrix(outShape, ValueType::DOUBLE, mr);
     double *dst = out.doubleDataMut();
-    forEachSlice(&scratch, x, dim, [&](size_t outIdx, double *slice, size_t n) {
+    forEachSlice(x, dim, [&](size_t outIdx, double *slice, size_t n) {
         dst[outIdx] = f(outIdx, slice, n);
-    });
+    }, &scratch);
     return out;
 }
 
@@ -290,7 +290,7 @@ Value applyAlongDim(const Value &x, int dim, F &&f, std::pmr::memory_resource *m
 // per slice. Used by min/max with dim. Returns (values, indices).
 template <typename F>
 std::pair<Value, Value>
-applyAlongDimWithIndex(const Value &x, int dim, F &&f, std::pmr::memory_resource *mr)
+applyAlongDimWithIndex(const Value &x, int dim, F &&f, std::pmr::memory_resource *mr = nullptr)
 {
     if (x.isEmpty() && x.dims().ndim() < 4) {
         return {Value::matrix(0, 0, ValueType::DOUBLE, mr),
@@ -312,7 +312,7 @@ applyAlongDimWithIndex(const Value &x, int dim, F &&f, std::pmr::memory_resource
     }
     // ND fallback (rank ≥ 4)
     if (x.dims().ndim() >= 4 && dim >= 1 && dim <= x.dims().ndim()) {
-        auto shape = outShapeForDimND(&scratch, x, dim);
+        auto shape = outShapeForDimND(x, dim, &scratch);
         Value out    = Value::matrixND(shape.data(),
                                          static_cast<int>(shape.size()),
                                          ValueType::DOUBLE, mr);
@@ -321,13 +321,13 @@ applyAlongDimWithIndex(const Value &x, int dim, F &&f, std::pmr::memory_resource
                                          ValueType::DOUBLE, mr);
         double *dst  = out.doubleDataMut();
         double *dstI = outIdx.doubleDataMut();
-        forEachSliceND(&scratch, x, dim, dst,
+        forEachSliceND(x, dim, dst,
             [&](size_t outOff, double *slice, size_t n) {
                 double v = 0; size_t idx = 0;
                 f(slice, n, v, idx);
                 dstI[outOff] = static_cast<double>(idx + 1);
                 return v;
-            });
+            }, &scratch);
         return {std::move(out), std::move(outIdx)};
     }
     auto outShape = outShapeForDim(x, dim);
@@ -335,13 +335,13 @@ applyAlongDimWithIndex(const Value &x, int dim, F &&f, std::pmr::memory_resource
     Value outIdx = createMatrix(outShape, ValueType::DOUBLE, mr);
     double *dst = out.doubleDataMut();
     double *dstI = outIdx.doubleDataMut();
-    forEachSlice(&scratch, x, dim, [&](size_t outOff, double *slice, size_t n) {
+    forEachSlice(x, dim, [&](size_t outOff, double *slice, size_t n) {
         double v = 0;
         size_t idx = 0;
         f(slice, n, v, idx);
         dst[outOff] = v;
         dstI[outOff] = static_cast<double>(idx + 1);
-    });
+    }, &scratch);
     return {std::move(out), std::move(outIdx)};
 }
 

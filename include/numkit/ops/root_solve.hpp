@@ -18,18 +18,18 @@ namespace numkit::ops {
 /// Expand a bracket around x0 by stepping outward until a sign change; returns
 /// {a, b} with f(a)*f(b) <= 0 (a==b when a root is hit exactly). Throws if none
 /// is found within the iteration cap.
-std::pair<double, double> findBracket(FnHandle fn, double x0, std::pmr::memory_resource *mr);
+std::pair<double, double> findBracket(FnHandle fn, double x0, std::pmr::memory_resource *mr = nullptr);
 
 /// Brent's method root on [a, b] (requires f(a)*f(b) < 0, or one endpoint == 0).
-double brent(FnHandle fn, double a, double b, std::pmr::memory_resource *mr);
+double brent(FnHandle fn, double a, double b, std::pmr::memory_resource *mr = nullptr);
 
 /// Bounded scalar minimum on [a, b] via Brent's golden-section + parabolic
 /// interpolation hybrid (the fminbnd kernel).
-double brentMin(FnHandle fn, double a, double b, double tol, std::pmr::memory_resource *mr);
+double brentMin(FnHandle fn, double a, double b, double tol, std::pmr::memory_resource *mr = nullptr);
 
 /// Unconstrained multi-dim minimum from x0[0..n) via Nelder-Mead (the fminsearch
 /// kernel). Returns the best vertex (length n), allocated on `mr`.
 ScratchVec<double> nelderMead(FnHandle fn, const double *x0, std::size_t n, double tol,
-                              std::pmr::memory_resource *mr);
+                              std::pmr::memory_resource *mr = nullptr);
 
 } // namespace numkit::ops

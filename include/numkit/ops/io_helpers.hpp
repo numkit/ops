@@ -65,7 +65,7 @@ inline SizeSpec parseReadSize(const Value &sz, const char *fn)
 }
 
 inline Value shapeFreadOutput(const double *values, size_t n,
-                              SizeSpec sz, std::pmr::memory_resource *mr)
+                              SizeSpec sz, std::pmr::memory_resource *mr = nullptr)
 {
     if (!sz.matrix()) {
         if (n == 0)

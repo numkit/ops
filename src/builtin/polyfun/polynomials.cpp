@@ -30,12 +30,12 @@ Value roots(const Value &p, std::pmr::memory_resource *mr)
     const std::size_t n = p.numel();
     ScratchVec<Complex> rs(&scratch);
     if (p.type() == ValueType::COMPLEX) {
-        rs = numkit::ops::polyRootsDurandKerner(&scratch, p.complexData(), n);
+        rs = numkit::ops::polyRootsDurandKerner(p.complexData(), n, &scratch);
     } else {
         auto coeffs = ScratchVec<double>(n, &scratch);
         for (std::size_t i = 0; i < n; ++i)
             coeffs[i] = p.elemAsDouble(i);
-        rs = numkit::ops::polyRootsDurandKerner(&scratch, coeffs.data(), coeffs.size());
+        rs = numkit::ops::polyRootsDurandKerner(coeffs.data(), coeffs.size(), &scratch);
     }
     const std::size_t k = rs.size();
 
@@ -139,13 +139,13 @@ tf2zp(const Value &b, const Value &a, std::pmr::memory_resource *mr)
     if (bv.empty() || bnz == bv.size()) {
         // Numerator is empty or all zeros → no zeros, gain 0.
         auto z = Value::matrix(0, 1, ValueType::DOUBLE, mr);
-        auto pRoots = numkit::ops::polyRootsDurandKerner(&scratch, av.data(), av.size());
+        auto pRoots = numkit::ops::polyRootsDurandKerner(av.data(), av.size(), &scratch);
         auto p = realColIfFlat(pRoots.data(), pRoots.size(), mr);
         auto k = Value::scalar(0.0, mr);
         return std::make_tuple(std::move(z), std::move(p), std::move(k));
     }
-    auto zRoots = numkit::ops::polyRootsDurandKerner(&scratch, bv.data(), bv.size());
-    auto pRoots = numkit::ops::polyRootsDurandKerner(&scratch, av.data(), av.size());
+    auto zRoots = numkit::ops::polyRootsDurandKerner(bv.data(), bv.size(), &scratch);
+    auto pRoots = numkit::ops::polyRootsDurandKerner(av.data(), av.size(), &scratch);
     const double k = bv[bnz] / av[0];
 
     return std::make_tuple(realColIfFlat(zRoots.data(), zRoots.size(), mr),
@@ -159,8 +159,8 @@ zp2tf(const Value &z, const Value &p, double k, std::pmr::memory_resource *mr)
     ScratchArena scratch(mr);
     auto zv = readVecAsComplex(z, "zp2tf", &scratch);
     auto pv = readVecAsComplex(p, "zp2tf", &scratch);
-    auto bRaw = numkit::ops::polyExpandFromRoots(&scratch, zv.data(), zv.size());
-    auto aRaw = numkit::ops::polyExpandFromRoots(&scratch, pv.data(), pv.size());
+    auto bRaw = numkit::ops::polyExpandFromRoots(zv.data(), zv.size(), &scratch);
+    auto aRaw = numkit::ops::polyExpandFromRoots(pv.data(), pv.size(), &scratch);
     for (auto &v : bRaw) v *= k;
     // MATLAB returns b with the SAME length as a: when there are fewer
     // zeros than poles, the numerator is left-padded with zeros (the
@@ -196,7 +196,7 @@ Value poly(const Value &r, std::pmr::memory_resource *mr)
         const double *p = r.doubleData();
         for (size_t i = 0; i < n; ++i) cv[i] = Complex(p[i], 0.0);
     }
-    auto coeffs = numkit::ops::polyExpandFromRoots(&scratch, cv.data(), n);
+    auto coeffs = numkit::ops::polyExpandFromRoots(cv.data(), n, &scratch);
     return rowFromVec(coeffs.data(), coeffs.size(), mr);
 }
 
@@ -528,7 +528,7 @@ ResidueResult residueS(const Value &b, const Value &a,
 
     // Roots of A → s-domain poles.
     ScratchArena scratch(mr);
-    auto rs = numkit::ops::polyRootsDurandKerner(&scratch, A.data(), A.size());
+    auto rs = numkit::ops::polyRootsDurandKerner(A.data(), A.size(), &scratch);
     std::vector<Complex> poles(rs.begin(), rs.end());
 
     // Group the roots into distinct poles. Durand-Kerner converges only
@@ -796,7 +796,7 @@ ResidueResult residueZ(const Value &b, const Value &a,
 
     // Poles and mpoles grouping (tol 1e-3 relative, groups consecutive,
     // order = descending |p| — MATLAB mpoles' sort).
-    auto rs = numkit::ops::polyRootsDurandKerner(&scratch, A.data(), A.size());
+    auto rs = numkit::ops::polyRootsDurandKerner(A.data(), A.size(), &scratch);
     std::vector<Complex> poles(rs.begin(), rs.end());
     {
         // Real coefficients => a pole carrying only DK conjugate-dust on

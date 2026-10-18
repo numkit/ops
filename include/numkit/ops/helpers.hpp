@@ -23,7 +23,7 @@ namespace numkit {
 // ============================================================
 // Helper: promote pair to complex if needed
 // ============================================================
-inline std::pair<Value, Value> promoteToComplex(const Value &a, const Value &b, std::pmr::memory_resource *mr)
+inline std::pair<Value, Value> promoteToComplex(const Value &a, const Value &b, std::pmr::memory_resource *mr = nullptr)
 {
     Value ca = a, cb = b;
     if (a.isComplex() && !b.isComplex())
@@ -98,7 +98,7 @@ using ops::createLike;
 // types are returned unchanged. Reading via elemAsDouble + clamp to the
 // type range handles every signed/unsigned width uniformly (|intmin| would
 // overflow the type, the clamp catches it). Caller guards isIntegerType().
-inline Value absIntegerSaturate(const Value &x, std::pmr::memory_resource *mr)
+inline Value absIntegerSaturate(const Value &x, std::pmr::memory_resource *mr = nullptr)
 {
     Value r = createLike(x, x.type(), mr);
     const size_t n = x.numel();
@@ -134,7 +134,7 @@ inline Value absIntegerSaturate(const Value &x, std::pmr::memory_resource *mr)
 // elemAsDouble so a scalar-stored result is handled too. `vt` must be an
 // integer ValueType.
 inline Value doubleToIntegerExact(const Value &d, ValueType vt,
-                                  std::pmr::memory_resource *mr)
+                                  std::pmr::memory_resource *mr = nullptr)
 {
     Value r = createForDims(d.dims(), vt, mr);
     const size_t n = d.numel();
@@ -167,7 +167,7 @@ inline Value doubleToIntegerExact(const Value &d, ValueType vt,
 // so integer arrays — which lack a doubleData() buffer — are handled). A
 // DOUBLE input is returned as-is (shares storage). Used to route integer
 // operands through double-only elementwise helpers, then cast the result back.
-inline Value toDoubleValue(const Value &x, std::pmr::memory_resource *mr)
+inline Value toDoubleValue(const Value &x, std::pmr::memory_resource *mr = nullptr)
 {
     if (x.type() == ValueType::DOUBLE) return x;
     Value r = createForDims(x.dims(), ValueType::DOUBLE, mr);
@@ -181,7 +181,7 @@ inline Value toDoubleValue(const Value &x, std::pmr::memory_resource *mr)
 // values above 2^53 are preserved). Used for operations that are the
 // IDENTITY on integers but keep the class (floor/ceil/round/fix in MATLAB).
 // Caller guards isIntegerType().
-inline Value copyIntegerSameClass(const Value &x, std::pmr::memory_resource *mr)
+inline Value copyIntegerSameClass(const Value &x, std::pmr::memory_resource *mr = nullptr)
 {
     Value r = createLike(x, x.type(), mr);
     const size_t n = x.numel();
@@ -204,7 +204,7 @@ inline Value copyIntegerSameClass(const Value &x, std::pmr::memory_resource *mr)
 // shape; if both are non-scalar the dims must match, otherwise throw.
 // `outType` is chosen by the caller based on its promotion rules.
 inline Value emptyResultForBinary(const Value &a, const Value &b,
-                                   ValueType outType, std::pmr::memory_resource *mr)
+                                   ValueType outType, std::pmr::memory_resource *mr = nullptr)
 {
     const bool aShaper = !a.isScalar();
     const bool bShaper = !b.isScalar();
@@ -228,7 +228,7 @@ inline ValueType arithOutType(const Value &a, const Value &b)
 
 // Convenience wrapper: shape-preserving empty arithmetic result with
 // type chosen by arithOutType().
-inline Value emptyArithResult(const Value &a, const Value &b, std::pmr::memory_resource *mr)
+inline Value emptyArithResult(const Value &a, const Value &b, std::pmr::memory_resource *mr = nullptr)
 {
     return emptyResultForBinary(a, b, arithOutType(a, b), mr);
 }
@@ -237,7 +237,7 @@ inline Value emptyArithResult(const Value &a, const Value &b, std::pmr::memory_r
 // Elementwise binary op on double arrays (with implicit expansion)
 // ============================================================
 template<typename Op>
-Value elementwiseDouble(const Value &a, const Value &b, Op op, std::pmr::memory_resource *mr)
+Value elementwiseDouble(const Value &a, const Value &b, Op op, std::pmr::memory_resource *mr = nullptr)
 {
     if (a.isEmpty() || b.isEmpty())
         return emptyResultForBinary(a, b, ValueType::DOUBLE, mr);
@@ -365,7 +365,7 @@ Value elementwiseDouble(const Value &a, const Value &b, Op op, std::pmr::memory_
 // *Impl below does the raw complex computation.
 // ============================================================
 template<typename Op>
-Value elementwiseComplexImpl(const Value &a, const Value &b, Op op, std::pmr::memory_resource *mr)
+Value elementwiseComplexImpl(const Value &a, const Value &b, Op op, std::pmr::memory_resource *mr = nullptr)
 {
     if (a.isEmpty() || b.isEmpty())
         return emptyResultForBinary(a, b, ValueType::COMPLEX, mr);
@@ -479,7 +479,7 @@ Value elementwiseComplexImpl(const Value &a, const Value &b, Op op, std::pmr::me
 // Public entry: raw complex elementwise op, then narrow an all-real result to
 // real (MATLAB). All callers (binary +,-,.*,./,.^, max/min) want this.
 template<typename Op>
-Value elementwiseComplex(const Value &a, const Value &b, Op op, std::pmr::memory_resource *mr)
+Value elementwiseComplex(const Value &a, const Value &b, Op op, std::pmr::memory_resource *mr = nullptr)
 {
     return narrowComplex(elementwiseComplexImpl(a, b, std::move(op), mr), mr);
 }
@@ -488,7 +488,7 @@ Value elementwiseComplex(const Value &a, const Value &b, Op op, std::pmr::memory
 // Elementwise unary on double
 // ============================================================
 template<typename Op>
-Value unaryDouble(const Value &a, Op op, std::pmr::memory_resource *mr)
+Value unaryDouble(const Value &a, Op op, std::pmr::memory_resource *mr = nullptr)
 {
     if (a.isScalar())
         return Value::scalar(op(a.toScalar()), mr);
@@ -503,7 +503,7 @@ Value unaryDouble(const Value &a, Op op, std::pmr::memory_resource *mr)
 // (MATLAB: uminus/uplus/conj and unary math of an all-real complex give real).
 // ============================================================
 template<typename Op>
-Value unaryComplexImpl(const Value &a, Op op, std::pmr::memory_resource *mr)
+Value unaryComplexImpl(const Value &a, Op op, std::pmr::memory_resource *mr = nullptr)
 {
     if (a.isScalar())
         return Value::complexScalar(op(a.toComplex()), mr);
@@ -513,7 +513,7 @@ Value unaryComplexImpl(const Value &a, Op op, std::pmr::memory_resource *mr)
     return r;
 }
 template<typename Op>
-Value unaryComplex(const Value &a, Op op, std::pmr::memory_resource *mr)
+Value unaryComplex(const Value &a, Op op, std::pmr::memory_resource *mr = nullptr)
 {
     return narrowComplex(unaryComplexImpl(a, std::move(op), mr), mr);
 }
@@ -573,9 +573,9 @@ inline DimsArg parseDimsArgs(Span<const Value> args, std::string_view fn)
 //
 // The returned vector is backed by `mr` — typical use is a per-call
 // ScratchArena for the array-creation builtin (zeros/ones/rand/...).
-inline ScratchVec<size_t> parseDimsArgsND(std::pmr::memory_resource *mr,
-                                          Span<const Value> args,
-                                          std::string_view fn)
+inline ScratchVec<size_t> parseDimsArgsND(Span<const Value> args,
+                                          std::string_view fn,
+                                          std::pmr::memory_resource *mr = nullptr)
 {
     ScratchVec<size_t> out(mr);
     if (args.empty()) {
@@ -673,7 +673,7 @@ extractTypeArg(Span<const Value> args, ValueType &outType)
 // so the same helper composes with std::vector, std::pmr::vector, raw
 // arrays, etc.
 inline Value createMatrixND(const size_t *dims, std::size_t nDims,
-                             ValueType type, std::pmr::memory_resource *mr)
+                             ValueType type, std::pmr::memory_resource *mr = nullptr)
 {
     const int nd = static_cast<int>(nDims);
     if (nd <= 1) return Value::matrix(nd == 1 ? dims[0] : 0, 1, type, mr);
@@ -783,7 +783,7 @@ inline T saturateNeg(T a)
 // ============================================================
 
 template <typename T, typename Op>
-Value elementwiseTyped(const Value &a, const Value &b, ValueType targetType, Op op, std::pmr::memory_resource *mr)
+Value elementwiseTyped(const Value &a, const Value &b, ValueType targetType, Op op, std::pmr::memory_resource *mr = nullptr)
 {
     if (a.isEmpty() || b.isEmpty())
         return emptyResultForBinary(a, b, targetType, mr);
@@ -940,7 +940,7 @@ inline ValueType resolveIntegerPairType(const Value &a, const Value &b)
 }
 
 template <typename Op>
-Value dispatchIntegerBinaryOp(const Value &a, const Value &b, Op op, std::pmr::memory_resource *mr)
+Value dispatchIntegerBinaryOp(const Value &a, const Value &b, Op op, std::pmr::memory_resource *mr = nullptr)
 {
     ValueType target = resolveIntegerPairType(a, b);
     if (target == ValueType::EMPTY) return Value(); // signal: not handled
@@ -964,7 +964,7 @@ Value dispatchIntegerBinaryOp(const Value &a, const Value &b, Op op, std::pmr::m
 // ============================================================
 
 template <typename T, typename Op>
-Value unaryTyped(const Value &a, ValueType targetType, Op op, std::pmr::memory_resource *mr)
+Value unaryTyped(const Value &a, ValueType targetType, Op op, std::pmr::memory_resource *mr = nullptr)
 {
     auto r = createLike(a, targetType, mr);
     const T *src = static_cast<const T *>(a.rawData());

@@ -25,7 +25,7 @@ struct DimsArg
 };
 
 // Create a zero matrix / 3D array with the given dimensions + element type.
-inline Value createMatrix(DimsArg d, ValueType type, std::pmr::memory_resource *mr)
+inline Value createMatrix(DimsArg d, ValueType type, std::pmr::memory_resource *mr = nullptr)
 {
     if (d.pages > 0)
         return Value::matrix3d(d.rows, d.cols, d.pages, type, mr);
@@ -34,7 +34,7 @@ inline Value createMatrix(DimsArg d, ValueType type, std::pmr::memory_resource *
 
 // Allocate a Value with the given Dims, picking the rank-appropriate ctor
 // (matrix / matrix3d / matrixND).
-inline Value createForDims(const Dims &d, ValueType type, std::pmr::memory_resource *mr)
+inline Value createForDims(const Dims &d, ValueType type, std::pmr::memory_resource *mr = nullptr)
 {
     const int nd = d.ndim();
     if (nd >= 4) {
@@ -49,7 +49,7 @@ inline Value createForDims(const Dims &d, ValueType type, std::pmr::memory_resou
 // Allocate a Value with the same shape as `src`, optionally of a different
 // type. Required for any elementwise output (a numel()-into-2D allocation
 // corrupts the heap when src is 3D+).
-inline Value createLike(const Value &src, ValueType type, std::pmr::memory_resource *mr)
+inline Value createLike(const Value &src, ValueType type, std::pmr::memory_resource *mr = nullptr)
 {
     return createForDims(src.dims(), type, mr);
 }

@@ -23,7 +23,7 @@ namespace numkit::ops {
 // O(na·nb) — the caller (conv/xcorr) picks direct vs FFT by cost.
 ScratchVec<double> convDirect(const double *a, std::size_t na,
                               const double *b, std::size_t nb,
-                              std::pmr::memory_resource *mr);
+                              std::pmr::memory_resource *mr = nullptr);
 
 // Direct 2-D "full" convolution into a caller-allocated buffer. A is M×N
 // (column-major), B is P×Q (column-major); `out` must be sized (M+P-1)×(N+Q-1)

@@ -53,8 +53,8 @@ inline void polyEvalHorner(const Complex *c, std::size_t n,
 // degrees (≤ 32). Higher degrees may need a tighter inner loop, but
 // practical SOS / roots() usage rarely exceeds this.
 inline ScratchVec<Complex>
-polyRootsDurandKerner(std::pmr::memory_resource *mr,
-                      const Complex *coeffs, std::size_t coeffsN)
+polyRootsDurandKerner(const Complex *coeffs, std::size_t coeffsN,
+                      std::pmr::memory_resource *mr = nullptr)
 {
     std::size_t lo = 0, hi = coeffsN;
     while (lo < hi && coeffs[lo] == Complex(0.0, 0.0)) ++lo;
@@ -104,13 +104,13 @@ polyRootsDurandKerner(std::pmr::memory_resource *mr,
 }
 
 inline ScratchVec<Complex>
-polyRootsDurandKerner(std::pmr::memory_resource *mr,
-                      const double *coeffs, std::size_t coeffsN)
+polyRootsDurandKerner(const double *coeffs, std::size_t coeffsN,
+                      std::pmr::memory_resource *mr = nullptr)
 {
     ScratchVec<Complex> cc(coeffsN, mr);
     for (std::size_t i = 0; i < coeffsN; ++i)
         cc[i] = Complex(coeffs[i], 0.0);
-    return polyRootsDurandKerner(mr, cc.data(), coeffsN);
+    return polyRootsDurandKerner(cc.data(), coeffsN, mr);
 }
 
 // Expand a list of polynomial roots into a real-coefficient polynomial
@@ -120,8 +120,8 @@ polyRootsDurandKerner(std::pmr::memory_resource *mr,
 // complex-conjugate pairs (otherwise the imaginary parts won't cancel
 // to zero).
 inline ScratchVec<double>
-polyExpandFromRoots(std::pmr::memory_resource *mr,
-                    const Complex *roots, std::size_t rootsN)
+polyExpandFromRoots(const Complex *roots, std::size_t rootsN,
+                    std::pmr::memory_resource *mr = nullptr)
 {
     const int n = static_cast<int>(rootsN);
     ScratchVec<Complex> poly(static_cast<std::size_t>(n + 1), mr);

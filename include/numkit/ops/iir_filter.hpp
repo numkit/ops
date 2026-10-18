@@ -25,9 +25,9 @@ namespace numkit::ops {
 // MATLAB's filter(b,a,x,zi) and [y,zf] = filter(...).
 ScratchVec<double> applyFilterDf2t(const double *bn, std::size_t nb, const double *an,
                                    std::size_t na, const double *input, std::size_t len,
-                                   std::pmr::memory_resource *mr,
                                    const double *zi = nullptr, std::size_t ziLen = 0,
-                                   double *zfOut = nullptr);
+                                   double *zfOut = nullptr,
+                                   std::pmr::memory_resource *mr = nullptr);
 
 // Complex DF2T variant. filter() is bilinear (the recursive a-part mixes
 // terms), so a real/imag split does not apply — the recurrence runs over
@@ -35,10 +35,10 @@ ScratchVec<double> applyFilterDf2t(const double *bn, std::size_t nb, const doubl
 ScratchVec<Complex> applyFilterDf2tComplex(const Complex *bn, std::size_t nb,
                                            const Complex *an, std::size_t na,
                                            const Complex *input, std::size_t len,
-                                           std::pmr::memory_resource *mr,
                                            const Complex *zi = nullptr,
                                            std::size_t ziLen = 0,
-                                           Complex *zfOut = nullptr);
+                                           Complex *zfOut = nullptr,
+                                           std::pmr::memory_resource *mr = nullptr);
 
 // ── Second-order section (biquad) DF2T ────────────────────────────────────
 // One biquad section applied in place to a single-channel signal, Direct-Form-II

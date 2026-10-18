@@ -20,7 +20,7 @@ namespace numkit::ops {
 
 /// Invoke `fn(x)` with a scalar argument; return the scalar result.
 /// Throws if the callback returns a non-scalar value.
-inline double evalScalar(FnHandle fn, double x, std::pmr::memory_resource *mr)
+inline double evalScalar(FnHandle fn, double x, std::pmr::memory_resource *mr = nullptr)
 {
     Value             arg = Value::scalar(x, mr);
     Value             out;
@@ -36,7 +36,7 @@ inline double evalScalar(FnHandle fn, double x, std::pmr::memory_resource *mr)
 /// Invoke `fn(x)` with a vector argument (x[0..n) packed into a 1xn DOUBLE row);
 /// return the scalar result.
 inline double evalVecToScalar(FnHandle fn, const double *x, std::size_t n,
-                              std::pmr::memory_resource *mr)
+                              std::pmr::memory_resource *mr = nullptr)
 {
     Value v = Value::matrix(1, n, ValueType::DOUBLE, mr);
     if (n) {

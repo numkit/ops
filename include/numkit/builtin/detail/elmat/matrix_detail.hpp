@@ -562,7 +562,7 @@ sortRowsImpl(const Value &x, const int *cols, std::size_t nCols, std::pmr::memor
                                             sortKeys.data(), sortKeys.size()) < 0;
         });
 
-    auto sorted = numkit::ops::collectRowsByIndex(mr, m, perm.data(), perm.size());
+    auto sorted = numkit::ops::collectRowsByIndex(m, perm.data(), perm.size(), mr);
     auto idx = Value::matrix(R, 1, ValueType::DOUBLE, mr);
     double *idxP = idx.doubleDataMut();
     for (size_t i = 0; i < R; ++i)
