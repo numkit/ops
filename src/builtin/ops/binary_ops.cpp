@@ -266,6 +266,8 @@ Value mtimes(const Value &a, const Value &b, std::pmr::memory_resource *mr)
             throw Error("Inner matrix dimensions must agree", 0, 0, "mtimes", "",
                          "numkit:innerdim");
         auto r = Value::complexMatrix(M, N, p);
+        if (ca.isSingleComplex() || cb.isSingleComplex())
+            r.setSingleComplex(true);
         for (size_t i = 0; i < M; ++i)
             for (size_t j = 0; j < N; ++j) {
                 Complex s(0, 0);

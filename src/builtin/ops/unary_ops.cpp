@@ -27,7 +27,9 @@ Value uminus(const Value &x, std::pmr::memory_resource *mr)
         ValueType outType = x.isComplex()                   ? ValueType::COMPLEX
                         : (x.isChar() || x.isLogical()) ? ValueType::DOUBLE
                                                         : x.type();
-        return createLike(x, outType, p);
+        auto r = createLike(x, outType, p);
+        if (x.isSingleComplex()) r.setSingleComplex(true);
+        return r;
     }
     if (x.isComplex())
         return unaryComplex(x, std::negate<Complex>{}, p);

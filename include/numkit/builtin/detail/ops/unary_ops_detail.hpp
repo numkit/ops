@@ -55,10 +55,14 @@ inline Value transpose2D(const Value &x, bool conjugate, const char *fnName,
     const ValueType t = x.type();
 
     if (t == ValueType::COMPLEX) {
-        if (x.isScalar())
-            return Value::complexScalar(conjugate ? std::conj(x.toComplex())
-                                                  : x.toComplex(), p);
+        if (x.isScalar()) {
+            auto r = Value::complexScalar(conjugate ? std::conj(x.toComplex())
+                                                    : x.toComplex(), p);
+            if (x.isSingleComplex()) r.setSingleComplex(true);
+            return r;
+        }
         auto r = Value::complexMatrix(cols, rows, p);
+        if (x.isSingleComplex()) r.setSingleComplex(true);
         Complex *dst = r.complexDataMut();
         for (size_t i = 0; i < rows; ++i)
             for (size_t j = 0; j < cols; ++j) {

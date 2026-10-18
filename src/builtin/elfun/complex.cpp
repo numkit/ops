@@ -21,6 +21,13 @@ Value real(const Value &x, std::pmr::memory_resource *mr)
     std::pmr::memory_resource *p = mr;
     if (!x.isComplex())
         return x;
+    if (x.isSingleComplex()) {
+        auto r = createLike(x, ValueType::SINGLE, p);
+        float *dst = r.singleDataMut();
+        for (size_t i = 0; i < x.numel(); ++i)
+            dst[i] = static_cast<float>(x.complexData()[i].real());
+        return r;
+    }
     if (x.isScalar())
         return Value::scalar(x.toComplex().real(), p);
     auto r = createLike(x, ValueType::DOUBLE, p);
@@ -32,8 +39,20 @@ Value real(const Value &x, std::pmr::memory_resource *mr)
 Value imag(const Value &x, std::pmr::memory_resource *mr)
 {
     std::pmr::memory_resource *p = mr;
-    if (!x.isComplex())
-        return Value::scalar(0.0, p);
+    if (!x.isComplex()) {
+        if (x.type() == ValueType::SINGLE)
+            return createLike(x, ValueType::SINGLE, p);
+        if (x.isScalar())
+            return Value::scalar(0.0, p);
+        return createLike(x, ValueType::DOUBLE, p);
+    }
+    if (x.isSingleComplex()) {
+        auto r = createLike(x, ValueType::SINGLE, p);
+        float *dst = r.singleDataMut();
+        for (size_t i = 0; i < x.numel(); ++i)
+            dst[i] = static_cast<float>(x.complexData()[i].imag());
+        return r;
+    }
     if (x.isScalar())
         return Value::scalar(x.toComplex().imag(), p);
     auto r = createLike(x, ValueType::DOUBLE, p);
@@ -53,29 +72,35 @@ Value conj(const Value &x, std::pmr::memory_resource *mr)
 Value complex(const Value &re, std::pmr::memory_resource *mr)
 {
     std::pmr::memory_resource *p = mr;
-    // complex(A) on already-complex A returns A UNCHANGED (MATLAB docs);
-    // elemAsDouble() would silently drop the imaginary parts.
     if (re.isComplex())
         return re;
-    if (re.isScalar())
+    const bool outSingle = (re.type() == ValueType::SINGLE);
+    if (re.isScalar() && !outSingle)
         return Value::complexScalar(re.toScalar(), 0.0, p);
     auto r = createLike(re, ValueType::COMPLEX, p);
+    if (outSingle) r.setSingleComplex(true);
     Complex *dst = r.complexDataMut();
-    for (size_t i = 0; i < re.numel(); ++i)
-        dst[i] = Complex(re.elemAsDouble(i), 0.0);
+    for (size_t i = 0; i < re.numel(); ++i) {
+        double v = re.elemAsDouble(i);
+        if (outSingle) v = static_cast<double>(static_cast<float>(v));
+        dst[i] = Complex(v, 0.0);
+    }
     return r;
 }
 
 Value complex(const Value &re, const Value &im, std::pmr::memory_resource *mr)
 {
     std::pmr::memory_resource *p = mr;
-    if (re.isScalar() && im.isScalar())
+    const bool outSingle = (re.type() == ValueType::SINGLE || re.isSingleComplex() ||
+                            im.type() == ValueType::SINGLE || im.isSingleComplex());
+    if (re.isScalar() && im.isScalar() && !outSingle)
         return Value::complexScalar(re.toScalar(), im.toScalar(), p);
     const Value &shape = re.isScalar() ? im : re;
     if (!re.isScalar() && !im.isScalar() && re.dims() != im.dims())
         throw Error("complex: real and imaginary parts must have matching dimensions",
                      0, 0, "complex", "", "numkit:complex:dimagree");
     auto r = createLike(shape, ValueType::COMPLEX, p);
+    if (outSingle) r.setSingleComplex(true);
     Complex *dst = r.complexDataMut();
     const size_t n = shape.numel();
     const double reScalar = re.isScalar() ? re.toScalar() : 0.0;
@@ -83,6 +108,10 @@ Value complex(const Value &re, const Value &im, std::pmr::memory_resource *mr)
     for (size_t i = 0; i < n; ++i) {
         double r0 = re.isScalar() ? reScalar : re.elemAsDouble(i);
         double i0 = im.isScalar() ? imScalar : im.elemAsDouble(i);
+        if (outSingle) {
+            r0 = static_cast<double>(static_cast<float>(r0));
+            i0 = static_cast<double>(static_cast<float>(i0));
+        }
         dst[i] = Complex(r0, i0);
     }
     return r;
@@ -92,11 +121,26 @@ Value angle(const Value &x, std::pmr::memory_resource *mr)
 {
     std::pmr::memory_resource *p = mr;
     if (x.isComplex()) {
+        if (x.isSingleComplex()) {
+            auto r = createLike(x, ValueType::SINGLE, p);
+            float *dst = r.singleDataMut();
+            for (size_t i = 0; i < x.numel(); ++i)
+                dst[i] = static_cast<float>(std::arg(x.complexData()[i]));
+            return r;
+        }
         if (x.isScalar())
             return Value::scalar(std::arg(x.toComplex()), p);
         auto r = createLike(x, ValueType::DOUBLE, p);
         for (size_t i = 0; i < x.numel(); ++i)
             r.doubleDataMut()[i] = std::arg(x.complexData()[i]);
+        return r;
+    }
+    if (x.type() == ValueType::SINGLE) {
+        auto r = createLike(x, ValueType::SINGLE, p);
+        const float *src = x.singleData();
+        float *dst = r.singleDataMut();
+        for (size_t i = 0; i < x.numel(); ++i)
+            dst[i] = std::atan2(0.0f, src[i]);
         return r;
     }
     return unaryDouble(x, [](double v) { return std::atan2(0.0, v); }, p);

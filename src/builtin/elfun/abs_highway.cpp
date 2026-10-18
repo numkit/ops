@@ -91,6 +91,13 @@ Value abs(const Value &x, Value *hint, std::pmr::memory_resource *mr)
     // implementations don't help here (sqrt of sum-of-squares with
     // cancellation pitfalls). Keep the reference path for correctness.
     if (x.isComplex()) {
+        if (x.isSingleComplex()) {
+            auto r = createLike(x, ValueType::SINGLE, mr);
+            float *dst = r.singleDataMut();
+            for (std::size_t i = 0; i < x.numel(); ++i)
+                dst[i] = static_cast<float>(std::abs(x.complexData()[i]));
+            return r;
+        }
         if (x.isScalar())
             return Value::scalar(std::abs(x.toComplex()), mr);
         auto r = createLike(x, ValueType::DOUBLE, mr);

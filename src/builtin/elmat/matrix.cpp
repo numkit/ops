@@ -252,6 +252,8 @@ Value topkrows_full(const Value &A, std::size_t k,
                 case ValueType::INT32:  out.int32DataMut()[dst_lin]  = A.int32Data()[src_lin];  break;
                 case ValueType::INT64:  out.int64DataMut()[dst_lin]  = A.int64Data()[src_lin];  break;
                 case ValueType::LOGICAL: out.logicalDataMut()[dst_lin] = A.logicalData()[src_lin]; break;
+                case ValueType::COMPLEX: out.complexDataMut()[dst_lin] = A.complexData()[src_lin]; break;
+                case ValueType::CHAR:    out.charDataMut()[dst_lin]    = A.charData()[src_lin];    break;
                 default:
                     out.doubleDataMut()[dst_lin] = elem(r, j);
                     break;

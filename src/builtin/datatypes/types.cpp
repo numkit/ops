@@ -94,7 +94,7 @@ Value isempty(const Value &x, std::pmr::memory_resource *mr)   { return Value::l
 Value isscalar(const Value &x, std::pmr::memory_resource *mr)  { return Value::logicalScalar(x.isScalar(), mr); }
 Value isinteger(const Value &x, std::pmr::memory_resource *mr) { return Value::logicalScalar(isIntegerType(x.type()), mr); }
 Value isfloat(const Value &x, std::pmr::memory_resource *mr)   { return Value::logicalScalar(isFloatType(x.type()), mr); }
-Value issingle(const Value &x, std::pmr::memory_resource *mr)  { return Value::logicalScalar(x.type() == ValueType::SINGLE, mr); }
+Value issingle(const Value &x, std::pmr::memory_resource *mr)  { return Value::logicalScalar(x.type() == ValueType::SINGLE || x.isSingleComplex(), mr); }
 // nk has no sparse-matrix storage class -- issparse always returns
 // false for any input. Matches MATLAB on dense inputs (which is all
 // nk can produce). Covers the FAIL row in PROGRESS for issparse.
@@ -552,6 +552,8 @@ Value classOf(const Value &x, std::pmr::memory_resource *mr)
     // OBJECT instances report their registered class name, not "object".
     if (x.isObject())
         return Value::fromString(x.objectClassName(), mr);
+    if (x.isSingleComplex())
+        return Value::fromString("single", mr);
     return Value::fromString(mtypeName(x.type()), mr);
 }
 

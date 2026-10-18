@@ -66,6 +66,34 @@ T saturateCast(double v)
 template <typename T>
 Value numericConstructor(ValueType targetType, const Value &x, std::pmr::memory_resource *mr)
 {
+    if (x.isComplex()) {
+        if (targetType == ValueType::SINGLE) {
+            if (x.isSingleComplex())
+                return x;
+            const size_t n = x.numel();
+            Value r = createLike(x, ValueType::COMPLEX, mr);
+            r.setSingleComplex(true);
+            const Complex *src = x.complexData();
+            Complex *dstC = r.complexDataMut();
+            for (size_t i = 0; i < n; ++i) {
+                dstC[i] = Complex(static_cast<double>(static_cast<float>(src[i].real())),
+                                  static_cast<double>(static_cast<float>(src[i].imag())));
+            }
+            return r;
+        }
+        if (targetType == ValueType::DOUBLE) {
+            if (!x.isSingleComplex())
+                return x;
+            const size_t n = x.numel();
+            Value r = createLike(x, ValueType::COMPLEX, mr);
+            r.setSingleComplex(false);
+            const Complex *src = x.complexData();
+            Complex *dstC = r.complexDataMut();
+            for (size_t i = 0; i < n; ++i)
+                dstC[i] = src[i];
+            return r;
+        }
+    }
     if (x.type() == targetType)
         return x;
     const size_t n = x.numel();

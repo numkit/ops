@@ -230,7 +230,11 @@ inline ValueType arithOutType(const Value &a, const Value &b)
 // type chosen by arithOutType().
 inline Value emptyArithResult(const Value &a, const Value &b, std::pmr::memory_resource *mr = nullptr)
 {
-    return emptyResultForBinary(a, b, arithOutType(a, b), mr);
+    Value r = emptyResultForBinary(a, b, arithOutType(a, b), mr);
+    if (r.isComplex() && (a.isSingleComplex() || a.type() == ValueType::SINGLE ||
+                          b.isSingleComplex() || b.type() == ValueType::SINGLE))
+        r.setSingleComplex(true);
+    return r;
 }
 
 // ============================================================
@@ -367,11 +371,17 @@ Value elementwiseDouble(const Value &a, const Value &b, Op op, std::pmr::memory_
 template<typename Op>
 Value elementwiseComplexImpl(const Value &a, const Value &b, Op op, std::pmr::memory_resource *mr = nullptr)
 {
+    const bool outSingle = a.isSingleComplex() || a.type() == ValueType::SINGLE ||
+                           b.isSingleComplex() || b.type() == ValueType::SINGLE;
+    auto finalize = [&](Value &&r) -> Value {
+        if (outSingle && r.isComplex()) r.setSingleComplex(true);
+        return std::move(r);
+    };
     if (a.isEmpty() || b.isEmpty())
-        return emptyResultForBinary(a, b, ValueType::COMPLEX, mr);
+        return finalize(emptyResultForBinary(a, b, ValueType::COMPLEX, mr));
     auto [ca, cb] = promoteToComplex(a, b, mr);
     if (ca.isScalar() && cb.isScalar())
-        return Value::complexScalar(op(ca.toComplex(), cb.toComplex()), mr);
+        return finalize(Value::complexScalar(op(ca.toComplex(), cb.toComplex()), mr));
 
     // ND fallback (rank ≥ 4 or NumPy-style broadcast past 3D)
     if (ca.dims().ndim() >= 4 || cb.dims().ndim() >= 4) {
@@ -381,7 +391,7 @@ Value elementwiseComplexImpl(const Value &a, const Value &b, Op op, std::pmr::me
             const Complex *db = cb.complexData();
             Complex *dst = r.complexDataMut();
             for (size_t i = 0; i < cb.numel(); ++i) dst[i] = op(s, db[i]);
-            return r;
+            return finalize(std::move(r));
         }
         if (cb.isScalar()) {
             auto r = createLike(ca, ValueType::COMPLEX, mr);
@@ -389,7 +399,7 @@ Value elementwiseComplexImpl(const Value &a, const Value &b, Op op, std::pmr::me
             const Complex *da = ca.complexData();
             Complex *dst = r.complexDataMut();
             for (size_t i = 0; i < ca.numel(); ++i) dst[i] = op(da[i], s);
-            return r;
+            return finalize(std::move(r));
         }
         Dims outD;
         if (!broadcastDimsND(ca.dims(), cb.dims(), outD))
@@ -401,7 +411,7 @@ Value elementwiseComplexImpl(const Value &a, const Value &b, Op op, std::pmr::me
             [&](size_t outIdx, size_t aOff, size_t bOff) {
                 dst[outIdx] = op(da[aOff], db[bOff]);
             });
-        return r;
+        return finalize(std::move(r));
     }
 
     if (ca.dims().is3D() || cb.dims().is3D()) {
@@ -410,14 +420,14 @@ Value elementwiseComplexImpl(const Value &a, const Value &b, Op op, std::pmr::me
             Complex s = ca.toComplex();
             for (size_t i = 0; i < cb.numel(); ++i)
                 r.complexDataMut()[i] = op(s, cb.complexData()[i]);
-            return r;
+            return finalize(std::move(r));
         }
         if (cb.isScalar()) {
             auto r = createLike(ca, ValueType::COMPLEX, mr);
             Complex s = cb.toComplex();
             for (size_t i = 0; i < ca.numel(); ++i)
                 r.complexDataMut()[i] = op(ca.complexData()[i], s);
-            return r;
+            return finalize(std::move(r));
         }
         const size_t aR = ca.dims().rows(), aC = ca.dims().cols();
         const size_t aP = ca.dims().is3D() ? ca.dims().pages() : 1;
@@ -432,7 +442,7 @@ Value elementwiseComplexImpl(const Value &a, const Value &b, Op op, std::pmr::me
             auto r = createLike(ca, ValueType::COMPLEX, mr);
             for (size_t i = 0; i < ca.numel(); ++i)
                 r.complexDataMut()[i] = op(ca.complexData()[i], cb.complexData()[i]);
-            return r;
+            return finalize(std::move(r));
         }
         auto r = (outP > 1) ? Value::matrix3d(outR, outC, outP, ValueType::COMPLEX, mr)
                             : Value::matrix(outR, outC, ValueType::COMPLEX, mr);
@@ -445,7 +455,7 @@ Value elementwiseComplexImpl(const Value &a, const Value &b, Op op, std::pmr::me
                     const size_t bOff = broadcastOffset3D(rr, cc, pp, bR, bC, bP);
                     dst[pp * outR * outC + cc * outR + rr] = op(da[aOff], db[bOff]);
                 }
-        return r;
+        return finalize(std::move(r));
     }
 
     size_t ar = ca.dims().rows(), ac = ca.dims().cols();
@@ -458,7 +468,7 @@ Value elementwiseComplexImpl(const Value &a, const Value &b, Op op, std::pmr::me
         auto r = Value::complexMatrix(outR, outC, mr);
         for (size_t i = 0; i < ca.numel(); ++i)
             r.complexDataMut()[i] = op(ca.complexData()[i], cb.complexData()[i]);
-        return r;
+        return finalize(std::move(r));
     }
 
     auto r = Value::complexMatrix(outR, outC, mr);
@@ -473,7 +483,7 @@ Value elementwiseComplexImpl(const Value &a, const Value &b, Op op, std::pmr::me
             dst[c * outR + row] = op(da[cca * ar + ra], db[ccb * br + rb]);
         }
     }
-    return r;
+    return finalize(std::move(r));
 }
 
 // Public entry: raw complex elementwise op, then narrow an all-real result to
@@ -505,9 +515,13 @@ Value unaryDouble(const Value &a, Op op, std::pmr::memory_resource *mr = nullptr
 template<typename Op>
 Value unaryComplexImpl(const Value &a, Op op, std::pmr::memory_resource *mr = nullptr)
 {
-    if (a.isScalar())
-        return Value::complexScalar(op(a.toComplex()), mr);
+    if (a.isScalar()) {
+        auto r = Value::complexScalar(op(a.toComplex()), mr);
+        if (a.isSingleComplex()) r.setSingleComplex(true);
+        return r;
+    }
     auto r = createLike(a, ValueType::COMPLEX, mr);
+    if (a.isSingleComplex()) r.setSingleComplex(true);
     for (size_t i = 0; i < a.numel(); ++i)
         r.complexDataMut()[i] = op(a.complexData()[i]);
     return r;
