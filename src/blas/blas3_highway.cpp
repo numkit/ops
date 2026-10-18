@@ -728,6 +728,14 @@ bool LuPanelDoubleKernel(double *A, std::size_t lda, std::int32_t *piv, std::siz
                         pivot = k;
                     }
                 }
+            } else {
+                for (; i < m; ++i) {
+                    const double v = std::fabs(c_ptr[i]);
+                    if (v > pmax) {
+                        pmax = v;
+                        pivot = i;
+                    }
+                }
             }
         } else {
             for (std::size_t i = j + 1; i < m; ++i) {
