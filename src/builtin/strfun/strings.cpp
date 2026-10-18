@@ -707,6 +707,14 @@ Value strsplit(const Value &s, std::pmr::memory_resource *mr)
     return strsplitImpl(s.toString(), delims, /*collapse=*/true, mr);
 }
 
+Value strsplit(const Value &s, const std::string &delim, std::pmr::memory_resource *mr)
+{
+    ScratchArena scratch(mr);
+    ScratchVec<std::string> delims(&scratch);
+    delims.push_back(delim);
+    return strsplitImpl(s.toString(), delims, /*collapse=*/true, mr);
+}
+
 Value strsplit(const Value &s, const Value &delim, std::pmr::memory_resource *mr)
 {
     ScratchArena scratch(mr);

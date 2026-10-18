@@ -254,11 +254,11 @@ Value append(Span<const Value> parts, std::pmr::memory_resource *mr = nullptr);
 
 /// @brief Splits string by delimiter string (`strsplit(s, delim)`).
 /// @param s Input string.
-/// @param delim Delimiter string (default: `" "`).
+/// @param delim Delimiter string.
 /// @param mr Memory resource.
 /// @return Cell array of split substrings.
 /// @see strjoin, splitlines, split
-Value strsplit(const Value &s, const std::string &delim = " ", std::pmr::memory_resource *mr = nullptr);
+Value strsplit(const Value &s, const std::string &delim, std::pmr::memory_resource *mr = nullptr);
 
 /// @brief Splits string by Value delimiter (`strsplit(s, delim)`).
 /// @param s Input string.
@@ -271,7 +271,7 @@ Value strsplit(const Value &s, const Value &delim, std::pmr::memory_resource *mr
 /// @param s Input string.
 /// @param mr Memory resource.
 /// @return Cell array of split substrings.
-Value strsplit(const Value &s, std::pmr::memory_resource *mr);
+Value strsplit(const Value &s, std::pmr::memory_resource *mr = nullptr);
 
 /// @brief Splits string array elements by delimiter (`split(s, delim)`).
 /// @param s Input string array.
