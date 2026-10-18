@@ -152,9 +152,11 @@ void fillUniformInt(RngContext &rng, double *dst, size_t n, int64_t lo, int64_t 
     if (lo > hi)
         throw Error("randi: low bound must be <= high bound",
                      0, 0, "randi", "", "numkit:randi:badRange");
-    std::uniform_int_distribution<int64_t> dist(lo, hi);
-    for (size_t i = 0; i < n; ++i)
-        dst[i] = static_cast<double>(dist(rng));
+    const double span = static_cast<double>(hi - lo + 1);
+    for (size_t i = 0; i < n; ++i) {
+        const double u = rng.legacyV4() ? rng.v4Uniform() : rng.genRes53();
+        dst[i] = static_cast<double>(lo) + std::floor(u * span);
+    }
 }
 
 Value makeIntMatrix(RngContext &rng, int64_t lo, int64_t hi, size_t rows, size_t cols,
@@ -170,8 +172,9 @@ Value makeIntMatrix(RngContext &rng, int64_t lo, int64_t hi, size_t rows, size_t
 
 Value randi(RngContext &rng, int64_t imax, std::pmr::memory_resource *mr)
 {
-    std::uniform_int_distribution<int64_t> dist(1, imax);
-    return Value::scalar(static_cast<double>(dist(rng)), mr);
+    double v = 0.0;
+    fillUniformInt(rng, &v, 1, 1, imax);
+    return Value::scalar(v, mr);
 }
 
 Value randi(RngContext &rng, int64_t imax, size_t rows, size_t cols, size_t pages, std::pmr::memory_resource *mr)

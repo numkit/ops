@@ -139,43 +139,89 @@ Value chol(const Value &A, std::pmr::memory_resource *mr)
 namespace {
 
 template <typename T>
+void lu_factor_general(T *LU, std::size_t m, std::size_t n, std::int32_t *piv)
+{
+    const std::size_t k = std::min(m, n);
+    if (k == 0) return;
+
+    // General fallback for wide (m < n) or singular matrices: partial pivoting
+    // without failing on zero pivots.
+    for (std::size_t j = 0; j < k; ++j) {
+        std::size_t p = j;
+        double max_val = detail::abs_val(LU[j + j * m]);
+        for (std::size_t i = j + 1; i < m; ++i) {
+            const double v = detail::abs_val(LU[i + j * m]);
+            if (v > max_val) {
+                max_val = v;
+                p = i;
+            }
+        }
+        piv[j] = static_cast<std::int32_t>(p);
+        if (p != j) {
+            for (std::size_t c = 0; c < n; ++c)
+                std::swap(LU[j + c * m], LU[p + c * m]);
+        }
+        const T diag = LU[j + j * m];
+        if (detail::abs_val(diag) != 0.0) {
+            for (std::size_t i = j + 1; i < m; ++i)
+                LU[i + j * m] /= diag;
+            for (std::size_t c = j + 1; c < n; ++c) {
+                const T ujc = LU[j + c * m];
+                if (ujc == T(0)) continue;
+                for (std::size_t i = j + 1; i < m; ++i)
+                    LU[i + c * m] -= LU[i + j * m] * ujc;
+            }
+        }
+    }
+}
+
+template <typename T>
 std::tuple<Value, Value, Value>
 lu_decompose_impl(const Value &A, std::pmr::memory_resource *mr)
 {
     const std::size_t m = static_cast<std::size_t>(A.dims().dim(0));
     const std::size_t n = static_cast<std::size_t>(A.dims().dim(1));
+    const std::size_t k = std::min(m, n);
     ScratchArena scratch(mr);
     ScratchVec<T> LU(m * n, &scratch);
-    ScratchVec<std::int32_t> piv(n, &scratch);
+    ScratchVec<std::int32_t> piv(std::max<std::size_t>(k, 1), &scratch);
     const T *src = detail::get_data<T>(A);
     std::copy(src, src + m * n, LU.begin());
-    if (!numkit::ops::lu_factor_inplace(LU.data(), n, piv.data(), n, n))
-        throw Error("lu: matrix is singular",
-                    0, 0, "lu", "", "numkit:lu:singular");
+    if (m >= n) {
+        if (!numkit::ops::lu_factor_inplace(LU.data(), m, piv.data(), m, n)) {
+            std::copy(src, src + m * n, LU.begin());
+            lu_factor_general(LU.data(), m, n, piv.data());
+        }
+    } else {
+        lu_factor_general(LU.data(), m, n, piv.data());
+    }
 
-    Value Lout = detail::make_matrix<T>(n, n, mr);
-    Value Uout = detail::make_matrix<T>(n, n, mr);
-    Value Pout = Value::matrix(n, n, ValueType::DOUBLE, mr);
+    Value Lout = detail::make_matrix<T>(m, k, mr);
+    Value Uout = detail::make_matrix<T>(k, n, mr);
+    Value Pout = Value::matrix(m, m, ValueType::DOUBLE, mr);
     T *L = detail::get_data_mut<T>(Lout);
     T *U = detail::get_data_mut<T>(Uout);
     double *P = Pout.doubleDataMut();
-    std::fill(L, L + n * n, T(0));
-    std::fill(U, U + n * n, T(0));
-    std::fill(P, P + n * n, 0.0);
+    std::fill(L, L + m * k, T(0));
+    std::fill(U, U + k * n, T(0));
+    std::fill(P, P + m * m, 0.0);
 
-    for (std::size_t i = 0; i < n; ++i) {
-        L[i + i * n] = T(1);
-        for (std::size_t j = 0; j < i; ++j)
-            L[i + j * n] = LU[i + j * n];
-        for (std::size_t j = i; j < n; ++j)
-            U[i + j * n] = LU[i + j * n];
+    for (std::size_t j = 0; j < k; ++j) {
+        L[j + j * m] = T(1);
+        for (std::size_t i = j + 1; i < m; ++i)
+            L[i + j * m] = LU[i + j * m];
     }
-    std::vector<std::size_t> perm(n);
-    for (std::size_t i = 0; i < n; ++i) perm[i] = i;
-    for (std::size_t k = 0; k < n; ++k)
-        std::swap(perm[k], perm[piv[k]]);
-    for (std::size_t i = 0; i < n; ++i)
-        P[i + perm[i] * n] = 1.0;
+    for (std::size_t j = 0; j < n; ++j) {
+        const std::size_t i_max = std::min(j + 1, k);
+        for (std::size_t i = 0; i < i_max; ++i)
+            U[i + j * k] = LU[i + j * m];
+    }
+    std::vector<std::size_t> perm(m);
+    for (std::size_t i = 0; i < m; ++i) perm[i] = i;
+    for (std::size_t j = 0; j < k; ++j)
+        std::swap(perm[j], perm[piv[j]]);
+    for (std::size_t i = 0; i < m; ++i)
+        P[i + perm[i] * m] = 1.0;
 
     return std::make_tuple(detail::narrow_if_real(Lout), detail::narrow_if_real(Uout), std::move(Pout));
 }
@@ -185,15 +231,21 @@ Value lu_combined_impl(const Value &A, std::pmr::memory_resource *mr)
 {
     const std::size_t m = static_cast<std::size_t>(A.dims().dim(0));
     const std::size_t n = static_cast<std::size_t>(A.dims().dim(1));
+    const std::size_t k = std::min(m, n);
     ScratchArena scratch(mr);
-    ScratchVec<std::int32_t> piv(n, &scratch);
-    Value out = detail::make_matrix<T>(n, n, mr);
+    ScratchVec<std::int32_t> piv(std::max<std::size_t>(k, 1), &scratch);
+    Value out = detail::make_matrix<T>(m, n, mr);
     T *LU = detail::get_data_mut<T>(out);
     const T *src = detail::get_data<T>(A);
     std::copy(src, src + m * n, LU);
-    if (!numkit::ops::lu_factor_inplace(LU, n, piv.data(), n, n))
-        throw Error("lu: matrix is singular",
-                    0, 0, "lu", "", "numkit:lu:singular");
+    if (m >= n) {
+        if (!numkit::ops::lu_factor_inplace(LU, m, piv.data(), m, n)) {
+            std::copy(src, src + m * n, LU);
+            lu_factor_general(LU, m, n, piv.data());
+        }
+    } else {
+        lu_factor_general(LU, m, n, piv.data());
+    }
     return detail::narrow_if_real(out);
 }
 
@@ -206,11 +258,6 @@ lu_decompose(const Value &A, std::pmr::memory_resource *mr)
     if (A.dims().ndim() != 2)
         throw Error("lu: input must be a 2D matrix",
                     0, 0, "lu", "", "numkit:lu:notMatrix");
-    const std::size_t m = static_cast<std::size_t>(A.dims().dim(0));
-    const std::size_t n = static_cast<std::size_t>(A.dims().dim(1));
-    if (m != n)
-        throw Error("lu: square matrix required for [L,U,P] form",
-                    0, 0, "lu", "", "numkit:lu:notSquare");
 
     const bool wantSingle = (A.type() == ValueType::SINGLE);
     const Value Aw = detail::widenSingleToDouble(A, mr);
@@ -232,11 +279,6 @@ Value lu_combined(const Value &A, std::pmr::memory_resource *mr)
     if (A.dims().ndim() != 2)
         throw Error("lu: input must be a 2D matrix",
                     0, 0, "lu", "", "numkit:lu:notMatrix");
-    const std::size_t m = static_cast<std::size_t>(A.dims().dim(0));
-    const std::size_t n = static_cast<std::size_t>(A.dims().dim(1));
-    if (m != n)
-        throw Error("lu: square matrix required",
-                    0, 0, "lu", "", "numkit:lu:notSquare");
 
     const bool wantSingle = (A.type() == ValueType::SINGLE);
     const Value Aw = detail::widenSingleToDouble(A, mr);
@@ -687,6 +729,7 @@ svd_decompose(const Value &A, std::pmr::memory_resource *mr)
         std::fill(S, S + m * n, 0.0);
         std::fill(V, V + n * n, Complex(0.0, 0.0));
 
+        std::size_t r_nz = 0;
         for (std::size_t k = 0; k < n; ++k) {
             const std::size_t src = order[k];
             S[k + k * m] = sigma[src];
@@ -694,32 +737,21 @@ svd_decompose(const Value &A, std::pmr::memory_resource *mr)
                 const double inv_s = 1.0 / sigma[src];
                 for (std::size_t i = 0; i < m; ++i)
                     U[i + k * m] = A_work[i + src * m] * inv_s;
+                r_nz = k + 1;
             }
             for (std::size_t i = 0; i < n; ++i)
                 V[i + k * n] = V_work[i + src * n];
         }
 
-        // Gram-Schmidt completion for m > n.
-        for (std::size_t k = n; k < m; ++k) {
-            for (std::size_t i = 0; i < m; ++i) {
-                ScratchVec<Complex> v(m, Complex(0.0, 0.0), &scratch);
-                v[i] = Complex(1.0, 0.0);
-                for (std::size_t kk = 0; kk < k; ++kk) {
-                    Complex dot(0.0, 0.0);
-                    for (std::size_t r = 0; r < m; ++r)
-                        dot += std::conj(U[r + kk * m]) * v[r];
-                    for (std::size_t r = 0; r < m; ++r)
-                        v[r] -= dot * U[r + kk * m];
-                }
-                double nv = 0.0;
-                for (std::size_t r = 0; r < m; ++r) nv += detail::abs_sq(v[r]);
-                if (nv > 1e-20) {
-                    nv = std::sqrt(nv);
-                    for (std::size_t r = 0; r < m; ++r)
-                        U[r + k * m] = v[r] / nv;
-                    break;
-                }
-            }
+        // Complete U to an m-by-m unitary matrix in O(m^2 * r_nz) via Householder QR.
+        if (r_nz == 0) {
+            for (std::size_t i = 0; i < m; ++i)
+                U[i + i * m] = Complex(1.0, 0.0);
+        } else if (r_nz < m) {
+            ScratchVec<Complex> Q_full(m * m, &scratch);
+            ScratchVec<Complex> R_dummy(m * r_nz, &scratch);
+            qrFullHouseholder(U, m, r_nz, Q_full.data(), R_dummy.data(), mr);
+            std::copy(Q_full.data() + r_nz * m, Q_full.data() + m * m, U + r_nz * m);
         }
 
         if (!transposed) {
@@ -781,6 +813,7 @@ svd_decompose(const Value &A, std::pmr::memory_resource *mr)
     std::fill(S, S + m * n, 0.0);
     std::fill(V, V + n * n, 0.0);
 
+    std::size_t r_nz = 0;
     for (std::size_t k = 0; k < n; ++k) {
         const std::size_t src = order[k];
         S[k + k * m] = sigma[src];
@@ -788,6 +821,7 @@ svd_decompose(const Value &A, std::pmr::memory_resource *mr)
             const double inv_s = 1.0 / sigma[src];
             for (std::size_t i = 0; i < m; ++i)
                 U[i + k * m] = A_work[i + src * m] * inv_s;
+            r_nz = k + 1;
         } else {
             for (std::size_t i = 0; i < m; ++i) U[i + k * m] = 0.0;
         }
@@ -795,27 +829,15 @@ svd_decompose(const Value &A, std::pmr::memory_resource *mr)
             V[i + k * n] = V_work[i + src * n];
     }
 
-    // Gram-Schmidt completion for m > n.
-    for (std::size_t k = n; k < m; ++k) {
-        for (std::size_t i = 0; i < m; ++i) {
-            ScratchVec<double> v(m, 0.0, &scratch);
-            v[i] = 1.0;
-            for (std::size_t kk = 0; kk < k; ++kk) {
-                double dot = 0.0;
-                for (std::size_t r = 0; r < m; ++r)
-                    dot += U[r + kk * m] * v[r];
-                for (std::size_t r = 0; r < m; ++r)
-                    v[r] -= dot * U[r + kk * m];
-            }
-            double nv = 0.0;
-            for (std::size_t r = 0; r < m; ++r) nv += v[r] * v[r];
-            if (nv > 1e-20) {
-                nv = std::sqrt(nv);
-                for (std::size_t r = 0; r < m; ++r)
-                    U[r + k * m] = v[r] / nv;
-                break;
-            }
-        }
+    // Complete U to an m-by-m orthogonal matrix in O(m^2 * r_nz) via Householder QR.
+    if (r_nz == 0) {
+        for (std::size_t i = 0; i < m; ++i)
+            U[i + i * m] = 1.0;
+    } else if (r_nz < m) {
+        ScratchVec<double> Q_full(m * m, &scratch);
+        ScratchVec<double> R_dummy(m * r_nz, &scratch);
+        qrFullHouseholder(U, m, r_nz, Q_full.data(), R_dummy.data(), mr);
+        std::copy(Q_full.data() + r_nz * m, Q_full.data() + m * m, U + r_nz * m);
     }
 
     if (!transposed) {
