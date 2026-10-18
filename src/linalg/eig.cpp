@@ -97,6 +97,29 @@ Value poly_of_matrix(const Value &A, std::pmr::memory_resource *mr)
     return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
 
+static bool isHermitianComplexApprox(const Value &A, double tol = 1e-10)
+{
+    if (A.dims().ndim() != 2 || !A.isComplex()) return false;
+    const std::size_t m = static_cast<std::size_t>(A.dims().dim(0));
+    const std::size_t n = static_cast<std::size_t>(A.dims().dim(1));
+    if (m != n) return false;
+    const Complex *ad = A.complexData();
+    double aMax = 1.0;
+    for (std::size_t idx = 0; idx < n * n; ++idx) {
+        const double v = std::abs(ad[idx]);
+        if (v > aMax) aMax = v;
+    }
+    const double thresh = tol * aMax;
+    for (std::size_t i = 0; i < n; ++i) {
+        if (std::fabs(ad[i + i * n].imag()) > thresh) return false;
+        for (std::size_t j = i + 1; j < n; ++j) {
+            if (std::abs(ad[i + j * n] - std::conj(ad[j + i * n])) > thresh)
+                return false;
+        }
+    }
+    return true;
+}
+
 Value eig_general_values(const Value &A, std::pmr::memory_resource *mr)
 {
     detail::requireDoubleInput(A, "eig");
@@ -113,6 +136,21 @@ Value eig_general_values(const Value &A, std::pmr::memory_resource *mr)
     Value Aw = detail::widenSingleToDouble(A, mr);
 
     auto [U, T] = schur_general(Aw, mr);
+
+    if (isHermitianComplexApprox(Aw)) {
+        auto out = Value::matrix(n, 1, ValueType::DOUBLE, mr);
+        double *od = out.doubleDataMut();
+        if (T.isComplex()) {
+            const Complex *td = T.complexData();
+            for (std::size_t i = 0; i < n; ++i) od[i] = td[i + i * n].real();
+        } else {
+            const double *td = T.doubleData();
+            for (std::size_t i = 0; i < n; ++i) od[i] = td[i + i * n];
+        }
+        std::sort(od, od + n);
+        return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
+    }
+
     auto out = Value::complexMatrix(n, 1, mr);
     Complex *o = out.complexDataMut();
 
@@ -243,6 +281,28 @@ eig_general_VD(const Value &A, std::pmr::memory_resource *mr)
         for (size_t i = 0; i < n * n; ++i) Uc[i] = Complex(ud[i], 0.0);
     }
 
+    if (isHermitianComplexApprox(Aw)) {
+        ScratchVec<std::size_t> order(n, &scratch);
+        for (std::size_t i = 0; i < n; ++i) order[i] = i;
+        std::sort(order.begin(), order.end(), [&](std::size_t a, std::size_t b) {
+            return Tc[a + a * n].real() < Tc[b + b * n].real();
+        });
+        auto Vout = Value::complexMatrix(n, n, mr);
+        auto Dout = Value::matrix(n, n, ValueType::DOUBLE, mr);
+        Complex *Vd = Vout.complexDataMut();
+        double *Dd = Dout.doubleDataMut();
+        std::fill(Dd, Dd + n * n, 0.0);
+        for (std::size_t k = 0; k < n; ++k) {
+            const std::size_t src = order[k];
+            Dd[k + k * n] = Tc[src + src * n].real();
+            for (std::size_t i = 0; i < n; ++i)
+                Vd[i + k * n] = Uc[i + src * n];
+        }
+        return std::make_tuple(
+            detail::narrowDoubleToSingleIf(detail::narrow_if_real(Vout, mr), wantSingle, mr),
+            detail::narrowDoubleToSingleIf(Dout, wantSingle, mr));
+    }
+
     ScratchVec<Complex> Yc(n * n, Complex(0.0, 0.0), &scratch);
 
     for (std::size_t k = 0; k < n; ++k) {
@@ -363,13 +423,17 @@ eig_general_VD(const Value &A, std::pmr::memory_resource *mr)
 
 namespace {
 
-// Classical Jacobi for SYMMETRIC A.
+// // Classical Jacobi for SYMMETRIC A (used for small n <= 16).
 void jacobiSymInplace(double *A, std::size_t n, double *V,
                       std::size_t maxSweeps, double tol)
 {
     std::fill(V, V + n * n, 0.0);
     for (std::size_t i = 0; i < n; ++i) V[i + i * n] = 1.0;
     if (n <= 1) return;
+
+    double diagSq = 0.0;
+    for (std::size_t i = 0; i < n; ++i)
+        diagSq += A[i + i * n] * A[i + i * n];
 
     auto offSum = [&]() {
         double s = 0.0;
@@ -379,14 +443,21 @@ void jacobiSymInplace(double *A, std::size_t n, double *V,
         return s;
     };
 
+    const double eps = std::numeric_limits<double>::epsilon();
+    const double scaleSq = std::max(1.0, diagSq + 2.0 * offSum());
+    const double convTolSq = (tol * tol) * scaleSq;
+
     for (std::size_t sweep = 0; sweep < maxSweeps; ++sweep) {
-        if (offSum() < tol * tol) break;
+        if (offSum() < convTolSq) break;
         for (std::size_t p = 0; p + 1 < n; ++p) {
             for (std::size_t q = p + 1; q < n; ++q) {
                 const double Apq = A[p + q * n];
-                if (std::fabs(Apq) < 1e-30) continue;
                 const double App = A[p + p * n];
                 const double Aqq = A[q + q * n];
+                if (std::fabs(Apq) <= eps * (std::fabs(App) + std::fabs(Aqq))) {
+                    A[p + q * n] = 0.0;
+                    continue;
+                }
                 double c, s;
                 if (App == Aqq) {
                     c = 0.7071067811865476;
@@ -430,9 +501,140 @@ void jacobiSymInplace(double *A, std::size_t n, double *V,
             A[q + p * n] = A[p + q * n];
 }
 
+// Householder tridiagonalization (tred2) + implicit Wilkinson-shifted QL (tql2)
+// for real symmetric matrices (O(n^3) direct reduction, used for n > 16).
+// Input: V holds a copy of A (n x n, column-major).
+// Output: d[0..n-1] holds the eigenvalues, V holds the orthonormal eigenvectors.
+void symTridiagQL(double *V, std::size_t n, double *d, ScratchArena &scratch)
+{
+    ScratchVec<double> e(n, 0.0, &scratch);
+
+    for (std::size_t i = n - 1; i >= 1; --i) {
+        const std::size_t l = i - 1;
+        double h = 0.0;
+        double scale = 0.0;
+        if (l > 0) {
+            for (std::size_t k = 0; k <= l; ++k)
+                scale += std::fabs(V[i + k * n]);
+            if (scale == 0.0) {
+                e[i] = V[i + l * n];
+            } else {
+                for (std::size_t k = 0; k <= l; ++k) {
+                    V[i + k * n] /= scale;
+                    h += V[i + k * n] * V[i + k * n];
+                }
+                double f = V[i + l * n];
+                double g = (f >= 0.0) ? -std::sqrt(h) : std::sqrt(h);
+                e[i] = scale * g;
+                h -= f * g;
+                V[i + l * n] = f - g;
+                f = 0.0;
+                for (std::size_t j = 0; j <= l; ++j) {
+                    V[j + i * n] = V[i + j * n] / h;
+                    g = 0.0;
+                    for (std::size_t k = 0; k <= j; ++k)
+                        g += V[j + k * n] * V[i + k * n];
+                    for (std::size_t k = j + 1; k <= l; ++k)
+                        g += V[k + j * n] * V[i + k * n];
+                    e[j] = g / h;
+                    f += e[j] * V[i + j * n];
+                }
+                const double hh = f / (h + h);
+                for (std::size_t j = 0; j <= l; ++j) {
+                    f = V[i + j * n];
+                    g = e[j] - hh * f;
+                    e[j] = g;
+                    for (std::size_t k = 0; k <= j; ++k)
+                        V[j + k * n] -= (f * e[k] + g * V[i + k * n]);
+                }
+            }
+        } else {
+            e[i] = V[i + l * n];
+        }
+        d[i] = h;
+    }
+
+    d[0] = 0.0;
+    e[0] = 0.0;
+    for (std::size_t i = 0; i < n; ++i) {
+        if (d[i] != 0.0) {
+            for (std::size_t j = 0; j < i; ++j) {
+                double g = 0.0;
+                for (std::size_t k = 0; k < i; ++k)
+                    g += V[i + k * n] * V[k + j * n];
+                for (std::size_t k = 0; k < i; ++k)
+                    V[k + j * n] -= g * V[k + i * n];
+            }
+        }
+        d[i] = V[i + i * n];
+        V[i + i * n] = 1.0;
+        for (std::size_t j = 0; j < i; ++j) {
+            V[j + i * n] = 0.0;
+            V[i + j * n] = 0.0;
+        }
+    }
+
+    for (std::size_t i = 1; i < n; ++i)
+        e[i - 1] = e[i];
+    e[n - 1] = 0.0;
+
+    const double eps = std::numeric_limits<double>::epsilon();
+    for (std::size_t l = 0; l < n; ++l) {
+        std::size_t iter = 0;
+        std::size_t m = l;
+        for (;;) {
+            for (m = l; m + 1 < n; ++m) {
+                const double dd = std::fabs(d[m]) + std::fabs(d[m + 1]);
+                if (std::fabs(e[m]) <= eps * dd) {
+                    e[m] = 0.0;
+                    break;
+                }
+            }
+            if (m == l) break;
+            if (++iter > 300) break;
+            double g = (d[l + 1] - d[l]) / (2.0 * e[l]);
+            double r = std::hypot(g, 1.0);
+            g = d[m] - d[l] + e[l] / (g + (g >= 0.0 ? r : -r));
+            double s = 1.0, c = 1.0, p = 0.0;
+            bool underflow = false;
+            for (std::size_t ii = m; ii > l; --ii) {
+                const std::size_t i = ii - 1;
+                const double f = s * e[i];
+                const double b = c * e[i];
+                r = std::hypot(f, g);
+                e[i + 1] = r;
+                if (r == 0.0) {
+                    d[i + 1] -= p;
+                    e[m] = 0.0;
+                    underflow = true;
+                    break;
+                }
+                s = f / r;
+                c = g / r;
+                g = d[i + 1] - p;
+                r = (d[i] - g) * s + 2.0 * c * b;
+                p = s * r;
+                d[i + 1] = g + p;
+                g = c * r - b;
+                double *vi1 = V + (i + 1) * n;
+                double *vi  = V + i * n;
+                for (std::size_t k = 0; k < n; ++k) {
+                    const double t = vi1[k];
+                    vi1[k] = s * vi[k] + c * t;
+                    vi[k]  = c * vi[k] - s * t;
+                }
+            }
+            if (underflow) continue;
+            d[l] -= p;
+            e[l] = g;
+            e[m] = 0.0;
+        }
+    }
+}
+
 } // anonymous namespace
 
-// Approximate-symmetry predicate â€” declared in eig.hpp; shared with the
+// Approximate-symmetry predicate — declared in eig.hpp; shared with the
 // register-side auto-dispatch in eig_reg.cpp. Element reads are total
 // (elemAsDouble) so non-double inputs dispatch cleanly into the entry
 // argchecks instead of tripping a raw buffer error here.
@@ -442,20 +644,25 @@ bool isSymmetricApprox(const Value &A, double tol)
     // Only types elemAsDouble can read dispatch here; cell/struct/string
     // fall through to the general path, whose entry argcheck rejects
     // them with the proper diagnostic. Complex matrices also take the
-    // general path â€” the elemAsDouble reads below cannot see imaginary
+    // general path — the elemAsDouble reads below cannot see imaginary
     // parts, and the complex-Schur route handles them.
     if (A.isComplex()) return false;
     if (!A.isNumeric() && !A.isLogical() && !A.isChar()) return false;
     const std::size_t m = static_cast<std::size_t>(A.dims().dim(0));
     const std::size_t n = static_cast<std::size_t>(A.dims().dim(1));
     if (m != n) return false;
+    double aMax = 1.0;
+    for (std::size_t idx = 0; idx < n * n; ++idx) {
+        const double v = std::fabs(A.elemAsDouble(idx));
+        if (v > aMax) aMax = v;
+    }
+    const double thresh = tol * aMax;
     for (std::size_t i = 0; i < n; ++i)
         for (std::size_t j = i + 1; j < n; ++j) {
             const double aij = A.elemAsDouble(i + j * m);
             const double aji = A.elemAsDouble(j + i * m);
             const double d = std::fabs(aij - aji);
-            const double s = std::max(std::fabs(aij), std::fabs(aji));
-            if (d > tol * (1.0 + s)) return false;
+            if (d > thresh) return false;
         }
     return true;
 }
@@ -486,18 +693,27 @@ eig_symmetric(const Value &A, std::pmr::memory_resource *mr)
     Value Aw = detail::widenSingleToDouble(A, mr);
 
     ScratchArena scratch(mr);
-    ScratchVec<double> A_work(n * n, &scratch);
     ScratchVec<double> V_work(n * n, &scratch);
-    std::copy(Aw.doubleData(), Aw.doubleData() + n * n, A_work.begin());
-    jacobiSymInplace(A_work.data(), n, V_work.data(),
-                     /*maxSweeps=*/64, /*tol=*/1e-13);
+    ScratchVec<double> evals(n, &scratch);
+
+    if (n <= 16) {
+        ScratchVec<double> A_work(n * n, &scratch);
+        std::copy(Aw.doubleData(), Aw.doubleData() + n * n, A_work.begin());
+        jacobiSymInplace(A_work.data(), n, V_work.data(),
+                         /*maxSweeps=*/64, /*tol=*/1e-13);
+        for (std::size_t i = 0; i < n; ++i)
+            evals[i] = A_work[i + i * n];
+    } else {
+        std::copy(Aw.doubleData(), Aw.doubleData() + n * n, V_work.begin());
+        symTridiagQL(V_work.data(), n, evals.data(), scratch);
+    }
 
     // Sort eigenvalues ASCENDING.
     ScratchVec<std::size_t> order(n, &scratch);
     for (std::size_t i = 0; i < n; ++i) order[i] = i;
     std::sort(order.begin(), order.end(),
               [&](std::size_t a, std::size_t b) {
-                  return A_work[a + a * n] < A_work[b + b * n];
+                  return evals[a] < evals[b];
               });
 
     auto Vout = Value::matrix(n, n, ValueType::DOUBLE, mr);
@@ -507,7 +723,7 @@ eig_symmetric(const Value &A, std::pmr::memory_resource *mr)
     std::fill(D, D + n * n, 0.0);
     for (std::size_t k = 0; k < n; ++k) {
         const std::size_t src = order[k];
-        D[k + k * n] = A_work[src + src * n];
+        D[k + k * n] = evals[src];
         for (std::size_t i = 0; i < n; ++i)
             V[i + k * n] = V_work[i + src * n];
     }
@@ -527,6 +743,581 @@ Value eig_values(const Value &A, std::pmr::memory_resource *mr)
     double *o = out.doubleDataMut();
     for (std::size_t i = 0; i < n; ++i) o[i] = Ddata[i + i * n];
     return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
+}
+
+namespace {
+
+// Upper-triangular Cholesky factor R (stored column-major, R(k, j) at R[k + j*n] for k <= j)
+// such that R^T * R = M (i.e. L = R^T is the lower Cholesky factor).
+// Storing R in column-major order makes column j of R (= row j of L) contiguous in memory!
+bool tryCholeskyUpper(const double *M, std::size_t n, double *R)
+{
+    double diagMax = 0.0;
+    for (std::size_t i = 0; i < n; ++i)
+        diagMax = std::max(diagMax, std::fabs(M[i + i * n]));
+    if (!(diagMax > 0.0)) return false;
+    const double tol = 1e-12 * diagMax;
+
+    std::vector<std::size_t> firstNz(n, 0);
+    for (std::size_t j = 0; j < n; ++j) {
+        const double *mj = M + j * n;
+        std::size_t fnz = j;
+        for (std::size_t i = 0; i < j; ++i) {
+            if (mj[i] != 0.0) { fnz = i; break; }
+        }
+        firstNz[j] = fnz;
+    }
+
+    for (std::size_t j = 0; j < n; ++j) {
+        double *rj = R + j * n;
+        const std::size_t fnzJ = firstNz[j];
+        for (std::size_t i = 0; i < fnzJ; ++i)
+            rj[i] = 0.0;
+        for (std::size_t i = fnzJ; i < j; ++i) {
+            const double *ri = R + i * n;
+            double s = M[i + j * n];
+            const std::size_t kStart = std::max(firstNz[i], fnzJ);
+            for (std::size_t k = kStart; k < i; ++k)
+                s -= ri[k] * rj[k];
+            rj[i] = s / ri[i];
+        }
+        double sum = 0.0;
+        for (std::size_t k = fnzJ; k < j; ++k)
+            sum += rj[k] * rj[k];
+        const double d = M[j + j * n] - sum;
+        if (!(d > tol)) return false;
+        rj[j] = std::sqrt(d);
+        for (std::size_t i = j + 1; i < n; ++i)
+            rj[i] = 0.0;
+    }
+    return true;
+}
+
+// Compute C = R^-T * M * R^-1 (where R^T * R = B, so L = R^T) using contiguous column dot products.
+void formSymmetricReduced(const double *M, const double *R, std::size_t n,
+                          double *C, ScratchArena &scratch)
+{
+    ScratchVec<double> Y(n * n, &scratch);
+    // Solve R^T * Y = M  (for each column col of M, y_i = (M(i,col) - sum_{k<i} R(k,i)*y_k) / R(i,i))
+    for (std::size_t col = 0; col < n; ++col) {
+        double *ycol = Y.data() + col * n;
+        const double *mcol = M + col * n;
+        for (std::size_t i = 0; i < n; ++i) {
+            const double *ri = R + i * n;
+            double s = mcol[i];
+            for (std::size_t k = 0; k < i; ++k)
+                s -= ri[k] * ycol[k];
+            ycol[i] = s / ri[i];
+        }
+    }
+    // Transpose Y into C temporarily so rows of Y become contiguous columns: Yt(k, r) = Y(r, k)
+    ScratchVec<double> Yt(n * n, &scratch);
+    for (std::size_t col = 0; col < n; ++col) {
+        const double *ycol = Y.data() + col * n;
+        for (std::size_t row = 0; row < n; ++row)
+            Yt[col + row * n] = ycol[row];
+    }
+    // Solve R^T * c_r = Y(r, :)^T for i = 0..r (upper triangle of symmetric C only!)
+    for (std::size_t r = 0; r < n; ++r) {
+        double *cr = C + r * n;
+        const double *ytr = Yt.data() + r * n;
+        for (std::size_t i = 0; i <= r; ++i) {
+            const double *ri = R + i * n;
+            double s = ytr[i];
+            for (std::size_t k = 0; k < i; ++k)
+                s -= ri[k] * cr[k];
+            cr[i] = s / ri[i];
+        }
+    }
+    // Mirror upper triangle of C to lower triangle.
+    for (std::size_t r = 0; r < n; ++r) {
+        for (std::size_t i = 0; i < r; ++i)
+            C[r + i * n] = C[i + r * n];
+    }
+}
+
+// Solve R * V = Q (i.e. L^T * V = Q) by back-substitution with contiguous column operations.
+void backsolveR(const double *R, const double *Q, std::size_t n, double *V)
+{
+    std::copy(Q, Q + n * n, V);
+    for (std::size_t col = 0; col < n; ++col) {
+        double *vcol = V + col * n;
+        for (std::size_t ii = n; ii > 0; --ii) {
+            const std::size_t i = ii - 1;
+            const double *ri = R + i * n;
+            const double vii = vcol[i] / ri[i];
+            vcol[i] = vii;
+            if (vii != 0.0) {
+                for (std::size_t k = 0; k < i; ++k)
+                    vcol[k] -= ri[k] * vii;
+            }
+        }
+    }
+}
+
+Value matmulDoubleOrComplex(const Value &X, const Value &Y, std::size_t n,
+                            std::pmr::memory_resource *mr)
+{
+    if (X.isComplex() || Y.isComplex()) {
+        auto out = Value::complexMatrix(n, n, mr);
+        Complex *od = out.complexDataMut();
+        for (std::size_t j = 0; j < n; ++j) {
+            for (std::size_t i = 0; i < n; ++i) {
+                Complex s(0.0, 0.0);
+                for (std::size_t k = 0; k < n; ++k) {
+                    const Complex xik = X.isComplex() ? X.complexData()[i + k * n] : Complex(X.elemAsDouble(i + k * n), 0.0);
+                    const Complex ykj = Y.isComplex() ? Y.complexData()[k + j * n] : Complex(Y.elemAsDouble(k + j * n), 0.0);
+                    s += xik * ykj;
+                }
+                od[i + j * n] = s;
+            }
+        }
+        return out;
+    }
+    auto out = Value::matrix(n, n, ValueType::DOUBLE, mr);
+    double *od = out.doubleDataMut();
+    const double *xd = X.doubleData();
+    const double *yd = Y.doubleData();
+    for (std::size_t j = 0; j < n; ++j) {
+        for (std::size_t i = 0; i < n; ++i) {
+            double s = 0.0;
+            for (std::size_t k = 0; k < n; ++k)
+                s += xd[i + k * n] * yd[k + j * n];
+            od[i + j * n] = s;
+        }
+    }
+    return out;
+}
+
+} // anonymous namespace
+
+std::tuple<Value, Value>
+eig_generalized_VD(const Value &A, const Value &B, std::pmr::memory_resource *mr)
+{
+    detail::requireDoubleInput(A, "eig");
+    detail::requireDoubleInput(B, "eig", "B");
+    if (A.dims().ndim() != 2 || B.dims().ndim() != 2)
+        throw Error("eig: inputs must be 2D matrices", 0, 0, "eig", "", "numkit:eig:notMatrix");
+    const std::size_t n = static_cast<std::size_t>(A.dims().dim(0));
+    if (n != static_cast<std::size_t>(A.dims().dim(1)) ||
+        n != static_cast<std::size_t>(B.dims().dim(0)) ||
+        n != static_cast<std::size_t>(B.dims().dim(1)))
+        throw Error("eig: A and B must be square matrices of the same size",
+                    0, 0, "eig", "", "numkit:eig:notSquare");
+
+    const bool wantSingle = (A.type() == ValueType::SINGLE || B.type() == ValueType::SINGLE);
+    const ValueType rtype = wantSingle ? ValueType::SINGLE : ValueType::DOUBLE;
+    if (n == 0) {
+        return std::make_tuple(Value::matrix(0, 0, rtype, mr), Value::matrix(0, 0, rtype, mr));
+    }
+
+    Value Aw = detail::widenSingleToDouble(A, mr);
+    Value Bw = detail::widenSingleToDouble(B, mr);
+
+    if (!Aw.isComplex() && !Bw.isComplex() &&
+        isSymmetricApprox(Aw, 1e-8) && isSymmetricApprox(Bw, 1e-8)) {
+        ScratchArena scratch(mr);
+        ScratchVec<double> L(n * n, &scratch);
+
+        // Case 1: B is symmetric positive definite -> standard Cholesky reduction
+        // (R^-T A R^-1) Q = Q D, V = R^-1 Q (B-orthonormal: V' * B * V = I).
+        if (tryCholeskyUpper(Bw.doubleData(), n, L.data())) {
+            auto Cval = Value::matrix(n, n, ValueType::DOUBLE, mr);
+            formSymmetricReduced(Aw.doubleData(), L.data(), n, Cval.doubleDataMut(), scratch);
+            auto [Q, D] = eig_symmetric(Cval, mr);
+            auto V = Value::matrix(n, n, ValueType::DOUBLE, mr);
+            backsolveR(L.data(), Q.doubleData(), n, V.doubleDataMut());
+            return std::make_tuple(
+                detail::narrowDoubleToSingleIf(V, wantSingle, mr),
+                detail::narrowDoubleToSingleIf(D, wantSingle, mr));
+        }
+
+        // Case 2: B is singular/indefinite (e.g. geometric stiffness Kg in buckling),
+        // while A is symmetric positive definite -> reciprocal Cholesky reduction
+        // (R_A^-T B R_A^-1) Q = Q D_mu, lambda = 1 / mu (Inf for mu == 0).
+        if (tryCholeskyUpper(Aw.doubleData(), n, L.data())) {
+            auto Cval = Value::matrix(n, n, ValueType::DOUBLE, mr);
+            formSymmetricReduced(Bw.doubleData(), L.data(), n, Cval.doubleDataMut(), scratch);
+            auto [Q, Dmu] = eig_symmetric(Cval, mr);
+            ScratchVec<double> Vraw(n * n, &scratch);
+            backsolveR(L.data(), Q.doubleData(), n, Vraw.data());
+
+            const double *dmu = Dmu.doubleData();
+            double muMax = 0.0;
+            for (std::size_t j = 0; j < n; ++j)
+                muMax = std::max(muMax, std::fabs(dmu[j + j * n]));
+            const double muTol = 1e-11 * std::max(1.0, muMax);
+
+            ScratchVec<double> lam(n, &scratch);
+            ScratchVec<std::size_t> order(n, &scratch);
+            for (std::size_t j = 0; j < n; ++j) {
+                order[j] = j;
+                const double mu = dmu[j + j * n];
+                lam[j] = (std::fabs(mu) > muTol) ? (1.0 / mu)
+                                                 : std::numeric_limits<double>::infinity();
+                // Normalize column j so its largest-magnitude component is +1.0 (LAPACK/QZ convention).
+                std::size_t iMax = 0;
+                double maxAbs = 0.0;
+                for (std::size_t i = 0; i < n; ++i) {
+                    const double a = std::fabs(Vraw[i + j * n]);
+                    if (a > maxAbs) { maxAbs = a; iMax = i; }
+                }
+                if (maxAbs > 0.0) {
+                    const double scale = Vraw[iMax + j * n];
+                    for (std::size_t i = 0; i < n; ++i)
+                        Vraw[i + j * n] /= scale;
+                }
+            }
+            std::sort(order.begin(), order.end(), [&](std::size_t a, std::size_t b) {
+                return lam[a] < lam[b];
+            });
+
+            auto V = Value::matrix(n, n, ValueType::DOUBLE, mr);
+            auto D = Value::matrix(n, n, ValueType::DOUBLE, mr);
+            double *vd = V.doubleDataMut();
+            double *dd = D.doubleDataMut();
+            std::fill(dd, dd + n * n, 0.0);
+            for (std::size_t col = 0; col < n; ++col) {
+                const std::size_t src = order[col];
+                dd[col + col * n] = lam[src];
+                for (std::size_t row = 0; row < n; ++row)
+                    vd[row + col * n] = Vraw[row + src * n];
+            }
+            return std::make_tuple(
+                detail::narrowDoubleToSingleIf(V, wantSingle, mr),
+                detail::narrowDoubleToSingleIf(D, wantSingle, mr));
+        }
+    }
+
+    // General fallback: try B^-1 * A; if B is singular, use reciprocal A^-1 * B.
+    try {
+        Value Binv = inv(Bw, mr);
+        Value M = matmulDoubleOrComplex(Binv, Aw, n, mr);
+        auto [V, D] = (!M.isComplex() && isSymmetricApprox(M, 1e-10))
+                          ? eig_symmetric(M, mr)
+                          : eig_general_VD(M, mr);
+        return std::make_tuple(
+            detail::narrowDoubleToSingleIf(V, wantSingle, mr),
+            detail::narrowDoubleToSingleIf(D, wantSingle, mr));
+    } catch (const Error &) {
+        Value Ainv = inv(Aw, mr);
+        Value M = matmulDoubleOrComplex(Ainv, Bw, n, mr);
+        auto [V, Dmu] = (!M.isComplex() && isSymmetricApprox(M, 1e-10))
+                            ? eig_symmetric(M, mr)
+                            : eig_general_VD(M, mr);
+        if (Dmu.isComplex()) {
+            Complex *dd = Dmu.complexDataMut();
+            double muMax = 0.0;
+            for (std::size_t j = 0; j < n; ++j)
+                muMax = std::max(muMax, std::abs(dd[j + j * n]));
+            const double muTol = 1e-11 * std::max(1.0, muMax);
+            for (std::size_t j = 0; j < n; ++j) {
+                const Complex mu = dd[j + j * n];
+                dd[j + j * n] = (std::abs(mu) > muTol)
+                                    ? (Complex(1.0, 0.0) / mu)
+                                    : Complex(std::numeric_limits<double>::infinity(), 0.0);
+            }
+        } else {
+            double *dd = Dmu.doubleDataMut();
+            double muMax = 0.0;
+            for (std::size_t j = 0; j < n; ++j)
+                muMax = std::max(muMax, std::fabs(dd[j + j * n]));
+            const double muTol = 1e-11 * std::max(1.0, muMax);
+            for (std::size_t j = 0; j < n; ++j) {
+                const double mu = dd[j + j * n];
+                dd[j + j * n] = (std::fabs(mu) > muTol)
+                                    ? (1.0 / mu)
+                                    : std::numeric_limits<double>::infinity();
+            }
+        }
+        return std::make_tuple(
+            detail::narrowDoubleToSingleIf(V, wantSingle, mr),
+            detail::narrowDoubleToSingleIf(Dmu, wantSingle, mr));
+    }
+}
+
+Value eig_generalized_values(const Value &A, const Value &B, std::pmr::memory_resource *mr)
+{
+    auto [V, D] = eig_generalized_VD(A, B, mr);
+    (void)V;
+    const std::size_t n = static_cast<std::size_t>(D.dims().dim(0));
+    if (D.isComplex()) {
+        auto out = Value::complexMatrix(n, 1, mr);
+        const Complex *dd = D.complexData();
+        Complex *od = out.complexDataMut();
+        for (std::size_t i = 0; i < n; ++i) od[i] = dd[i + i * n];
+        return out;
+    }
+    const bool wantSingle = (D.type() == ValueType::SINGLE);
+    auto out = Value::matrix(n, 1, ValueType::DOUBLE, mr);
+    for (std::size_t i = 0; i < n; ++i)
+        out.doubleDataMut()[i] = D.elemAsDouble(i + i * n);
+    return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
+}
+
+bool try_eigs_generalized_smallestabs(const Value &A, const Value &B, std::size_t k,
+                                      Value &Vout, Value &Dout,
+                                      std::pmr::memory_resource *mr)
+{
+    if (A.isComplex() || B.isComplex() || A.dims().ndim() != 2 || B.dims().ndim() != 2)
+        return false;
+    const std::size_t n = static_cast<std::size_t>(A.dims().dim(0));
+    if (n == 0 || k == 0 || k > n)
+        return false;
+    if (n != static_cast<std::size_t>(A.dims().dim(1)) ||
+        n != static_cast<std::size_t>(B.dims().dim(0)) ||
+        n != static_cast<std::size_t>(B.dims().dim(1)))
+        return false;
+
+    const bool wantSingle = (A.type() == ValueType::SINGLE || B.type() == ValueType::SINGLE);
+    Value Aw = detail::widenSingleToDouble(A, mr);
+    Value Bw = detail::widenSingleToDouble(B, mr);
+    if (!isSymmetricApprox(Aw, 1e-8) || !isSymmetricApprox(Bw, 1e-8))
+        return false;
+
+    const double *ad = Aw.doubleData();
+    const double *bd = Bw.doubleData();
+
+    // Compute skyline envelope of A so upper Cholesky R_A and triangular solves exploit banded structure.
+    std::vector<std::size_t> aFirstNz(n, 0);
+    for (std::size_t j = 0; j < n; ++j) {
+        const double *aj = ad + j * n;
+        std::size_t fnz = j;
+        for (std::size_t i = 0; i < j; ++i) {
+            if (aj[i] != 0.0) { fnz = i; break; }
+        }
+        aFirstNz[j] = fnz;
+    }
+
+    ScratchArena scratch(mr);
+    ScratchVec<double> RA(n * n, &scratch);
+    if (!tryCholeskyUpper(ad, n, RA.data()))
+        return false;
+
+    // Precompute column non-zero spans of B for fast B * z.
+    std::vector<std::size_t> bFirst(n, 0), bLast(n, 0);
+    bool bDiagAllPos = true;
+    for (std::size_t j = 0; j < n; ++j) {
+        const double *bj = bd + j * n;
+        if (!(bj[j] > 0.0)) bDiagAllPos = false;
+        std::size_t fnz = n, lnz = 0;
+        for (std::size_t i = 0; i < n; ++i) {
+            if (bj[i] != 0.0) {
+                if (fnz == n) fnz = i;
+                lnz = i + 1;
+            }
+        }
+        bFirst[j] = fnz;
+        bLast[j] = lnz;
+    }
+
+    const double *R = RA.data();
+    auto solveRT = [&](const double *rhs, double *y) {
+        for (std::size_t i = 0; i < n; ++i) {
+            const double *ri = R + i * n;
+            double s = rhs[i];
+            const std::size_t kStart = aFirstNz[i];
+            for (std::size_t k = kStart; k < i; ++k)
+                s -= ri[k] * y[k];
+            y[i] = s / ri[i];
+        }
+    };
+    auto solveR = [&](const double *rhs, double *x) {
+        std::copy(rhs, rhs + n, x);
+        for (std::size_t ii = n; ii > 0; --ii) {
+            const std::size_t i = ii - 1;
+            const double *ri = R + i * n;
+            const double xi = x[i] / ri[i];
+            x[i] = xi;
+            if (xi != 0.0) {
+                const std::size_t kStart = aFirstNz[i];
+                for (std::size_t k = kStart; k < i; ++k)
+                    x[k] -= ri[k] * xi;
+            }
+        }
+    };
+    auto matvecB = [&](const double *z, double *u) {
+        std::fill(u, u + n, 0.0);
+        for (std::size_t j = 0; j < n; ++j) {
+            const double zj = z[j];
+            if (zj == 0.0) continue;
+            const std::size_t f = bFirst[j], l = bLast[j];
+            const double *bj = bd + j * n;
+            for (std::size_t i = f; i < l; ++i)
+                u[i] += bj[i] * zj;
+        }
+    };
+
+    // Lanczos iteration on symmetric operator H = R_A^-T * B * R_A^-1.
+    // Eigenvalues mu of H satisfy A v = (1/mu) B v with v = R_A^-1 q,
+    // so largest |mu| of H correspond to smallest |lambda| = 1/|mu| of (A, B).
+    const std::size_t m = std::min(n, std::max(3 * k + 24, static_cast<std::size_t>(64)));
+    ScratchVec<double> Q(n * m, &scratch);
+    ScratchVec<double> alpha(m, &scratch);
+    ScratchVec<double> beta(m, &scratch);
+    ScratchVec<double> zBuf(n, &scratch);
+    ScratchVec<double> uBuf(n, &scratch);
+    ScratchVec<double> wBuf(n, &scratch);
+
+    // Deterministic starting vector with pseudo-random components to avoid symmetry orthogonality traps.
+    double *q0 = Q.data();
+    std::uint64_t seed = 0x9E3779B97F4A7C15ULL;
+    double norm0 = 0.0;
+    for (std::size_t i = 0; i < n; ++i) {
+        seed ^= seed >> 12;
+        seed ^= seed << 25;
+        seed ^= seed >> 27;
+        const double val = static_cast<double>( static_cast<std::int64_t>(seed * 0x2545F4914F6CDD1DULL) )
+                           * (1.0 / 9223372036854775808.0);
+        q0[i] = val;
+        norm0 += val * val;
+    }
+    norm0 = std::sqrt(norm0);
+    for (std::size_t i = 0; i < n; ++i) q0[i] /= norm0;
+
+    std::size_t mActual = 0;
+    for (std::size_t j = 0; j < m; ++j) {
+        const double *qj = Q.data() + j * n;
+        // w = H * qj = R_A^-T * (B * (R_A^-1 * qj))
+        solveR(qj, zBuf.data());
+        matvecB(zBuf.data(), uBuf.data());
+        solveRT(uBuf.data(), wBuf.data());
+
+        double aj = 0.0;
+        for (std::size_t i = 0; i < n; ++i) aj += qj[i] * wBuf[i];
+        alpha[j] = aj;
+
+        // Two-pass DGKS full reorthogonalization against Q(:, 0..j)
+        for (int pass = 0; pass < 2; ++pass) {
+            for (std::size_t r = 0; r <= j; ++r) {
+                const double *qr = Q.data() + r * n;
+                double dot = 0.0;
+                for (std::size_t i = 0; i < n; ++i) dot += qr[i] * wBuf[i];
+                for (std::size_t i = 0; i < n; ++i) wBuf[i] -= dot * qr[i];
+            }
+        }
+
+        double bnorm = 0.0;
+        for (std::size_t i = 0; i < n; ++i) bnorm += wBuf[i] * wBuf[i];
+        bnorm = std::sqrt(bnorm);
+        beta[j] = bnorm;
+        mActual = j + 1;
+
+        if (j + 1 < m) {
+            double *qNext = Q.data() + (j + 1) * n;
+            if (bnorm > 1e-14) {
+                const double invB = 1.0 / bnorm;
+                for (std::size_t i = 0; i < n; ++i) qNext[i] = wBuf[i] * invB;
+            } else {
+                // Invariant subspace reached; generate a new orthogonal direction.
+                for (std::size_t i = 0; i < n; ++i) qNext[i] = ((i + j) % 2 == 0) ? 1.0 : -1.0;
+                for (int pass = 0; pass < 2; ++pass) {
+                    for (std::size_t r = 0; r <= j; ++r) {
+                        const double *qr = Q.data() + r * n;
+                        double dot = 0.0;
+                        for (std::size_t i = 0; i < n; ++i) dot += qr[i] * qNext[i];
+                        for (std::size_t i = 0; i < n; ++i) qNext[i] -= dot * qr[i];
+                    }
+                }
+                double nrm = 0.0;
+                for (std::size_t i = 0; i < n; ++i) nrm += qNext[i] * qNext[i];
+                nrm = std::sqrt(nrm);
+                if (nrm <= 1e-14) break;
+                for (std::size_t i = 0; i < n; ++i) qNext[i] /= nrm;
+            }
+        }
+    }
+
+    if (mActual < k) return false;
+
+    // Solve the mActual x mActual symmetric tridiagonal eigenproblem T * S = S * diag(mu).
+    ScratchVec<double> S(mActual * mActual, &scratch);
+    std::fill(S.data(), S.data() + mActual * mActual, 0.0);
+    for (std::size_t i = 0; i < mActual; ++i) {
+        S[i + i * mActual] = alpha[i];
+        if (i + 1 < mActual) {
+            S[(i + 1) + i * mActual] = beta[i];
+            S[i + (i + 1) * mActual] = beta[i];
+        }
+    }
+    ScratchVec<double> dTrid(mActual, &scratch);
+    symTridiagQL(S.data(), mActual, dTrid.data(), scratch);
+
+    // Pick the k Ritz pairs with largest |mu| (which map to smallest |lambda| = 1/|mu|).
+    double muMax = 0.0;
+    for (std::size_t i = 0; i < mActual; ++i)
+        muMax = std::max(muMax, std::fabs(dTrid[i]));
+    const double muTol = 1e-12 * std::max(1.0, muMax);
+
+    std::vector<std::size_t> idx(mActual);
+    for (std::size_t i = 0; i < mActual; ++i) idx[i] = i;
+    std::sort(idx.begin(), idx.end(), [&](std::size_t a, std::size_t b) {
+        return std::fabs(dTrid[a]) > std::fabs(dTrid[b]);
+    });
+    idx.resize(k);
+
+    // Sort selected k eigenvalues in ascending algebraic order of lambda = 1/mu (matching MATLAB eigs).
+    auto lambdaOf = [&](std::size_t r) {
+        const double mu = dTrid[r];
+        return (std::fabs(mu) > muTol) ? (1.0 / mu) : std::numeric_limits<double>::infinity();
+    };
+    std::sort(idx.begin(), idx.end(), [&](std::size_t a, std::size_t b) {
+        return lambdaOf(a) < lambdaOf(b);
+    });
+
+    auto V = Value::matrix(n, k, ValueType::DOUBLE, mr);
+    auto D = Value::matrix(k, k, ValueType::DOUBLE, mr);
+    double *vd = V.doubleDataMut();
+    double *dd = D.doubleDataMut();
+    std::fill(dd, dd + k * k, 0.0);
+
+    for (std::size_t col = 0; col < k; ++col) {
+        const std::size_t r = idx[col];
+        const double mu = dTrid[r];
+        dd[col + col * k] = lambdaOf(r);
+
+        // Compute y = Q(:, 0..mActual-1) * S(:, r)
+        const double *sr = S.data() + r * mActual;
+        std::fill(zBuf.data(), zBuf.data() + n, 0.0);
+        for (std::size_t j = 0; j < mActual; ++j) {
+            const double sj = sr[j];
+            const double *qj = Q.data() + j * n;
+            for (std::size_t i = 0; i < n; ++i)
+                zBuf[i] += qj[i] * sj;
+        }
+        // Solve R_A * v_col = y
+        double *vcol = vd + col * n;
+        solveR(zBuf.data(), vcol);
+
+        // Normalize v_col:
+        // If B has positive diagonal and mu > 0, normalize to unit B-norm (v^T B v = 1).
+        // Note: v^T B v = y^T H y = mu * (y^T y) = mu!
+        if (bDiagAllPos && mu > muTol) {
+            matvecB(vcol, uBuf.data());
+            double bNormSq = 0.0;
+            for (std::size_t i = 0; i < n; ++i) bNormSq += vcol[i] * uBuf[i];
+            if (bNormSq > 0.0) {
+                const double invNorm = 1.0 / std::sqrt(bNormSq);
+                for (std::size_t i = 0; i < n; ++i) vcol[i] *= invNorm;
+            }
+        } else {
+            // Indefinite/singular B (e.g. buckling): normalize so largest-magnitude entry is +1.0.
+            std::size_t iMax = 0;
+            double maxAbs = 0.0;
+            for (std::size_t i = 0; i < n; ++i) {
+                const double a = std::fabs(vcol[i]);
+                if (a > maxAbs) { maxAbs = a; iMax = i; }
+            }
+            if (maxAbs > 0.0) {
+                const double scale = vcol[iMax];
+                for (std::size_t i = 0; i < n; ++i) vcol[i] /= scale;
+            }
+        }
+    }
+
+    Vout = detail::narrowDoubleToSingleIf(V, wantSingle, mr);
+    Dout = detail::narrowDoubleToSingleIf(D, wantSingle, mr);
+    return true;
 }
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

@@ -1,4 +1,4 @@
-﻿/// @file eig.hpp
+/// @file eig.hpp
 /// @ingroup group_matfun
 // toolboxes/linalg/include/nk/linalg/eig.hpp
 //
@@ -53,6 +53,21 @@ Value eig_general_values(const Value &A, std::pmr::memory_resource *mr = nullptr
 /// for complex eigvec extraction is deferred).
 std::tuple<Value, Value>
 eig_general_VD(const Value &A, std::pmr::memory_resource *mr = nullptr);
+
+/// @brief Generalized eigenvalues `e = eig(A, B)` as a column vector.
+Value eig_generalized_values(const Value &A, const Value &B,
+                             std::pmr::memory_resource *mr = nullptr);
+
+/// @brief Generalized eigendecomposition `[V, D] = eig(A, B)` solving `A*V = B*V*D`.
+std::tuple<Value, Value>
+eig_generalized_VD(const Value &A, const Value &B,
+                   std::pmr::memory_resource *mr = nullptr);
+
+/// @brief Fast Cholesky-Lanczos shift-invert solver for `eigs(A, B, k, 'smallestabs')`
+/// when A, B are real symmetric, A is SPD, and k << n.
+bool try_eigs_generalized_smallestabs(const Value &A, const Value &B, std::size_t k,
+                                      Value &Vout, Value &Dout,
+                                      std::pmr::memory_resource *mr = nullptr);
 
 /// @brief Hessenberg reduction (`[P, H] = hess(A)`).
 ///

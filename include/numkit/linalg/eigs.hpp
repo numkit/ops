@@ -1,4 +1,4 @@
-﻿/// @file eigs.hpp
+/// @file eigs.hpp
 /// @ingroup group_matfun
 // toolboxes/linalg/include/nk/linalg/eigs.hpp
 //
@@ -18,9 +18,17 @@ namespace numkit::linalg {
 
 /// @brief Compute top k eigenvalues of A as a column vector.
 Value eigs_values(const Value &A, std::size_t k = 6, std::pmr::memory_resource *mr = nullptr);
+Value eigs_values(const Value &A, std::size_t k, const Value &sigma, std::pmr::memory_resource *mr = nullptr);
 
-/// @brief Compute top k eigenvalues and eigenvectors of A: [V, D] = eigs(A, k).
+/// @brief Compute top k eigenvalues and eigenvectors of A: [V, D] = eigs(A, k[, sigma]).
 std::tuple<Value, Value> eigs(const Value &A, std::size_t k = 6, std::pmr::memory_resource *mr = nullptr);
+std::tuple<Value, Value> eigs(const Value &A, std::size_t k, const Value &sigma, std::pmr::memory_resource *mr = nullptr);
+
+/// @brief Generalized subset eigenvalues / eigenvectors: eigs(A, B, k[, sigma]).
+Value eigs_generalized_values(const Value &A, const Value &B, std::size_t k = 6,
+                              const Value &sigma = Value(), std::pmr::memory_resource *mr = nullptr);
+std::tuple<Value, Value> eigs_generalized(const Value &A, const Value &B, std::size_t k = 6,
+                                          const Value &sigma = Value(), std::pmr::memory_resource *mr = nullptr);
 
 /// @brief Compute top k singular values of A as a column vector.
 Value svds_values(const Value &A, std::size_t k = 6, std::pmr::memory_resource *mr = nullptr);

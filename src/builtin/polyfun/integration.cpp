@@ -519,17 +519,29 @@ Value cumtrapz(const Value &x, const Value &y, std::pmr::memory_resource *mr)
 // ── integral (adaptive Gauss-Kronrod) ────────────────────────────────
 namespace detail {
 
+static Complex evalScalarOrComplex(FnHandle fn, double x, bool &sawComplex,
+                                   std::pmr::memory_resource *mr)
+{
+    Value in = Value::scalar(x, mr);
+    Value out[1];
+    fn(Span<const Value>(&in, 1), Span<Value>(out, 1), mr);
+    if (out[0].type() == ValueType::COMPLEX) {
+        sawComplex = true;
+        return out[0].toComplex();
+    }
+    return Complex(out[0].toScalar(), 0.0);
+}
 
-std::pair<double, double>
-gaussKronrod15(FnHandle fn, double a, double b,
+std::pair<Complex, Complex>
+gaussKronrod15(FnHandle fn, double a, double b, bool &sawComplex,
                std::pmr::memory_resource *mr)
 {
     const double half  = 0.5 * (b - a);
     const double mid   = 0.5 * (b + a);
-    double K = 0.0, G = 0.0;
+    Complex K(0.0, 0.0), G(0.0, 0.0);
     for (int i = 0; i < 15; ++i) {
-        const double x  = mid + half * kKronrodX[i];
-        const double fv = cb::evalScalar(fn, x, mr);
+        const double x   = mid + half * kKronrodX[i];
+        const Complex fv = evalScalarOrComplex(fn, x, sawComplex, mr);
         K += kKronrodW[i] * fv;
         if (i % 2 == 1)
             G += kGaussW[i / 2] * fv;
@@ -537,16 +549,137 @@ gaussKronrod15(FnHandle fn, double a, double b,
     return {half * K, half * G};
 }
 
-double adaptiveIntegral(FnHandle fn, double a, double b,
-                        double absTol, int depth, int maxDepth,
-                        std::pmr::memory_resource *mr)
+Complex adaptiveIntegral(FnHandle fn, double a, double b,
+                         double absTol, int depth, int maxDepth,
+                         bool &sawComplex,
+                         std::pmr::memory_resource *mr)
 {
-    auto [K, G] = gaussKronrod15(fn, a, b, mr);
+    auto [K, G] = gaussKronrod15(fn, a, b, sawComplex, mr);
     const double err = std::abs(K - G);
     if (err < absTol || depth >= maxDepth) return K;
     const double mid = 0.5 * (a + b);
-    return adaptiveIntegral(fn, a, mid, absTol * 0.5, depth + 1, maxDepth, mr)
-         + adaptiveIntegral(fn, mid, b, absTol * 0.5, depth + 1, maxDepth, mr);
+    return adaptiveIntegral(fn, a, mid, absTol * 0.5, depth + 1, maxDepth, sawComplex, mr)
+         + adaptiveIntegral(fn, mid, b, absTol * 0.5, depth + 1, maxDepth, sawComplex, mr);
+}
+
+static Complex adaptiveIntegral2D(FnHandle fn, double x0, double x1,
+                                  double y0, double y1, double tol,
+                                  int depth, int maxDepth,
+                                  bool &vectorizedOk, bool &sawComplex,
+                                  std::pmr::memory_resource *mr)
+{
+    const double halfX = 0.5 * (x1 - x0);
+    const double midX  = 0.5 * (x1 + x0);
+    const double halfY = 0.5 * (y1 - y0);
+    const double midY  = 0.5 * (y1 + y0);
+
+    Complex Z[15][15];
+    bool evaluated = false;
+
+    if (vectorizedOk) {
+        try {
+            Value X = Value::matrix(15, 15, ValueType::DOUBLE, mr);
+            Value Y = Value::matrix(15, 15, ValueType::DOUBLE, mr);
+            double *xd = X.doubleDataMut();
+            double *yd = Y.doubleDataMut();
+            for (int j = 0; j < 15; ++j) {
+                const double yv = midY + halfY * kKronrodX[j];
+                for (int i = 0; i < 15; ++i) {
+                    xd[j * 15 + i] = midX + halfX * kKronrodX[i];
+                    yd[j * 15 + i] = yv;
+                }
+            }
+            Value xy[2] = {std::move(X), std::move(Y)};
+            Value out[1];
+            fn(Span<const Value>(xy, 2), Span<Value>(out, 1), mr);
+            if (out[0].numel() == 225) {
+                if (out[0].type() == ValueType::COMPLEX) {
+                    sawComplex = true;
+                    const Complex *cd = out[0].complexData();
+                    for (int j = 0; j < 15; ++j)
+                        for (int i = 0; i < 15; ++i)
+                            Z[i][j] = cd[j * 15 + i];
+                    evaluated = true;
+                } else if (out[0].type() == ValueType::DOUBLE) {
+                    const double *dd = out[0].doubleData();
+                    for (int j = 0; j < 15; ++j)
+                        for (int i = 0; i < 15; ++i)
+                            Z[i][j] = Complex(dd[j * 15 + i], 0.0);
+                    evaluated = true;
+                }
+            } else if (out[0].isScalar()) {
+                // Constant function f(X,Y) = const
+                Complex cv = (out[0].type() == ValueType::COMPLEX)
+                    ? (sawComplex = true, out[0].toComplex())
+                    : Complex(out[0].toScalar(), 0.0);
+                for (int i = 0; i < 15; ++i)
+                    for (int j = 0; j < 15; ++j)
+                        Z[i][j] = cv;
+                evaluated = true;
+            }
+            if (!evaluated)
+                vectorizedOk = false;
+        } catch (...) {
+            vectorizedOk = false;
+        }
+    }
+
+    if (!evaluated) {
+        for (int i = 0; i < 15; ++i) {
+            const double xv = midX + halfX * kKronrodX[i];
+            for (int j = 0; j < 15; ++j) {
+                const double yv = midY + halfY * kKronrodX[j];
+                Value xy[2] = {Value::scalar(xv, mr), Value::scalar(yv, mr)};
+                Value out[1];
+                fn(Span<const Value>(xy, 2), Span<Value>(out, 1), mr);
+                if (out[0].type() == ValueType::COMPLEX) {
+                    sawComplex = true;
+                    Z[i][j] = out[0].toComplex();
+                } else {
+                    Z[i][j] = Complex(out[0].toScalar(), 0.0);
+                }
+            }
+        }
+    }
+
+    Complex Kxy(0.0, 0.0), GxKy(0.0, 0.0), KxGy(0.0, 0.0), Gxy(0.0, 0.0);
+    for (int i = 0; i < 15; ++i) {
+        Complex ky(0.0, 0.0), gy(0.0, 0.0);
+        for (int j = 0; j < 15; ++j) {
+            ky += kKronrodW[j] * Z[i][j];
+            if (j % 2 == 1)
+                gy += kGaussW[j / 2] * Z[i][j];
+        }
+        Kxy  += kKronrodW[i] * ky;
+        KxGy += kKronrodW[i] * gy;
+        if (i % 2 == 1) {
+            GxKy += kGaussW[i / 2] * ky;
+            Gxy  += kGaussW[i / 2] * gy;
+        }
+    }
+    const double areaScale = halfX * halfY;
+    Kxy  *= areaScale;
+    GxKy *= areaScale;
+    KxGy *= areaScale;
+    Gxy  *= areaScale;
+
+    const double errX = std::abs(Kxy - GxKy);
+    const double errY = std::abs(Kxy - KxGy);
+    const double err  = std::max({std::abs(Kxy - Gxy), errX, errY});
+    if (err < tol || depth >= maxDepth)
+        return Kxy;
+
+    if (errX > errY * 1.25 || (errY <= errX * 1.25 && (x1 - x0) >= (y1 - y0))) {
+        return adaptiveIntegral2D(fn, x0, midX, y0, y1, tol * 0.5, depth + 1, maxDepth,
+                                  vectorizedOk, sawComplex, mr)
+             + adaptiveIntegral2D(fn, midX, x1, y0, y1, tol * 0.5, depth + 1, maxDepth,
+                                  vectorizedOk, sawComplex, mr);
+    } else {
+        return adaptiveIntegral2D(fn, x0, x1, y0, midY, tol * 0.5, depth + 1, maxDepth,
+                                  vectorizedOk, sawComplex, mr)
+             + adaptiveIntegral2D(fn, x0, x1, midY, y1, tol * 0.5, depth + 1, maxDepth,
+                                  vectorizedOk, sawComplex, mr);
+    }
 }
 
 } // namespace
@@ -564,50 +697,58 @@ Value integral(FnHandle fn, double a, double b, double absTol,
     if (b < a) std::swap(a, b);
     if (a == b) return Value::scalar(0.0, mr);
     constexpr int kMaxDepth = 20;
-    const double r = adaptiveIntegral(fn, a, b, absTol, 0, kMaxDepth, mr);
-    return Value::scalar(sign * r, mr);
+    bool sawComplex = false;
+    const Complex r = detail::adaptiveIntegral(fn, a, b, absTol, 0, kMaxDepth, sawComplex, mr);
+    if (sawComplex && r.imag() != 0.0)
+        return Value::complexScalar(sign * r.real(), sign * r.imag(), mr);
+    return Value::scalar(sign * r.real(), mr);
 }
 
 Value integral2(FnHandle fn, double a, double b, double c, double d,
                 double absTol, std::pmr::memory_resource *mr)
 {
-    // Iterated quadrature: outer sweep over x; at each x, an inner sweep over
-    // y of fn(x, ·). Both reuse the adaptive 1-D `integral`. (function_ref is
-    // non-owning, but every nested call is synchronous, so the lambdas and the
-    // captured x outlive the calls that reference them.)
-    double xval = 0.0;
-    auto innerFn = [&fn, &xval](Span<const Value> ay, Span<Value> oy,
-                                std::pmr::memory_resource *m) {
-        Value xy[2] = { Value::scalar(xval, m), ay[0] };
-        fn(Span<const Value>(xy, 2), oy, m);
-    };
-    auto outerFn = [&](Span<const Value> ax, Span<Value> ox,
-                       std::pmr::memory_resource *m) {
-        xval = ax[0].toScalar();
-        ox[0] = integral(innerFn, c, d, absTol, m);
-    };
-    return integral(outerFn, a, b, absTol, mr);
+    if (!std::isfinite(a) || !std::isfinite(b) || !std::isfinite(c) || !std::isfinite(d))
+        throw Error("integral2: bounds must be finite",
+                     0, 0, "integral2", "", "numkit:integral2:badBounds");
+    if (absTol <= 0)
+        throw Error("integral2: absTol must be positive",
+                     0, 0, "integral2", "", "numkit:integral2:badTol");
+    double sign = 1.0;
+    if (b < a) { std::swap(a, b); sign = -sign; }
+    if (d < c) { std::swap(c, d); sign = -sign; }
+    if (a == b || c == d) return Value::scalar(0.0, mr);
+    constexpr int kMaxDepth = 18;
+    bool vectorizedOk = true;
+    bool sawComplex = false;
+    const Complex r = detail::adaptiveIntegral2D(fn, a, b, c, d, absTol, 0, kMaxDepth,
+                                                 vectorizedOk, sawComplex, mr);
+    if (sawComplex && r.imag() != 0.0)
+        return Value::complexScalar(sign * r.real(), sign * r.imag(), mr);
+    return Value::scalar(sign * r.real(), mr);
 }
 
 Value integral3(FnHandle fn, double a, double b, double c, double d,
                 double e, double f, double absTol,
                 std::pmr::memory_resource *mr)
 {
-    double xval = 0.0, yval = 0.0;
-    auto innermostFn = [&fn, &xval, &yval](Span<const Value> az, Span<Value> oz,
-                                           std::pmr::memory_resource *m) {
-        Value xyz[3] = { Value::scalar(xval, m), Value::scalar(yval, m), az[0] };
-        fn(Span<const Value>(xyz, 3), oz, m);
-    };
-    auto middleFn = [&](Span<const Value> ay, Span<Value> oy,
-                        std::pmr::memory_resource *m) {
-        yval = ay[0].toScalar();
-        oy[0] = integral(innermostFn, e, f, absTol, m);
+    double xval = 0.0;
+    auto inner2D = [&fn, &xval](Span<const Value> ayz, Span<Value> oyz,
+                                std::pmr::memory_resource *m) {
+        if (ayz[0].numel() > 1) {
+            Value X = Value::matrix(ayz[0].dims().rows(), ayz[0].dims().cols(), ValueType::DOUBLE, m);
+            double *xd = X.doubleDataMut();
+            for (size_t k = 0; k < X.numel(); ++k) xd[k] = xval;
+            Value xyz[3] = { std::move(X), ayz[0], ayz[1] };
+            fn(Span<const Value>(xyz, 3), oyz, m);
+        } else {
+            Value xyz[3] = { Value::scalar(xval, m), ayz[0], ayz[1] };
+            fn(Span<const Value>(xyz, 3), oyz, m);
+        }
     };
     auto outerFn = [&](Span<const Value> ax, Span<Value> ox,
                        std::pmr::memory_resource *m) {
         xval = ax[0].toScalar();
-        ox[0] = integral(middleFn, c, d, absTol, m);
+        ox[0] = integral2(inner2D, c, d, e, f, absTol, m);
     };
     return integral(outerFn, a, b, absTol, mr);
 }

@@ -307,7 +307,7 @@ bool la_solve_small_fastpath(const T *A, std::size_t lda,
         }
     }
     
-    // Cleanup remaining columns
+    // Cleanup remaining columns (for double: columns nrhs - (nrhs % 4) .. nrhs - 1; for complex: all columns 0 .. nrhs - 1)
     for (; j < nrhs; ++j) {
         T *x_col = X + j * ldx;
         for (std::size_t k = 0; k < n; ++k) {
@@ -325,10 +325,6 @@ bool la_solve_small_fastpath(const T *A, std::size_t lda,
                 }
             }
         }
-    }
-
-    for (j = nrhs - (nrhs % 4 == 0 ? 0 : nrhs % 4); j < nrhs; ++j) {
-        T *x_col = X + j * ldx;
         for (std::intptr_t k = static_cast<std::intptr_t>(n) - 1; k >= 0; --k) {
             x_col[k] /= LU_stack[k + k * n];
             const T xkj = x_col[k];
@@ -508,6 +504,22 @@ bool lu_blocked_inplace(T *A, std::size_t lda, std::int32_t *piv, std::size_t m,
 
         // Factor panel: recursive LU handles tall-skinny panels perfectly
         if (!lu_recursive_inplace(A_jj, lda, piv + j, rem_m, jb, offset_row + j)) return false;
+
+        // Apply permutations piv[j..j+jb-1] to left panel columns 0..j-1
+        if (j > 0) {
+            const std::size_t p_left_thresh = (j >= 64) ? 32 : (j + 1);
+            numkit::detail::parallel_for(j, p_left_thresh, [=](std::size_t c_start, std::size_t c_end) {
+                for (std::size_t col = c_start; col < c_end; ++col) {
+                    T *col_ptr = A + j + col * lda;
+                    for (std::size_t i = 0; i < jb; ++i) {
+                        std::size_t p = static_cast<std::size_t>(piv[j + i] - (offset_row + j));
+                        if (p != i) {
+                            std::swap(col_ptr[i], col_ptr[p]);
+                        }
+                    }
+                }
+            });
+        }
 
         if (j + jb < n) {
             const std::size_t rem_n = n - (j + jb);
