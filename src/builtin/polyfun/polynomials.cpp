@@ -1007,9 +1007,20 @@ Value polyfit(const Value &x, const Value &y, int deg, std::pmr::memory_resource
     const size_t m = x.numel();
     const int np = deg + 1;
 
-    if (static_cast<size_t>(np) > m)
+    if (m == 0)
         throw Error("polyfit: not enough data points",
                      0, 0, "polyfit", "", "numkit:polyfit:tooFewPoints");
+    if (static_cast<size_t>(np) > m) {
+        Value pSub = polyfit(x, y, static_cast<int>(m) - 1, mr);
+        auto p = Value::matrix(1, np, ValueType::DOUBLE, mr);
+        double *pd = p.doubleDataMut();
+        const int offset = np - static_cast<int>(m);
+        for (int j = 0; j < offset; ++j)
+            pd[j] = 0.0;
+        for (size_t j = 0; j < m; ++j)
+            pd[offset + static_cast<int>(j)] = pSub.doubleData()[j];
+        return p;
+    }
 
     const double *xd = x.doubleData();
     const double *yd = y.doubleData();

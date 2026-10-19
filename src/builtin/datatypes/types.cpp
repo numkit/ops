@@ -103,33 +103,84 @@ Value issparse(const Value & /*x*/, std::pmr::memory_resource *mr) { return Valu
 Value isnan(const Value &x, std::pmr::memory_resource *mr)
 {
     std::pmr::memory_resource *p = mr;
-    if (x.isScalar())
+    if (x.isComplex()) {
+        auto r = createLike(x, ValueType::LOGICAL, p);
+        const auto *cd = x.complexData();
+        uint8_t *ld = r.logicalDataMut();
+        for (size_t i = 0; i < x.numel(); ++i)
+            ld[i] = (std::isnan(cd[i].real()) || std::isnan(cd[i].imag())) ? 1 : 0;
+        return r;
+    }
+    if (x.isScalar() && x.type() == ValueType::DOUBLE)
         return Value::logicalScalar(std::isnan(x.toScalar()), p);
     auto r = createLike(x, ValueType::LOGICAL, p);
     if (x.numel() == 0) return r;
-    ::numkit::builtin::detail::doubleIsNaNLoop(x.doubleData(), r.logicalDataMut(), x.numel());
+    if (x.type() == ValueType::DOUBLE) {
+        ::numkit::builtin::detail::doubleIsNaNLoop(x.doubleData(), r.logicalDataMut(), x.numel());
+    } else if (x.type() == ValueType::SINGLE) {
+        const float *sd = x.singleData();
+        uint8_t *ld = r.logicalDataMut();
+        for (size_t i = 0; i < x.numel(); ++i)
+            ld[i] = std::isnan(sd[i]) ? 1 : 0;
+    } else {
+        std::memset(r.logicalDataMut(), 0, x.numel());
+    }
     return r;
 }
 
 Value isinf(const Value &x, std::pmr::memory_resource *mr)
 {
     std::pmr::memory_resource *p = mr;
-    if (x.isScalar())
+    if (x.isComplex()) {
+        auto r = createLike(x, ValueType::LOGICAL, p);
+        const auto *cd = x.complexData();
+        uint8_t *ld = r.logicalDataMut();
+        for (size_t i = 0; i < x.numel(); ++i)
+            ld[i] = (std::isinf(cd[i].real()) || std::isinf(cd[i].imag())) ? 1 : 0;
+        return r;
+    }
+    if (x.isScalar() && x.type() == ValueType::DOUBLE)
         return Value::logicalScalar(std::isinf(x.toScalar()), p);
     auto r = createLike(x, ValueType::LOGICAL, p);
     if (x.numel() == 0) return r;
-    ::numkit::builtin::detail::doubleIsInfLoop(x.doubleData(), r.logicalDataMut(), x.numel());
+    if (x.type() == ValueType::DOUBLE) {
+        ::numkit::builtin::detail::doubleIsInfLoop(x.doubleData(), r.logicalDataMut(), x.numel());
+    } else if (x.type() == ValueType::SINGLE) {
+        const float *sd = x.singleData();
+        uint8_t *ld = r.logicalDataMut();
+        for (size_t i = 0; i < x.numel(); ++i)
+            ld[i] = std::isinf(sd[i]) ? 1 : 0;
+    } else {
+        std::memset(r.logicalDataMut(), 0, x.numel());
+    }
     return r;
 }
 
 Value isfinite(const Value &x, std::pmr::memory_resource *mr)
 {
     std::pmr::memory_resource *p = mr;
-    if (x.isScalar())
+    if (x.isComplex()) {
+        auto r = createLike(x, ValueType::LOGICAL, p);
+        const auto *cd = x.complexData();
+        uint8_t *ld = r.logicalDataMut();
+        for (size_t i = 0; i < x.numel(); ++i)
+            ld[i] = (std::isfinite(cd[i].real()) && std::isfinite(cd[i].imag())) ? 1 : 0;
+        return r;
+    }
+    if (x.isScalar() && x.type() == ValueType::DOUBLE)
         return Value::logicalScalar(std::isfinite(x.toScalar()), p);
     auto r = createLike(x, ValueType::LOGICAL, p);
     if (x.numel() == 0) return r;
-    ::numkit::builtin::detail::doubleIsFiniteLoop(x.doubleData(), r.logicalDataMut(), x.numel());
+    if (x.type() == ValueType::DOUBLE) {
+        ::numkit::builtin::detail::doubleIsFiniteLoop(x.doubleData(), r.logicalDataMut(), x.numel());
+    } else if (x.type() == ValueType::SINGLE) {
+        const float *sd = x.singleData();
+        uint8_t *ld = r.logicalDataMut();
+        for (size_t i = 0; i < x.numel(); ++i)
+            ld[i] = std::isfinite(sd[i]) ? 1 : 0;
+    } else {
+        std::memset(r.logicalDataMut(), 1, x.numel());
+    }
     return r;
 }
 

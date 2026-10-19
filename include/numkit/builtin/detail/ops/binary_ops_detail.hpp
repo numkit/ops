@@ -396,12 +396,13 @@ Value compareImpl(Cmp c, const Value &a, const Value &b)
     auto getD = [](const Value &v, size_t r, size_t col) -> double {
         size_t idx = col * v.dims().rows() + r;
         if (v.isLogical()) return static_cast<double>(v.logicalData()[idx]);
-        if (isIntegerType(v.type()) || v.type() == ValueType::SINGLE) return v.elemAsDouble(idx);
-        return v.doubleData()[idx];
+        if (v.type() == ValueType::DOUBLE) return v.doubleData()[idx];
+        return v.elemAsDouble(idx);
     };
     auto getDScalar = [](const Value &v) -> double {
         if (v.isLogical()) return v.toBool() ? 1.0 : 0.0;
-        return v.toScalar();
+        if (v.type() == ValueType::DOUBLE) return v.toScalar();
+        return v.elemAsDouble(0);
     };
 
     if (a.isScalar() && b.isScalar())

@@ -271,6 +271,23 @@ FilterState filter(const Value &b, const Value &a, const Value &x,
 
 Value filtfilt(const Value &b, const Value &a, const Value &x, std::pmr::memory_resource *mr)
 {
+    if (x.isComplex()) {
+        const size_t nx = x.numel();
+        const auto *xd = x.complexData();
+        Value xRe = Value::matrix(x.dims().rows(), x.dims().cols(), ValueType::DOUBLE, mr);
+        Value xIm = Value::matrix(x.dims().rows(), x.dims().cols(), ValueType::DOUBLE, mr);
+        for (size_t i = 0; i < nx; ++i) {
+            xRe.doubleDataMut()[i] = xd[i].real();
+            xIm.doubleDataMut()[i] = xd[i].imag();
+        }
+        Value yRe = filtfilt(b, a, xRe, mr);
+        Value yIm = filtfilt(b, a, xIm, mr);
+        Value out = Value::matrix(x.dims().rows(), x.dims().cols(), ValueType::COMPLEX, mr);
+        auto *od = out.complexDataMut();
+        for (size_t i = 0; i < nx; ++i)
+            od[i] = std::complex<double>(yRe.doubleData()[i], yIm.doubleData()[i]);
+        return out;
+    }
     const size_t nb = b.numel(), na = a.numel(), nx = x.numel();
     const double *bd = b.doubleData();
     const double *ad = a.doubleData();

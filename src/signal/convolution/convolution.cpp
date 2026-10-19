@@ -74,8 +74,9 @@ static bool convRowOut(const Value &a, const Value &b)
     auto isCol = [](const Value &v) {
         return v.dims().cols() == 1 && v.numel() > 1;
     };
-    if (isCol(a)) return false;
-    return a.numel() > b.numel() || !isCol(b);
+    if (a.numel() > b.numel()) return !isCol(a);
+    if (b.numel() > a.numel()) return !isCol(b);
+    return !isCol(a) && !isCol(b);
 }
 
 Value conv(const Value &aIn, const Value &bIn, const std::string &shape, std::pmr::memory_resource *mr)
@@ -231,16 +232,20 @@ xcorr(const Value &x, const Value &y, std::pmr::memory_resource *mr)
     const size_t ny = y.numel();
 
     const size_t maxLen = std::max(nx, ny);
-    const size_t nc = nx + ny - 1;
+    const size_t nc = (maxLen > 0) ? (2 * maxLen - 1) : 0;
 
     ScratchArena scratch(mr);
-    auto yRev = ScratchVec<double>(ny, &scratch);
-    for (size_t i = 0; i < ny; ++i)
-        yRev[i] = yd[ny - 1 - i];
+    auto xPad = ScratchVec<double>(maxLen, &scratch);
+    auto yRev = ScratchVec<double>(maxLen, &scratch);
+    for (size_t i = 0; i < maxLen; ++i) {
+        xPad[i] = (i < nx) ? xd[i] : 0.0;
+        const size_t yIdx = maxLen - 1 - i;
+        yRev[i] = (yIdx < ny) ? yd[yIdx] : 0.0;
+    }
 
-    auto c = conv_use_fft(nx, ny)
-        ? convFFT  (&scratch, xd, nx, yRev.data(), ny)
-        : ops::convDirect(xd, nx, yRev.data(), ny, &scratch);
+    auto c = conv_use_fft(maxLen, maxLen)
+        ? convFFT  (&scratch, xPad.data(), maxLen, yRev.data(), maxLen)
+        : ops::convDirect(xPad.data(), maxLen, yRev.data(), maxLen, &scratch);
 
     auto r = Value::matrix(1, nc, ValueType::DOUBLE, mr);
     for (size_t i = 0; i < nc; ++i)
