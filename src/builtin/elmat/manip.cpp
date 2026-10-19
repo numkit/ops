@@ -89,7 +89,7 @@ Value repmat(const Value &x, size_t m, size_t n, size_t p, std::pmr::memory_reso
 Value repmatND(const Value &x, Span<const size_t> tiles, std::pmr::memory_resource *mr)
 {
     const ValueType t = x.type();
-    if (t == ValueType::STRUCT || t == ValueType::FUNC_HANDLE)
+    if (t == ValueType::FUNC_HANDLE)
         throw Error(std::string("repmat: ND repmat does not support type '")
                      + mtypeName(t) + "'",
                      0, 0, "repmat", "", "numkit:repmat:typeND");
@@ -134,11 +134,11 @@ Value repmatND(const Value &x, Span<const size_t> tiles, std::pmr::memory_resour
         return x.objectGather(srcMap.data(), outDims, mr);
     }
 
-    // STRING / CELL store contents as vector<Value> in cellData, not a
+    // STRING / CELL / STRUCT store contents as non-POD containers, not a
     // contiguous byte buffer — the memcpy paths below would dereference
     // a null rawData(). Walk by element and copy Values directly.
     // See BUGS.md #6 and #7-related cell-array handling.
-    if (t == ValueType::STRING || t == ValueType::CELL) {
+    if (t == ValueType::STRING || t == ValueType::CELL || t == ValueType::STRUCT) {
         size_t inDP[kMaxNd];
         size_t tilesP[kMaxNd];
         size_t outD[kMaxNd];
@@ -147,31 +147,50 @@ Value repmatND(const Value &x, Span<const size_t> tiles, std::pmr::memory_resour
             tilesP[i] = (i < ntiles)        ? tiles[i]      : 1;
             outD[i]   = inDP[i] * tilesP[i];
         }
-        // Build output of the same value-type (STRING or CELL) with
-        // the new shape; cellData is allocated empty and filled.
+        int effNdim = outNdim;
+        while (effNdim > 2 && outD[effNdim - 1] == 1) --effNdim;
+        // Build output of the same value-type (STRING, CELL, or STRUCT) with
+        // the new shape.
         Value r;
         if (t == ValueType::STRING) {
-            if (outNdim <= 2)
-                r = Value::stringArray(outD[0], outNdim >= 2 ? outD[1] : 1, mr);
-            else if (outNdim == 3)
+            if (effNdim <= 2)
+                r = Value::stringArray(outD[0], effNdim >= 2 ? outD[1] : 1, mr);
+            else if (effNdim == 3)
                 r = Value::stringArray3D(outD[0], outD[1], outD[2], mr);
             else
                 throw Error("repmat: ND > 3 not supported for string",
                              0, 0, "repmat", "", "numkit:repmat:tooManyDimsStr");
-        } else { // CELL
-            if (outNdim <= 2)
-                r = Value::cell(outD[0], outNdim >= 2 ? outD[1] : 1, mr);
+        } else if (t == ValueType::CELL) {
+            if (effNdim <= 2)
+                r = Value::cell(outD[0], effNdim >= 2 ? outD[1] : 1, mr);
             else
                 throw Error("repmat: ND > 2 not supported for cell",
                              0, 0, "repmat", "", "numkit:repmat:tooManyDimsCell");
+        } else { // STRUCT
+            if (effNdim <= 2) {
+                r = Value::structArray(outD[0], effNdim >= 2 ? outD[1] : 1, mr);
+            } else {
+                r = Value::structArray(0, 0, mr);
+                size_t maxCoords[kMaxNd];
+                bool anyZero = false;
+                for (int i = 0; i < effNdim; ++i) {
+                    if (outD[i] == 0) { anyZero = true; break; }
+                    maxCoords[i] = outD[i] - 1;
+                }
+                if (!anyZero)
+                    r.growStructArrayND(maxCoords, effNdim, mr);
+            }
         }
-        if (x.numel() == 0) return r;
+        if (x.numel() == 0 || r.numel() == 0) return r;
 
         size_t outStrides[kMaxNd];
         computeStridesColMajor(r.dims(), outStrides);
         size_t srcStrides[kMaxNd];
         computeStridesColMajor(inDims, srcStrides);
         for (int i = inDims.ndim(); i < outNdim; ++i) srcStrides[i] = 0;
+
+        const std::vector<std::string> structFieldsOrder =
+            (t == ValueType::STRUCT) ? x.fieldNamesInOrder() : std::vector<std::string>{};
 
         const size_t total = r.numel();
         for (size_t outIdx = 0; outIdx < total; ++outIdx) {
@@ -184,10 +203,18 @@ Value repmatND(const Value &x, Span<const size_t> tiles, std::pmr::memory_resour
                 if (d < inDims.ndim())
                     srcIdx += (coord % inDP[d]) * srcStrides[d];
             }
-            if (t == ValueType::STRING)
+            if (t == ValueType::STRING) {
                 r.stringElemSet(outIdx, x.stringElem(srcIdx));
-            else
+            } else if (t == ValueType::CELL) {
                 r.cellAt(outIdx) = x.cellAt(srcIdx);
+            } else {
+                const auto &srcFields = x.isStructArray() ? x.structArrayElem(srcIdx) : x.structFields();
+                for (const auto &fname : structFieldsOrder) {
+                    auto it = srcFields.find(fname);
+                    if (it != srcFields.end())
+                        r.setField(outIdx, fname, it->second);
+                }
+            }
         }
         return r;
     }

@@ -1,4 +1,4 @@
-﻿// toolboxes/image/src/io/io.cpp
+// toolboxes/image/src/io/io.cpp
 //
 // In-tree Image I/O: imread, imwrite, imfinfo routing exclusively to
 // autonomous zero-dependency C++20 codecs (PNG, JPEG, BMP, TGA, PNM, TIFF).
@@ -49,6 +49,11 @@ std::string detectFormatBytes(const std::string &bytes) {
     // BMP: 'BM'
     if (hdr[0] == 'B' && hdr[1] == 'M') return "bmp";
 
+    // GIF: 'GIF87a' or 'GIF89a'
+    if (n >= 6 && hdr[0] == 'G' && hdr[1] == 'I' && hdr[2] == 'F' &&
+        hdr[3] == '8' && (hdr[4] == '7' || hdr[4] == '9') && hdr[5] == 'a')
+        return "gif";
+
     // PNM: 'P1' .. 'P6'
     if (hdr[0] == 'P' && hdr[1] >= '1' && hdr[1] <= '6')
         return "pnm";
@@ -63,6 +68,149 @@ std::string detectFormatBytes(const std::string &bytes) {
     }
 
     return {};
+}
+
+Value readGif(const std::uint8_t *data, std::size_t len,
+              std::pmr::memory_resource *mr)
+{
+    if (len < 13)
+        throw Error("imread: truncated GIF header", 0, 0, "imread", "", "numkit:imread:gif");
+    std::size_t pos = 6;
+    const std::uint8_t lsdPacked = data[pos + 4];
+    pos += 7;
+    if (lsdPacked & 0x80u) {
+        const std::size_t gctColors = 2u << (lsdPacked & 0x07u);
+        pos += 3u * gctColors;
+    }
+    while (pos < len) {
+        const std::uint8_t sep = data[pos++];
+        if (sep == 0x3Bu) break; // Trailer
+        if (sep == 0x21u) {      // Extension block
+            if (pos >= len) break;
+            ++pos; // label
+            while (pos < len) {
+                const std::uint8_t subLen = data[pos++];
+                if (subLen == 0) break;
+                pos += subLen;
+            }
+            continue;
+        }
+        if (sep == 0x2Cu) { // Image Descriptor
+            if (pos + 9 > len)
+                throw Error("imread: truncated GIF image descriptor", 0, 0, "imread", "", "numkit:imread:gif");
+            const std::size_t w = static_cast<std::size_t>(data[pos + 4]) |
+                                  (static_cast<std::size_t>(data[pos + 5]) << 8);
+            const std::size_t h = static_cast<std::size_t>(data[pos + 6]) |
+                                  (static_cast<std::size_t>(data[pos + 7]) << 8);
+            const std::uint8_t idPacked = data[pos + 8];
+            const bool interlaced = (idPacked & 0x40u) != 0;
+            pos += 9;
+            if (idPacked & 0x80u) {
+                const std::size_t lctColors = 2u << (idPacked & 0x07u);
+                pos += 3u * lctColors;
+            }
+            if (pos >= len)
+                throw Error("imread: missing GIF LZW data", 0, 0, "imread", "", "numkit:imread:gif");
+            const int minCodeSize = data[pos++];
+            if (minCodeSize < 2 || minCodeSize > 8)
+                throw Error("imread: invalid GIF LZW code size", 0, 0, "imread", "", "numkit:imread:gif");
+            std::vector<std::uint8_t> compressed;
+            while (pos < len) {
+                const std::uint8_t subLen = data[pos++];
+                if (subLen == 0) break;
+                if (pos + subLen > len) break;
+                compressed.insert(compressed.end(), data + pos, data + pos + subLen);
+                pos += subLen;
+            }
+            const int clearCode = 1 << minCodeSize;
+            const int endCode = clearCode + 1;
+            int codeSize = minCodeSize + 1;
+            int nextCode = endCode + 1;
+            std::vector<int> prefix(4096, -1);
+            std::vector<std::uint8_t> suffix(4096, 0);
+            std::vector<std::uint8_t> firstChar(4096, 0);
+            auto resetTable = [&]() {
+                codeSize = minCodeSize + 1;
+                nextCode = endCode + 1;
+                for (int i = 0; i < clearCode; ++i) {
+                    prefix[i] = -1;
+                    suffix[i] = static_cast<std::uint8_t>(i);
+                    firstChar[i] = static_cast<std::uint8_t>(i);
+                }
+            };
+            resetTable();
+            const std::size_t npix = w * h;
+            std::vector<std::uint8_t> pixels;
+            pixels.reserve(npix);
+            std::vector<std::uint8_t> stack;
+            stack.reserve(4096);
+            std::size_t bitPos = 0;
+            const std::size_t totalBits = compressed.size() * 8;
+            int prevCode = -1;
+            while (bitPos + static_cast<std::size_t>(codeSize) <= totalBits && pixels.size() < npix) {
+                int code = 0;
+                for (int b = 0; b < codeSize; ++b) {
+                    const std::size_t bp = bitPos + static_cast<std::size_t>(b);
+                    if ((compressed[bp >> 3] >> (bp & 7u)) & 1u)
+                        code |= (1 << b);
+                }
+                bitPos += static_cast<std::size_t>(codeSize);
+                if (code == clearCode) {
+                    resetTable();
+                    prevCode = -1;
+                    continue;
+                }
+                if (code == endCode) break;
+                int cur = code;
+                stack.clear();
+                if (code == nextCode && prevCode >= 0) {
+                    stack.push_back(firstChar[prevCode]);
+                    cur = prevCode;
+                } else if (code >= nextCode) {
+                    break;
+                }
+                while (cur >= 0) {
+                    stack.push_back(suffix[cur]);
+                    cur = prefix[cur];
+                }
+                const std::uint8_t firstByte = stack.back();
+                for (auto it = stack.rbegin(); it != stack.rend() && pixels.size() < npix; ++it)
+                    pixels.push_back(*it);
+                if (prevCode >= 0 && nextCode < 4096) {
+                    prefix[nextCode] = prevCode;
+                    suffix[nextCode] = firstByte;
+                    firstChar[nextCode] = firstChar[prevCode];
+                    ++nextCode;
+                    if (nextCode == (1 << codeSize) && codeSize < 12)
+                        ++codeSize;
+                }
+                prevCode = code;
+            }
+            pixels.resize(npix, 0);
+            Value out = Value::matrix(h, w, ValueType::UINT8, mr);
+            auto *dst = out.uint8DataMut();
+            if (!interlaced) {
+                for (std::size_t r = 0; r < h; ++r)
+                    for (std::size_t c = 0; c < w; ++c)
+                        dst[c * h + r] = pixels[r * w + c];
+            } else {
+                constexpr std::size_t kStart[4] = {0, 4, 2, 1};
+                constexpr std::size_t kStep[4]  = {8, 8, 4, 2};
+                std::size_t srcRow = 0;
+                for (int pass = 0; pass < 4; ++pass) {
+                    for (std::size_t r = kStart[pass]; r < h; r += kStep[pass]) {
+                        if (srcRow < h) {
+                            for (std::size_t c = 0; c < w; ++c)
+                                dst[c * h + r] = pixels[srcRow * w + c];
+                            ++srcRow;
+                        }
+                    }
+                }
+            }
+            return out;
+        }
+    }
+    throw Error("imread: no image frame in GIF", 0, 0, "imread", "", "numkit:imread:gif");
 }
 
 const char *colorTypeFromChannels(int c) {
@@ -100,6 +248,9 @@ Value imreadFromBytes(const std::string &bytes, std::pmr::memory_resource *mr) {
     }
     if (fmt == "bmp") {
         return readBmp(data, len, mr);
+    }
+    if (fmt == "gif") {
+        return readGif(data, len, mr);
     }
     if (fmt == "pnm") {
         return readPnm(data, len, mr);

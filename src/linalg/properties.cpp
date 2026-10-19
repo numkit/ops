@@ -96,9 +96,10 @@ Value inv(const Value &A, std::pmr::memory_resource *mr)
         ScratchVec<detail::Complex> I_buf(n * n, 0.0, &scratch);
         for (std::size_t i = 0; i < n; ++i) I_buf[i + i * n] = detail::Complex(1.0, 0.0);
         Value out = Value::complexMatrix(n, n, mr);
-        if (!numkit::ops::la_solve(A.complexData(), n, n, I_buf.data(), n, out.complexDataMut(), mr))
-            throw Error("inv: matrix is singular to working precision",
-                        0, 0, "inv", "", "numkit:inv:singular");
+        if (!numkit::ops::la_solve(A.complexData(), n, n, I_buf.data(), n, out.complexDataMut(), mr)) {
+            const double inf = std::numeric_limits<double>::infinity();
+            for (std::size_t i = 0; i < n * n; ++i) out.complexDataMut()[i] = detail::Complex(inf, 0.0);
+        }
         return detail::narrow_if_real(out, mr);
     }
 
@@ -109,9 +110,10 @@ Value inv(const Value &A, std::pmr::memory_resource *mr)
     for (std::size_t i = 0; i < n; ++i) I_buf[i + i * n] = 1.0;
 
     Value out = Value::matrix(n, n, ValueType::DOUBLE, mr);
-    if (!numkit::ops::la_solve(Aw.doubleData(), n, n, I_buf.data(), n, out.doubleDataMut(), mr))
-        throw Error("inv: matrix is singular to working precision",
-                    0, 0, "inv", "", "numkit:inv:singular");
+    if (!numkit::ops::la_solve(Aw.doubleData(), n, n, I_buf.data(), n, out.doubleDataMut(), mr)) {
+        const double inf = std::numeric_limits<double>::infinity();
+        std::fill(out.doubleDataMut(), out.doubleDataMut() + n * n, inf);
+    }
     return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
 

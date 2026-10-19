@@ -10,6 +10,7 @@
 #include <numkit/ops/la_solve.hpp>
 #include <numkit/ops/binary_ops.hpp>
 #include <numkit/ops/compare.hpp>
+#include <numkit/linalg/eig.hpp>
 
 #include <cmath>
 #include <cstdint>
@@ -438,34 +439,110 @@ Value power(const Value &a, const Value &b, std::pmr::memory_resource *mr)
         return power(coerceLogicalToDouble(a, p), coerceLogicalToDouble(b, p), p);
     if (a.type() == ValueType::CHAR || b.type() == ValueType::CHAR)
         return power(coerceCharToDouble(a, p), coerceCharToDouble(b, p), p);
-    if (a.isComplex() || b.isComplex()) {
-        auto [ca, cb] = promoteToComplex(a, b, p);
-        return Value::complexScalar(std::pow(ca.toComplex(), cb.toComplex()), p);
-    }
     if (a.isScalar() && b.isScalar()) {
+        if (a.isComplex() || b.isComplex()) {
+            auto [ca, cb] = promoteToComplex(a, b, p);
+            return Value::complexScalar(std::pow(ca.toComplex(), cb.toComplex()), p);
+        }
         const double base = a.toScalar(), e = b.toScalar();
         if (base < 0.0 && e != std::floor(e))
             return Value::complexScalar(std::pow(Complex(base, 0.0), e), p);
         return Value::scalar(std::pow(base, e), p);
     }
-    if (b.isScalar() && !a.isScalar()) {
-        const double bs = b.toScalar();
-        const long n = (long)bs;
-        if ((double)n == bs && n >= 0
-            && a.dims().rows() == a.dims().cols()
-            && a.dims().ndim() == 2) {
-            const std::size_t R = a.dims().rows();
-            if (n == 0) {
+    if (b.isScalar() && !a.isScalar()
+        && a.dims().rows() == a.dims().cols()
+        && a.dims().ndim() == 2) {
+        const std::size_t R = a.dims().rows();
+        const bool bCplx = b.isComplex();
+        const double bs = bCplx ? b.toComplex().real() : b.toScalar();
+        const bool bRealInt = (!bCplx || b.toComplex().imag() == 0.0)
+                              && std::isfinite(bs) && std::floor(bs) == bs
+                              && std::abs(bs) <= 1e9;
+        if (bRealInt) {
+            const long n = static_cast<long>(bs);
+            auto makeEye = [&]() {
                 auto I = Value::matrix(R, R, ValueType::DOUBLE, p);
                 double *id = I.doubleDataMut();
                 std::memset(id, 0, sizeof(double) * R * R);
                 for (std::size_t i = 0; i < R; ++i) id[i * R + i] = 1.0;
                 return I;
-            }
+            };
+            if (n == 0) return makeEye();
+            long expAbs = n > 0 ? n : -n;
             Value acc = a;
-            for (long k = 1; k < n; ++k) acc = mtimes(acc, a, p);
+            for (long k = 1; k < expAbs; ++k) acc = mtimes(acc, a, p);
+            if (n < 0) return mldivide(acc, makeEye(), p);
             return acc;
         }
+        // Fractional or complex scalar exponent on square matrix A (R x R)
+        const Complex expC = bCplx ? b.toComplex() : Complex(bs, 0.0);
+        const bool aCplx = a.isComplex();
+        // Fast path for diagonal matrices (e.g. D^(-0.5))
+        bool isDiag = true;
+        for (std::size_t j = 0; j < R && isDiag; ++j) {
+            for (std::size_t i = 0; i < R; ++i) {
+                if (i == j) continue;
+                Complex v = aCplx ? a.complexElem(i + j * R) : Complex(a.elemAsDouble(i + j * R), 0.0);
+                if (v.real() != 0.0 || v.imag() != 0.0) {
+                    isDiag = false;
+                    break;
+                }
+            }
+        }
+        if (isDiag) {
+            Value outC = Value::matrix(R, R, ValueType::COMPLEX, p);
+            Complex *od = outC.complexDataMut();
+            std::fill(od, od + R * R, Complex(0.0, 0.0));
+            bool anyImag = false;
+            for (std::size_t i = 0; i < R; ++i) {
+                Complex d = aCplx ? a.complexElem(i + i * R) : Complex(a.elemAsDouble(i + i * R), 0.0);
+                Complex dp = (!aCplx && !bCplx && d.real() >= 0.0)
+                                 ? Complex(std::pow(d.real(), bs), 0.0)
+                                 : std::pow(d, expC);
+                od[i + i * R] = dp;
+                if (dp.imag() != 0.0) anyImag = true;
+            }
+            if (!anyImag && !aCplx && !bCplx) {
+                Value outR = Value::matrix(R, R, ValueType::DOUBLE, p);
+                double *rd = outR.doubleDataMut();
+                std::memset(rd, 0, sizeof(double) * R * R);
+                for (std::size_t i = 0; i < R; ++i) rd[i + i * R] = od[i + i * R].real();
+                return outR;
+            }
+            return outC;
+        }
+        // General square matrix: eigendecomposition A = V * D * V^-1 => A^b = (V * D^b) / V
+        auto [V, D] = ::numkit::linalg::eig_general_VD(a, p);
+        Value Vc = Value::matrix(R, R, ValueType::COMPLEX, p);
+        Complex *vcd = Vc.complexDataMut();
+        const bool vIsCplx = V.isComplex();
+        const bool dIsCplx = D.isComplex();
+        for (std::size_t j = 0; j < R; ++j) {
+            Complex dj = dIsCplx ? D.complexElem(j + j * R) : Complex(D.elemAsDouble(j + j * R), 0.0);
+            Complex dp = (!dIsCplx && !bCplx && dj.real() >= 0.0)
+                             ? Complex(std::pow(dj.real(), bs), 0.0)
+                             : std::pow(dj, expC);
+            for (std::size_t i = 0; i < R; ++i) {
+                Complex vij = vIsCplx ? V.complexElem(i + j * R) : Complex(V.elemAsDouble(i + j * R), 0.0);
+                vcd[i + j * R] = vij * dp;
+            }
+        }
+        Value res = mrdivide(Vc, V, p);
+        if (!aCplx && !bCplx && res.isComplex()) {
+            const Complex *rc = res.complexData();
+            double maxRe = 0.0, maxIm = 0.0;
+            for (std::size_t k = 0; k < R * R; ++k) {
+                maxRe = std::max(maxRe, std::abs(rc[k].real()));
+                maxIm = std::max(maxIm, std::abs(rc[k].imag()));
+            }
+            if (maxIm <= 1e-12 * std::max(1.0, maxRe)) {
+                Value outR = Value::matrix(R, R, ValueType::DOUBLE, p);
+                double *rd = outR.doubleDataMut();
+                for (std::size_t k = 0; k < R * R; ++k) rd[k] = rc[k].real();
+                return outR;
+            }
+        }
+        return res;
     }
     throw Error("Matrix power not implemented", 0, 0, "power", "",
                  "numkit:power:notImplemented");
