@@ -511,16 +511,19 @@ Value toString(const Value &x, std::pmr::memory_resource *mr)
     if (x.isChar())
         return Value::stringScalar(x.toString(), p);
     if (x.isNumeric()) {
+        auto fmtNum = [](double d) -> std::string {
+            if (std::isnan(d)) return "NaN";
+            if (std::isinf(d)) return d < 0 ? "-Inf" : "Inf";
+            std::ostringstream os;
+            os << d;
+            return os.str();
+        };
         if (x.isScalar()) {
-            std::ostringstream os;
-            os << x.toScalar();
-            return Value::stringScalar(os.str(), p);
+            return Value::stringScalar(fmtNum(x.toScalar()), p);
         }
-        auto result = Value::stringArray(x.dims().rows(), x.dims().cols());
+        auto result = Value::stringArray(x.dims().rows(), x.dims().cols(), p);
         for (size_t i = 0; i < x.numel(); ++i) {
-            std::ostringstream os;
-            os << x.doubleData()[i];
-            result.stringElemSet(i, os.str());
+            result.stringElemSet(i, fmtNum(x.elemAsDouble(i)));
         }
         return result;
     }
