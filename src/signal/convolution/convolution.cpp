@@ -224,8 +224,39 @@ deconv(const Value &bIn, const Value &aIn, std::pmr::memory_resource *mr)
 
 // ── xcorr ─────────────────────────────────────────────────────────────
 std::tuple<Value, Value>
-xcorr(const Value &x, const Value &y, std::pmr::memory_resource *mr)
+xcorr(const Value &xIn, const Value &yIn, std::pmr::memory_resource *mr)
 {
+    if (xIn.isComplex() || yIn.isComplex()) {
+        const size_t nx = xIn.numel(), ny = yIn.numel();
+        const size_t maxLen = std::max(nx, ny);
+        const size_t nc = (maxLen > 0) ? (2 * maxLen - 1) : 0;
+        const int maxLag = static_cast<int>(maxLen) - 1;
+        const bool colOut = (xIn.dims().rows() > 1 && xIn.dims().cols() == 1);
+        auto r = colOut ? Value::matrix(nc, 1, ValueType::COMPLEX, mr)
+                        : Value::matrix(1, nc, ValueType::COMPLEX, mr);
+        Complex *rd = r.complexDataMut();
+        auto getC = [](const Value &v, size_t i) -> Complex {
+            if (v.isComplex()) return v.complexData()[i];
+            return Complex(v.elemAsDouble(i), 0.0);
+        };
+        for (int m = -maxLag; m <= maxLag; ++m) {
+            Complex acc(0.0, 0.0);
+            for (size_t n = 0; n < maxLen; ++n) {
+                long long idxX = static_cast<long long>(n) + m;
+                if (idxX >= 0 && static_cast<size_t>(idxX) < nx && n < ny) {
+                    acc += getC(xIn, static_cast<size_t>(idxX)) * std::conj(getC(yIn, n));
+                }
+            }
+            rd[m + maxLag] = acc;
+        }
+        auto lags = Value::matrix(1, nc, ValueType::DOUBLE, mr);
+        for (size_t i = 0; i < nc; ++i)
+            lags.doubleDataMut()[i] = static_cast<double>(static_cast<int>(i) - maxLag);
+        return std::make_tuple(std::move(r), std::move(lags));
+    }
+    Value xHold, yHold;
+    const Value &x = (xIn.type() == ValueType::DOUBLE) ? xIn : (xHold = convPromoteToDouble(xIn, mr));
+    const Value &y = (yIn.type() == ValueType::DOUBLE) ? yIn : (yHold = convPromoteToDouble(yIn, mr));
     const double *xd = x.doubleData();
     const size_t nx = x.numel();
     const double *yd = y.doubleData();

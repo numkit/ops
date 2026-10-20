@@ -260,6 +260,19 @@ Value datenum(Span<const Value> args, std::pmr::memory_resource *mr) {
     if (args.empty())
         throw std::runtime_error("datenum requires at least one argument");
 
+    if (args[0].isCell() || (args[0].isString() && args[0].numel() > 1)) {
+        const size_t n = args[0].numel();
+        auto out = Value::matrix(n, 1, ValueType::DOUBLE, mr);
+        double *o = out.doubleDataMut();
+        std::vector<Value> subArgs(args.begin(), args.end());
+        for (size_t i = 0; i < n; ++i) {
+            subArgs[0] = args[0].isCell() ? args[0].cellAt(i)
+                                          : Value::fromString(args[0].stringElem(i), mr);
+            o[i] = datenum(Span<const Value>(subArgs.data(), subArgs.size()), mr).toScalar();
+        }
+        return out;
+    }
+
     if (args[0].isChar() || args[0].isString()) {
         const std::string s = args[0].toString();
         static const char *MON3[] = {
