@@ -339,12 +339,41 @@ Value delaunay(const Value &x, const Value &y, std::pmr::memory_resource *mr)
 // adapter.
 
 Value griddata(const Value &x, const Value &y, const Value &v,
-               const Value &xq, const Value &yq, std::pmr::memory_resource *mr)
+               const Value &xqIn, const Value &yqIn, const std::string &methodIn,
+               std::pmr::memory_resource *mr)
 {
     const std::size_t n = x.numel();
     if (y.numel() != n || v.numel() != n)
         throw Error("griddata: x, y, v must have the same numel",
                      0, 0, "griddata", "", "numkit:griddata:shape");
+
+    std::string method = methodIn;
+    for (char &c : method) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    if (method.empty()) method = "linear";
+
+    // When xq and yq are vectors with different orientations or different lengths,
+    // MATLAB expands them via [Xq, Yq] = meshgrid(xq, yq).
+    Value xqExpanded, yqExpanded;
+    const bool bothVectors = xqIn.dims().isVector() && yqIn.dims().isVector();
+    const bool diffOrient  = (xqIn.dims().rows() == 1) != (yqIn.dims().rows() == 1);
+    if (bothVectors && (xqIn.numel() != yqIn.numel() || (diffOrient && xqIn.numel() > 1))) {
+        const std::size_t rows = yqIn.numel();
+        const std::size_t cols = xqIn.numel();
+        xqExpanded = Value::matrix(rows, cols, ValueType::DOUBLE, mr);
+        yqExpanded = Value::matrix(rows, cols, ValueType::DOUBLE, mr);
+        double *xd = xqExpanded.doubleDataMut();
+        double *yd = yqExpanded.doubleDataMut();
+        for (std::size_t c = 0; c < cols; ++c) {
+            const double xv = xqIn.elemAsDouble(c);
+            for (std::size_t r = 0; r < rows; ++r) {
+                xd[c * rows + r] = xv;
+                yd[c * rows + r] = yqIn.elemAsDouble(r);
+            }
+        }
+    }
+    const Value &xq = xqExpanded.isUnset() ? xqIn : xqExpanded;
+    const Value &yq = yqExpanded.isUnset() ? yqIn : yqExpanded;
+
     if (xq.numel() != yq.numel())
         throw Error("griddata: xq and yq must have the same numel",
                      0, 0, "griddata", "", "numkit:griddata:queryShape");
@@ -352,7 +381,7 @@ Value griddata(const Value &x, const Value &y, const Value &v,
                              ValueType::DOUBLE, mr);
     double *dst = out.doubleDataMut();
     const std::size_t nq = xq.numel();
-    if (n < 3) {
+    if (n == 0) {
         for (std::size_t i = 0; i < nq; ++i) dst[i] = std::nan("");
         return out;
     }
@@ -364,6 +393,94 @@ Value griddata(const Value &x, const Value &y, const Value &v,
         Y[i] = y.elemAsDouble(i);
         V[i] = v.elemAsDouble(i);
     }
+
+    if (method == "nearest") {
+        for (std::size_t q = 0; q < nq; ++q) {
+            const double Xq = xq.elemAsDouble(q);
+            const double Yq = yq.elemAsDouble(q);
+            double bestDist2 = std::numeric_limits<double>::infinity();
+            std::size_t bestIdx = 0;
+            for (std::size_t i = 0; i < n; ++i) {
+                const double dx = Xq - X[i];
+                const double dy = Yq - Y[i];
+                const double d2 = dx * dx + dy * dy;
+                if (d2 < bestDist2) {
+                    bestDist2 = d2;
+                    bestIdx = i;
+                }
+            }
+            dst[q] = V[bestIdx];
+        }
+        return out;
+    }
+
+    if (method == "v4") {
+        // Sandwell (1987) biharmonic spline interpolation:
+        // Solve G * w = V where G(i,j) = d^2 * (log(d) - 1) (0 when d == 0).
+        std::vector<double> G(n * n, 0.0);
+        std::vector<double> w(n, 0.0);
+        for (std::size_t i = 0; i < n; ++i) {
+            w[i] = V[i];
+            for (std::size_t j = 0; j < n; ++j) {
+                if (i == j) continue;
+                const double d = std::hypot(X[i] - X[j], Y[i] - Y[j]);
+                if (d > 0.0)
+                    G[i * n + j] = d * d * (std::log(d) - 1.0);
+            }
+        }
+        // Gaussian elimination with partial pivoting on row-major G (n x n).
+        for (std::size_t k = 0; k < n; ++k) {
+            std::size_t piv = k;
+            double maxAbs = std::abs(G[k * n + k]);
+            for (std::size_t i = k + 1; i < n; ++i) {
+                const double a = std::abs(G[i * n + k]);
+                if (a > maxAbs) { maxAbs = a; piv = i; }
+            }
+            if (piv != k) {
+                for (std::size_t j = k; j < n; ++j)
+                    std::swap(G[k * n + j], G[piv * n + j]);
+                std::swap(w[k], w[piv]);
+            }
+            const double diag = G[k * n + k];
+            if (std::abs(diag) < 1e-18) continue;
+            for (std::size_t i = k + 1; i < n; ++i) {
+                const double f = G[i * n + k] / diag;
+                G[i * n + k] = 0.0;
+                for (std::size_t j = k + 1; j < n; ++j)
+                    G[i * n + j] -= f * G[k * n + j];
+                w[i] -= f * w[k];
+            }
+        }
+        for (std::size_t k = n; k-- > 0;) {
+            double s = w[k];
+            for (std::size_t j = k + 1; j < n; ++j)
+                s -= G[k * n + j] * w[j];
+            const double diag = G[k * n + k];
+            w[k] = (std::abs(diag) >= 1e-18) ? (s / diag) : 0.0;
+        }
+        for (std::size_t q = 0; q < nq; ++q) {
+            const double Xq = xq.elemAsDouble(q);
+            const double Yq = yq.elemAsDouble(q);
+            double acc = 0.0;
+            for (std::size_t i = 0; i < n; ++i) {
+                const double d = std::hypot(Xq - X[i], Yq - Y[i]);
+                if (d > 0.0)
+                    acc += w[i] * d * d * (std::log(d) - 1.0);
+            }
+            dst[q] = acc;
+        }
+        return out;
+    }
+
+    if (method != "linear" && method != "natural" && method != "cubic")
+        throw Error("griddata: unknown method '" + methodIn + "'",
+                     0, 0, "griddata", "", "numkit:griddata:badMethod");
+
+    if (n < 3) {
+        for (std::size_t i = 0; i < nq; ++i) dst[i] = std::nan("");
+        return out;
+    }
+
     // Reuse the brute-force Delaunay logic — emit triangle list as
     // index triples.
     auto signedArea2 = [&](std::size_t a, std::size_t b, std::size_t c) {
@@ -427,12 +544,9 @@ Value griddata(const Value &x, const Value &y, const Value &v,
 }
 
 Value griddata(const Value &x, const Value &y, const Value &v,
-               const Value &xq, const Value &yq, const std::string &method,
-               std::pmr::memory_resource *mr)
+               const Value &xq, const Value &yq, std::pmr::memory_resource *mr)
 {
-    if (method != "linear")
-        throw Error("griddata: method must be 'linear'", 0, 0, "griddata", "", "numkit:griddata:badMethod");
-    return griddata(x, y, v, xq, yq, mr);
+    return griddata(x, y, v, xq, yq, "linear", mr);
 }
 
 // ── histcounts2 (over explicit edges) ─────────────────────────────────

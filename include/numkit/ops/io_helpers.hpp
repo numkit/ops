@@ -92,18 +92,31 @@ inline std::optional<std::pair<int, size_t>> parsePrecision(const std::string &r
     auto arrow = p.find("=>");
     if (arrow != std::string::npos) p = p.substr(0, arrow);
     while (!p.empty() && std::isspace(static_cast<unsigned char>(p.front()))) p.erase(0, 1);
+    if (!p.empty() && p.front() == '*') p.erase(0, 1);
+    while (!p.empty() && std::isspace(static_cast<unsigned char>(p.front()))) p.erase(0, 1);
     while (!p.empty() && std::isspace(static_cast<unsigned char>(p.back()))) p.pop_back();
+    for (char &c : p) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
 
-    if (p == "uint8" || p == "uchar" || p == "char") return std::make_pair(0, size_t{1});
-    if (p == "int8"  || p == "schar")                return std::make_pair(1, size_t{1});
-    if (p == "uint16")                               return std::make_pair(0, size_t{2});
-    if (p == "int16")                                return std::make_pair(1, size_t{2});
-    if (p == "uint32")                               return std::make_pair(0, size_t{4});
-    if (p == "int32")                                return std::make_pair(1, size_t{4});
-    if (p == "uint64")                               return std::make_pair(0, size_t{8});
-    if (p == "int64")                                return std::make_pair(1, size_t{8});
-    if (p == "single" || p == "float32" || p == "real*4") return std::make_pair(2, size_t{4});
-    if (p == "double" || p == "float64" || p == "real*8") return std::make_pair(2, size_t{8});
+    if (p == "uint8" || p == "uchar" || p == "unsigned char" || p == "char" || p == "char*1")
+        return std::make_pair(0, size_t{1});
+    if (p == "int8" || p == "schar" || p == "signed char" || p == "integer*1")
+        return std::make_pair(1, size_t{1});
+    if (p == "uint16" || p == "ushort" || p == "unsigned short")
+        return std::make_pair(0, size_t{2});
+    if (p == "int16" || p == "short" || p == "integer*2")
+        return std::make_pair(1, size_t{2});
+    if (p == "uint32" || p == "uint" || p == "unsigned int" || p == "ulong" || p == "unsigned long")
+        return std::make_pair(0, size_t{4});
+    if (p == "int32" || p == "int" || p == "long" || p == "integer*4")
+        return std::make_pair(1, size_t{4});
+    if (p == "uint64")
+        return std::make_pair(0, size_t{8});
+    if (p == "int64" || p == "integer*8")
+        return std::make_pair(1, size_t{8});
+    if (p == "single" || p == "float" || p == "float32" || p == "real*4")
+        return std::make_pair(2, size_t{4});
+    if (p == "double" || p == "float64" || p == "real*8")
+        return std::make_pair(2, size_t{8});
     return std::nullopt;
 }
 

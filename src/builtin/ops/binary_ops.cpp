@@ -279,12 +279,31 @@ Value mtimes(const Value &a, const Value &b, std::pmr::memory_resource *mr)
         return narrowComplex(r, p);
     }
 
-    {
+    if (a.isScalar() || b.isScalar()) {
         auto r = dispatchIntegerBinaryOp(a, b, [](auto x, auto y) { return saturateMul(x, y); }, p);
         if (!r.isUnset()) return r;
-    }
-    if (a.isScalar() || b.isScalar())
         return elementwiseDouble(a, b, std::multiplies<double>{}, p);
+    }
+    if ((a.type() == ValueType::SINGLE || b.type() == ValueType::SINGLE) &&
+        (a.type() == ValueType::SINGLE || a.type() == ValueType::DOUBLE) &&
+        (b.type() == ValueType::SINGLE || b.type() == ValueType::DOUBLE)) {
+        size_t M = a.dims().rows(), K = a.dims().cols(), N = b.dims().cols();
+        if (K != b.dims().rows())
+            throw Error("Inner matrix dimensions must agree", 0, 0, "mtimes", "",
+                         "numkit:innerdim");
+        auto r = Value::matrix(M, N, ValueType::SINGLE, p);
+        float *rd = static_cast<float *>(r.rawDataMut());
+        std::fill(rd, rd + M * N, 0.0f);
+        for (size_t j = 0; j < N; ++j) {
+            for (size_t k = 0; k < K; ++k) {
+                float bkj = static_cast<float>(b.elemAsDouble(j * K + k));
+                for (size_t i = 0; i < M; ++i) {
+                    rd[j * M + i] += static_cast<float>(a.elemAsDouble(k * M + i)) * bkj;
+                }
+            }
+        }
+        return r;
+    }
     if (a.type() == ValueType::DOUBLE && b.type() == ValueType::DOUBLE) {
         size_t M = a.dims().rows(), K = a.dims().cols(), N = b.dims().cols();
         if (K != b.dims().rows())

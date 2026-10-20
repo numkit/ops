@@ -83,8 +83,29 @@ inline Value transpose2D(const Value &x, bool conjugate, const char *fnName,
     if (t == ValueType::OBJECT)
         return x.objectTranspose(p);
 
-    if (t == ValueType::STRING || t == ValueType::STRUCT ||
-        t == ValueType::FUNC_HANDLE)
+    if (t == ValueType::STRING) {
+        if (x.isScalar())
+            return x;
+        auto r = Value::stringArray(cols, rows, p);
+        for (size_t i = 0; i < rows; ++i)
+            for (size_t j = 0; j < cols; ++j)
+                r.stringElemSet(i * cols + j, x.stringElem(j * rows + i));
+        return r;
+    }
+
+    if (t == ValueType::STRUCT) {
+        if (!x.isStructArray())
+            return x;
+        auto r = Value::structArray(cols, rows, p);
+        for (const auto &fn : x.fieldNamesInOrder())
+            r.setFieldAll(fn, Value());
+        for (size_t i = 0; i < rows; ++i)
+            for (size_t j = 0; j < cols; ++j)
+                r.structArrayElem(i * cols + j) = x.structArrayElem(j * rows + i);
+        return r;
+    }
+
+    if (t == ValueType::FUNC_HANDLE)
         throw Error("Transpose not supported for this type",
                      0, 0, fnName, "", "numkit:transpose:unsupportedType");
 

@@ -221,8 +221,20 @@ inline std::vector<Complex> &threadFftBuf()
 //     resolved to a concrete axis before this is called).
 //   - axisLen == 1 with requested outLen > 1 throws (extending
 //     dimensionality isn't supported yet).
-static Value fftAlongDim(const Value &x, size_t N_req, int dim, int dir, std::pmr::memory_resource *mr)
+static Value fftAlongDim(const Value &x_in, size_t N_req, int dim, int dir, std::pmr::memory_resource *mr)
 {
+    Value xPromoted;
+    const bool needsPromote = (x_in.type() != ValueType::DOUBLE && !x_in.isComplex());
+    if (needsPromote) {
+        const auto &di = x_in.dims();
+        xPromoted = di.is3D()
+            ? Value::matrix3d(di.rows(), di.cols(), di.pages(), ValueType::DOUBLE, mr)
+            : Value::matrix(di.rows(), di.cols(), ValueType::DOUBLE, mr);
+        double *pd = xPromoted.doubleDataMut();
+        for (size_t i = 0; i < x_in.numel(); ++i)
+            pd[i] = x_in.elemAsDouble(i);
+    }
+    const Value &x = needsPromote ? xPromoted : x_in;
     const auto &d = x.dims();
     const size_t R = d.rows();
     const size_t C = d.cols();

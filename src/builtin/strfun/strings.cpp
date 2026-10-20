@@ -559,8 +559,46 @@ Value toChar(const Value &x, std::pmr::memory_resource *mr)
     std::pmr::memory_resource *p = mr;
     if (x.isChar())
         return x;
-    if (x.isString())
-        return Value::fromString(x.toString(), p);
+    if (x.isCell()) {
+        const size_t n = x.numel();
+        if (n == 0)
+            return Value::matrix(0, 0, ValueType::CHAR, p);
+        std::vector<std::string> rows(n);
+        size_t maxCols = 0;
+        for (size_t i = 0; i < n; ++i) {
+            const Value &el = x.cellAt(i);
+            if (!el.isChar() && !el.isString() && !el.isEmpty())
+                throw Error("Cannot convert to char", 0, 0, "char", "", "numkit:char:unsupportedType");
+            rows[i] = el.isEmpty() ? std::string{} : el.toString();
+            maxCols = std::max(maxCols, rows[i].size());
+        }
+        if (n == 1)
+            return Value::fromString(rows[0], p);
+        Value out = Value::matrix(n, maxCols, ValueType::CHAR, p);
+        char *dst = out.charDataMut();
+        std::memset(dst, ' ', n * maxCols);
+        for (size_t r = 0; r < n; ++r)
+            for (size_t c = 0; c < rows[r].size(); ++c)
+                dst[c * n + r] = rows[r][c];
+        return out;
+    }
+    if (x.isString()) {
+        const size_t n = x.numel();
+        if (n <= 1)
+            return Value::fromString(x.toString(), p);
+        size_t maxCols = 0;
+        for (size_t i = 0; i < n; ++i)
+            maxCols = std::max(maxCols, x.stringElem(i).size());
+        Value out = Value::matrix(n, maxCols, ValueType::CHAR, p);
+        char *dst = out.charDataMut();
+        std::memset(dst, ' ', n * maxCols);
+        for (size_t r = 0; r < n; ++r) {
+            const std::string &s = x.stringElem(r);
+            for (size_t c = 0; c < s.size(); ++c)
+                dst[c * n + r] = s[c];
+        }
+        return out;
+    }
     if (x.isNumeric()) {
         std::string s;
         if (x.isScalar()) {
@@ -728,6 +766,61 @@ Value strsplit(const Value &s, const Value &delim, std::pmr::memory_resource *mr
 
 Value strcat(Span<const Value> parts, std::pmr::memory_resource *mr)
 {
+    bool anyCell = false;
+    bool anyNonScalarStr = false;
+    size_t targetRows = 1, targetCols = 1;
+    for (const auto &p : parts) {
+        if (p.isCell()) {
+            anyCell = true;
+            if (p.numel() != 1) {
+                targetRows = p.dims().rows();
+                targetCols = p.dims().cols();
+            }
+        } else if (p.isString() && p.numel() != 1) {
+            anyNonScalarStr = true;
+            targetRows = p.dims().rows();
+            targetCols = p.dims().cols();
+        }
+    }
+    if (anyCell) {
+        Value out = Value::cell(targetRows, targetCols, mr);
+        const size_t n = targetRows * targetCols;
+        for (size_t i = 0; i < n; ++i) {
+            std::string s;
+            for (const auto &p : parts) {
+                if (p.isCell()) {
+                    if (p.numel() == 1)
+                        s += p.cellAt(0).toString();
+                    else if (i < p.numel())
+                        s += p.cellAt(i).toString();
+                } else if (p.isString() && p.numel() != 1) {
+                    if (i < p.numel())
+                        s += p.stringElem(i);
+                } else {
+                    s += p.toString();
+                }
+            }
+            out.cellAt(i) = Value::fromString(s, mr);
+        }
+        return out;
+    }
+    if (anyNonScalarStr) {
+        Value out = Value::stringArray(targetRows, targetCols, mr);
+        const size_t n = targetRows * targetCols;
+        for (size_t i = 0; i < n; ++i) {
+            std::string s;
+            for (const auto &p : parts) {
+                if (p.isString() && p.numel() != 1) {
+                    if (i < p.numel())
+                        s += p.stringElem(i);
+                } else {
+                    s += p.toString();
+                }
+            }
+            out.stringElemSet(i, s);
+        }
+        return out;
+    }
     std::string result;
     for (const auto &p : parts)
         result += p.toString();
@@ -1423,14 +1516,47 @@ Value dec2hex(const Value &d, int minWidth, std::pmr::memory_resource *mr)
     return vecToBaseMatrix(d, 16, minWidth, mr);
 }
 
+namespace {
+Value base2decFixed(const Value &s, int base, std::pmr::memory_resource *mr)
+{
+    const size_t rows = static_cast<size_t>(s.dims().rows());
+    if (s.type() == ValueType::CHAR && rows > 1) {
+        const size_t cols = s.numel() / rows;
+        const char *src = static_cast<const char *>(s.rawData());
+        Value out = Value::matrix(rows, 1, ValueType::DOUBLE, mr);
+        double *od = out.doubleDataMut();
+        for (size_t r = 0; r < rows; ++r) {
+            std::string row;
+            row.reserve(cols);
+            for (size_t c = 0; c < cols; ++c) row.push_back(src[c * rows + r]);
+            od[r] = static_cast<double>(parseBase(row, base));
+        }
+        return out;
+    }
+    if (s.isCell() || (s.isString() && !s.isScalar())) {
+        const size_t n = s.numel();
+        Value out = Value::matrix(s.dims().rows(), s.dims().cols(),
+                                  ValueType::DOUBLE, mr);
+        double *od = out.doubleDataMut();
+        for (size_t i = 0; i < n; ++i) {
+            const std::string str =
+                s.isCell() ? s.cellAt(i).toString() : s.stringElem(i);
+            od[i] = static_cast<double>(parseBase(str, base));
+        }
+        return out;
+    }
+    return Value::scalar(static_cast<double>(parseBase(s.toString(), base)), mr);
+}
+} // namespace
+
 Value bin2dec(const Value &s, std::pmr::memory_resource *mr)
 {
-    return Value::scalar(static_cast<double>(parseBase(s.toString(), 2)), mr);
+    return base2decFixed(s, 2, mr);
 }
 
 Value hex2dec(const Value &s, std::pmr::memory_resource *mr)
 {
-    return Value::scalar(static_cast<double>(parseBase(s.toString(), 16)), mr);
+    return base2decFixed(s, 16, mr);
 }
 
 

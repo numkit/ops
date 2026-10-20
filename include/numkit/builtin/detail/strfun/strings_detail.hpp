@@ -224,12 +224,21 @@ Value strCmpElementwise(const Value &a, const Value &b, Pred cmp,
     auto isArr = [](const Value &v) {
         return v.isCell() || (v.isString() && !v.isScalar());
     };
+    auto isText = [](const Value &v) {
+        return v.isChar() || v.isString();
+    };
+    auto elemIsText = [&](const Value &v, std::size_t idx) -> bool {
+        return v.isCell() ? isText(v.cellAt(idx)) : v.isString();
+    };
     auto elemAt = [](const Value &v, std::size_t idx) -> std::string {
         return v.isCell() ? v.cellAt(idx).toString() : v.stringElem(idx);
     };
     const bool ac = isArr(a), bc = isArr(b);
-    if (!ac && !bc)
+    if (!ac && !bc) {
+        if (!isText(a) || !isText(b))
+            return Value::logicalScalar(false, mr);
         return Value::logicalScalar(cmp(a.toString(), b.toString()), mr);
+    }
 
     const std::size_t na = ac ? a.numel() : 1;
     const std::size_t nb = bc ? b.numel() : 1;
@@ -250,11 +259,21 @@ Value strCmpElementwise(const Value &a, const Value &b, Pred cmp,
 
     auto out = Value::matrix(rr, cc, ValueType::LOGICAL, mr);
     auto *od = out.logicalDataMut();
+    if ((!ac && !isText(a)) || (!bc && !isText(b))) {
+        std::memset(od, 0, n);
+        return out;
+    }
     const std::string scalA = ac ? std::string() : a.toString();
     const std::string scalB = bc ? std::string() : b.toString();
     for (std::size_t i = 0; i < n; ++i) {
-        const std::string sa = ac ? elemAt(a, na == 1 ? 0 : i) : scalA;
-        const std::string sb = bc ? elemAt(b, nb == 1 ? 0 : i) : scalB;
+        const std::size_t ia = (na == 1 ? 0 : i);
+        const std::size_t ib = (nb == 1 ? 0 : i);
+        if ((ac && !elemIsText(a, ia)) || (bc && !elemIsText(b, ib))) {
+            od[i] = 0;
+            continue;
+        }
+        const std::string sa = ac ? elemAt(a, ia) : scalA;
+        const std::string sb = bc ? elemAt(b, ib) : scalB;
         od[i] = cmp(sa, sb) ? 1 : 0;
     }
     return out;

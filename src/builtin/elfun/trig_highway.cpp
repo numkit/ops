@@ -571,6 +571,8 @@ Value unaryRealDouble(const Value &x, Value *hint, LoopDispatch loop, ScalarOp s
             return Value::complexScalar(complexOp(x.toComplex()), mr);
         return unaryComplex(x, complexOp, mr);
     }
+    if (x.type() != ValueType::DOUBLE)
+        return unaryDouble(x, scalarOp, mr);
     if (x.isScalar())
         return Value::scalar(scalarOp(x.toScalar()), mr);
 

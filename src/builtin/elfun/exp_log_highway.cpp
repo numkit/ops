@@ -199,6 +199,8 @@ Value unaryRealDouble(const Value &x, Value *hint, LoopDispatch loop, ScalarOp s
             return Value::complexScalar(complexOp(x.toComplex()), mr);
         return unaryComplex(x, complexOp, mr);
     }
+    if (x.type() != ValueType::DOUBLE)
+        return unaryDouble(x, scalarOp, mr);
     if (x.isScalar())
         return Value::scalar(scalarOp(x.toScalar()), mr);
 
@@ -268,14 +270,16 @@ Value log(const Value &x, Value *hint, std::pmr::memory_resource *mr)
         return unaryComplex(x, [](const Complex &c) { return std::log(c); }, mr);
     if (x.isScalar() && x.toScalar() < 0)
         return Value::complexScalar(std::log(Complex(x.toScalar(), 0.0)), mr);
-    if (x.isScalar())
-        return Value::scalar(std::log(x.toScalar()), mr);
     // Real array with any negative element -> promote the whole array to
     // complex (MATLAB: log([-1 1]) = [pi*i 0]). std::log's branch matches MATLAB.
     if (anyNegative(x)) {
         Value cx = x; cx.promoteToComplex(mr);
         return unaryComplex(cx, [](const Complex &c) { return std::log(c); }, mr);
     }
+    if (x.type() != ValueType::DOUBLE)
+        return unaryDouble(x, [](double v) { return std::log(v); }, mr);
+    if (x.isScalar())
+        return Value::scalar(std::log(x.toScalar()), mr);
 
     Value r;
     if (hint && hint->isHeapDouble() && hint->heapRefCount() == 1

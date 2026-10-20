@@ -237,16 +237,27 @@ inline Value emptyArithResult(const Value &a, const Value &b, std::pmr::memory_r
     return r;
 }
 
+template <typename T, typename Op>
+Value elementwiseTyped(const Value &a, const Value &b, ValueType targetType, Op op, std::pmr::memory_resource *mr = nullptr);
+
 // ============================================================
 // Elementwise binary op on double arrays (with implicit expansion)
 // ============================================================
 template<typename Op>
 Value elementwiseDouble(const Value &a, const Value &b, Op op, std::pmr::memory_resource *mr = nullptr)
 {
+    if (a.type() == ValueType::SINGLE || b.type() == ValueType::SINGLE) {
+        return elementwiseTyped<float>(a, b, ValueType::SINGLE,
+            [op](float x, float y) -> float {
+                return static_cast<float>(op(static_cast<double>(x), static_cast<double>(y)));
+            }, mr);
+    }
     if (a.isEmpty() || b.isEmpty())
         return emptyResultForBinary(a, b, ValueType::DOUBLE, mr);
     if (a.isScalar() && b.isScalar())
         return Value::scalar(op(a.toScalar(), b.toScalar()), mr);
+    if (a.type() != ValueType::DOUBLE || b.type() != ValueType::DOUBLE)
+        return elementwiseTyped<double>(a, b, ValueType::DOUBLE, op, mr);
 
     // ND fallback — at least one operand has rank ≥ 4, or NumPy-style
     // broadcasting needed past 3D. Handles same-shape (fast path) and
@@ -500,11 +511,27 @@ Value elementwiseComplex(const Value &a, const Value &b, Op op, std::pmr::memory
 template<typename Op>
 Value unaryDouble(const Value &a, Op op, std::pmr::memory_resource *mr = nullptr)
 {
+    if (a.type() == ValueType::SINGLE) {
+        auto r = createLike(a, ValueType::SINGLE, mr);
+        const float *src = static_cast<const float *>(a.rawData());
+        float *dst = static_cast<float *>(r.rawDataMut());
+        for (size_t i = 0; i < a.numel(); ++i)
+            dst[i] = static_cast<float>(op(static_cast<double>(src[i])));
+        return r;
+    }
     if (a.isScalar())
         return Value::scalar(op(a.toScalar()), mr);
     auto r = createLike(a, ValueType::DOUBLE, mr);
-    for (size_t i = 0; i < a.numel(); ++i)
-        r.doubleDataMut()[i] = op(a.doubleData()[i]);
+    if (a.type() == ValueType::DOUBLE) {
+        const double *src = a.doubleData();
+        double *dst = r.doubleDataMut();
+        for (size_t i = 0; i < a.numel(); ++i)
+            dst[i] = op(src[i]);
+    } else {
+        double *dst = r.doubleDataMut();
+        for (size_t i = 0; i < a.numel(); ++i)
+            dst[i] = op(a.elemAsDouble(i));
+    }
     return r;
 }
 
@@ -797,7 +824,7 @@ inline T saturateNeg(T a)
 // ============================================================
 
 template <typename T, typename Op>
-Value elementwiseTyped(const Value &a, const Value &b, ValueType targetType, Op op, std::pmr::memory_resource *mr = nullptr)
+Value elementwiseTyped(const Value &a, const Value &b, ValueType targetType, Op op, std::pmr::memory_resource *mr)
 {
     if (a.isEmpty() || b.isEmpty())
         return emptyResultForBinary(a, b, targetType, mr);
@@ -806,7 +833,7 @@ Value elementwiseTyped(const Value &a, const Value &b, ValueType targetType, Op 
     auto readAt = [](const Value &v, ValueType tgt, size_t r, size_t c) -> T {
         size_t idx = c * v.dims().rows() + r; // column-major
         if (v.type() == tgt) return static_cast<const T *>(v.rawData())[idx];
-        double d = v.doubleData()[idx];
+        double d = v.elemAsDouble(idx);
         if constexpr (std::is_integral_v<T>)
             return static_cast<T>(std::clamp(std::round(d),
                 static_cast<double>(std::numeric_limits<T>::min()),
