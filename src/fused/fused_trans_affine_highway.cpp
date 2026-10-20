@@ -136,13 +136,13 @@ void TransAffineImpl(const double *x, double p0, double p1, bool divide,
         const auto neg_inf = hn::Set(d, -std::numeric_limits<double>::infinity());
         auto res = f(d, v);
         res = hn::IfThenElse(hn::Eq(v, zero), neg_inf, res);
-        res = hn::IfThenElse(hn::Eq(v, inf), inf, res);
+        res = hn::IfThenElse(hn::IsFinite(v), res, v);
         return res;
     };
     switch (fn) {
         case TransAffineFn::Exp:
             transLoop(x, p0, p1, divide, out, n,
-                      [](auto d, auto v) { return hn::Exp(d, v); },
+                      [](auto d, auto v) { return hn::IfThenElse(hn::IsNaN(v), v, hn::Exp(d, v)); },
                       [](double v) { return std::exp(v); });
             break;
         case TransAffineFn::Expm1:
@@ -182,7 +182,7 @@ void TransAffineImpl(const double *x, double p0, double p1, bool divide,
             break;
         case TransAffineFn::Sinh:
             transLoop(x, p0, p1, divide, out, n,
-                      [](auto d, auto v) { return hn::Sinh(d, v); },
+                      [](auto d, auto v) { return hn::IfThenElse(hn::IsFinite(v), hn::Sinh(d, v), v); },
                       [](double v) { return std::sinh(v); });
             break;
         case TransAffineFn::Atan:
@@ -192,7 +192,7 @@ void TransAffineImpl(const double *x, double p0, double p1, bool divide,
             break;
         case TransAffineFn::Asinh:
             transLoop(x, p0, p1, divide, out, n,
-                      [](auto d, auto v) { return hn::Asinh(d, v); },
+                      [](auto d, auto v) { return hn::IfThenElse(hn::IsFinite(v), hn::Asinh(d, v), v); },
                       [](double v) { return std::asinh(v); });
             break;
         case TransAffineFn::Asin:
@@ -207,7 +207,7 @@ void TransAffineImpl(const double *x, double p0, double p1, bool divide,
             break;
         case TransAffineFn::Acosh:
             transLoop(x, p0, p1, divide, out, n,
-                      [](auto d, auto v) { return hn::Acosh(d, v); },
+                      [](auto d, auto v) { return hn::IfThenElse(hn::IsFinite(v), hn::Acosh(d, v), v); },
                       [](double v) { return std::acosh(v); });
             break;
         case TransAffineFn::Atanh:
@@ -223,7 +223,7 @@ void TransAffineImpl(const double *x, double p0, double p1, bool divide,
                           const auto neg_inf = hn::Set(d, -std::numeric_limits<double>::infinity());
                           auto res = hn::Log1p(d, v);
                           res = hn::IfThenElse(hn::Eq(v, neg_one), neg_inf, res);
-                          res = hn::IfThenElse(hn::Eq(v, inf), inf, res);
+                          res = hn::IfThenElse(hn::IsFinite(v), res, v);
                           return res;
                       },
                       [](double v) { return std::log1p(v); });
@@ -232,8 +232,7 @@ void TransAffineImpl(const double *x, double p0, double p1, bool divide,
             // No Highway Cosh — compose 0.5*(e^v + e^-v) exactly as CoshLoop.
             transLoop(x, p0, p1, divide, out, n,
                       [](auto d, auto v) {
-                          return hn::Mul(hn::Set(d, 0.5),
-                                         hn::Add(hn::Exp(d, v), hn::Exp(d, hn::Neg(v))));
+                          return hn::IfThenElse(hn::IsNaN(v), v, hn::Mul(hn::Set(d, 0.5), hn::Add(hn::Exp(d, v), hn::Exp(d, hn::Neg(v)))));
                       },
                       [](double v) { return std::cosh(v); });
             break;

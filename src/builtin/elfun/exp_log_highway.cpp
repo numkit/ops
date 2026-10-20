@@ -45,7 +45,7 @@ void ExpLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_
     std::size_t i = 0;
     for (; i + N <= n; i += N) {
         auto v = hn::LoadU(d, in + i);
-        hn::StoreU(hn::Exp(d, v), d, out + i);
+        hn::StoreU(hn::IfThenElse(hn::IsNaN(v), v, hn::Exp(d, v)), d, out + i);
     }
     for (; i < n; ++i) out[i] = std::exp(in[i]);
 }
@@ -58,7 +58,7 @@ HWY_INLINE V SafeLogVec(D d, V v, Fn fn)
     const V neg_inf = hn::Set(d, -std::numeric_limits<double>::infinity());
     V res = fn(d, v);
     res = hn::IfThenElse(hn::Eq(v, zero), neg_inf, res);
-    res = hn::IfThenElse(hn::Eq(v, inf), inf, res);
+    res = hn::IfThenElse(hn::IsFinite(v), res, v);
     return res;
 }
 
@@ -70,7 +70,7 @@ HWY_INLINE V SafeLog1pVec(D d, V v)
     const V neg_inf = hn::Set(d, -std::numeric_limits<double>::infinity());
     V res = hn::Log1p(d, v);
     res = hn::IfThenElse(hn::Eq(v, neg_one), neg_inf, res);
-    res = hn::IfThenElse(hn::Eq(v, inf), inf, res);
+    res = hn::IfThenElse(hn::IsFinite(v), res, v);
     return res;
 }
 

@@ -233,25 +233,53 @@ xcorr(const Value &x, const Value &y, std::pmr::memory_resource *mr)
 
     const size_t maxLen = std::max(nx, ny);
     const size_t nc = (maxLen > 0) ? (2 * maxLen - 1) : 0;
+    const int maxLag = static_cast<int>(maxLen) - 1;
+    const bool colOut = (x.dims().rows() > 1 && x.dims().cols() == 1);
 
     ScratchArena scratch(mr);
-    auto xPad = ScratchVec<double>(maxLen, &scratch);
-    auto yRev = ScratchVec<double>(maxLen, &scratch);
-    for (size_t i = 0; i < maxLen; ++i) {
-        xPad[i] = (i < nx) ? xd[i] : 0.0;
-        const size_t yIdx = maxLen - 1 - i;
-        yRev[i] = (yIdx < ny) ? yd[yIdx] : 0.0;
+    auto r = colOut ? Value::matrix(nc, 1, ValueType::DOUBLE, mr)
+                    : Value::matrix(1, nc, ValueType::DOUBLE, mr);
+    double *rd = r.doubleDataMut();
+
+    if (nc > 0 && conv_use_fft(maxLen, maxLen)) {
+        const size_t fftLen = nextPow2(nc);
+        ScratchVec<Complex> fx(fftLen, &scratch);
+        ScratchVec<Complex> fy(fftLen, &scratch);
+        for (size_t i = 0; i < nx; ++i) fx[i] = Complex(xd[i], 0.0);
+        for (size_t i = 0; i < ny; ++i) fy[i] = Complex(yd[i], 0.0);
+
+        ScratchVec<Complex> W_fwd(fftLen / 2, &scratch);
+        ScratchVec<Complex> W_inv(fftLen / 2, &scratch);
+        fillFftTwiddles(W_fwd.data(), fftLen, +1);
+        fillFftTwiddles(W_inv.data(), fftLen, -1);
+
+        fftRadix2(fx.data(), fftLen, W_fwd.data());
+        fftRadix2(fy.data(), fftLen, W_fwd.data());
+
+        for (size_t i = 0; i < fftLen; ++i)
+            fx[i] *= std::conj(fy[i]);
+
+        fftRadix2(fx.data(), fftLen, W_inv.data());
+
+        const double invN = 1.0 / static_cast<double>(fftLen);
+        const size_t negLags = static_cast<size_t>(maxLag);
+        for (size_t i = 0; i < negLags; ++i)
+            rd[i] = fx[fftLen - negLags + i].real() * invN;
+        for (size_t i = 0; i <= negLags; ++i)
+            rd[negLags + i] = fx[i].real() * invN;
+    } else if (nc > 0) {
+        auto xPad = ScratchVec<double>(maxLen, &scratch);
+        auto yRev = ScratchVec<double>(maxLen, &scratch);
+        for (size_t i = 0; i < maxLen; ++i) {
+            xPad[i] = (i < nx) ? xd[i] : 0.0;
+            const size_t yIdx = maxLen - 1 - i;
+            yRev[i] = (yIdx < ny) ? yd[yIdx] : 0.0;
+        }
+        auto c = ops::convDirect(xPad.data(), maxLen, yRev.data(), maxLen, &scratch);
+        for (size_t i = 0; i < nc; ++i)
+            rd[i] = c[i];
     }
 
-    auto c = conv_use_fft(maxLen, maxLen)
-        ? convFFT  (&scratch, xPad.data(), maxLen, yRev.data(), maxLen)
-        : ops::convDirect(xPad.data(), maxLen, yRev.data(), maxLen, &scratch);
-
-    auto r = Value::matrix(1, nc, ValueType::DOUBLE, mr);
-    for (size_t i = 0; i < nc; ++i)
-        r.doubleDataMut()[i] = c[i];
-
-    const int maxLag = static_cast<int>(maxLen) - 1;
     auto lags = Value::matrix(1, nc, ValueType::DOUBLE, mr);
     for (size_t i = 0; i < nc; ++i)
         lags.doubleDataMut()[i] = static_cast<double>(static_cast<int>(i) - maxLag);

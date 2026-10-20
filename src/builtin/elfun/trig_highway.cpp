@@ -74,7 +74,7 @@ void SinhLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size
     std::size_t i = 0;
     for (; i + N <= n; i += N) {
         auto v = hn::LoadU(d, in + i);
-        hn::StoreU(hn::Sinh(d, v), d, out + i);
+        hn::StoreU(hn::IfThenElse(hn::IsFinite(v), hn::Sinh(d, v), v), d, out + i);
     }
     for (; i < n; ++i) out[i] = std::sinh(in[i]);
 }
@@ -102,7 +102,7 @@ void CoshLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size
         auto v   = hn::LoadU(d, in + i);
         auto ep  = hn::Exp(d, v);
         auto en  = hn::Exp(d, hn::Neg(v));
-        hn::StoreU(hn::Mul(half, hn::Add(ep, en)), d, out + i);
+        hn::StoreU(hn::IfThenElse(hn::IsNaN(v), v, hn::Mul(half, hn::Add(ep, en))), d, out + i);
     }
     for (; i < n; ++i) out[i] = std::cosh(in[i]);
 }
@@ -152,7 +152,7 @@ void AsinhLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::siz
     std::size_t i = 0;
     for (; i + N <= n; i += N) {
         auto v = hn::LoadU(d, in + i);
-        hn::StoreU(hn::Asinh(d, v), d, out + i);
+        hn::StoreU(hn::IfThenElse(hn::IsFinite(v), hn::Asinh(d, v), v), d, out + i);
     }
     for (; i < n; ++i) out[i] = std::asinh(in[i]);
 }
@@ -243,7 +243,7 @@ void AcoshLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::siz
     std::size_t i = 0;
     for (; i + N <= n; i += N) {
         auto v = hn::LoadU(d, in + i);
-        hn::StoreU(hn::Acosh(d, v), d, out + i);
+        hn::StoreU(hn::IfThenElse(hn::IsFinite(v), hn::Acosh(d, v), v), d, out + i);
     }
     for (; i < n; ++i) out[i] = std::acosh(in[i]);
 }
