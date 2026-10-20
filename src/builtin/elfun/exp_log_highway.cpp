@@ -38,6 +38,19 @@ namespace HWY_NAMESPACE {
 
 namespace hn = hwy::HWY_NAMESPACE;
 
+template <class D, class V>
+HWY_INLINE V SafeExpVec(D d, V v)
+{
+    const V max_x = hn::Set(d, 709.78271289338397);
+    const V min_x = hn::Set(d, -745.13321910194122);
+    const V vc = hn::Min(hn::Max(v, min_x), max_x);
+    V res = hn::Exp(d, vc);
+    res = hn::IfThenElse(hn::Gt(v, max_x), hn::Inf(d), res);
+    res = hn::IfThenElse(hn::Lt(v, min_x), hn::Zero(d), res);
+    res = hn::IfThenElse(hn::IsNaN(v), v, res);
+    return res;
+}
+
 void ExpLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_t n)
 {
     const hn::ScalableTag<double> d;
@@ -45,7 +58,7 @@ void ExpLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_
     std::size_t i = 0;
     for (; i + N <= n; i += N) {
         auto v = hn::LoadU(d, in + i);
-        hn::StoreU(hn::IfThenElse(hn::IsNaN(v), v, hn::Exp(d, v)), d, out + i);
+        hn::StoreU(SafeExpVec(d, v), d, out + i);
     }
     for (; i < n; ++i) out[i] = std::exp(in[i]);
 }

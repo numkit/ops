@@ -98,10 +98,19 @@ void CoshLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size
     const std::size_t N = hn::Lanes(d);
     std::size_t i = 0;
     const auto half = hn::Set(d, 0.5);
+    const auto max_x = hn::Set(d, 709.78271289338397);
+    const auto min_x = hn::Set(d, -745.13321910194122);
+    auto safeExp = [&](auto x) {
+        auto xc = hn::Min(hn::Max(x, min_x), max_x);
+        auto r = hn::Exp(d, xc);
+        r = hn::IfThenElse(hn::Gt(x, max_x), hn::Inf(d), r);
+        r = hn::IfThenElse(hn::Lt(x, min_x), hn::Zero(d), r);
+        return r;
+    };
     for (; i + N <= n; i += N) {
         auto v   = hn::LoadU(d, in + i);
-        auto ep  = hn::Exp(d, v);
-        auto en  = hn::Exp(d, hn::Neg(v));
+        auto ep  = safeExp(v);
+        auto en  = safeExp(hn::Neg(v));
         hn::StoreU(hn::IfThenElse(hn::IsNaN(v), v, hn::Mul(half, hn::Add(ep, en))), d, out + i);
     }
     for (; i < n; ++i) out[i] = std::cosh(in[i]);

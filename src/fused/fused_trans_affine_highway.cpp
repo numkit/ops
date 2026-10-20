@@ -142,7 +142,15 @@ void TransAffineImpl(const double *x, double p0, double p1, bool divide,
     switch (fn) {
         case TransAffineFn::Exp:
             transLoop(x, p0, p1, divide, out, n,
-                      [](auto d, auto v) { return hn::IfThenElse(hn::IsNaN(v), v, hn::Exp(d, v)); },
+                      [](auto d, auto v) {
+                          const auto max_x = hn::Set(d, 709.78271289338397);
+                          const auto min_x = hn::Set(d, -745.13321910194122);
+                          const auto vc = hn::Min(hn::Max(v, min_x), max_x);
+                          auto res = hn::Exp(d, vc);
+                          res = hn::IfThenElse(hn::Gt(v, max_x), hn::Inf(d), res);
+                          res = hn::IfThenElse(hn::Lt(v, min_x), hn::Zero(d), res);
+                          return hn::IfThenElse(hn::IsNaN(v), v, res);
+                      },
                       [](double v) { return std::exp(v); });
             break;
         case TransAffineFn::Expm1:

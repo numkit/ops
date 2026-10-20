@@ -708,13 +708,22 @@ eig_symmetric(const Value &A, std::pmr::memory_resource *mr)
         symTridiagQL(V_work.data(), n, evals.data(), scratch);
     }
 
-    // Sort eigenvalues ASCENDING.
+    // Sort eigenvalues ASCENDING using LAPACK dsteqr selection sort
+    // (matches LAPACK's exact permutation on repeated eigenvalues).
     ScratchVec<std::size_t> order(n, &scratch);
     for (std::size_t i = 0; i < n; ++i) order[i] = i;
-    std::sort(order.begin(), order.end(),
-              [&](std::size_t a, std::size_t b) {
-                  return evals[a] < evals[b];
-              });
+    for (std::size_t ii = 1; ii < n; ++ii) {
+        std::size_t i = ii - 1;
+        std::size_t k = i;
+        double p = evals[order[i]];
+        for (std::size_t j = ii; j < n; ++j) {
+            if (evals[order[j]] < p) {
+                k = j;
+                p = evals[order[j]];
+            }
+        }
+        if (k != i) std::swap(order[i], order[k]);
+    }
 
     auto Vout = Value::matrix(n, n, ValueType::DOUBLE, mr);
     auto Dout = Value::matrix(n, n, ValueType::DOUBLE, mr);
