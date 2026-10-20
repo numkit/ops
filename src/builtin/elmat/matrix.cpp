@@ -818,9 +818,9 @@ Surface3 sphere(size_t n, std::pmr::memory_resource *mr)
     for (size_t j = 0; j < m; ++j) {
         for (size_t i = 0; i < m; ++i) {
             const size_t k = j * m + i;
-            xd[k] = cosPhi[i] * cosTh[j];
-            yd[k] = cosPhi[i] * sinTh[j];
-            zd[k] = sinPhi[i];
+            xd[k] = cosPhi[i] * cosTh[j] + 0.0;
+            yd[k] = cosPhi[i] * sinTh[j] + 0.0;
+            zd[k] = sinPhi[i] + 0.0;
         }
     }
     return { std::move(X), std::move(Y), std::move(Z) };

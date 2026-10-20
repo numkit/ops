@@ -109,11 +109,11 @@ CartTriple pol2cart(const Value &theta, const Value &rho, const Value &z, std::p
 SphTriple cart2sph(const Value &x, const Value &y, const Value &z, std::pmr::memory_resource *mr)
 {
     Value az = elementwiseDouble(y, x,
-        [](double yy, double xx) { return std::atan2(yy, xx); }, mr);
+        [](double yy, double xx) { return std::atan2(yy + 0.0, xx + 0.0); }, mr);
     Value rxy = elementwiseDouble(x, y,
         [](double xx, double yy) { return std::hypot(xx, yy); }, mr);
     Value el = elementwiseDouble(z, rxy,
-        [](double zz, double rr) { return std::atan2(zz, rr); }, mr);
+        [](double zz, double rr) { return std::atan2(zz + 0.0, rr + 0.0); }, mr);
     Value r = elementwiseDouble(rxy, z,
         [](double rxy_v, double zz) { return std::hypot(rxy_v, zz); }, mr);
     return { std::move(az), std::move(el), std::move(r) };

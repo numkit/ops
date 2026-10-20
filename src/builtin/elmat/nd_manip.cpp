@@ -285,7 +285,9 @@ Value ipermute(const Value &x, Span<const int> perm, std::pmr::memory_resource *
 Value squeeze(const Value &x, std::pmr::memory_resource *mr)
 {
     const auto &dd = x.dims();
-    const int nd = dd.ndim();
+    int nd = dd.ndim();
+    while (nd > 2 && dd.dim(nd - 1) == 1)
+        --nd;
 
     // 2D and below: shape preserved (MATLAB never collapses below 2D).
     if (nd <= 2)

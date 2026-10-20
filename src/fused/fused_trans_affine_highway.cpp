@@ -130,6 +130,15 @@ void transLoop(const double *x, double p0, double p1, bool divide, double *out,
 
 void TransAffineImpl(const double *x, double p0, double p1, bool divide,
                      TransAffineFn fn, double *out, std::size_t n) {
+    auto safeLog = [](auto d, auto v, auto f) {
+        const auto zero = hn::Zero(d);
+        const auto inf = hn::Inf(d);
+        const auto neg_inf = hn::Set(d, -std::numeric_limits<double>::infinity());
+        auto res = f(d, v);
+        res = hn::IfThenElse(hn::Eq(v, zero), neg_inf, res);
+        res = hn::IfThenElse(hn::Eq(v, inf), inf, res);
+        return res;
+    };
     switch (fn) {
         case TransAffineFn::Exp:
             transLoop(x, p0, p1, divide, out, n,
@@ -143,17 +152,17 @@ void TransAffineImpl(const double *x, double p0, double p1, bool divide,
             break;
         case TransAffineFn::Log:
             transLoop(x, p0, p1, divide, out, n,
-                      [](auto d, auto v) { return hn::Log(d, v); },
+                      [&](auto d, auto v) { return safeLog(d, v, [](auto td, auto tv) { return hn::Log(td, tv); }); },
                       [](double v) { return std::log(v); });
             break;
         case TransAffineFn::Log2:
             transLoop(x, p0, p1, divide, out, n,
-                      [](auto d, auto v) { return hn::Log2(d, v); },
+                      [&](auto d, auto v) { return safeLog(d, v, [](auto td, auto tv) { return hn::Log2(td, tv); }); },
                       [](double v) { return std::log2(v); });
             break;
         case TransAffineFn::Log10:
             transLoop(x, p0, p1, divide, out, n,
-                      [](auto d, auto v) { return hn::Log10(d, v); },
+                      [&](auto d, auto v) { return safeLog(d, v, [](auto td, auto tv) { return hn::Log10(td, tv); }); },
                       [](double v) { return std::log10(v); });
             break;
         case TransAffineFn::Sin:
@@ -208,7 +217,15 @@ void TransAffineImpl(const double *x, double p0, double p1, bool divide,
             break;
         case TransAffineFn::Log1p:
             transLoop(x, p0, p1, divide, out, n,
-                      [](auto d, auto v) { return hn::Log1p(d, v); },
+                      [](auto d, auto v) {
+                          const auto neg_one = hn::Set(d, -1.0);
+                          const auto inf = hn::Inf(d);
+                          const auto neg_inf = hn::Set(d, -std::numeric_limits<double>::infinity());
+                          auto res = hn::Log1p(d, v);
+                          res = hn::IfThenElse(hn::Eq(v, neg_one), neg_inf, res);
+                          res = hn::IfThenElse(hn::Eq(v, inf), inf, res);
+                          return res;
+                      },
                       [](double v) { return std::log1p(v); });
             break;
         case TransAffineFn::Cosh:

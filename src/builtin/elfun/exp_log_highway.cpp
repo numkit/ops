@@ -50,6 +50,30 @@ void ExpLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_
     for (; i < n; ++i) out[i] = std::exp(in[i]);
 }
 
+template <class D, class V, class Fn>
+HWY_INLINE V SafeLogVec(D d, V v, Fn fn)
+{
+    const V zero = hn::Zero(d);
+    const V inf = hn::Inf(d);
+    const V neg_inf = hn::Set(d, -std::numeric_limits<double>::infinity());
+    V res = fn(d, v);
+    res = hn::IfThenElse(hn::Eq(v, zero), neg_inf, res);
+    res = hn::IfThenElse(hn::Eq(v, inf), inf, res);
+    return res;
+}
+
+template <class D, class V>
+HWY_INLINE V SafeLog1pVec(D d, V v)
+{
+    const V neg_one = hn::Set(d, -1.0);
+    const V inf = hn::Inf(d);
+    const V neg_inf = hn::Set(d, -std::numeric_limits<double>::infinity());
+    V res = hn::Log1p(d, v);
+    res = hn::IfThenElse(hn::Eq(v, neg_one), neg_inf, res);
+    res = hn::IfThenElse(hn::Eq(v, inf), inf, res);
+    return res;
+}
+
 void LogLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_t n)
 {
     const hn::ScalableTag<double> d;
@@ -57,13 +81,13 @@ void LogLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_
     std::size_t i = 0;
     for (; i + N <= n; i += N) {
         auto v = hn::LoadU(d, in + i);
-        hn::StoreU(hn::Log(d, v), d, out + i);
+        hn::StoreU(SafeLogVec(d, v, [](auto tag, auto x) { return hn::Log(tag, x); }), d, out + i);
     }
     for (; i < n; ++i) out[i] = std::log(in[i]);
 }
 
 // Tier-2 wrappers over Highway's contrib/math primitives (SLEEF-derived,
-// ULP <= ~4). expm1 / log1p / log2 had no SIMD path before â€” they were
+// ULP <= ~4). expm1 / log1p / log2 had no SIMD path before — they were
 // scalar std::* calls in exponents.cpp.
 void Expm1Loop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_t n)
 {
@@ -81,7 +105,7 @@ void Log1pLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::siz
     const std::size_t N = hn::Lanes(d);
     std::size_t i = 0;
     for (; i + N <= n; i += N)
-        hn::StoreU(hn::Log1p(d, hn::LoadU(d, in + i)), d, out + i);
+        hn::StoreU(SafeLog1pVec(d, hn::LoadU(d, in + i)), d, out + i);
     for (; i < n; ++i) out[i] = std::log1p(in[i]);
 }
 
@@ -91,11 +115,11 @@ void Log2Loop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size
     const std::size_t N = hn::Lanes(d);
     std::size_t i = 0;
     for (; i + N <= n; i += N)
-        hn::StoreU(hn::Log2(d, hn::LoadU(d, in + i)), d, out + i);
+        hn::StoreU(SafeLogVec(d, hn::LoadU(d, in + i), [](auto tag, auto x) { return hn::Log2(tag, x); }), d, out + i);
     for (; i < n; ++i) out[i] = std::log2(in[i]);
 }
 
-// log10 had no SIMD path before â€” it was a scalar std::log10 in
+// log10 had no SIMD path before — it was a scalar std::log10 in
 // exponents.cpp, ~10x slower than the vectorised log. reallog reuses
 // LogLoop (it is log with a negative-input domain guard).
 void Log10Loop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_t n)
@@ -104,7 +128,7 @@ void Log10Loop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::siz
     const std::size_t N = hn::Lanes(d);
     std::size_t i = 0;
     for (; i + N <= n; i += N)
-        hn::StoreU(hn::Log10(d, hn::LoadU(d, in + i)), d, out + i);
+        hn::StoreU(SafeLogVec(d, hn::LoadU(d, in + i), [](auto tag, auto x) { return hn::Log10(tag, x); }), d, out + i);
     for (; i < n; ++i) out[i] = std::log10(in[i]);
 }
 
