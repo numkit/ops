@@ -1033,60 +1033,58 @@ Value polyfit(const Value &x, const Value &y, int deg, std::pmr::memory_resource
         for (int j = 0; j < np; ++j)
             A[j * m + i] = std::pow(xd[i], deg - j);
 
-    // Normal equations: ATA * p = AT * y.
-    auto ATA = ScratchVec<double>(static_cast<std::size_t>(np * np), &scratch);
-    for (int r = 0; r < np; ++r)
-        for (int c = 0; c < np; ++c)
-            for (size_t i = 0; i < m; ++i)
-                ATA[c * np + r] += A[r * m + i] * A[c * m + i];
-
-    auto ATy = ScratchVec<double>(static_cast<std::size_t>(np), &scratch);
-    for (int r = 0; r < np; ++r)
-        for (size_t i = 0; i < m; ++i)
-            ATy[r] += A[r * m + i] * yd[i];
-
-    // Gaussian elimination with partial pivoting on [ATA | ATy].
-    auto aug = ScratchVec<double>(static_cast<std::size_t>(np * (np + 1)), &scratch);
-    for (int r = 0; r < np; ++r) {
-        for (int c = 0; c < np; ++c)
-            aug[r * (np + 1) + c] = ATA[c * np + r];
-        aug[r * (np + 1) + np] = ATy[r];
-    }
+    // Solve A * p = y via Householder QR on Vandermonde matrix A (avoiding
+    // normal equations A^T A, which squares the condition number).
+    auto rhs = ScratchVec<double>(m, &scratch);
+    for (size_t i = 0; i < m; ++i)
+        rhs[i] = yd[i];
 
     for (int k = 0; k < np; ++k) {
-        int maxRow = k;
-        double maxVal = std::abs(aug[k * (np + 1) + k]);
-        for (int r = k + 1; r < np; ++r) {
-            const double v = std::abs(aug[r * (np + 1) + k]);
-            if (v > maxVal) {
-                maxVal = v;
-                maxRow = r;
+        double norm2 = 0.0;
+        for (size_t i = static_cast<size_t>(k); i < m; ++i) {
+            const double val = A[k * m + i];
+            norm2 += val * val;
+        }
+        const double normX = std::sqrt(norm2);
+        if (normX == 0.0) continue;
+        const double akk = A[k * m + k];
+        const double alpha = (akk >= 0.0) ? -normX : normX;
+        const double v0 = akk - alpha;
+        A[k * m + k] = v0;
+        double vNorm2 = v0 * v0;
+        for (size_t i = static_cast<size_t>(k) + 1; i < m; ++i) {
+            const double vi = A[k * m + i];
+            vNorm2 += vi * vi;
+        }
+        if (vNorm2 > 0.0) {
+            const double beta = 2.0 / vNorm2;
+            for (int c = k + 1; c < np; ++c) {
+                double dot = 0.0;
+                for (size_t i = static_cast<size_t>(k); i < m; ++i)
+                    dot += A[k * m + i] * A[c * m + i];
+                const double scale = beta * dot;
+                for (size_t i = static_cast<size_t>(k); i < m; ++i)
+                    A[c * m + i] -= scale * A[k * m + i];
             }
+            double dotY = 0.0;
+            for (size_t i = static_cast<size_t>(k); i < m; ++i)
+                dotY += A[k * m + i] * rhs[i];
+            const double scaleY = beta * dotY;
+            for (size_t i = static_cast<size_t>(k); i < m; ++i)
+                rhs[i] -= scaleY * A[k * m + i];
         }
-        if (maxRow != k) {
-            for (int c = 0; c <= np; ++c)
-                std::swap(aug[k * (np + 1) + c], aug[maxRow * (np + 1) + c]);
-        }
-
-        const double pivot = aug[k * (np + 1) + k];
-        if (std::abs(pivot) < 1e-15)
-            throw Error("polyfit: singular matrix",
-                         0, 0, "polyfit", "", "numkit:polyfit:singular");
-
-        for (int c = k; c <= np; ++c)
-            aug[k * (np + 1) + c] /= pivot;
-        for (int r = 0; r < np; ++r) {
-            if (r == k)
-                continue;
-            const double f = aug[r * (np + 1) + k];
-            for (int c = k; c <= np; ++c)
-                aug[r * (np + 1) + c] -= f * aug[k * (np + 1) + c];
-        }
+        A[k * m + k] = alpha;
     }
 
     auto p = Value::matrix(1, np, ValueType::DOUBLE, mr);
-    for (int j = 0; j < np; ++j)
-        p.doubleDataMut()[j] = aug[j * (np + 1) + np];
+    double *pd = p.doubleDataMut();
+    for (int k = np - 1; k >= 0; --k) {
+        double s = rhs[k];
+        for (int c = k + 1; c < np; ++c)
+            s -= A[c * m + k] * pd[c];
+        const double diag = A[k * m + k];
+        pd[k] = (std::abs(diag) > 0.0) ? (s / diag) : 0.0;
+    }
     return p;
 }
 

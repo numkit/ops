@@ -98,8 +98,14 @@ polyRootsDurandKerner(const Complex *coeffs, std::size_t coeffsN,
         }
         if (maxStep < kTol) break;
     }
-    for (std::size_t i = 0; i < origZeros; ++i)
-        roots.push_back(Complex(0.0, 0.0));
+    if (origZeros > 0) {
+        ScratchVec<Complex> out(origZeros + roots.size(), mr);
+        for (std::size_t i = 0; i < origZeros; ++i)
+            out[i] = Complex(0.0, 0.0);
+        for (std::size_t i = 0; i < roots.size(); ++i)
+            out[origZeros + i] = roots[i];
+        return out;
+    }
     return roots;
 }
 

@@ -388,11 +388,35 @@ Value griddata(const Value &x, const Value &y, const Value &v,
 
     ScratchArena scratch(mr);
     ScratchVec<double> X(n, &scratch), Y(n, &scratch), V(n, &scratch);
+    std::size_t nUnique = 0;
+    ScratchVec<std::size_t> counts(n, 0, &scratch);
     for (std::size_t i = 0; i < n; ++i) {
-        X[i] = x.elemAsDouble(i);
-        Y[i] = y.elemAsDouble(i);
-        V[i] = v.elemAsDouble(i);
+        const double xi_v = x.elemAsDouble(i);
+        const double yi_v = y.elemAsDouble(i);
+        const double vi_v = v.elemAsDouble(i);
+        bool merged = false;
+        for (std::size_t j = 0; j < nUnique; ++j) {
+            if (std::abs(X[j] - xi_v) <= 1e-12 && std::abs(Y[j] - yi_v) <= 1e-12) {
+                V[j] += vi_v;
+                counts[j] += 1;
+                merged = true;
+                break;
+            }
+        }
+        if (!merged) {
+            X[nUnique] = xi_v;
+            Y[nUnique] = yi_v;
+            V[nUnique] = vi_v;
+            counts[nUnique] = 1;
+            ++nUnique;
+        }
     }
+    for (std::size_t j = 0; j < nUnique; ++j) {
+        if (counts[j] > 1)
+            V[j] /= static_cast<double>(counts[j]);
+    }
+    const std::size_t n_orig = n; (void)n_orig;
+    #define n nUnique
 
     if (method == "nearest") {
         for (std::size_t q = 0; q < nq; ++q) {
@@ -500,21 +524,99 @@ Value griddata(const Value &x, const Value &y, const Value &v,
     };
     std::vector<std::array<std::size_t, 3>> tris;
     tris.reserve(2 * n);
-    for (std::size_t a = 0; a < n; ++a) {
-        for (std::size_t b = a + 1; b < n; ++b) {
-            for (std::size_t c = b + 1; c < n; ++c) {
-                const double sa2 = signedArea2(a, b, c);
-                if (std::abs(sa2) < 1e-15) continue;
-                std::size_t va = a, vb = b, vc = c;
-                if (sa2 < 0) std::swap(vb, vc);
-                bool ok = true;
-                for (std::size_t p = 0; p < n; ++p) {
-                    if (p == va || p == vb || p == vc) continue;
-                    if (inCircle(va, vb, vc, p) > 1e-12) { ok = false; break; }
+    if (n <= 30) {
+        for (std::size_t a = 0; a < n; ++a) {
+            for (std::size_t b = a + 1; b < n; ++b) {
+                for (std::size_t c = b + 1; c < n; ++c) {
+                    const double sa2 = signedArea2(a, b, c);
+                    if (std::abs(sa2) < 1e-15) continue;
+                    std::size_t va = a, vb = b, vc = c;
+                    if (sa2 < 0) std::swap(vb, vc);
+                    bool ok = true;
+                    for (std::size_t p = 0; p < n; ++p) {
+                        if (p == va || p == vb || p == vc) continue;
+                        if (inCircle(va, vb, vc, p) > 1e-12) { ok = false; break; }
+                    }
+                    if (ok) tris.push_back({ va, vb, vc });
                 }
-                if (ok) tris.push_back({ va, vb, vc });
             }
         }
+    } else {
+        // Bowyer-Watson incremental Delaunay triangulation for larger point sets.
+        std::vector<double> bwx(n + 3), bwy(n + 3);
+        double xmin = X[0], xmax = X[0], ymin = Y[0], ymax = Y[0];
+        for (std::size_t i = 0; i < n; ++i) {
+            bwx[i] = X[i];
+            bwy[i] = Y[i];
+            if (X[i] < xmin) xmin = X[i];
+            if (X[i] > xmax) xmax = X[i];
+            if (Y[i] < ymin) ymin = Y[i];
+            if (Y[i] > ymax) ymax = Y[i];
+        }
+        const double dx = xmax - xmin;
+        const double dy = ymax - ymin;
+        const double dmax = std::max(std::max(dx, dy), 1.0);
+        const double xmid = 0.5 * (xmin + xmax);
+        const double ymid = 0.5 * (ymin + ymax);
+        bwx[n]     = xmid - 20.0 * dmax; bwy[n]     = ymid - dmax;
+        bwx[n + 1] = xmid + 20.0 * dmax; bwy[n + 1] = ymid - dmax;
+        bwx[n + 2] = xmid;               bwy[n + 2] = ymid + 20.0 * dmax;
+
+        auto bwArea2 = [&](std::size_t a, std::size_t b, std::size_t c) {
+            return (bwx[b] - bwx[a]) * (bwy[c] - bwy[a]) - (bwy[b] - bwy[a]) * (bwx[c] - bwx[a]);
+        };
+        auto bwInCircle = [&](std::size_t a, std::size_t b, std::size_t c, std::size_t p) {
+            const double ax = bwx[a] - bwx[p], ay = bwy[a] - bwy[p];
+            const double bx = bwx[b] - bwx[p], by = bwy[b] - bwy[p];
+            const double cx = bwx[c] - bwx[p], cy = bwy[c] - bwy[p];
+            const double a2 = ax * ax + ay * ay;
+            const double b2 = bx * bx + by * by;
+            const double c2 = cx * cx + cy * cy;
+            return ax * (by * c2 - cy * b2)
+                 - ay * (bx * c2 - cx * b2)
+                 + a2 * (bx * cy - cx * by) > 1e-12;
+        };
+
+        tris.push_back({ n, n + 1, n + 2 });
+        std::vector<std::pair<std::size_t, std::size_t>> edges;
+        std::vector<std::array<std::size_t, 3>> nextTris;
+        for (std::size_t p = 0; p < n; ++p) {
+            edges.clear();
+            nextTris.clear();
+            for (const auto &t : tris) {
+                if (bwInCircle(t[0], t[1], t[2], p)) {
+                    edges.push_back({ t[0], t[1] });
+                    edges.push_back({ t[1], t[2] });
+                    edges.push_back({ t[2], t[0] });
+                } else {
+                    nextTris.push_back(t);
+                }
+            }
+            for (std::size_t i = 0; i < edges.size(); ++i) {
+                bool shared = false;
+                for (std::size_t j = 0; j < edges.size(); ++j) {
+                    if (i != j && edges[i].first == edges[j].second && edges[i].second == edges[j].first) {
+                        shared = true;
+                        break;
+                    }
+                }
+                if (!shared) {
+                    std::size_t va = edges[i].first, vb = edges[i].second, vc = p;
+                    const double sa = bwArea2(va, vb, vc);
+                    if (std::abs(sa) > 1e-15) {
+                        if (sa < 0) std::swap(va, vb);
+                        nextTris.push_back({ va, vb, vc });
+                    }
+                }
+            }
+            tris.swap(nextTris);
+        }
+        nextTris.clear();
+        for (const auto &t : tris) {
+            if (t[0] < n && t[1] < n && t[2] < n)
+                nextTris.push_back(t);
+        }
+        tris.swap(nextTris);
     }
     // Per query point: walk triangles, find one that contains the
     // query, compute barycentric coords, interpolate v.
@@ -540,6 +642,7 @@ Value griddata(const Value &x, const Value &y, const Value &v,
         }
         if (!found) dst[q] = std::nan("");
     }
+    #undef n
     return out;
 }
 

@@ -377,8 +377,12 @@ Value mrdivide(const Value &a, const Value &b, std::pmr::memory_resource *mr)
         return elementwiseDouble(a, b, std::divides<double>{}, p);
     }
     if (a.isScalar() && !b.isScalar()) {
-        throw Error("mrdivide: matrix dimensions must agree",
-                    0, 0, "mrdivide", "", "numkit:mrdivide:dim");
+        if (b.dims().ndim() > 2)
+            return rdivide(a, b, p);
+        if (b.dims().cols() != 1) {
+            throw Error("mrdivide: matrix dimensions must agree",
+                        0, 0, "mrdivide", "", "numkit:mrdivide:dim");
+        }
     }
     Value Bt = ctranspose(b, p);
     Value At = ctranspose(a, p);

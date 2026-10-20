@@ -17,6 +17,7 @@
 #include <random>
 #include <sstream>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 
 namespace numkit::ops {
@@ -458,27 +459,43 @@ Value randperm(RngContext &rng, size_t n, size_t k, std::pmr::memory_resource *m
         return r;
     }
 
-    ScratchArena scratch(mr);
     if (4 * k < n) {
-        std::unordered_set<size_t> used;
-        used.reserve(k * 2);
+        std::unordered_map<size_t, size_t> H;
+        H.reserve(k * 2);
         for (size_t i = 0; i < k; ++i) {
-            size_t cand = 0;
-            do {
-                cand = 1 + static_cast<size_t>(std::floor(rng.nextUniform() * static_cast<double>(n)));
-            } while (!used.insert(cand).second);
-            dst[i] = static_cast<double>(cand);
+            const size_t m = n - i;
+            const size_t j = 1 + static_cast<size_t>(
+                std::floor(rng.nextUniform() * static_cast<double>(m)));
+            auto itJ = H.find(j);
+            const size_t valJ = (itJ != H.end()) ? itJ->second : j;
+            auto itM = H.find(m);
+            const size_t valM = (itM != H.end()) ? itM->second : m;
+            dst[i] = static_cast<double>(valJ);
+            H[j] = valM;
         }
         return r;
     }
-    auto pool = ScratchVec<int64_t>(n, &scratch);
-    std::iota(pool.begin(), pool.end(), int64_t{1});
 
+    size_t t = 0;
+    double nrem = static_cast<double>(n);
+    double krem = static_cast<double>(k);
     for (size_t i = 0; i < k; ++i) {
-        const size_t j = i + static_cast<size_t>(
-            std::floor(rng.nextUniform() * static_cast<double>(n - i)));
-        std::swap(pool[i], pool[j]);
-        dst[i] = static_cast<double>(pool[i]);
+        const double v = 1.0 - rng.nextUniform();
+        size_t s = 0;
+        double quot = (nrem - krem) / nrem;
+        while (quot > v) {
+            ++s;
+            nrem -= 1.0;
+            quot *= (nrem - krem) / nrem;
+        }
+        t += s + 1;
+        nrem -= 1.0;
+        krem -= 1.0;
+        const size_t j = static_cast<size_t>(
+            std::floor(rng.nextUniform() * static_cast<double>(i + 1)));
+        if (j != i)
+            dst[i] = dst[j];
+        dst[j] = static_cast<double>(t);
     }
     return r;
 }
