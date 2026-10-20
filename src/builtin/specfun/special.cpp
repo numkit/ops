@@ -438,6 +438,7 @@ double expintScalar(double x)
     if (std::isnan(x)) return x;
     if (x == 0.0) return std::numeric_limits<double>::infinity();
     if (x < 0.0) return std::numeric_limits<double>::quiet_NaN();
+    if (x > 709.78271289338397) return 0.0;
     constexpr double EUL = 0.57721566490153286060;
     if (x <= 1.0) {
         double term = 1.0;

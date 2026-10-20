@@ -17,6 +17,7 @@
 #include <random>
 #include <sstream>
 #include <string>
+#include <unordered_set>
 
 namespace numkit::ops {
 
@@ -202,10 +203,52 @@ static constexpr double kZigguratF[257] = {
 
 } // namespace
 
+double RngContext::v5Normal()
+{
+    static constexpr double vt[65] = {
+        0.3409450, 0.4573146, 0.5397793, 0.6062427, 0.6631691, 0.7136975, 0.7596125, 0.8020356,
+        0.8417227, 0.8792102, 0.9148948, 0.9490791, 0.9820005, 1.0138492, 1.0447810, 1.0749254,
+        1.1043917, 1.1332738, 1.1616530, 1.1896010, 1.2171815, 1.2444516, 1.2714635, 1.2982650,
+        1.3249008, 1.3514125, 1.3778399, 1.4042211, 1.4305929, 1.4569915, 1.4834527, 1.5100122,
+        1.5367061, 1.5635712, 1.5906454, 1.6179680, 1.6455802, 1.6735255, 1.7018503, 1.7306045,
+        1.7598422, 1.7896223, 1.8200099, 1.8510770, 1.8829044, 1.9155831, 1.9492166, 1.9839239,
+        2.0198431, 2.0571356, 2.0959930, 2.1366450, 2.1793713, 2.2245175, 2.2725186, 2.3239338,
+        2.3795008, 2.4402218, 2.5075117, 2.5834658, 2.6713916, 2.7769942, 2.7769942, 2.7769942,
+        2.7769942
+    };
+    const std::uint32_t u32 = shr3Step();
+    const std::int32_t hz = static_cast<std::int32_t>(u32);
+    const std::uint32_t iz = u32 & 63u;
+    const double x = static_cast<double>(hz) * vt[iz + 1] * 4.6566128730773926e-10;
+    if (std::abs(x) < vt[iz])
+        return x;
+
+    const double y = 0.4878992 * (vt[iz + 1] - std::abs(x)) / (vt[iz + 1] - vt[iz]);
+    const double u1 = 0.5 + static_cast<double>(static_cast<std::int32_t>(shr3Step())) * 2.3283064365386963e-10;
+    const double f0 = std::exp(-0.5 * vt[iz] * vt[iz]);
+    const double f1 = std::exp(-0.5 * vt[iz + 1] * vt[iz + 1]);
+    if (u1 < (std::exp(-0.5 * x * x) - f1) / (f0 - f1))
+        return x;
+
+    const double fv0 = std::exp(-0.5 * vt[0] * vt[0]);
+    if ((1.0 - u1) < 12.37598359 * (std::exp(-0.5 * y * y) - fv0))
+        return (x < 0.0) ? -y : y;
+
+    for (;;) {
+        const double u2 = 0.5 + static_cast<double>(static_cast<std::int32_t>(shr3Step())) * 2.3283064365386963e-10;
+        const double u3 = 0.5 + static_cast<double>(static_cast<std::int32_t>(shr3Step())) * 2.3283064365386963e-10;
+        const double tx = -std::log(u2) / 2.776994;
+        if (-2.0 * std::log(u3) > tx * tx) {
+            const double res = 2.776994 + tx;
+            return (x < 0.0) ? -res : res;
+        }
+    }
+}
+
 double RngContext::nextNormal()
 {
-    if (legacyV4_)
-        return v4Normal();
+    if (legacyMode_)
+        return legacyV4Randn_ ? v4Normal() : v5Normal();
 
     for (;;) {
         const std::uint32_t w0 = gen_.genUint32();
@@ -240,6 +283,9 @@ double RngContext::nextNormal()
 
 void RngContext::shuffle()
 {
+    legacyMode_ = false;
+    legacyV4Rand_ = false;
+    legacyV4Randn_ = false;
     std::random_device rd;
     gen_.seed(rd());
 }
@@ -265,6 +311,9 @@ void RngContext::restore(const Value &state)
     if (!blob.isChar() && !blob.isString())
         throw Error("rng: .State must be a char array",
                      0, 0, "rng", "", "numkit:rng:badState");
+    legacyMode_ = false;
+    legacyV4Rand_ = false;
+    legacyV4Randn_ = false;
     deserializeState(gen_, blob.toString());
 }
 
@@ -410,6 +459,18 @@ Value randperm(RngContext &rng, size_t n, size_t k, std::pmr::memory_resource *m
     }
 
     ScratchArena scratch(mr);
+    if (4 * k < n) {
+        std::unordered_set<size_t> used;
+        used.reserve(k * 2);
+        for (size_t i = 0; i < k; ++i) {
+            size_t cand = 0;
+            do {
+                cand = 1 + static_cast<size_t>(std::floor(rng.nextUniform() * static_cast<double>(n)));
+            } while (!used.insert(cand).second);
+            dst[i] = static_cast<double>(cand);
+        }
+        return r;
+    }
     auto pool = ScratchVec<int64_t>(n, &scratch);
     std::iota(pool.begin(), pool.end(), int64_t{1});
 
