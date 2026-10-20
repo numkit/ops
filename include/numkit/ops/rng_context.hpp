@@ -35,8 +35,15 @@ public:
     static constexpr result_type max() { return MatlabMT19937::max(); }
     result_type operator()() { return gen_(); }
 
-    /// MATLAB-canonical 53-bit double in [0, 1) — what `rand` uses.
+    /// MATLAB-canonical 53-bit double in (0, 1) — what `rand` uses.
     double genRes53() { return gen_.genRes53(); }
+
+    /// Session-aware uniform in (0, 1): v4Uniform() in legacy v4 mode, else genRes53().
+    double nextUniform() { return legacyV4_ ? v4Uniform() : gen_.genRes53(); }
+
+    /// Session-aware standard normal N(0, 1): v4Normal() in legacy v4 mode, else
+    /// MATLAB-exact 256-layer Marsaglia-Tsang Ziggurat on the MT19937 stream.
+    double nextNormal();
 
     // ── MATLAB rng() control ──────────────────────────────────────────
     /// Seed the stream. `seed == 0` ≡ `rng('default')`.

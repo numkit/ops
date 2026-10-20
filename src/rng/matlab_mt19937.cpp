@@ -112,10 +112,14 @@ uint32_t MatlabMT19937::genUint32()
 // MATLAB's rand() under 'twister' emits exactly this.
 double MatlabMT19937::genRes53()
 {
-    const uint32_t a = genUint32() >> 5;
-    const uint32_t b = genUint32() >> 6;
-    return (static_cast<double>(a) * 67108864.0 + static_cast<double>(b))
-         * (1.0 / 9007199254740992.0);
+    for (;;) {
+        const uint32_t a = genUint32() >> 5;
+        const uint32_t b = genUint32() >> 6;
+        if ((a | b) != 0) {
+            return (static_cast<double>(a) * 67108864.0 + static_cast<double>(b))
+                 * (1.0 / 9007199254740992.0);
+        }
+    }
 }
 
 void MatlabMT19937::getState(uint32_t out[STATE_SIZE], int &outIndex) const
