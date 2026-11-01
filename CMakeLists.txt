@@ -30,10 +30,17 @@ FetchContent_Declare(
     highway
     GIT_REPOSITORY https://github.com/google/highway.git
     GIT_TAG 1.2.0
+    GIT_SHALLOW TRUE
 )
 set(HWY_ENABLE_TESTS OFF CACHE BOOL "" FORCE)
 set(HWY_ENABLE_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(HWY_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
+set(_numkit_saved_warn_deprecated "${CMAKE_WARN_DEPRECATED}")
+set(CMAKE_WARN_DEPRECATED OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(highway)
+if(DEFINED _numkit_saved_warn_deprecated AND NOT "${_numkit_saved_warn_deprecated}" STREQUAL "")
+    set(CMAKE_WARN_DEPRECATED "${_numkit_saved_warn_deprecated}" CACHE BOOL "" FORCE)
+endif()
 
 set(NUMKIT_OPS_SOURCES
     src/rng/matlab_mt19937.cpp
