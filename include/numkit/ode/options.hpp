@@ -1,6 +1,6 @@
 ﻿/// @file options.hpp
 /// @ingroup group_ode
-// toolboxes/ode/include/nk/ode/options.hpp
+// toolboxes/ode/include/numkit/ode/options.hpp
 //
 // odeset / odeget â€” assembled options struct passed to the ode* solvers.
 //

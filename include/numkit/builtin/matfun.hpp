@@ -1,4 +1,4 @@
-// src/builtin/include/nk/builtin/matfun.hpp
+// src/builtin/include/numkit/builtin/matfun.hpp
 //
 // Pure C++ Matrix functions and integer division (MATLAB parity).
 #pragma once

@@ -1,4 +1,4 @@
-// src/builtin/include/nk/builtin/strfun.hpp
+// src/builtin/include/numkit/builtin/strfun.hpp
 //
 // Pure C++ String and character array manipulation functions (MATLAB parity).
 #pragma once

@@ -36,7 +36,7 @@ ScratchVec<Complex> toComplexBuf(const Value &v, size_t n,
 size_t firstNonSingletonExtent(const Value &x);
 
 // filter's checker + dispatch-plan resolver (the argcheck-separation
-// pattern): validates the b/a/x/zi contracts with nk-voiced
+// pattern): validates the b/a/x/zi contracts with numkit-voiced
 // diagnostics and resolves the once-per-call dispatch decisions so the
 // plain and [y, zf] paths share ONE derivation (the [y,zf] tail in
 // filter_reg used to re-derive all of this). Read-only, allocation-free.

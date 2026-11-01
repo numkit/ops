@@ -1,6 +1,6 @@
 ﻿/// @file svd_sketch.hpp
 /// @ingroup group_matfun
-// toolboxes/linalg/include/nk/linalg/svd_sketch.hpp
+// toolboxes/linalg/include/numkit/linalg/svd_sketch.hpp
 //
 // svdsketch & svdappend: Randomized and Incremental SVD.
 

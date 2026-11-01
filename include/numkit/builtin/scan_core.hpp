@@ -1,4 +1,4 @@
-// src/builtin/include/nk/builtin/scan_core.hpp
+// src/builtin/include/numkit/builtin/scan_core.hpp
 #pragma once
 
 // Shared scan parse+shape core, exposed so the engine-coupled fscanf shim

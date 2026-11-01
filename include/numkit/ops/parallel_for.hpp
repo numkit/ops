@@ -1,4 +1,4 @@
-// core/include/nk/ops/parallel_for.hpp
+// core/include/numkit/ops/parallel_for.hpp
 //
 // `parallel_for(n, threshold, fn)` — call `fn(start, end)` over a
 // non-overlapping cover of [0, n).

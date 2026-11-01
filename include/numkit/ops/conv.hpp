@@ -1,4 +1,4 @@
-// ops/include/nk/ops/conv.hpp
+// ops/include/numkit/ops/conv.hpp
 //
 // Direct (time-domain) linear convolution of two real double sequences — the
 // numerical FIR kernel behind signal's conv()/xcorr(). Raw-buffer, core-free;

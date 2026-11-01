@@ -1,4 +1,4 @@
-// src/builtin/include/nk/builtin/timefun.hpp
+// src/builtin/include/numkit/builtin/timefun.hpp
 //
 // Pure C++ Date and time functions, execution timing, calendar, and conversions.
 #pragma once

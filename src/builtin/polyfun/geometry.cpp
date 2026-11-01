@@ -705,7 +705,7 @@ Value histcounts2(const Value &x, const Value &y, const Value &xedgesV,
 
 // ── griddatan ────────────────────────────────────────────────────────
 //
-// See header (toolboxes/builtin/include/nk/builtin/math/geom/geom.hpp)
+// See header (toolboxes/builtin/include/numkit/builtin/math/geom/geom.hpp)
 // for the public C++ API + Doxygen. This source unit hosts the
 // implementation plus its adapter.
 
@@ -844,7 +844,7 @@ Value griddatan(const Value &Xv, const Value &vv, const Value &xi, std::pmr::mem
 
 // ── matchpairs — linear assignment / bipartite matching ─────────────
 //
-// See header (toolboxes/builtin/include/nk/builtin/math/geom/geom.hpp)
+// See header (toolboxes/builtin/include/numkit/builtin/math/geom/geom.hpp)
 // for the public C++ API + Doxygen.
 //
 // Algorithm: classical O(N²·M) Jonker-Volgenant Hungarian on the

@@ -1,4 +1,4 @@
-// src/builtin/include/nk/builtin/specfun.hpp
+// src/builtin/include/numkit/builtin/specfun.hpp
 //
 // Pure C++ Special mathematical functions (gamma, beta, bessel, erf, combinatorics).
 #pragma once

@@ -1,4 +1,4 @@
-// ops/include/nk/ops/value_factory.hpp
+// ops/include/numkit/ops/value_factory.hpp
 //
 // Value-shape factories shared by the op kernels and the toolboxes: allocate a
 // Value of a given shape/type. Built only on the Value substrate (value.hpp) —

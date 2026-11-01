@@ -1,6 +1,6 @@
 ﻿/// @file properties.hpp
 /// @ingroup group_matfun
-// toolboxes/linalg/include/nk/linalg/properties.hpp
+// toolboxes/linalg/include/numkit/linalg/properties.hpp
 //
 // Scalar properties of a matrix: determinant, trace, rank, condition
 // number estimates. Plus the inverse `inv` (returned-matrix form;

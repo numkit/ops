@@ -1,4 +1,4 @@
-// ops/include/nk/ops/iir_filter.hpp
+// ops/include/numkit/ops/iir_filter.hpp
 //
 // Direct-Form-II-transposed IIR filter recurrence — the numerical core of
 // signal's filter()/filtfilt() (and the zi/zf initial-condition forms exposed

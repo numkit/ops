@@ -1,4 +1,4 @@
-// math/include/nk/math/integration/integration_detail.hpp
+// math/include/numkit/math/integration/integration_detail.hpp
 //
 // Internal (numkit::builtin::detail) entry points of the integration compute,
 // exposed only so the Engine-coupled *_reg adapters in bundle can reuse the

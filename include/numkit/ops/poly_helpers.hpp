@@ -1,4 +1,4 @@
-// ops/include/nk/ops/poly_helpers.hpp
+// ops/include/numkit/ops/poly_helpers.hpp
 //
 // Polynomial helpers shared between the public roots() builtin and the
 // DSP-side filter design code (tf2sos / tf2zp / butter). All-inline; no

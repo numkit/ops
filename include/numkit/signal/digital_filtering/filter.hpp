@@ -1,6 +1,6 @@
 /// @file filter.hpp
 /// @ingroup group_signal
-// toolboxes/signal/include/nk/signal/digital_filtering/filter.hpp
+// toolboxes/signal/include/numkit/signal/digital_filtering/filter.hpp
 #pragma once
 
 #include <memory_resource>
@@ -61,7 +61,7 @@ struct FilterState
 ///            that many per signal. An empty Value means zero state.
 /// @param mr  Memory resource (nullptr → process default).
 ///
-/// @throws    numkit::Error  with nk:<fn>:<tag> identifiers for every
+/// @throws    numkit::Error  with numkit:<fn>:<tag> identifiers for every
 ///            violated argument contract (inputType / notVector /
 ///            zeroLead / invalidInitialConditions — see
 ///            filter_argcheck).

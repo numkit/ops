@@ -1,4 +1,4 @@
-// ops/include/nk/ops/rows_helpers.hpp
+// ops/include/numkit/ops/rows_helpers.hpp
 //
 // Shared helpers for "treat each row as a tuple" operations
 // (unique 'rows', sortrows, future ismember 'rows' etc.).

@@ -1,4 +1,4 @@
-// src/builtin/include/nk/builtin/iofun.hpp
+// src/builtin/include/numkit/builtin/iofun.hpp
 //
 // Pure C++ Formatted input/output and stream printing functions.
 #pragma once

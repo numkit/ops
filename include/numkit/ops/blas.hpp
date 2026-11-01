@@ -1,4 +1,4 @@
-// ops/include/nk/ops/blas.hpp
+// ops/include/numkit/ops/blas.hpp
 //
 // Umbrella header for BLAS-like operations.
 

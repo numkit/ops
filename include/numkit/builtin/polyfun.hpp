@@ -1,6 +1,6 @@
 /// @file polyfun.hpp
 /// @ingroup group_polyfun
-// src/builtin/include/nk/builtin/polyfun.hpp
+// src/builtin/include/numkit/builtin/polyfun.hpp
 //
 // Pure C++ Polynomials, interpolation, integration, and piecewise polynomials.
 #pragma once

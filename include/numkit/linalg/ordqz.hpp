@@ -1,6 +1,6 @@
 ﻿/// @file ordqz.hpp
 /// @ingroup group_matfun
-// toolboxes/linalg/include/nk/linalg/ordqz.hpp
+// toolboxes/linalg/include/numkit/linalg/ordqz.hpp
 //
 // Reorder Generalized Schur decomposition: [AAS, BBS, QS, ZS] = ordqz(AA, BB, Q, Z, select/domain)
 

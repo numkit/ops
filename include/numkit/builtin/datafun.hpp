@@ -1,4 +1,4 @@
-// src/builtin/include/nk/builtin/datafun.hpp
+// src/builtin/include/numkit/builtin/datafun.hpp
 //
 // Pure C++ Data analysis, reductions, random number generation, set operations.
 #pragma once

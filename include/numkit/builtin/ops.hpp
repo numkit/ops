@@ -1,4 +1,4 @@
-// include/nk/builtin/ops.hpp
+// include/numkit/builtin/ops.hpp
 //
 // Arithmetic, relational, logical operators and array transformations (MATLAB parity).
 #pragma once

@@ -1,6 +1,6 @@
 /// @file fft.hpp
 /// @ingroup group_signal
-// toolboxes/signal/include/nk/signal/transforms/fft.hpp
+// toolboxes/signal/include/numkit/signal/transforms/fft.hpp
 #pragma once
 
 #include <memory_resource>

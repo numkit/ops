@@ -1,4 +1,4 @@
-// src/builtin/include/nk/builtin/elmat.hpp
+// src/builtin/include/numkit/builtin/elmat.hpp
 //
 // Pure C++ Elementary matrices and array manipulation functions (MATLAB parity).
 #pragma once

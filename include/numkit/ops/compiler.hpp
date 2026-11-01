@@ -1,4 +1,4 @@
-// ops/include/nk/ops/compiler.hpp
+// ops/include/numkit/ops/compiler.hpp
 //
 // Small compiler-portability shims for nk_ops. Highway's HWY_* attribute
 // macros are only available under NUMKIT_WITH_SIMD (they live in Highway's

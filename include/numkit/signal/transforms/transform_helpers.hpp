@@ -1,6 +1,6 @@
 /// @file transform_helpers.hpp
 /// @ingroup group_signal
-// toolboxes/signal/include/nk/signal/transforms/transform_helpers.hpp
+// toolboxes/signal/include/numkit/signal/transforms/transform_helpers.hpp
 //
 // Cross-cutting helpers for transform-domain code: nextpow2 (length
 // rounding for FFT), fftshift / ifftshift (DC-to-center reordering).

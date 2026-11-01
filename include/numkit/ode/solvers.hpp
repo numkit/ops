@@ -1,6 +1,6 @@
 ﻿/// @file solvers.hpp
 /// @ingroup group_ode
-// toolboxes/ode/include/nk/ode/solvers.hpp
+// toolboxes/ode/include/numkit/ode/solvers.hpp
 //
 // Initial-value problem (IVP) solvers for `y' = f(t, y)`.
 //

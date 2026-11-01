@@ -1,4 +1,4 @@
-// ops/include/nk/ops/la_solve.hpp
+// ops/include/numkit/ops/la_solve.hpp
 //
 // Internal linear-solve kernel: solve `A · X = B` (LU for square A,
 // Householder QR for tall A). An L0.5 ops primitive — raw column-major
@@ -6,7 +6,7 @@
 // `\` operator in toolboxes/builtin (mldivide / mrdivide) AND the user-facing
 // wrappers (inv / linsolve / pageinv / eig …) in toolboxes/linalg.
 //
-// It used to live in toolboxes/builtin/include/nk/builtin/internal/ precisely
+// It used to live in toolboxes/builtin/include/numkit/builtin/internal/ precisely
 // because "builtin must not include linalg" left nowhere shared for it. ops/
 // (below both builtin and linalg) is its proper home; builtin's internal
 // header now re-exports it for back-compat.

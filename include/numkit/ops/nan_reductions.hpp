@@ -1,4 +1,4 @@
-// ops/include/nk/ops/nan_reductions.hpp
+// ops/include/numkit/ops/nan_reductions.hpp
 //
 // Internal contract for single-pass NaN-skipping reductions used by
 // nansum / nanmean in stats.cpp. SIMD-dispatched (Highway) when

@@ -1,6 +1,6 @@
 ﻿/// @file page_ops.hpp
 /// @ingroup group_matfun
-// toolboxes/linalg/include/nk/linalg/page_ops.hpp
+// toolboxes/linalg/include/numkit/linalg/page_ops.hpp
 //
 // Page-wise linalg ops on 3-D arrays. Wrappers that iterate over
 // pages and dispatch to the 2-D variant. The general page operators

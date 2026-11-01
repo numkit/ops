@@ -1,6 +1,6 @@
 ﻿/// @file balance.hpp
 /// @ingroup group_matfun
-// toolboxes/linalg/include/nk/linalg/balance.hpp
+// toolboxes/linalg/include/numkit/linalg/balance.hpp
 //
 // MATLAB balance: diagonal-similarity scaling for eigenvalue
 // computations. Migrated from toolboxes/builtin/src/language/arrays/balance.cpp.

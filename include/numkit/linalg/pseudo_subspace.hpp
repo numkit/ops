@@ -1,6 +1,6 @@
 ﻿/// @file pseudo_subspace.hpp
 /// @ingroup group_matfun
-// toolboxes/linalg/include/nk/linalg/pseudo_subspace.hpp
+// toolboxes/linalg/include/numkit/linalg/pseudo_subspace.hpp
 //
 // SVD-based pseudoinverse and subspace queries.
 // Migrated together with the SVD kernel from toolboxes/builtin/src/

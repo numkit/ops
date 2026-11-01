@@ -1,4 +1,4 @@
-// ops/include/nk/ops/quantile_select.hpp
+// ops/include/numkit/ops/quantile_select.hpp
 //
 // nth_element-based quantile selection over a raw double buffer — the numerical
 // primitive behind stats iqr / mad / median-of-slice. Raw-buffer, core-free.

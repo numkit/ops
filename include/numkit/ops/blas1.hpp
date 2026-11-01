@@ -1,4 +1,4 @@
-// ops/include/nk/ops/blas1.hpp
+// ops/include/numkit/ops/blas1.hpp
 #pragma once
 
 #include <cstddef>

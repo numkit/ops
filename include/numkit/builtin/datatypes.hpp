@@ -1,4 +1,4 @@
-// src/builtin/include/nk/builtin/datatypes.hpp
+// src/builtin/include/numkit/builtin/datatypes.hpp
 //
 // Pure C++ Data types: cells, structures, type predicates, conversions, limits.
 #pragma once

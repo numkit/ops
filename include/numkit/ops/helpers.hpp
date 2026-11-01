@@ -564,7 +564,7 @@ Value unaryComplex(const Value &a, Op op, std::pmr::memory_resource *mr = nullpt
 // Supports: f(n), f(m,n), f(m,n,p), f([m n]), f([m n p]), f(size(x))
 // Returns {rows, cols, pages}. pages=0 means 2D.
 //
-// Size validation lives in numkit::argcheck (value layer): nk-voiced
+// Size validation lives in numkit::argcheck (value layer): numkit-voiced
 // diagnostics whose rejection behavior is validated against the
 // reference engine. `fn` names the calling builtin for error
 // attribution.

@@ -1,6 +1,6 @@
 /// @file eig.hpp
 /// @ingroup group_matfun
-// toolboxes/linalg/include/nk/linalg/eig.hpp
+// toolboxes/linalg/include/numkit/linalg/eig.hpp
 //
 // Eigenvalue family â€” symmetric & general eig, Hessenberg reduction,
 // symmetric Schur, characteristic polynomial, Sylvester equation.

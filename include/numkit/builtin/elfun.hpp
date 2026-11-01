@@ -1,4 +1,4 @@
-// include/nk/builtin/elfun.hpp
+// include/numkit/builtin/elfun.hpp
 //
 // Elementary mathematical functions: trigonometry, exp, log, complex, rounding.
 #pragma once

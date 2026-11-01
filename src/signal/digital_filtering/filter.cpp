@@ -54,7 +54,7 @@ size_t firstNonSingletonExtent(const Value &x)
 // ── filter ────────────────────────────────────────────────────────────
 // filter_argcheck: the checker + dispatch-plan resolver. The rejection
 // behavior (which inputs fail, which argument is blamed) is validated
-// against the reference engine; the strings are nk-voiced and carry the
+// against the reference engine; the strings are numkit-voiced and carry the
 // received value/shape (user rule 2026-09-17).
 
 namespace {

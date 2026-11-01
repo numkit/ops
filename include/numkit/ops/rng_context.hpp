@@ -1,4 +1,4 @@
-// ops/include/nk/ops/rng_context.hpp
+// ops/include/numkit/ops/rng_context.hpp
 //
 // RngContext — the seedable random-number session state. Owns one MATLAB-style
 // MT19937 stream and the rng() control surface (seed / shuffle / state save +

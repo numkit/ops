@@ -1,6 +1,6 @@
 ﻿/// @file io.hpp
 /// @ingroup group_image
-// toolboxes/image/include/nk/image/io/io.hpp
+// toolboxes/image/include/numkit/image/io/io.hpp
 //
 // Autonomous, zero-dependency in-tree image disk I/O (PNG, JPEG, BMP,
 // TGA, PNM, TIFF/BigTIFF).

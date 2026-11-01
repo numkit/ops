@@ -1,6 +1,6 @@
 ﻿/// @file predicates.hpp
 /// @ingroup group_matfun
-// toolboxes/linalg/include/nk/linalg/predicates.hpp
+// toolboxes/linalg/include/numkit/linalg/predicates.hpp
 //
 // Matrix-structure predicates and bandwidth queries. Migrated from
 // toolboxes/builtin/src/language/arrays/predicates.cpp.

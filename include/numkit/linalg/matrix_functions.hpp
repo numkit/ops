@@ -1,6 +1,6 @@
 ﻿/// @file matrix_functions.hpp
 /// @ingroup group_matfun
-// toolboxes/linalg/include/nk/linalg/matrix_functions.hpp
+// toolboxes/linalg/include/numkit/linalg/matrix_functions.hpp
 //
 // Matrix functions: expm, logm, sqrtm. Migrated from
 // toolboxes/builtin/src/language/arrays/matrix.cpp.

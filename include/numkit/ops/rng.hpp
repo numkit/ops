@@ -1,4 +1,4 @@
-// ops/include/nk/ops/rng.hpp
+// ops/include/numkit/ops/rng.hpp
 //
 // Value-producing random generators (rand / randn / randi / randperm). Every
 // one draws from a caller-provided RngContext — the seedable session stream the

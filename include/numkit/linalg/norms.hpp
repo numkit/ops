@@ -1,12 +1,12 @@
 ﻿/// @file norms.hpp
 /// @ingroup group_matfun
-// toolboxes/linalg/include/nk/linalg/norms.hpp
+// toolboxes/linalg/include/numkit/linalg/norms.hpp
 //
 // Vector and matrix norms. Migrated from toolboxes/builtin/src/language/
 // arrays/{matrix,predicates}.cpp.
 //
 // `norm` for the matrix 2-norm (p == 2) routes through `svd_values`,
-// which still lives in toolboxes/builtin/include/nk/builtin/language/
+// which still lives in toolboxes/builtin/include/numkit/builtin/language/
 // arrays/matrix.hpp at this point â€” that header is included by the
 // implementation TU (norms.cpp). When SVD migrates here in a later
 // group, this include will switch over to nk/linalg/decomp/svd.hpp.

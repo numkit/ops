@@ -1,6 +1,6 @@
 ﻿/// @file misc.hpp
 /// @ingroup group_matfun
-// toolboxes/linalg/include/nk/linalg/misc.hpp
+// toolboxes/linalg/include/numkit/linalg/misc.hpp
 //
 // Miscellaneous linalg utilities: reduced row echelon form (rref),
 // Givens plane rotation (planerot). Migrated from

@@ -1,6 +1,6 @@
 ﻿/// @file ordschur.hpp
 /// @ingroup group_matfun
-// toolboxes/linalg/include/nk/linalg/ordschur.hpp
+// toolboxes/linalg/include/numkit/linalg/ordschur.hpp
 //
 // Reorder Schur decomposition: [US, TS] = ordschur(U, T, select)
 
