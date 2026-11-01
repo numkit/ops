@@ -91,12 +91,6 @@ Value norm_value(const Value &x, double p, std::pmr::memory_resource *mr)
     const std::size_t n = static_cast<std::size_t>(x.dims().dim(1));
 
     if (p == 2.0) {
-        // Largest singular value. Complex matrices need a complex SVD, which
-        // is not yet implemented (see bugs/linalg/complex-matrix-unsupported.md).
-        if (x.isComplex())
-            throw Error("norm: complex matrix 2-norm not yet supported "
-                        "(needs complex SVD); use 'fro' or a vector norm",
-                        0, 0, "norm", "", "numkit:norm:complexSpectral");
         auto sv = svd_values(x, mr);
         if (sv.numel() == 0)
             return detail::narrowDoubleToSingleIf(Value::scalar(0.0, mr), wantSingle, mr);

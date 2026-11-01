@@ -1,4 +1,4 @@
-﻿/// @file decompositions.hpp
+/// @file decompositions.hpp
 /// @ingroup group_matfun
 // toolboxes/linalg/include/numkit/linalg/decompositions.hpp
 //
@@ -66,26 +66,24 @@ qrupdate(const Value &Q, const Value &R, const Value &u, const Value &v,
          std::pmr::memory_resource *mr = nullptr);
 
 /// @brief Insert column into QR (`[Q1, R1] = qrinsert(Q, R, k, x)`).
-///
-/// Given `A = Q * R` (`m Ã— n`), returns the factors of
-/// `A1 = [A(:, 1:k-1), x, A(:, k:end)]` (`m Ã— (n+1)`).
-/// Givens-rotation algorithm. `k` is 1-based per MATLAB convention.
-///
-/// KNOWN GAP: only column insertion in v1; row insertion deferred.
 std::tuple<Value, Value>
 qrinsert(const Value &Q, const Value &R, std::size_t k_1based, const Value &x,
          std::pmr::memory_resource *mr = nullptr);
 
+/// @brief Insert row into QR (`[Q1, R1] = qrinsert(Q, R, k, x, 'row')`).
+std::tuple<Value, Value>
+qrinsert_row(const Value &Q, const Value &R, std::size_t k_1based, const Value &x,
+             std::pmr::memory_resource *mr = nullptr);
+
 /// @brief Delete column from QR (`[Q1, R1] = qrdelete(Q, R, k)`).
-///
-/// Given `A = Q * R` (`m Ã— n`), returns the factors of `A1` formed by
-/// removing the `k`-th column. Givens-rotation chase to restore
-/// upper-triangular `R`. `k` is 1-based.
-///
-/// KNOWN GAP: only column deletion in v1; row deletion deferred.
 std::tuple<Value, Value>
 qrdelete(const Value &Q, const Value &R, std::size_t k_1based,
          std::pmr::memory_resource *mr = nullptr);
+
+/// @brief Delete row from QR (`[Q1, R1] = qrdelete(Q, R, k, 'row')`).
+std::tuple<Value, Value>
+qrdelete_row(const Value &Q, const Value &R, std::size_t k_1based,
+             std::pmr::memory_resource *mr = nullptr);
 
 /// @brief Rank-1 Cholesky update / downdate
 /// (`R1 = cholupdate(R, x[, sign])`).

@@ -533,17 +533,43 @@ Value hadamard(size_t n, std::pmr::memory_resource *mr)
         M.elem(0, 0) = 1.0;
         return M;
     }
-    // Verify n is a power of 2 (Sylvester only). 12·2^k and 20·2^k
-    // are valid MATLAB orders too -- those use Paley I/II constructions
-    // and are deferred (see header).
-    if ((n & (n - 1)) != 0)
-        throw Error("hadamard: only powers of 2 are supported in this revision (12·2^k and 20·2^k via Paley are deferred)",
+    size_t base = 0;
+    if ((n & (n - 1)) == 0) {
+        base = 1;
+    } else if (n % 12 == 0 && ((n / 12) & ((n / 12) - 1)) == 0) {
+        base = 12;
+    } else if (n % 20 == 0 && ((n / 20) & ((n / 20) - 1)) == 0) {
+        base = 20;
+    } else {
+        throw Error("hadamard: n, n/12, or n/20 must be a power of 2",
                     0, 0, "hadamard", "", "numkit:hadamard:badN");
+    }
 
     auto M = Value::matrix(n, n, ValueType::DOUBLE, mr);
-    // Sylvester recursion: H_1 = [1]; H_{2k} = [Hk Hk; Hk -Hk].
-    M.elem(0, 0) = 1.0;
-    for (size_t k = 1; k < n; k <<= 1) {
+    if (base == 1) {
+        M.elem(0, 0) = 1.0;
+    } else if (base == 12) {
+        static const double r12[11] = {-1, 1, -1, 1, 1, 1, -1, -1, -1, 1, -1};
+        for (size_t i = 0; i < 12; ++i) {
+            M.elem(0, i) = 1.0;
+            M.elem(i, 0) = 1.0;
+        }
+        for (size_t i = 0; i < 11; ++i)
+            for (size_t j = 0; j < 11; ++j)
+                M.elem(i + 1, j + 1) = r12[(j + 11 - i) % 11];
+    } else {
+        static const double v20[19] = {-1, -1, 1, 1, -1, -1, -1, -1, 1, -1, 1, -1, 1, 1, 1, 1, -1, -1, 1};
+        for (size_t i = 0; i < 20; ++i) {
+            M.elem(0, i) = 1.0;
+            M.elem(i, 0) = 1.0;
+        }
+        for (size_t i = 0; i < 19; ++i)
+            for (size_t j = 0; j < 19; ++j)
+                M.elem(i + 1, j + 1) = v20[(i + j) % 19];
+    }
+
+    // Sylvester recursion: H_{2k} = [Hk Hk; Hk -Hk].
+    for (size_t k = base; k < n; k <<= 1) {
         // Quadrant copies for size doubling from k → 2k.
         for (size_t i = 0; i < k; ++i)
             for (size_t j = 0; j < k; ++j) {

@@ -1131,6 +1131,133 @@ qrdelete(const Value &Q, const Value &R, std::size_t k_1based,
 // cholupdate — rank-1 Cholesky update/downdate
 // ────────────────────────────────────────────────────────────────────────
 
+std::tuple<Value, Value>
+qrinsert_row(const Value &Q, const Value &R, std::size_t k_1based, const Value &x,
+             std::pmr::memory_resource *mr)
+{
+    if (Q.dims().ndim() != 2 || R.dims().ndim() != 2)
+        throw Error("qrinsert: Q and R must be 2D matrices",
+                    0, 0, "qrinsert", "", "numkit:qrinsert:notMatrix");
+    const std::size_t m = static_cast<std::size_t>(Q.dims().dim(0));
+    const std::size_t n = static_cast<std::size_t>(R.dims().dim(1));
+    if (static_cast<std::size_t>(Q.dims().dim(1)) != m
+        || static_cast<std::size_t>(R.dims().dim(0)) != m)
+        throw Error("qrinsert: Q must be m by m and R must be m by n",
+                    0, 0, "qrinsert", "", "numkit:qrinsert:badShape");
+    if (x.numel() != n)
+        throw Error("qrinsert: x must have length size(R, 2) for 'row'",
+                    0, 0, "qrinsert", "", "numkit:qrinsert:badX");
+    if (k_1based < 1 || k_1based > m + 1)
+        throw Error("qrinsert: j must be in 1..m+1 for 'row'",
+                    0, 0, "qrinsert", "", "numkit:qrinsert:badK");
+    const std::size_t k = k_1based - 1;
+    const std::size_t m1 = m + 1;
+
+    const bool wantSingle = (Q.type() == ValueType::SINGLE || R.type() == ValueType::SINGLE
+                             || x.type() == ValueType::SINGLE);
+    const Value Qw = detail::widenSingleToDouble(Q, mr);
+    const Value Rw = detail::widenSingleToDouble(R, mr);
+
+    auto Q1 = Value::matrix(m1, m1, ValueType::DOUBLE, mr);
+    double *Qd = Q1.doubleDataMut();
+    std::fill(Qd, Qd + m1 * m1, 0.0);
+    Qd[k + 0 * m1] = 1.0;
+    const double *Qd_in = Qw.doubleData();
+    for (std::size_t c = 0; c < m; ++c) {
+        for (std::size_t r = 0; r < k; ++r)
+            Qd[r + (c + 1) * m1] = Qd_in[r + c * m];
+        for (std::size_t r = k; r < m; ++r)
+            Qd[(r + 1) + (c + 1) * m1] = Qd_in[r + c * m];
+    }
+
+    auto R1 = Value::matrix(m1, n, ValueType::DOUBLE, mr);
+    double *Rd = R1.doubleDataMut();
+    const double *Rd_in = Rw.doubleData();
+    for (std::size_t j = 0; j < n; ++j) {
+        Rd[0 + j * m1] = x.elemAsDouble(j);
+        for (std::size_t r = 0; r < m; ++r)
+            Rd[(r + 1) + j * m1] = Rd_in[r + j * m];
+    }
+
+    const std::size_t lim = std::min(m, n);
+    for (std::size_t i = 0; i < lim; ++i) {
+        double c, s, r;
+        givens(Rd[i + i * m1], Rd[(i + 1) + i * m1], c, s, r);
+        Rd[i + i * m1] = r;
+        Rd[(i + 1) + i * m1] = 0.0;
+        if (i + 1 < n)
+            applyGivensRows(Rd + (i + 1) * m1, m1, n - (i + 1), i, i + 1, c, s);
+        applyGivensCols(Qd, m1, m1, i, i + 1, c, s);
+    }
+    return std::make_tuple(
+        detail::narrowDoubleToSingleIf(Q1, wantSingle, mr),
+        detail::narrowDoubleToSingleIf(R1, wantSingle, mr));
+}
+
+std::tuple<Value, Value>
+qrdelete_row(const Value &Q, const Value &R, std::size_t k_1based,
+             std::pmr::memory_resource *mr)
+{
+    if (Q.dims().ndim() != 2 || R.dims().ndim() != 2)
+        throw Error("qrdelete: Q and R must be 2D matrices",
+                    0, 0, "qrdelete", "", "numkit:qrdelete:notMatrix");
+    const std::size_t m = static_cast<std::size_t>(Q.dims().dim(0));
+    const std::size_t n = static_cast<std::size_t>(R.dims().dim(1));
+    if (static_cast<std::size_t>(Q.dims().dim(1)) != m
+        || static_cast<std::size_t>(R.dims().dim(0)) != m)
+        throw Error("qrdelete: Q must be m by m and R must be m by n",
+                    0, 0, "qrdelete", "", "numkit:qrdelete:badShape");
+    if (m == 0)
+        throw Error("qrdelete: R has no rows to delete",
+                    0, 0, "qrdelete", "", "numkit:qrdelete:empty");
+    if (k_1based < 1 || k_1based > m)
+        throw Error("qrdelete: j must be in 1..m for 'row'",
+                    0, 0, "qrdelete", "", "numkit:qrdelete:badK");
+    const std::size_t k = k_1based - 1;
+
+    const bool wantSingle = (Q.type() == ValueType::SINGLE || R.type() == ValueType::SINGLE);
+    const Value Qw = detail::widenSingleToDouble(Q, mr);
+    const Value Rw = detail::widenSingleToDouble(R, mr);
+
+    ScratchArena scratch(mr);
+    ScratchVec<double> Qd(m * m, &scratch);
+    ScratchVec<double> Rd(m * n, &scratch);
+    std::copy(Qw.doubleData(), Qw.doubleData() + m * m, Qd.data());
+    std::copy(Rw.doubleData(), Rw.doubleData() + m * n, Rd.data());
+
+    ScratchVec<double> q(m, &scratch);
+    for (std::size_t j = 0; j < m; ++j)
+        q[j] = Qd[k + j * m];
+
+    for (std::size_t i = m - 1; i > 0; --i) {
+        double c, s, r;
+        givens(q[i - 1], q[i], c, s, r);
+        q[i - 1] = r;
+        q[i] = 0.0;
+        applyGivensRows(Rd.data(), m, n, i - 1, i, c, s);
+        applyGivensCols(Qd.data(), m, m, i - 1, i, c, s);
+    }
+
+    const std::size_t m1 = m - 1;
+    auto Q1 = Value::matrix(m1, m1, ValueType::DOUBLE, mr);
+    auto R1 = Value::matrix(m1, n, ValueType::DOUBLE, mr);
+    double *Q1d = Q1.doubleDataMut();
+    double *R1d = R1.doubleDataMut();
+    for (std::size_t c = 0; c < m1; ++c) {
+        for (std::size_t r = 0; r < k; ++r)
+            Q1d[r + c * m1] = Qd[r + (c + 1) * m];
+        for (std::size_t r = k + 1; r < m; ++r)
+            Q1d[(r - 1) + c * m1] = Qd[r + (c + 1) * m];
+    }
+    for (std::size_t j = 0; j < n; ++j)
+        for (std::size_t r = 1; r < m; ++r)
+            R1d[(r - 1) + j * m1] = Rd[r + j * m];
+
+    return std::make_tuple(
+        detail::narrowDoubleToSingleIf(Q1, wantSingle, mr),
+        detail::narrowDoubleToSingleIf(R1, wantSingle, mr));
+}
+
 Value cholupdate(const Value &R, const Value &x, int sign,
                  std::pmr::memory_resource *mr)
 {
