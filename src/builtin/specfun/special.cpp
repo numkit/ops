@@ -854,7 +854,6 @@ double airyScalar(int k, double x)
         }
     }
 
-    constexpr double kSqrt3   = 1.7320508075688772;
     constexpr double kInvPi   = 0.31830988618379067;
     constexpr double kInvSqrt3= 0.57735026918962576;
 

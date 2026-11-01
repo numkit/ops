@@ -210,7 +210,7 @@ lsqnonneg_impl(const Value &C, const Value &d, std::pmr::memory_resource *mr)
                             * static_cast<double>(std::max(M, N));
 
     ScratchVec<uint8_t> in_Z(N, &scratch);
-    std::fill(in_Z.begin(), in_Z.end(), 1);
+    std::fill(in_Z.begin(), in_Z.end(), std::uint8_t{1});
 
     ScratchVec<double> w(N, &scratch);
     ScratchVec<double> s(N, &scratch);

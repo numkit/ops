@@ -1,4 +1,4 @@
-﻿// toolboxes/linalg/src/vector_ops.cpp
+// toolboxes/linalg/src/vector_ops.cpp
 //
 // cross / dot / kron â€” implementations and engine adapters.
 // Migrated from toolboxes/builtin/src/language/arrays/matrix.cpp.
@@ -77,11 +77,11 @@ static void intTypeRange(ValueType vt, double &lo, double &hi)
     case ValueType::INT8:   lo = std::numeric_limits<int8_t>::min();   hi = std::numeric_limits<int8_t>::max();   break;
     case ValueType::INT16:  lo = std::numeric_limits<int16_t>::min();  hi = std::numeric_limits<int16_t>::max();  break;
     case ValueType::INT32:  lo = std::numeric_limits<int32_t>::min();  hi = std::numeric_limits<int32_t>::max();  break;
-    case ValueType::INT64:  lo = std::numeric_limits<int64_t>::min();  hi = std::numeric_limits<int64_t>::max();  break;
+    case ValueType::INT64:  lo = static_cast<double>(std::numeric_limits<int64_t>::min());  hi = static_cast<double>(std::numeric_limits<int64_t>::max());  break;
     case ValueType::UINT8:  lo = 0; hi = std::numeric_limits<uint8_t>::max();  break;
     case ValueType::UINT16: lo = 0; hi = std::numeric_limits<uint16_t>::max(); break;
     case ValueType::UINT32: lo = 0; hi = std::numeric_limits<uint32_t>::max(); break;
-    case ValueType::UINT64: lo = 0; hi = std::numeric_limits<uint64_t>::max(); break;
+    case ValueType::UINT64: lo = 0; hi = static_cast<double>(std::numeric_limits<uint64_t>::max()); break;
     default:                lo = 0; hi = 0; break;
     }
 }

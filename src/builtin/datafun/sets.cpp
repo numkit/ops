@@ -473,7 +473,7 @@ Value ismember(const Value &a, const Value &b, std::pmr::memory_resource *mr)
     auto r = createLike(a, ValueType::LOGICAL, mr);
     if (na == 0) return r;
     if (nb == 0) {
-        std::fill(r.logicalDataMut(), r.logicalDataMut() + na, 0);
+        std::fill(r.logicalDataMut(), r.logicalDataMut() + na, std::uint8_t{0});
         return r;
     }
 

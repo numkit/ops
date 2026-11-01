@@ -116,6 +116,14 @@ public:
         legacyV5Rand_ = false;
         gen_.seed(static_cast<std::uint32_t>(seed));
     }
+    void setLegacyTwisterRandState(const std::uint32_t state[MatlabMT19937::STATE_SIZE], int idx)
+    {
+        enterLegacyMode();
+        legacyMode_ = true;
+        legacyV4Rand_ = false;
+        legacyV5Rand_ = false;
+        gen_.setState(state, idx);
+    }
     void setLegacyV5Rand(std::uint64_t seed)
     {
         const bool wasLegacy = legacyMode_;
@@ -141,6 +149,19 @@ public:
         }
         v5SwbIdx_ = 0;
         v5SwbBorrow_ = 0.0;
+    }
+    void setLegacyV5RandState(const double z[32], std::size_t idx, double borrow, std::uint32_t j)
+    {
+        const bool wasLegacy = legacyMode_;
+        legacyMode_ = true;
+        if (!wasLegacy) setLegacyV5Randn(0);
+        legacyV4Rand_ = false;
+        legacyV5Rand_ = true;
+        for (std::size_t i = 0; i < 32; ++i)
+            v5SwbZ_[i] = z[i];
+        v5SwbIdx_ = idx & 31u;
+        v5SwbBorrow_ = borrow;
+        v5SwbJ_ = (j == 0u) ? 0x80000000u : j;
     }
     void setLegacyV5Randn(std::uint64_t seed)
     {

@@ -1,4 +1,4 @@
-﻿// toolboxes/image/src/io/bmp_codec.cpp
+// toolboxes/image/src/io/bmp_codec.cpp
 //
 // In-tree Windows Bitmap (.bmp) decoder and encoder. Zero external dependencies.
 
@@ -129,7 +129,7 @@ Value readBmp(const std::uint8_t *data, std::size_t len, std::pmr::memory_resour
     std::vector<std::array<std::uint8_t, 3>> palette;
     if (hdr.bitCount <= 8) {
         std::size_t palSize = hdr.numColors;
-        if (palSize == 0) palSize = (1u << hdr.bitCount);
+        if (palSize == 0) palSize = (std::size_t{1} << hdr.bitCount);
         const std::size_t palOff = 14 + hdr.headerSize;
         const std::size_t entryBytes = (hdr.headerSize == 12) ? 3 : 4;
 
@@ -421,7 +421,7 @@ std::string writeBmpToBytes(const Value &A) {
     const std::size_t plane = H * W;
 
     for (std::int64_t r = static_cast<std::int64_t>(H) - 1; r >= 0; --r) {
-        std::fill(rowBuf.begin(), rowBuf.end(), 0);
+        std::fill(rowBuf.begin(), rowBuf.end(), std::uint8_t{0});
         std::size_t y = static_cast<std::size_t>(r);
 
         if (channels == 1) {

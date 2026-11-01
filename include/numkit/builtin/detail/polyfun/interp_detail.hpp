@@ -115,7 +115,7 @@ interpNext(const double *x, const double *y, size_t n, const double *xq, size_t 
 // interior rows (j=1..n-2) with the first/last rows modified to
 // substitute sigma_0 / sigma_{n-1} with their NaK linear combinations.
 ScratchVec<double>
-computeSplineSigma(const double *x, const double *y, size_t n, const double *h, std::pmr::memory_resource *mr)
+computeSplineSigma(const double * /*x*/, const double *y, size_t n, const double *h, std::pmr::memory_resource *mr)
 {
     ScratchVec<double> sigma(n, 0.0, mr);
     if (n < 3) return sigma;

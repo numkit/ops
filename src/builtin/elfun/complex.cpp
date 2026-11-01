@@ -151,7 +151,7 @@ Value isreal(const Value &x, std::pmr::memory_resource *mr)
     return Value::scalar(!x.isComplex() ? 1.0 : 0.0, mr);
 }
 
-Value unwrap(const Value &p, double tol, int dim, std::pmr::memory_resource *mr)
+Value unwrap(const Value &p, double tol, int /*dim*/, std::pmr::memory_resource *mr)
 {
     if (p.isEmpty())
         return p;

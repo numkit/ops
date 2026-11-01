@@ -108,7 +108,7 @@ Value transpose(const Value &x, std::pmr::memory_resource *mr)
     return transpose2D(x, /*conjugate=*/false, "transpose", mr);
 }
 
-Value any(const Value &x, int dim, std::pmr::memory_resource *mr)
+Value any(const Value &x, int /*dim*/, std::pmr::memory_resource *mr)
 {
     if (x.isEmpty())
         return Value::logicalScalar(false, mr);
@@ -124,7 +124,7 @@ Value any(const Value &x, int dim, std::pmr::memory_resource *mr)
     return Value::logicalScalar(false, mr);
 }
 
-Value all(const Value &x, int dim, std::pmr::memory_resource *mr)
+Value all(const Value &x, int /*dim*/, std::pmr::memory_resource *mr)
 {
     if (x.isEmpty())
         return Value::logicalScalar(true, mr);
