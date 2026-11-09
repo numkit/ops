@@ -1,6 +1,6 @@
 // ops/include/numkit/ops/compiler.hpp
 //
-// Small compiler-portability shims for nk_ops. Highway's HWY_* attribute
+// Small compiler-portability shims for numkit_ops. Highway's HWY_* attribute
 // macros are only available under NUMKIT_WITH_SIMD (they live in Highway's
 // headers, which the portable build doesn't include or link), so code that is
 // compiled in BOTH builds — e.g. the always-on scalar kernels in

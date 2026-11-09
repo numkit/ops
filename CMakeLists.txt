@@ -120,6 +120,7 @@ target_include_directories(numkit_ops
         $<INSTALL_INTERFACE:include>
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/kernels
         ${CMAKE_CURRENT_SOURCE_DIR}/include/numkit/builtin/detail
         ${CMAKE_CURRENT_SOURCE_DIR}/include/numkit/builtin/detail/datafun
         ${CMAKE_CURRENT_SOURCE_DIR}/include/numkit/builtin/detail/datatypes
