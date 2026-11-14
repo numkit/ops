@@ -60,6 +60,9 @@ Value uplus(const Value &x, std::pmr::memory_resource *)
 
 Value logical_not(const Value &x, std::pmr::memory_resource *mr)
 {
+    auto nanErr = [] {
+        throw std::runtime_error("NaN values cannot be converted to logicals.");
+    };
     std::pmr::memory_resource *p = mr;
     if (x.isLogical()) {
         if (x.isScalar())
@@ -72,29 +75,47 @@ Value logical_not(const Value &x, std::pmr::memory_resource *mr)
         return r;
     }
     if (x.type() == ValueType::DOUBLE) {
-        if (x.isScalar())
-            return Value::logicalScalar(x.toScalar() == 0.0, p);
+        if (x.isScalar()) {
+            double v = x.toScalar();
+            if (std::isnan(v))
+                nanErr();
+            return Value::logicalScalar(v == 0.0, p);
+        }
         auto r = createLike(x, ValueType::LOGICAL, p);
         const double *src = x.doubleData();
         uint8_t *dst = r.logicalDataMut();
-        for (size_t i = 0; i < x.numel(); ++i)
+        for (size_t i = 0; i < x.numel(); ++i) {
+            if (std::isnan(src[i]))
+                nanErr();
             dst[i] = (src[i] == 0.0) ? 1 : 0;
+        }
         return r;
     }
     if (x.isComplex()) {
         auto r = createLike(x, ValueType::LOGICAL, p);
         const Complex *src = x.complexData();
         uint8_t *dst = r.logicalDataMut();
-        for (size_t i = 0; i < x.numel(); ++i)
+        for (size_t i = 0; i < x.numel(); ++i) {
+            if (std::isnan(src[i].real()) || std::isnan(src[i].imag()))
+                nanErr();
             dst[i] = (src[i].real() == 0.0 && src[i].imag() == 0.0) ? 1 : 0;
+        }
         return r;
     }
-    if (x.isScalar())
-        return Value::logicalScalar(x.elemAsDouble(0) == 0.0, p);
+    if (x.isScalar()) {
+        double v = x.elemAsDouble(0);
+        if (std::isnan(v))
+            nanErr();
+        return Value::logicalScalar(v == 0.0, p);
+    }
     auto r = createLike(x, ValueType::LOGICAL, p);
     uint8_t *dst = r.logicalDataMut();
-    for (size_t i = 0; i < x.numel(); ++i)
-        dst[i] = (x.elemAsDouble(i) == 0.0) ? 1 : 0;
+    for (size_t i = 0; i < x.numel(); ++i) {
+        double v = x.elemAsDouble(i);
+        if (std::isnan(v))
+            nanErr();
+        dst[i] = (v == 0.0) ? 1 : 0;
+    }
     return r;
 }
 

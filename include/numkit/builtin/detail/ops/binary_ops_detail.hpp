@@ -512,6 +512,9 @@ Value compareImpl(Cmp c, const Value &a, const Value &b)
 
 ScratchVec<uint8_t> toBoolArray(const Value &v, std::pmr::memory_resource *mr)
 {
+    auto nanErr = [] {
+        throw std::runtime_error("NaN values cannot be converted to logicals.");
+    };
     ScratchVec<uint8_t> r(v.numel(), mr);
     if (v.isLogical()) {
         const uint8_t *d = v.logicalData();
@@ -519,15 +522,25 @@ ScratchVec<uint8_t> toBoolArray(const Value &v, std::pmr::memory_resource *mr)
             r[i] = d[i] ? 1 : 0;
     } else if (v.type() == ValueType::DOUBLE) {
         const double *d = v.doubleData();
-        for (size_t i = 0; i < v.numel(); ++i)
+        for (size_t i = 0; i < v.numel(); ++i) {
+            if (std::isnan(d[i]))
+                nanErr();
             r[i] = (d[i] != 0.0) ? 1 : 0;
+        }
     } else if (v.isComplex()) {
         const Complex *d = v.complexData();
-        for (size_t i = 0; i < v.numel(); ++i)
+        for (size_t i = 0; i < v.numel(); ++i) {
+            if (std::isnan(d[i].real()) || std::isnan(d[i].imag()))
+                nanErr();
             r[i] = (d[i].real() != 0.0 || d[i].imag() != 0.0) ? 1 : 0;
+        }
     } else {
-        for (size_t i = 0; i < v.numel(); ++i)
-            r[i] = (v.elemAsDouble(i) != 0.0) ? 1 : 0;
+        for (size_t i = 0; i < v.numel(); ++i) {
+            double x = v.elemAsDouble(i);
+            if (std::isnan(x))
+                nanErr();
+            r[i] = (x != 0.0) ? 1 : 0;
+        }
     }
     return r;
 }
@@ -536,9 +549,14 @@ bool scalarTruth(const Value &v)
 {
     if (v.isComplex()) {
         Complex c = v.toComplex();
+        if (std::isnan(c.real()) || std::isnan(c.imag()))
+            throw std::runtime_error("NaN values cannot be converted to logicals.");
         return c.real() != 0.0 || c.imag() != 0.0;
     }
-    return v.elemAsDouble(0) != 0.0;
+    double x = v.elemAsDouble(0);
+    if (std::isnan(x))
+        throw std::runtime_error("NaN values cannot be converted to logicals.");
+    return x != 0.0;
 }
 
 template <typename Op>
