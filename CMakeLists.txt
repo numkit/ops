@@ -42,11 +42,11 @@ if(DEFINED _numkit_saved_warn_deprecated AND NOT "${_numkit_saved_warn_deprecate
     set(CMAKE_WARN_DEPRECATED "${_numkit_saved_warn_deprecated}" CACHE BOOL "" FORCE)
 endif()
 
-# Standalone keelcpp libraries (compress, image-formats, fft) — strictly PRIVATE to numkit_ops
+# Standalone keelcpp libraries (compress, image, fft) — strictly PRIVATE to numkit_ops
 foreach(_keel_pair
     "KEEL:keel"
     "KEEL_COMPRESS:compress"
-    "KEEL_IMAGE_FORMATS:image-formats"
+    "KEEL_IMAGE:image"
     "KEEL_FFT:fft"
 )
     string(REPLACE ":" ";" _keel_parts "${_keel_pair}")
@@ -67,7 +67,7 @@ endforeach()
 
 set(KEEL_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(KEEL_COMPRESS_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-set(KEEL_IMAGE_FORMATS_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(KEEL_IMAGE_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(KEEL_FFT_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(KEEL_FFT_WITH_HIGHWAY ${NUMKIT_WITH_SIMD} CACHE BOOL "" FORCE)
 
@@ -98,19 +98,19 @@ if(NOT TARGET keel::compress)
     FetchContent_MakeAvailable(keel_compress)
 endif()
 
-if(NOT TARGET keel::image_formats)
-    find_package(keel_image_formats QUIET CONFIG)
-    if(TARGET keel::keel_image_formats AND NOT TARGET keel::image_formats)
-        add_library(keel::image_formats ALIAS keel::keel_image_formats)
+if(NOT TARGET keel::image)
+    find_package(keel_image QUIET CONFIG)
+    if(TARGET keel::keel_image AND NOT TARGET keel::image)
+        add_library(keel::image ALIAS keel::keel_image)
     endif()
 endif()
-if(NOT TARGET keel::image_formats)
+if(NOT TARGET keel::image)
     FetchContent_Declare(
-        keel_image_formats
-        GIT_REPOSITORY https://github.com/keelcpp/image-formats.git
-        GIT_TAG        3735e7a02362c9c96c589dfa0b7f420a6ccb56dc
+        keel_image
+        GIT_REPOSITORY https://github.com/keelcpp/image.git
+        GIT_TAG        62b1ea9831703433000f97814be05c7cb4c7627a
     )
-    FetchContent_MakeAvailable(keel_image_formats)
+    FetchContent_MakeAvailable(keel_image)
 endif()
 
 if(NOT TARGET keel::fft)
@@ -214,7 +214,7 @@ target_include_directories(numkit_ops
 
 target_link_libraries(numkit_ops
     PUBLIC numkit_value
-    PRIVATE hwy hwy_contrib keel::compress keel::image_formats keel::fft
+    PRIVATE hwy hwy_contrib keel::compress keel::image keel::fft
 )
 
 if(NUMKIT_WITH_SIMD)

@@ -1,7 +1,7 @@
 // ops/src/image_io/codecs_keel.cpp
 //
 // Thin PRIVATE adapters bridging NumKit's internal image codec headers
-// (PNG, JPEG, BMP, TGA, PNM, TIFF) to keel::image_formats.
+// (PNG, JPEG, BMP, TGA, PNM, TIFF) to keel::image.
 
 #include "png_codec.hpp"
 #include "jpeg_codec.hpp"

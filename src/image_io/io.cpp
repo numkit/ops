@@ -1,6 +1,6 @@
 // ops/src/image_io/io.cpp
 //
-// Image I/O facade (imread, imwrite, imfinfo) backed by keel::image_formats.
+// Image I/O facade (imread, imwrite, imfinfo) backed by keel::image.
 
 #include <numkit/image/io/io.hpp>
 #include <numkit/value/error.hpp>
