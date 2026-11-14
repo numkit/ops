@@ -7,6 +7,7 @@
 // to whichever backend (Highway / portable) was linked, with no drift.
 #include <numkit/ops/kernels.hpp>
 
+#include <numkit/ops/blas3.hpp>              // ops::gemm (Highway complex GEMM)
 #include <numkit/ops/binary_ops.hpp>        // detail::matmulDoubleLoop / *Loop
 #include <numkit/ops/fused/fused_kernels.hpp>  // fusedTransAffine / TransAffineFn
 
@@ -21,15 +22,13 @@ void matmulDouble(const double *a, const double *b, double *c,
 void matmulComplex(const std::complex<double> *a, const std::complex<double> *b,
                    std::complex<double> *c, std::size_t M, std::size_t N, std::size_t K)
 {
-    // Column-major C(M×N) = A(M×K)·B(K×N): c[i+j*M] = sum_k a[i+k*M]*b[k+j*K].
-    // Zero, then SAXPY down columns (the (j,k,i) order matmulDoubleLoop uses) —
-    // no SIMD-complex backend, but the same cache-friendly traversal.
-    for (std::size_t i = 0; i < M * N; ++i) c[i] = std::complex<double>(0.0, 0.0);
-    for (std::size_t j = 0; j < N; ++j)
-        for (std::size_t k = 0; k < K; ++k) {
-            const std::complex<double> bkj = b[k + j * K];
-            for (std::size_t i = 0; i < M; ++i) c[i + j * M] += a[i + k * M] * bkj;
-        }
+    if (M == 0 || N == 0)
+        return;
+    gemm(MatrixTranspose::NoTrans, MatrixTranspose::NoTrans,
+         M, N, K,
+         std::complex<double>(1.0, 0.0), a, M,
+         b, K,
+         std::complex<double>(0.0, 0.0), c, M);
 }
 
 void plusDouble(const double *a, const double *b, double *out, std::size_t n)

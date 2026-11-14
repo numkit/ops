@@ -18,6 +18,7 @@
 
 #include <numkit/linalg/decompositions.hpp>           // svd_decompose
 #include <numkit/linalg/properties.hpp>               // inv (polyeig companion)
+#include <numkit/linalg/qz.hpp>                       // qz (generalized eig)
 #include <numkit/builtin/polyfun.hpp>   // roots
 
 // Compute-only TU: Value substrate + Error, no engine. The eig / hess /
@@ -45,6 +46,7 @@ namespace numkit::linalg {
 
 Value poly_of_matrix(const Value &A, std::pmr::memory_resource *mr)
 {
+    detail::requireDoubleInput(A, "poly");
     if (A.dims().ndim() != 2)
         throw Error("poly: input must be a 2D matrix",
                     0, 0, "poly", "", "numkit:poly:notMatrix");
@@ -60,41 +62,33 @@ Value poly_of_matrix(const Value &A, std::pmr::memory_resource *mr)
         return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
     }
 
-    Value Aw = detail::widenSingleToDouble(A, mr);
-
+    Value evals = eig_general_values(A, mr);
     ScratchArena scratch(mr);
-    ScratchVec<double> M(n * n, 0.0, &scratch);
-    ScratchVec<double> Mnext(n * n, &scratch);
-
-    auto out = Value::matrix(1, n + 1, ValueType::DOUBLE, mr);
-    double *c = out.doubleDataMut();
-    c[0] = 1.0;
-
-    const double *Adata = Aw.doubleData();
-
-    for (std::size_t k = 1; k <= n; ++k) {
-        // Mnext = A * M
-        std::fill(Mnext.begin(), Mnext.end(), 0.0);
-        for (std::size_t j = 0; j < n; ++j)
-            for (std::size_t kk = 0; kk < n; ++kk) {
-                const double mkj = M[kk + j * n];
-                if (mkj == 0.0) continue;
-                for (std::size_t i = 0; i < n; ++i)
-                    Mnext[i + j * n] += Adata[i + kk * n] * mkj;
-            }
-        // Add c[k-1] * A
-        const double cprev = c[k - 1];
-        for (std::size_t i = 0; i < n * n; ++i)
-            Mnext[i] += cprev * Adata[i];
-
-        // c[k] = -trace(Mnext) / k
-        double tr = 0.0;
-        for (std::size_t i = 0; i < n; ++i) tr += Mnext[i + i * n];
-        c[k] = -tr / static_cast<double>(k);
-
-        std::swap(M, Mnext);
+    ScratchVec<Complex> coeff(n + 1, Complex(0.0, 0.0), &scratch);
+    coeff[0] = Complex(1.0, 0.0);
+    for (std::size_t k = 0; k < n; ++k) {
+        const Complex lam = evals.isComplex()
+                                ? evals.complexData()[k]
+                                : Complex(evals.elemAsDouble(k), 0.0);
+        for (std::size_t j = k + 1; j >= 1; --j) {
+            coeff[j] -= lam * coeff[j - 1];
+        }
     }
-    return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
+
+    if (!A.isComplex()) {
+        auto out = Value::matrix(1, n + 1, ValueType::DOUBLE, mr);
+        double *c = out.doubleDataMut();
+        for (std::size_t j = 0; j <= n; ++j)
+            c[j] = coeff[j].real();
+        return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
+    }
+
+    auto out = Value::complexMatrix(1, n + 1, mr);
+    Complex *c = out.complexDataMut();
+    for (std::size_t j = 0; j <= n; ++j)
+        c[j] = coeff[j];
+    if (wantSingle) out.setSingleComplex(true);
+    return detail::narrow_if_real(out, mr);
 }
 
 static bool isHermitianComplexApprox(const Value &A, double tol = 1e-10)
@@ -203,57 +197,6 @@ eig_general_VD(const Value &A, std::pmr::memory_resource *mr)
     const bool wantSingle = (A.type() == ValueType::SINGLE);
     Value Aw = detail::widenSingleToDouble(A, mr);
 
-    if (!Aw.isComplex()) {
-        auto eig_vals = eig_general_values(Aw, mr);
-        bool has_complex = false;
-        if (eig_vals.isComplex()) {
-            const Complex *ev = eig_vals.complexData();
-            for (std::size_t i = 0; i < eig_vals.numel(); ++i) {
-                if (std::fabs(ev[i].imag()) > 1e-9 * (1.0 + std::fabs(ev[i].real()))) {
-                    has_complex = true;
-                    break;
-                }
-            }
-        }
-        if (!has_complex) {
-            ScratchArena scratch(mr);
-            ScratchVec<double> evals(n, &scratch);
-            if (eig_vals.isComplex()) {
-                const Complex *ev = eig_vals.complexData();
-                for (std::size_t i = 0; i < n; ++i) evals[i] = ev[i].real();
-            } else {
-                const double *ev = eig_vals.doubleData();
-                for (std::size_t i = 0; i < n; ++i) evals[i] = ev[i];
-            }
-
-            auto Vout = Value::matrix(n, n, ValueType::DOUBLE, mr);
-            auto Dout = Value::matrix(n, n, ValueType::DOUBLE, mr);
-            double *V = Vout.doubleDataMut();
-            double *D = Dout.doubleDataMut();
-            std::fill(V, V + n * n, 0.0);
-            std::fill(D, D + n * n, 0.0);
-
-            const double *Adata = Aw.doubleData();
-
-            for (std::size_t k2 = 0; k2 < n; ++k2) {
-                const double lam = evals[k2];
-                D[k2 + k2 * n] = lam;
-                auto Ali = Value::matrix(n, n, ValueType::DOUBLE, mr);
-                double *AL = Ali.doubleDataMut();
-                for (std::size_t i = 0; i < n * n; ++i) AL[i] = Adata[i];
-                for (std::size_t i = 0; i < n; ++i) AL[i + i * n] -= lam;
-                auto [Us, Ss, Vs] = svd_decompose(Ali, mr);
-                const std::size_t nv = static_cast<std::size_t>(Vs.dims().dim(0));
-                const double *Vsdata = Vs.doubleData();
-                for (std::size_t i = 0; i < n; ++i)
-                    V[i + k2 * n] = Vsdata[i + (nv - 1) * nv];
-            }
-            return std::make_tuple(
-                detail::narrowDoubleToSingleIf(Vout, wantSingle, mr),
-                detail::narrowDoubleToSingleIf(Dout, wantSingle, mr));
-        }
-    }
-
     Value A_c = Aw.isComplex() ? Aw : Value::complexMatrix(n, n, mr);
     if (!Aw.isComplex()) {
         const double *ad = Aw.doubleData();
@@ -303,19 +246,35 @@ eig_general_VD(const Value &A, std::pmr::memory_resource *mr)
             detail::narrowDoubleToSingleIf(Dout, wantSingle, mr));
     }
 
+    double tMax = 0.0;
+    for (std::size_t i = 0; i < n * n; ++i)
+        tMax = std::max(tMax, std::abs(Tc[i]));
+    const double eps = std::numeric_limits<double>::epsilon();
+    const double backTol = 64.0 * static_cast<double>(n) * eps * std::max(1.0, tMax);
+    const double smin = std::max(eps * std::max(1.0, tMax),
+                                 std::numeric_limits<double>::min() * (static_cast<double>(n) / eps));
+
     ScratchVec<Complex> Yc(n * n, Complex(0.0, 0.0), &scratch);
 
     for (std::size_t k = 0; k < n; ++k) {
         Complex lam = Tc[k + k * n];
         Yc[k + k * n] = Complex(1.0, 0.0);
+        double maxY = 1.0;
         for (std::intptr_t i = static_cast<std::intptr_t>(k) - 1; i >= 0; --i) {
+            const std::size_t ui = static_cast<std::size_t>(i);
             Complex sum(0.0, 0.0);
-            for (std::size_t j = static_cast<std::size_t>(i) + 1; j <= k; ++j) {
-                sum += Tc[static_cast<std::size_t>(i) + j * n] * Yc[j + k * n];
+            for (std::size_t j = ui + 1; j <= k; ++j) {
+                sum += Tc[ui + j * n] * Yc[j + k * n];
             }
-            Complex denom = Tc[static_cast<std::size_t>(i) + static_cast<std::size_t>(i) * n] - lam;
-            if (std::abs(denom) < 1e-14) denom = Complex(1e-14, 0.0);
-            Yc[static_cast<std::size_t>(i) + k * n] = -sum / denom;
+            Complex denom = Tc[ui + ui * n] - lam;
+            if (std::abs(denom) <= backTol && std::abs(sum) <= backTol * maxY) {
+                // Diagonalizable repeated eigenvalue: free coordinate -> keep independent from col ui
+                Yc[ui + k * n] = Complex(0.0, 0.0);
+            } else {
+                if (std::abs(denom) < smin) denom = Complex(smin, 0.0);
+                Yc[ui + k * n] = -sum / denom;
+                maxY = std::max(maxY, std::abs(Yc[ui + k * n]));
+            }
         }
     }
 
@@ -864,40 +823,6 @@ void backsolveR(const double *R, const double *Q, std::size_t n, double *V)
     }
 }
 
-Value matmulDoubleOrComplex(const Value &X, const Value &Y, std::size_t n,
-                            std::pmr::memory_resource *mr)
-{
-    if (X.isComplex() || Y.isComplex()) {
-        auto out = Value::complexMatrix(n, n, mr);
-        Complex *od = out.complexDataMut();
-        for (std::size_t j = 0; j < n; ++j) {
-            for (std::size_t i = 0; i < n; ++i) {
-                Complex s(0.0, 0.0);
-                for (std::size_t k = 0; k < n; ++k) {
-                    const Complex xik = X.isComplex() ? X.complexData()[i + k * n] : Complex(X.elemAsDouble(i + k * n), 0.0);
-                    const Complex ykj = Y.isComplex() ? Y.complexData()[k + j * n] : Complex(Y.elemAsDouble(k + j * n), 0.0);
-                    s += xik * ykj;
-                }
-                od[i + j * n] = s;
-            }
-        }
-        return out;
-    }
-    auto out = Value::matrix(n, n, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
-    const double *xd = X.doubleData();
-    const double *yd = Y.doubleData();
-    for (std::size_t j = 0; j < n; ++j) {
-        for (std::size_t i = 0; i < n; ++i) {
-            double s = 0.0;
-            for (std::size_t k = 0; k < n; ++k)
-                s += xd[i + k * n] * yd[k + j * n];
-            od[i + j * n] = s;
-        }
-    }
-    return out;
-}
-
 } // anonymous namespace
 
 std::tuple<Value, Value>
@@ -998,51 +923,165 @@ eig_generalized_VD(const Value &A, const Value &B, std::pmr::memory_resource *mr
         }
     }
 
-    // General fallback: try B^-1 * A; if B is singular, use reciprocal A^-1 * B.
-    try {
-        Value Binv = inv(Bw, mr);
-        Value M = matmulDoubleOrComplex(Binv, Aw, n, mr);
-        auto [V, D] = (!M.isComplex() && isSymmetricApprox(M, 1e-10))
-                          ? eig_symmetric(M, mr)
-                          : eig_general_VD(M, mr);
-        return std::make_tuple(
-            detail::narrowDoubleToSingleIf(V, wantSingle, mr),
-            detail::narrowDoubleToSingleIf(D, wantSingle, mr));
-    } catch (const Error &) {
-        Value Ainv = inv(Aw, mr);
-        Value M = matmulDoubleOrComplex(Ainv, Bw, n, mr);
-        auto [V, Dmu] = (!M.isComplex() && isSymmetricApprox(M, 1e-10))
-                            ? eig_symmetric(M, mr)
-                            : eig_general_VD(M, mr);
-        if (Dmu.isComplex()) {
-            Complex *dd = Dmu.complexDataMut();
-            double muMax = 0.0;
-            for (std::size_t j = 0; j < n; ++j)
-                muMax = std::max(muMax, std::abs(dd[j + j * n]));
-            const double muTol = 1e-11 * std::max(1.0, muMax);
-            for (std::size_t j = 0; j < n; ++j) {
-                const Complex mu = dd[j + j * n];
-                dd[j + j * n] = (std::abs(mu) > muTol)
-                                    ? (Complex(1.0, 0.0) / mu)
-                                    : Complex(std::numeric_limits<double>::infinity(), 0.0);
-            }
+    // General matrix pencil (A, B): generalized Schur QZ decomposition
+    // Q * A * Z = AA, Q * B * Z = BB (AA, BB upper triangular), followed by
+    // O(n^3) generalized triangular eigenvector back-substitution:
+    //   (beta_k * AA - alpha_k * BB) * y_k = 0,  v_k = Z * y_k.
+    auto [AA, BB, Q, Z] = qz(Aw, Bw, mr);
+    (void)Q;
+
+    ScratchArena scratch(mr);
+    ScratchVec<Complex> AAc(n * n, &scratch);
+    ScratchVec<Complex> BBc(n * n, &scratch);
+    ScratchVec<Complex> Zc(n * n, &scratch);
+
+    auto copyToComplex = [&](const Value &src, ScratchVec<Complex> &dst) {
+        if (src.isComplex()) {
+            std::copy(src.complexData(), src.complexData() + n * n, dst.begin());
         } else {
-            double *dd = Dmu.doubleDataMut();
-            double muMax = 0.0;
-            for (std::size_t j = 0; j < n; ++j)
-                muMax = std::max(muMax, std::fabs(dd[j + j * n]));
-            const double muTol = 1e-11 * std::max(1.0, muMax);
-            for (std::size_t j = 0; j < n; ++j) {
-                const double mu = dd[j + j * n];
-                dd[j + j * n] = (std::fabs(mu) > muTol)
-                                    ? (1.0 / mu)
-                                    : std::numeric_limits<double>::infinity();
+            const double *sd = src.doubleData();
+            for (std::size_t i = 0; i < n * n; ++i)
+                dst[i] = Complex(sd[i], 0.0);
+        }
+    };
+    copyToComplex(AA, AAc);
+    copyToComplex(BB, BBc);
+    copyToComplex(Z, Zc);
+
+    double aMax = 0.0, bMax = 0.0;
+    for (std::size_t i = 0; i < n * n; ++i) {
+        aMax = std::max(aMax, std::abs(AAc[i]));
+        bMax = std::max(bMax, std::abs(BBc[i]));
+    }
+    const double eps = std::numeric_limits<double>::epsilon();
+    const double abScale = std::max(1.0, std::max(aMax, bMax));
+    const double backTol = 64.0 * static_cast<double>(n) * eps * abScale;
+    const double smin = std::max(eps * abScale,
+                                 std::numeric_limits<double>::min() * (static_cast<double>(n) / eps));
+    const double bZeroTol = 64.0 * static_cast<double>(n) * eps * std::max(1.0, bMax);
+    const double aZeroTol = 64.0 * static_cast<double>(n) * eps * std::max(1.0, aMax);
+
+    ScratchVec<Complex> Yc(n * n, Complex(0.0, 0.0), &scratch);
+    for (std::size_t k = 0; k < n; ++k) {
+        Complex alpha = AAc[k + k * n];
+        Complex beta = BBc[k + k * n];
+        const double pairScale = std::max(std::abs(alpha), std::abs(beta));
+        if (pairScale > 0.0) {
+            alpha /= pairScale;
+            beta /= pairScale;
+        }
+        Yc[k + k * n] = Complex(1.0, 0.0);
+        double maxY = 1.0;
+        for (std::intptr_t i = static_cast<std::intptr_t>(k) - 1; i >= 0; --i) {
+            const std::size_t ui = static_cast<std::size_t>(i);
+            Complex sum(0.0, 0.0);
+            for (std::size_t j = ui + 1; j <= k; ++j) {
+                const Complex mij = beta * AAc[ui + j * n] - alpha * BBc[ui + j * n];
+                sum += mij * Yc[j + k * n];
+            }
+            Complex denom = beta * AAc[ui + ui * n] - alpha * BBc[ui + ui * n];
+            if (std::abs(denom) <= backTol && std::abs(sum) <= backTol * maxY) {
+                Yc[ui + k * n] = Complex(0.0, 0.0);
+            } else {
+                if (std::abs(denom) < smin) denom = Complex(smin, 0.0);
+                Yc[ui + k * n] = -sum / denom;
+                maxY = std::max(maxY, std::abs(Yc[ui + k * n]));
             }
         }
-        return std::make_tuple(
-            detail::narrowDoubleToSingleIf(V, wantSingle, mr),
-            detail::narrowDoubleToSingleIf(Dmu, wantSingle, mr));
     }
+
+    auto Vout = Value::complexMatrix(n, n, mr);
+    auto Dout = Value::complexMatrix(n, n, mr);
+    Complex *Vd = Vout.complexDataMut();
+    Complex *Dd = Dout.complexDataMut();
+    std::fill(Dd, Dd + n * n, Complex(0.0, 0.0));
+
+    for (std::size_t k = 0; k < n; ++k) {
+        const Complex alpha = AAc[k + k * n];
+        const Complex beta = BBc[k + k * n];
+        if (std::abs(beta) > bZeroTol) {
+            Dd[k + k * n] = alpha / beta;
+        } else if (std::abs(alpha) > aZeroTol) {
+            Dd[k + k * n] = Complex(std::numeric_limits<double>::infinity(), 0.0);
+        } else {
+            Dd[k + k * n] = Complex(std::numeric_limits<double>::quiet_NaN(), 0.0);
+        }
+
+        double normSq = 0.0;
+        for (std::size_t i = 0; i < n; ++i) {
+            Complex s(0.0, 0.0);
+            for (std::size_t j = 0; j <= k; ++j)
+                s += Zc[i + j * n] * Yc[j + k * n];
+            Vd[i + k * n] = s;
+            normSq += detail::abs_sq(s);
+        }
+        const double norm = std::sqrt(normSq);
+        if (norm > 0.0) {
+            for (std::size_t i = 0; i < n; ++i)
+                Vd[i + k * n] /= norm;
+        }
+    }
+
+    if (!Aw.isComplex() && !Bw.isComplex()) {
+        const double imagTol = 64.0 * static_cast<double>(n) * eps * (1.0 + abScale);
+        bool realSpectrum = true;
+        for (std::size_t k = 0; k < n; ++k) {
+            const Complex dkk = Dd[k + k * n];
+            const bool isRealEig = !std::isfinite(dkk.real()) ||
+                                   (std::abs(dkk.imag()) <= imagTol * std::max(1.0, std::abs(dkk.real())));
+            if (isRealEig) {
+                Dd[k + k * n] = Complex(dkk.real(), 0.0);
+                std::size_t iMax = 0;
+                double maxAbs = 0.0;
+                for (std::size_t i = 0; i < n; ++i) {
+                    const double a = std::abs(Vd[i + k * n]);
+                    if (a > maxAbs) { maxAbs = a; iMax = i; }
+                }
+                if (maxAbs > 0.0) {
+                    const Complex phase = std::conj(Vd[iMax + k * n]) / maxAbs;
+                    double colImax = 0.0;
+                    for (std::size_t i = 0; i < n; ++i) {
+                        const Complex rotated = Vd[i + k * n] * phase;
+                        Vd[i + k * n] = rotated;
+                        colImax = std::max(colImax, std::abs(rotated.imag()));
+                    }
+                    if (colImax <= 1e3 * imagTol) {
+                        double rNormSq = 0.0;
+                        for (std::size_t i = 0; i < n; ++i) {
+                            const double re = Vd[i + k * n].real();
+                            Vd[i + k * n] = Complex(re, 0.0);
+                            rNormSq += re * re;
+                        }
+                        const double rNorm = std::sqrt(rNormSq);
+                        if (rNorm > 0.0) {
+                            for (std::size_t i = 0; i < n; ++i)
+                                Vd[i + k * n] = Complex(Vd[i + k * n].real() / rNorm, 0.0);
+                        }
+                    }
+                }
+            } else {
+                realSpectrum = false;
+            }
+        }
+        double vImax = 0.0;
+        for (std::size_t i = 0; i < n * n; ++i)
+            vImax = std::max(vImax, std::abs(Vd[i].imag()));
+        if (realSpectrum && vImax <= 1e3 * imagTol) {
+            auto Vr = Value::matrix(n, n, ValueType::DOUBLE, mr);
+            auto Dr = Value::matrix(n, n, ValueType::DOUBLE, mr);
+            for (std::size_t i = 0; i < n * n; ++i) {
+                Vr.doubleDataMut()[i] = Vd[i].real();
+                Dr.doubleDataMut()[i] = Dd[i].real();
+            }
+            return std::make_tuple(
+                detail::narrowDoubleToSingleIf(Vr, wantSingle, mr),
+                detail::narrowDoubleToSingleIf(Dr, wantSingle, mr));
+        }
+    }
+
+    return std::make_tuple(
+        detail::narrowDoubleToSingleIf(detail::narrow_if_real(Vout, mr), wantSingle, mr),
+        detail::narrowDoubleToSingleIf(detail::narrow_if_real(Dout, mr), wantSingle, mr));
 }
 
 Value eig_generalized_values(const Value &A, const Value &B, std::pmr::memory_resource *mr)

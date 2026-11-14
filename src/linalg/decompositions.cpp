@@ -1308,33 +1308,65 @@ Value cholupdate(const Value &R, const Value &x, int sign,
         return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
     }
 
-    // Downdate.
-    ScratchArena scratch(mr);
-    ScratchVec<double> B(n * n, &scratch);
-    const double *Rd = Rw.doubleData();
-    // B = R'·R
-    for (std::size_t j = 0; j < n; ++j)
-        for (std::size_t i = 0; i < n; ++i) {
-            double sum = 0.0;
-            for (std::size_t k = 0; k < n; ++k)
-                sum += Rd[k + i * n] * Rd[k + j * n];
-            B[i + j * n] = sum;
-        }
-    // B -= x·x'
+    // O(n^2) orthogonal Givens downdate (LINPACK dchdd):
+    // Solve R^T * p = x, check ||p||_2 < 1, then apply orthogonal Givens
+    // rotations from k = n-1 down to 0 so R_new^T * R_new = R^T * R - x * x^T.
+    auto out = Value::matrix(n, n, ValueType::DOUBLE, mr);
+    double *Rd = out.doubleDataMut();
+    const double *Rsrc = Rw.doubleData();
     for (std::size_t j = 0; j < n; ++j) {
-        const double xj = x.elemAsDouble(j);
-        for (std::size_t i = 0; i < n; ++i)
-            B[i + j * n] -= x.elemAsDouble(i) * xj;
+        for (std::size_t i = 0; i <= j; ++i)
+            Rd[i + j * n] = Rsrc[i + j * n];
+        for (std::size_t i = j + 1; i < n; ++i)
+            Rd[i + j * n] = 0.0;
     }
-    // Wrap B in a Value to feed chol().
-    auto Btmp = Value::matrix(n, n, ValueType::DOUBLE, mr);
-    std::copy(B.begin(), B.end(), Btmp.doubleDataMut());
-    try {
-        return detail::narrowDoubleToSingleIf(chol(Btmp, mr), wantSingle, mr);
-    } catch (const Error &) {
+
+    ScratchArena scratch(mr);
+    ScratchVec<double> p(n, &scratch);
+    double normSq = 0.0;
+    for (std::size_t k = 0; k < n; ++k) {
+        const double rkk = Rd[k + k * n];
+        if (!(rkk > 0.0) || !std::isfinite(rkk)) {
+            throw Error("cholupdate: downdate would break positive-definiteness",
+                        0, 0, "cholupdate", "", "numkit:cholupdate:downdateFailed");
+        }
+        double sum = x.elemAsDouble(k);
+        for (std::size_t i = 0; i < k; ++i)
+            sum -= Rd[i + k * n] * p[i];
+        if (!std::isfinite(sum)) {
+            throw Error("cholupdate: downdate would break positive-definiteness",
+                        0, 0, "cholupdate", "", "numkit:cholupdate:downdateFailed");
+        }
+        const double pk = sum / rkk;
+        p[k] = pk;
+        normSq += pk * pk;
+    }
+
+    const double oneMinus = 1.0 - normSq;
+    if (!(oneMinus > 0.0)) {
         throw Error("cholupdate: downdate would break positive-definiteness",
                     0, 0, "cholupdate", "", "numkit:cholupdate:downdateFailed");
     }
+
+    double alpha = std::sqrt(oneMinus);
+    ScratchVec<double> z(n, 0.0, &scratch);
+    for (std::size_t idx = n; idx > 0; --idx) {
+        const std::size_t k = idx - 1;
+        const double scale = std::hypot(alpha, p[k]);
+        const double c = alpha / scale;
+        const double s = p[k] / scale;
+        alpha = scale;
+        for (std::size_t j = k; j < n; ++j) {
+            const double rkj = Rd[k + j * n];
+            Rd[k + j * n] = c * rkj - s * z[j];
+            z[j]          = s * rkj + c * z[j];
+        }
+        if (!(Rd[k + k * n] > 0.0)) {
+            throw Error("cholupdate: downdate would break positive-definiteness",
+                        0, 0, "cholupdate", "", "numkit:cholupdate:downdateFailed");
+        }
+    }
+    return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
 
 } // namespace numkit::linalg

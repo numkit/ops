@@ -7,6 +7,7 @@
 #include <numkit/value/error.hpp>
 
 #include <numkit/ops/helpers.hpp>
+#include <numkit/ops/blas3.hpp>
 #include <numkit/ops/la_solve.hpp>
 #include <numkit/ops/binary_ops.hpp>
 #include <numkit/ops/compare.hpp>
@@ -269,13 +270,13 @@ Value mtimes(const Value &a, const Value &b, std::pmr::memory_resource *mr)
         auto r = Value::complexMatrix(M, N, p);
         if (ca.isSingleComplex() || cb.isSingleComplex())
             r.setSingleComplex(true);
-        for (size_t i = 0; i < M; ++i)
-            for (size_t j = 0; j < N; ++j) {
-                Complex s(0, 0);
-                for (size_t k = 0; k < K; ++k)
-                    s += ca.complexElem(i, k) * cb.complexElem(k, j);
-                r.complexDataMut()[j * M + i] = s;
-            }
+        if (M > 0 && N > 0) {
+            ops::gemm(ops::MatrixTranspose::NoTrans, ops::MatrixTranspose::NoTrans,
+                      M, N, K,
+                      Complex(1.0, 0.0), ca.complexData(), M,
+                      cb.complexData(), K,
+                      Complex(0.0, 0.0), r.complexDataMut(), M);
+        }
         return narrowComplex(r, p);
     }
 
@@ -293,15 +294,37 @@ Value mtimes(const Value &a, const Value &b, std::pmr::memory_resource *mr)
                          "numkit:innerdim");
         auto r = Value::matrix(M, N, ValueType::SINGLE, p);
         float *rd = static_cast<float *>(r.rawDataMut());
-        std::fill(rd, rd + M * N, 0.0f);
-        for (size_t j = 0; j < N; ++j) {
-            for (size_t k = 0; k < K; ++k) {
-                float bkj = static_cast<float>(b.elemAsDouble(j * K + k));
-                for (size_t i = 0; i < M; ++i) {
-                    rd[j * M + i] += static_cast<float>(a.elemAsDouble(k * M + i)) * bkj;
-                }
-            }
+        if (M == 0 || N == 0)
+            return r;
+        if (K == 0) {
+            std::fill(rd, rd + M * N, 0.0f);
+            return r;
         }
+        ScratchArena scratch(p);
+        ScratchVec<double> cd(M * N, &scratch);
+        const double *adPtr = nullptr;
+        ScratchVec<double> adScratch(&scratch);
+        if (a.type() == ValueType::DOUBLE) {
+            adPtr = a.doubleData();
+        } else {
+            adScratch.resize(M * K);
+            const float *af = static_cast<const float *>(a.rawData());
+            for (size_t i = 0; i < M * K; ++i) adScratch[i] = static_cast<double>(af[i]);
+            adPtr = adScratch.data();
+        }
+        const double *bdPtr = nullptr;
+        ScratchVec<double> bdScratch(&scratch);
+        if (b.type() == ValueType::DOUBLE) {
+            bdPtr = b.doubleData();
+        } else {
+            bdScratch.resize(K * N);
+            const float *bf = static_cast<const float *>(b.rawData());
+            for (size_t i = 0; i < K * N; ++i) bdScratch[i] = static_cast<double>(bf[i]);
+            bdPtr = bdScratch.data();
+        }
+        ops::detail::matmulDoubleLoop(adPtr, bdPtr, cd.data(), M, N, K);
+        for (size_t i = 0; i < M * N; ++i)
+            rd[i] = static_cast<float>(cd[i]);
         return r;
     }
     if (a.type() == ValueType::DOUBLE && b.type() == ValueType::DOUBLE) {
@@ -482,8 +505,15 @@ Value power(const Value &a, const Value &b, std::pmr::memory_resource *mr)
                               && std::isfinite(bs) && std::floor(bs) == bs
                               && std::abs(bs) <= 1e9;
         if (bRealInt) {
-            const long n = static_cast<long>(bs);
+            const std::int64_t n = static_cast<std::int64_t>(bs);
             auto makeEye = [&]() {
+                if (a.type() == ValueType::SINGLE && !a.isComplex()) {
+                    auto I = Value::matrix(R, R, ValueType::SINGLE, p);
+                    float *id = static_cast<float *>(I.rawDataMut());
+                    std::fill(id, id + R * R, 0.0f);
+                    for (std::size_t i = 0; i < R; ++i) id[i * R + i] = 1.0f;
+                    return I;
+                }
                 auto I = Value::matrix(R, R, ValueType::DOUBLE, p);
                 double *id = I.doubleDataMut();
                 std::memset(id, 0, sizeof(double) * R * R);
@@ -491,9 +521,19 @@ Value power(const Value &a, const Value &b, std::pmr::memory_resource *mr)
                 return I;
             };
             if (n == 0) return makeEye();
-            long expAbs = n > 0 ? n : -n;
-            Value acc = a;
-            for (long k = 1; k < expAbs; ++k) acc = mtimes(acc, a, p);
+            std::uint64_t expAbs = static_cast<std::uint64_t>(n > 0 ? n : -n);
+            Value base = a;
+            Value acc;
+            bool haveAcc = false;
+            while (expAbs > 0) {
+                if ((expAbs & 1u) != 0u) {
+                    acc = haveAcc ? mtimes(acc, base, p) : base;
+                    haveAcc = true;
+                }
+                expAbs >>= 1u;
+                if (expAbs > 0)
+                    base = mtimes(base, base, p);
+            }
             if (n < 0) return mldivide(acc, makeEye(), p);
             return acc;
         }
