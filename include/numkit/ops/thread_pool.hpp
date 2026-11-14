@@ -18,6 +18,7 @@
 #include <atomic>
 #include <condition_variable>
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <mutex>
 #include <thread>
@@ -72,7 +73,7 @@ private:
     std::size_t                      task_n_         = 0;
     std::atomic<int>                 task_remaining_{0};
     int                              active_         = 0;
-    std::atomic<int>                 epoch_{0};
+    std::atomic<std::uint64_t>       epoch_{0};
     std::atomic<bool>                shutdown_{false};
 };
 

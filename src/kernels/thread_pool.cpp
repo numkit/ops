@@ -94,20 +94,28 @@ void ThreadPool::run(std::size_t n, std::function<void(std::size_t, std::size_t)
             if (task_remaining_.load(std::memory_order_acquire) == 0) break;
             spin_pause();
         }
-        if (task_remaining_.load(std::memory_order_acquire) != 0) {
+        std::function<void(std::size_t, std::size_t)> cleanup;
+        {
             std::unique_lock<std::mutex> lock(mu_);
-            cv_done_.wait(lock, [this] { return task_remaining_.load(std::memory_order_acquire) == 0; });
+            if (task_remaining_.load(std::memory_order_acquire) != 0) {
+                cv_done_.wait(lock, [this] {
+                    return task_remaining_.load(std::memory_order_acquire) == 0;
+                });
+            }
+            // Reset active_ and clear task_ under mu_ so any worker waking up
+            // from an earlier broadcast sees a consistent idle state instead
+            // of racing on task_ / active_ / task_n_.
+            active_ = 0;
+            cleanup = std::move(task_);
+            task_ = nullptr;
         }
-        // Drop the task closure under the lock so its destructors run
-        // in a predictable place (avoids capturing locals living on
-        // the caller's frame for any longer than necessary).
-        task_ = nullptr;
+        (void)cleanup;
     }
 }
 
 void ThreadPool::worker_loop(int id)
 {
-    int seen_epoch = 0;
+    std::uint64_t seen_epoch = 0;
     while (true) {
         std::function<void(std::size_t, std::size_t)> fn;
         std::size_t n;
@@ -115,22 +123,24 @@ void ThreadPool::worker_loop(int id)
 
         {
             for (int spin = 0; spin < 2000; ++spin) {
-                if (shutdown_.load(std::memory_order_acquire) || epoch_.load(std::memory_order_acquire) != seen_epoch) break;
+                if (shutdown_.load(std::memory_order_acquire)
+                    || epoch_.load(std::memory_order_acquire) != seen_epoch)
+                    break;
                 spin_pause();
             }
-            if (!(shutdown_.load(std::memory_order_acquire) || epoch_.load(std::memory_order_acquire) != seen_epoch)) {
-                std::unique_lock<std::mutex> lock(mu_);
-                cv_start_.wait(lock, [&] { return shutdown_.load(std::memory_order_acquire) || epoch_.load(std::memory_order_acquire) != seen_epoch; });
-            }
+            std::unique_lock<std::mutex> lock(mu_);
+            cv_start_.wait(lock, [&] {
+                return shutdown_.load(std::memory_order_acquire)
+                    || epoch_.load(std::memory_order_acquire) != seen_epoch;
+            });
             if (shutdown_.load(std::memory_order_acquire))
                 return;
-            seen_epoch = epoch_.load(std::memory_order_acquire);
-            // Workers beyond the active cap skip this task entirely
-            // — they wake on cv_start_ broadcast but immediately go
-            // back to sleep, never touching task_remaining_.
+            seen_epoch = epoch_.load(std::memory_order_relaxed);
+            // Workers beyond the active cap (or waking after the epoch already
+            // completed and reset active_ = 0) skip this task cleanly under mu_.
             if (id >= active_)
                 continue;
-            fn         = task_;        // safe to read without lock because epoch was bumped after task_ was written
+            fn         = task_;
             n          = task_n_;
             k          = active_;
         }

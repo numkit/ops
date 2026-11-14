@@ -23,10 +23,12 @@ std::uint32_t adler32(const std::uint8_t *data, std::size_t len);
 /// @param src               Compressed bytes.
 /// @param len               Length of compressed bytes.
 /// @param expectedSizeHint  Optional hint for output vector reservation.
+/// @param maxOutputBytes    Maximum allowed uncompressed size (0 = unlimited).
 /// @return                  Decompressed byte vector.
-/// @throws                  numkit::Error on corrupted / truncated stream.
+/// @throws                  numkit::Error on corrupted / truncated / oversized stream.
 std::vector<std::uint8_t> inflateRaw(const std::uint8_t *src, std::size_t len,
-                                     std::size_t expectedSizeHint = 0);
+                                     std::size_t expectedSizeHint = 0,
+                                     std::size_t maxOutputBytes = 512ULL * 1024 * 1024);
 
 /// Compress uncompressed bytes using raw RFC 1951 Deflate.
 /// @param src    Input bytes.
@@ -40,10 +42,12 @@ std::vector<std::uint8_t> deflateRaw(const std::uint8_t *src, std::size_t len,
 /// @param src               ZLIB stream bytes.
 /// @param len               Length of stream bytes.
 /// @param expectedSizeHint  Optional output size hint.
+/// @param maxOutputBytes    Maximum allowed uncompressed size (0 = unlimited).
 /// @return                  Decompressed payload bytes.
-/// @throws                  numkit::Error on bad header, corrupted data, or Adler-32 mismatch.
+/// @throws                  numkit::Error on bad header, corrupted data, oversized output, or Adler-32 mismatch.
 std::vector<std::uint8_t> zlibDecompress(const std::uint8_t *src, std::size_t len,
-                                         std::size_t expectedSizeHint = 0);
+                                         std::size_t expectedSizeHint = 0,
+                                         std::size_t maxOutputBytes = 512ULL * 1024 * 1024);
 
 /// Compress payload into an RFC 1950 ZLIB stream.
 /// @param src    Input payload.

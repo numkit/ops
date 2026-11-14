@@ -57,8 +57,15 @@ void deserializeState(MatlabMT19937 &gen, const std::string &blob)
                          0, 0, "rng", "", "numkit:rng:badState");
     }
     int idx;
-    if (!(is >> idx))
+    if (!(is >> idx) || idx < 0 || idx > static_cast<int>(MatlabMT19937::STATE_SIZE))
         throw Error("rng: malformed state blob",
+                     0, 0, "rng", "", "numkit:rng:badState");
+    bool anyNonZero = ((state[0] & 0x80000000UL) != 0);
+    for (std::size_t i = 1; i < MatlabMT19937::STATE_SIZE && !anyNonZero; ++i)
+        if (state[i] != 0)
+            anyNonZero = true;
+    if (!anyNonZero)
+        throw Error("rng: invalid all-zero MT19937 state",
                      0, 0, "rng", "", "numkit:rng:badState");
     gen.setState(state, idx);
 }
@@ -286,6 +293,7 @@ void RngContext::shuffle()
 {
     legacyMode_ = false;
     legacyV4Rand_ = false;
+    legacyV5Rand_ = false;
     legacyV4Randn_ = false;
     std::random_device rd;
     gen_.seed(rd());
@@ -312,10 +320,11 @@ void RngContext::restore(const Value &state)
     if (!blob.isChar() && !blob.isString())
         throw Error("rng: .State must be a char array",
                      0, 0, "rng", "", "numkit:rng:badState");
+    deserializeState(gen_, blob.toString());
     legacyMode_ = false;
     legacyV4Rand_ = false;
+    legacyV5Rand_ = false;
     legacyV4Randn_ = false;
-    deserializeState(gen_, blob.toString());
 }
 
 // ────────────────────────────────────────────────────────────────────
@@ -375,7 +384,10 @@ void fillUniformInt(RngContext &rng, double *dst, size_t n, int64_t lo, int64_t 
     if (lo > hi)
         throw Error("randi: low bound must be <= high bound",
                      0, 0, "randi", "", "numkit:randi:badRange");
-    const double span = static_cast<double>(hi - lo + 1);
+    const std::uint64_t uSpan =
+        static_cast<std::uint64_t>(hi) - static_cast<std::uint64_t>(lo) + 1ULL;
+    const double span = (uSpan == 0ULL) ? 18446744073709551616.0
+                                        : static_cast<double>(uSpan);
     for (size_t i = 0; i < n; ++i) {
         const double u = rng.nextUniform();
         dst[i] = static_cast<double>(lo) + std::floor(u * span);

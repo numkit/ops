@@ -190,9 +190,15 @@ void GemmDoubleKernel(std::size_t m, std::size_t n, std::size_t k,
 
     numkit::detail::parallel_for(n, p_thresh, [&](std::size_t jc_start, std::size_t jc_end) {
         active_threads.fetch_add(1, std::memory_order_relaxed);
+        const std::size_t mc_padded = ((mc_block + mr - 1) / mr) * mr;
+        constexpr std::size_t nc_padded = ((nc_block + nr - 1) / nr) * nr;
         // Zero-allocation thread_local static packing buffers (persisted per thread)
-        thread_local static std::vector<double> A_pack(mc_block * kc_block + 64, 0.0);
-        thread_local static std::vector<double> B_pack(kc_block * nc_block + 64, 0.0);
+        thread_local static std::vector<double> A_pack(mc_padded * kc_block + 64, 0.0);
+        thread_local static std::vector<double> B_pack(kc_block * nc_padded + 64, 0.0);
+        if (A_pack.size() < mc_padded * kc_block + 64)
+            A_pack.resize(mc_padded * kc_block + 64, 0.0);
+        if (B_pack.size() < kc_block * nc_padded + 64)
+            B_pack.resize(kc_block * nc_padded + 64, 0.0);
 
         for (std::size_t jc = jc_start; jc < jc_end; jc += nc_block) {
             std::size_t nc = std::min(nc_block, jc_end - jc);
@@ -525,10 +531,20 @@ void GemmComplexKernel(std::size_t m, std::size_t n, std::size_t k,
     int max_threads = static_cast<int>(std::max<std::size_t>(1, n / 16));
 
     numkit::detail::parallel_for(n, p_thresh, [=](std::size_t jc_start, std::size_t jc_end) {
-        thread_local static std::vector<double> Ar_pack(mc_block * kc_block + 64, 0.0);
-        thread_local static std::vector<double> Ai_pack(mc_block * kc_block + 64, 0.0);
-        thread_local static std::vector<double> Br_pack(kc_block * nc_block + 64, 0.0);
-        thread_local static std::vector<double> Bi_pack(kc_block * nc_block + 64, 0.0);
+        const std::size_t mc_padded = ((mc_block + mr - 1) / mr) * mr;
+        constexpr std::size_t nc_padded = ((nc_block + nr - 1) / nr) * nr;
+        thread_local static std::vector<double> Ar_pack(mc_padded * kc_block + 64, 0.0);
+        thread_local static std::vector<double> Ai_pack(mc_padded * kc_block + 64, 0.0);
+        thread_local static std::vector<double> Br_pack(kc_block * nc_padded + 64, 0.0);
+        thread_local static std::vector<double> Bi_pack(kc_block * nc_padded + 64, 0.0);
+        if (Ar_pack.size() < mc_padded * kc_block + 64) {
+            Ar_pack.resize(mc_padded * kc_block + 64, 0.0);
+            Ai_pack.resize(mc_padded * kc_block + 64, 0.0);
+        }
+        if (Br_pack.size() < kc_block * nc_padded + 64) {
+            Br_pack.resize(kc_block * nc_padded + 64, 0.0);
+            Bi_pack.resize(kc_block * nc_padded + 64, 0.0);
+        }
 
         for (std::size_t jc = jc_start; jc < jc_end; jc += nc_block) {
             std::size_t nc = std::min(nc_block, jc_end - jc);
@@ -980,9 +996,33 @@ void gemm(MatrixTranspose transa, MatrixTranspose transb,
           const double *B, std::size_t ldb,
           double beta, double *C, std::size_t ldc)
 {
-    // (transa and transb are currently assumed to be NoTrans)
-    const std::size_t total_flops = 2 * m * n * k;
-    HWY_DYNAMIC_DISPATCH(GemmDoubleKernel)(m, n, k, alpha, A, lda, B, ldb, beta, C, ldc);
+    if (m == 0 || n == 0)
+        return;
+    const double *A_eff = A;
+    std::size_t lda_eff = lda;
+    std::vector<double> A_trans;
+    if (transa != MatrixTranspose::NoTrans && k > 0 && alpha != 0.0) {
+        A_trans.resize(m * k);
+        for (std::size_t p = 0; p < k; ++p)
+            for (std::size_t i = 0; i < m; ++i)
+                A_trans[i + p * m] = A[p + i * lda];
+        A_eff = A_trans.data();
+        lda_eff = m;
+    }
+
+    const double *B_eff = B;
+    std::size_t ldb_eff = ldb;
+    std::vector<double> B_trans;
+    if (transb != MatrixTranspose::NoTrans && k > 0 && alpha != 0.0) {
+        B_trans.resize(k * n);
+        for (std::size_t j = 0; j < n; ++j)
+            for (std::size_t p = 0; p < k; ++p)
+                B_trans[p + j * k] = B[j + p * ldb];
+        B_eff = B_trans.data();
+        ldb_eff = k;
+    }
+
+    HWY_DYNAMIC_DISPATCH(GemmDoubleKernel)(m, n, k, alpha, A_eff, lda_eff, B_eff, ldb_eff, beta, C, ldc);
 }
 
 void gemm(MatrixTranspose transa, MatrixTranspose transb,
@@ -991,8 +1031,39 @@ void gemm(MatrixTranspose transa, MatrixTranspose transb,
           const std::complex<double> *B, std::size_t ldb,
           std::complex<double> beta, std::complex<double> *C, std::size_t ldc)
 {
-    const std::size_t total_flops = 8 * m * n * k;
-    HWY_DYNAMIC_DISPATCH(GemmComplexKernel)(m, n, k, alpha, A, lda, B, ldb, beta, C, ldc);
+    if (m == 0 || n == 0)
+        return;
+    const std::complex<double> *A_eff = A;
+    std::size_t lda_eff = lda;
+    std::vector<std::complex<double>> A_trans;
+    if (transa != MatrixTranspose::NoTrans && k > 0 && alpha != std::complex<double>(0.0, 0.0)) {
+        const bool conjA = (transa == MatrixTranspose::ConjTrans);
+        A_trans.resize(m * k);
+        for (std::size_t p = 0; p < k; ++p)
+            for (std::size_t i = 0; i < m; ++i) {
+                const auto v = A[p + i * lda];
+                A_trans[i + p * m] = conjA ? std::conj(v) : v;
+            }
+        A_eff = A_trans.data();
+        lda_eff = m;
+    }
+
+    const std::complex<double> *B_eff = B;
+    std::size_t ldb_eff = ldb;
+    std::vector<std::complex<double>> B_trans;
+    if (transb != MatrixTranspose::NoTrans && k > 0 && alpha != std::complex<double>(0.0, 0.0)) {
+        const bool conjB = (transb == MatrixTranspose::ConjTrans);
+        B_trans.resize(k * n);
+        for (std::size_t j = 0; j < n; ++j)
+            for (std::size_t p = 0; p < k; ++p) {
+                const auto v = B[j + p * ldb];
+                B_trans[p + j * k] = conjB ? std::conj(v) : v;
+            }
+        B_eff = B_trans.data();
+        ldb_eff = k;
+    }
+
+    HWY_DYNAMIC_DISPATCH(GemmComplexKernel)(m, n, k, alpha, A_eff, lda_eff, B_eff, ldb_eff, beta, C, ldc);
 }
 
 template <typename T> struct is_complex_type : std::false_type {};

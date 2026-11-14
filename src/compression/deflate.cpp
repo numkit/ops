@@ -244,10 +244,23 @@ void buildFixedTrees(HuffmanTree &litTree, HuffmanTree &distTree) {
 // ============================================================================
 
 std::vector<std::uint8_t> inflateRaw(const std::uint8_t *src, std::size_t len,
-                                     std::size_t expectedSizeHint) {
+                                     std::size_t expectedSizeHint,
+                                     std::size_t maxOutputBytes) {
     BitReader br(src, len);
     std::vector<std::uint8_t> out;
-    if (expectedSizeHint > 0) out.reserve(expectedSizeHint);
+    if (expectedSizeHint > 0) {
+        constexpr std::size_t kMaxInitialReserve = 16ULL * 1024 * 1024;
+        std::size_t reserveCap = std::min(expectedSizeHint, kMaxInitialReserve);
+        if (maxOutputBytes > 0)
+            reserveCap = std::min(reserveCap, maxOutputBytes);
+        out.reserve(reserveCap);
+    }
+    auto checkOutCap = [&](std::size_t addBytes) {
+        if (maxOutputBytes > 0 && (addBytes > maxOutputBytes || out.size() > maxOutputBytes - addBytes)) {
+            throw Error("deflate: decompressed output exceeds maximum allowed size",
+                        0, 0, "inflateRaw", "", "numkit:deflate:outputTooLarge");
+        }
+    };
 
     bool bfinal = false;
     while (!bfinal) {
@@ -263,6 +276,7 @@ std::vector<std::uint8_t> inflateRaw(const std::uint8_t *src, std::size_t len,
                 throw Error("deflate: uncompressed block length check failed",
                             0, 0, "inflateRaw", "", "numkit:deflate:corrupted");
             }
+            checkOutCap(blen);
             for (std::uint16_t i = 0; i < blen; ++i) {
                 out.push_back(br.readByte());
             }
@@ -317,6 +331,7 @@ std::vector<std::uint8_t> inflateRaw(const std::uint8_t *src, std::size_t len,
             while (true) {
                 int sym = litTree.decode(br);
                 if (sym < 256) {
+                    checkOutCap(1);
                     out.push_back(static_cast<std::uint8_t>(sym));
                 } else if (sym == 256) {
                     break; // End of block
@@ -338,6 +353,7 @@ std::vector<std::uint8_t> inflateRaw(const std::uint8_t *src, std::size_t len,
                         throw Error("deflate: distance beyond output buffer", 0, 0, "inflateRaw");
                     }
 
+                    checkOutCap(static_cast<std::size_t>(length));
                     std::size_t copySrc = out.size() - dist;
                     for (int k = 0; k < length; ++k) {
                         out.push_back(out[copySrc + k]);
@@ -539,7 +555,8 @@ std::vector<std::uint8_t> deflateRaw(const std::uint8_t *src, std::size_t len, i
 // ============================================================================
 
 std::vector<std::uint8_t> zlibDecompress(const std::uint8_t *src, std::size_t len,
-                                         std::size_t expectedSizeHint) {
+                                         std::size_t expectedSizeHint,
+                                         std::size_t maxOutputBytes) {
     if (len < 6) {
         throw Error("zlib: stream too short (< 6 bytes)",
                     0, 0, "zlibDecompress", "", "numkit:zlib:truncated");
@@ -561,7 +578,8 @@ std::vector<std::uint8_t> zlibDecompress(const std::uint8_t *src, std::size_t le
     }
 
     std::size_t deflateLen = len - 6;
-    std::vector<std::uint8_t> uncompressed = inflateRaw(src + 2, deflateLen, expectedSizeHint);
+    std::vector<std::uint8_t> uncompressed =
+        inflateRaw(src + 2, deflateLen, expectedSizeHint, maxOutputBytes);
 
     // Verify 4-byte big-endian Adler-32 checksum at the end
     std::uint32_t expectedAdler = (static_cast<std::uint32_t>(src[len - 4]) << 24) |

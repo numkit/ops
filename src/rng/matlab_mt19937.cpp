@@ -92,7 +92,7 @@ void MatlabMT19937::generateNextBatch()
 
 uint32_t MatlabMT19937::genUint32()
 {
-    if (mti_ >= static_cast<int>(N))
+    if (mti_ < 0 || mti_ >= static_cast<int>(N))
         generateNextBatch();
 
     uint32_t y = mt_[mti_++];
@@ -112,7 +112,7 @@ uint32_t MatlabMT19937::genUint32()
 // MATLAB's rand() under 'twister' emits exactly this.
 double MatlabMT19937::genRes53()
 {
-    for (;;) {
+    for (int tries = 0; tries < 1024; ++tries) {
         const uint32_t a = genUint32() >> 5;
         const uint32_t b = genUint32() >> 6;
         if ((a | b) != 0) {
@@ -120,6 +120,12 @@ double MatlabMT19937::genRes53()
                  * (1.0 / 9007199254740992.0);
         }
     }
+    // Unreachable for any valid non-zero MT19937 state; recover if degenerate.
+    seed(5489UL);
+    const uint32_t a = genUint32() >> 5;
+    const uint32_t b = genUint32() >> 6;
+    return (static_cast<double>(a) * 67108864.0 + static_cast<double>(b))
+         * (1.0 / 9007199254740992.0);
 }
 
 void MatlabMT19937::getState(uint32_t out[STATE_SIZE], int &outIndex) const
@@ -130,8 +136,18 @@ void MatlabMT19937::getState(uint32_t out[STATE_SIZE], int &outIndex) const
 
 void MatlabMT19937::setState(const uint32_t in[STATE_SIZE], int inIndex)
 {
-    for (std::size_t i = 0; i < N; ++i) mt_[i] = in[i];
-    mti_ = inIndex;
+    bool anyNonZero = ((in[0] & UPPER_MASK) != 0);
+    for (std::size_t i = 0; i < N; ++i) {
+        mt_[i] = in[i];
+        if (i > 0 && in[i] != 0)
+            anyNonZero = true;
+    }
+    if (!anyNonZero)
+        mt_[0] = UPPER_MASK; // Prevent absorbing all-zero MT19937 state
+    if (inIndex < 0 || inIndex > static_cast<int>(N))
+        mti_ = static_cast<int>(N);
+    else
+        mti_ = inIndex;
 }
 
 } // namespace numkit::ops
