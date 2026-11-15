@@ -7,6 +7,7 @@
 #include <keel/memory.h>
 #include <keel/ref.h>
 #include <keel/array.h>
+#include <keel/fs.h>
 #include "png_codec.hpp"
 #include "jpeg_codec.hpp"
 #include "bmp_codec.hpp"
@@ -24,7 +25,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <filesystem>
 #include <fstream>
 #include <string>
 #include <utility>
@@ -699,7 +699,7 @@ void writeTiff(const Value &A, const std::string &path,
                const std::string &compression, bool appendMode) {
     std::vector<keel::u8> existing;
     const std::vector<keel::u8> *exptr = nullptr;
-    if (appendMode && std::filesystem::exists(path)) {
+    if (appendMode && keel::fs_exists(path)) {
         existing = loadFileBytes(path, "imwrite");
         exptr = &existing;
     }

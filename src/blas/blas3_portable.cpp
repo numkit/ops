@@ -4,7 +4,6 @@
 #include <numkit/ops/blas3.hpp>
 #include <numkit/ops/blas.hpp>
 #include <numkit/ops/parallel_for.hpp>
-#include <numkit/ops/thread_pool.hpp>
 #include <vector>
 #include <algorithm>
 
@@ -83,7 +82,11 @@ void gemm_portable(MatrixTranspose transa, MatrixTranspose transb,
     });
 
     // Update global atomic for test determinism check
-    ::numkit::ops::g_last_gemm_threads_used.store(numkit::detail::ThreadPool::global().workers());
+#if defined(NUMKIT_WITH_THREADS)
+    ::numkit::ops::g_last_gemm_threads_used.store(static_cast<int>(keel::ThreadPool::global().num_workers()));
+#else
+    ::numkit::ops::g_last_gemm_threads_used.store(1);
+#endif
 }
 
 template <typename T>

@@ -21,10 +21,9 @@
 #pragma once
 
 #include <keel/core.h>
-#include <cstddef>
 
 #if defined(NUMKIT_WITH_THREADS)
-#include <numkit/ops/thread_pool.hpp>
+#include <keel/thread_pool.h>
 #endif
 
 namespace numkit::detail {
@@ -42,7 +41,7 @@ namespace numkit::detail {
 //
 // The threshold is platform-dependent because pool dispatch latency
 // is wildly different:
-//   * native std::thread + condvar: a few µs per dispatch
+//   * native pthread / Win32 SRW+condvar: a few µs per dispatch
 //   * Emscripten pthread (Web Workers + SharedArrayBuffer atomics):
 //     ~30-100 µs per Worker signal × 6 Workers ≈ 200-600 µs per
 //     parallel_for call.
@@ -54,20 +53,19 @@ namespace numkit::detail {
 // `kTranscendentalThreshold` is much smaller because sin/cos/exp/log
 // have high arithmetic intensity per element (Highway's polynomial
 // approximations) — the kernel pays for the dispatch even on small N.
-inline constexpr keel::usize kElementwiseThreshold    =  16 * 1024;
+inline constexpr keel::usize kElementwiseThreshold      =  16 * 1024;
 #if defined(__EMSCRIPTEN__)
 inline constexpr keel::usize kCheapElementwiseThreshold = 4 * 1024 * 1024;
 #else
 inline constexpr keel::usize kCheapElementwiseThreshold =     256 * 1024;
 #endif
-inline constexpr keel::usize kTranscendentalThreshold =   4 * 1024;
+inline constexpr keel::usize kTranscendentalThreshold   =   4 * 1024;
 
 // Below this N the cheapest element-wise ops (+ - .* ./) skip the Highway
 // dynamic-dispatch path and run an inline scalar loop the compiler
 // auto-vectorizes. On native (MSVC) the indirect HWY_DYNAMIC_DISPATCH call
 // into the non-inlinable per-target body loses to inline autovec at
-// cache-resident sizes — up to ~8x slower (see
-// bugs/ops/cheap-elementwise-simd-small-n). On WASM the dispatch is
+// cache-resident sizes — up to ~8x slower. On WASM the dispatch is
 // static/inlinable and already wins on small inputs, so the gate is disabled
 // (0 → `n < 0` never trips). Set at the measured native break-even (~256K).
 #if defined(__EMSCRIPTEN__)
@@ -81,24 +79,20 @@ inline constexpr keel::usize kSimdInlineThreshold = 256 * 1024;
 // the bus on `z = x op y` and friends; more workers add signaling
 // noise without helping throughput. Compute-bound kernels (mtimes,
 // transcendentals) don't need a cap and benefit from every core.
-inline constexpr int         kElementwiseMaxWorkers   = 6;
+inline constexpr keel::u32 kElementwiseMaxWorkers = 6;
 
 template <typename F>
 inline void parallel_for(keel::usize n, keel::usize threshold, F &&fn,
-                         int max_workers = 0)
+                         keel::u32 max_workers = 0)
 {
 #if defined(NUMKIT_WITH_THREADS)
-    auto &pool = ThreadPool::global();
-    if (n >= threshold && pool.workers() > 1) {
-        pool.run(n, std::forward<F>(fn), max_workers);
-        return;
-    }
+    keel::parallel_for(n, threshold, keel::forward<F>(fn), max_workers);
 #else
     (void)threshold;
     (void)max_workers;
-#endif
     if (n > 0)
         fn(static_cast<keel::usize>(0), n);
+#endif
 }
 
 } // namespace numkit::detail

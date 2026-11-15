@@ -78,7 +78,7 @@ if(NOT TARGET keel::keel)
     FetchContent_Declare(
         keel
         GIT_REPOSITORY https://github.com/keelcpp/keel.git
-        GIT_TAG        ca7fb3ed8f781d0b7af113422cdaa70a6da6eae4
+        GIT_TAG        337141516d3ea48bb748305a1df671acad3e77b6
     )
     FetchContent_MakeAvailable(keel)
 endif()
@@ -145,10 +145,6 @@ set(NUMKIT_OPS_SOURCES
     src/fused/fused_complex.cpp
     src/fused/fused_scalar.cpp
 )
-
-if(NUMKIT_WITH_THREADS)
-    list(APPEND NUMKIT_OPS_SOURCES src/kernels/thread_pool.cpp)
-endif()
 
 if(NUMKIT_WITH_SIMD)
     list(APPEND NUMKIT_OPS_SOURCES
