@@ -6,8 +6,8 @@
 #include <keel/core.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
-#include <iostream>
-#include <string>
+#include <keel/string.h>
+#include <cstdio>
 #include <numkit/value/value.hpp>
 
 namespace numkit::builtin {
@@ -35,28 +35,28 @@ Value sprintf(const Value &fmt, keel::ArrayRef<Value> args, keel::Allocator *mr 
 /// @param fmt Format string.
 /// @param args Span of arguments to format.
 /// @param mr Memory resource.
-/// @return Formatted std::string.
+/// @return Formatted keel::String.
 /// @see fprintf, disp
-std::string sprintf(keel::StringRef fmt, keel::ArrayRef<Value> args, keel::Allocator *mr = nullptr);
+keel::String sprintf(keel::StringRef fmt, keel::ArrayRef<Value> args, keel::Allocator *mr = nullptr);
 
 /// @brief Formats Value for terminal display via `disp`.
 /// @param a Input value to format.
 /// @return Formatted string.
-std::string dispFormat(const Value &a);
+keel::String dispFormat(const Value &a);
 
 /// @brief Displays value to the standard output or specified stream (`disp(v)`).
 /// @param v Value to display.
-/// @param os Target output stream (defaults to std::cout).
-void disp(const Value &v, std::ostream &os = std::cout);
+/// @param stream Target C file stream (defaults to stdout).
+void disp(const Value &v, std::FILE *stream = stdout);
 
-/// @brief Formats and writes data to an output stream (`fprintf(os, fmt, ...)`).
-/// @param os Target output stream.
+/// @brief Formats and writes data to an output stream (`fprintf(stream, fmt, ...)`).
+/// @param stream Target C file stream.
 /// @param fmt Format string.
 /// @param args Span of arguments to format.
 /// @param mr Memory resource.
 /// @return Number of characters written.
 /// @see sprintf, disp
-int fprintf(std::ostream &os, keel::StringRef fmt, keel::ArrayRef<Value> args, keel::Allocator *mr = nullptr);
+int fprintf(std::FILE *stream, keel::StringRef fmt, keel::ArrayRef<Value> args, keel::Allocator *mr = nullptr);
 
 /// @brief Reads formatted data from a string according to format specifier `fmt` (`sscanf(str, fmt)`).
 /// @param str Source string to scan.

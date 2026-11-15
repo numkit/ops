@@ -5,7 +5,10 @@
 #include <keel/arena.h>
 #include <keel/array.h>
 #include <keel/complex.h>
+#include <keel/format.h>
 #include <keel/math.h>
+#include <keel/ref.h>
+#include <tuple>
 #include <numkit/builtin/polyfun.hpp>
 
 #include <numkit/value/value.hpp>
@@ -18,7 +21,6 @@
 
 #include <cmath>
 #include <cstring>
-#include <tuple>
 
 #include "polynomials_detail.hpp"
 
@@ -220,9 +222,9 @@ Value polyvalm(const Value &p, const Value &A, keel::Allocator *mr)
     // = zeros(size(X)), NOT the identity); empty A → 0x0; scalar A works.
     for (const Value *v : {&p, &A}) {
         if (isIntegerType(v->type()))
-            throw Error("polyvalm: inputs must be floats, namely single "
-                        "or double (got a "
-                        + std::string(mtypeName(v->type())) + " array).",
+            throw Error(keel::format("polyvalm: inputs must be floats, namely single "
+                                     "or double (got a {} array).",
+                                     mtypeName(v->type())),
                         0, 0, "polyvalm", "",
                         "numkit:polyvalm:superiorfloat");
     }
@@ -254,10 +256,11 @@ Value polyvalm(const Value &p, const Value &A, keel::Allocator *mr)
 
     // Horner at the matrix level: result = result * A + p_i * I
     // (complex accumulation; a real result narrows at the end).
-    std::vector<keel::c64> result(n * n, keel::c64(0.0, 0.0));
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<keel::c64> result(n * n, keel::c64(0.0, 0.0), scratch.allocator());
     const keel::c64 p0 = pv(0);
     for (keel::usize i = 0; i < n; ++i) result[i * n + i] = p0;
-    std::vector<keel::c64> next(n * n);
+    keel::Array<keel::c64> next(n * n, scratch.allocator());
     for (keel::usize step = 1; step < k; ++step) {
         // next = result * A (column-major)
         for (keel::usize i = 0; i < n; ++i)
@@ -269,7 +272,7 @@ Value polyvalm(const Value &p, const Value &A, keel::Allocator *mr)
             }
         const keel::c64 pi = pv(step);
         for (keel::usize i = 0; i < n; ++i) next[i * n + i] += pi;
-        result.swap(next);
+        std::swap(result, next);
     }
 
     bool anyImag = false;
@@ -293,7 +296,7 @@ Value polyvalm(const Value &p, const Value &A, keel::Allocator *mr)
     return out;
 }
 
-Value packComplexOrReal(const std::vector<keel::c64> &v, keel::Allocator *mr)
+Value packComplexOrReal(keel::ArrayRef<keel::c64> v, keel::Allocator *mr)
 {
     bool anyComplex = false;
     for (const auto &z : v)
@@ -453,37 +456,27 @@ keel::c64 hornerCx(const double *coeffs, keel::usize n, keel::c64 x)
 }
 
 // Strip leading zeros and verify result is non-empty.
-std::vector<double> readPolyStripped(const Value &p, const char *fn)
+keel::Array<double> readPolyStripped(const Value &p, const char *fn, keel::Allocator *alloc)
 {
     if (p.type() == ValueType::COMPLEX)
-        throw Error(std::string(fn) + ": complex coefficients not supported in v1",
-                     0, 0, fn, "", std::string("numkit:") + fn + ":complex");
+        throw Error(keel::format("{}: complex coefficients not supported in v1", fn),
+                     0, 0, fn, "", keel::format("numkit:{}:complex", fn));
     if (!p.isEmpty() && !p.dims().isVector() && !p.isScalar())
-        throw Error(std::string(fn) + ": arguments must be vectors",
-                     0, 0, fn, "", std::string("numkit:") + fn + ":notVector");
-    std::vector<double> v(p.numel());
-    for (keel::usize i = 0; i < v.size(); ++i) v[i] = p.elemAsDouble(i);
+        throw Error(keel::format("{}: arguments must be vectors", fn),
+                     0, 0, fn, "", keel::format("numkit:{}:notVector", fn));
+    const keel::usize n = p.numel();
+    keel::Array<double> v(n, alloc);
+    for (keel::usize i = 0; i < n; ++i) v[i] = p.elemAsDouble(i);
     keel::usize lo = 0;
     while (lo + 1 < v.size() && v[lo] == 0.0) ++lo;
-    return std::vector<double>(v.begin() + lo, v.end());
-}
-
-// Returns true if any pair of poles is within tol·max(1,|p|).
-bool hasRepeatedPoles(const std::vector<keel::c64> &p)
-{
-    for (keel::usize i = 0; i < p.size(); ++i)
-        for (keel::usize j = i + 1; j < p.size(); ++j) {
-            const double scale = std::max(1.0, std::max(keel::abs(p[i]), keel::abs(p[j])));
-            if (keel::abs(p[i] - p[j]) < 1e-6 * scale)
-                return true;
-        }
-    return false;
+    if (lo > 0) v.assign(v.slice(lo));
+    return v;
 }
 
 // Pack a complex column. If all entries are real (within tol), return
 // a real column instead.
 
-Value packDirectTerm(const std::vector<double> &k, keel::Allocator *mr)
+Value packDirectTerm(keel::ArrayRef<double> k, keel::Allocator *mr)
 {
     if (k.empty() || (k.size() == 1 && k[0] == 0.0))
         return Value::matrix(0, 0, ValueType::DOUBLE, mr);
@@ -511,19 +504,21 @@ ResidueResult residueS(const Value &b, const Value &a,
                        keel::Allocator *mr)
 {
     const char *fn = "residue";
-    auto A = readPolyStripped(a, fn);
-    auto B = readPolyStripped(b, fn);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Allocator *salloc = scratch.allocator();
+    auto A = readPolyStripped(a, fn, salloc);
+    auto B = readPolyStripped(b, fn, salloc);
     if (A.empty() || A[0] == 0.0)
         throw Error("residue: denominator must be non-zero",
                      0, 0, fn, "", "numkit:residue:zeroDenom");
 
     // Polynomial division: B = K·A + R   (deg R < deg A).
-    std::vector<double> K;
-    std::vector<double> R = B;
+    keel::Array<double> K(salloc);
+    keel::Array<double> R = B.clone();
     if (B.size() >= A.size()) {
         const keel::usize qLen = B.size() - A.size() + 1;
         K.assign(qLen, 0.0);
-        std::vector<double> bb = B;
+        keel::Array<double> bb = B.clone();
         const double aLead = A[0];
         for (keel::usize i = 0; i < qLen; ++i) {
             const double coef = bb[i] / aLead;
@@ -533,13 +528,11 @@ ResidueResult residueS(const Value &b, const Value &a,
         }
         keel::usize rOff = qLen;
         while (rOff < bb.size() && bb[rOff] == 0.0) ++rOff;
-        R.assign(bb.begin() + rOff, bb.end());
+        R.assign(bb.slice(rOff));
     }
 
     // Roots of A → s-domain poles.
-    keel::ArenaTemp scratch = keel::get_scratch(mr);
-    auto rs = numkit::ops::polyRootsDurandKerner(A.data(), A.size(), scratch.allocator());
-    std::vector<keel::c64> poles(rs.begin(), rs.end());
+    auto poles = numkit::ops::polyRootsDurandKerner(A.data(), A.size(), salloc);
 
     // Group the roots into distinct poles. Durand-Kerner converges only
     // LINEARLY on multiple roots, so a true m-fold pole arrives as a
@@ -553,35 +546,27 @@ ResidueResult residueS(const Value &b, const Value &a,
     // r = [c1 c2 ... cm] for c1/(s-p) + ... + cm/(s-p)^m (probed R2025b:
     // residue([1 0 0],[1 3 3 1]) gives r = [1 -2 1] for (s+1)^(1..3)).
     struct PoleGroup { keel::c64 p; keel::usize m; };
-    std::vector<PoleGroup> groups;
+    keel::Array<PoleGroup> groups(salloc);
     {
-        auto polyDivRoot = [](const std::vector<keel::c64> &c, keel::c64 p) {
-            std::vector<keel::c64> q(c.size() - 1);
-            if (q.empty()) return q;
-            q[0] = c[0];
-            for (keel::usize i = 1; i + 1 < c.size(); ++i)
-                q[i] = c[i] + p * q[i - 1];
-            return q;
-        };
-        auto hornerC = [](const std::vector<keel::c64> &c, keel::c64 x) {
+        auto hornerC = [](keel::ArrayRef<keel::c64> c, keel::c64 x) {
             if (c.empty()) return keel::c64(0, 0);
             keel::c64 acc = c[0];
             for (keel::usize i = 1; i < c.size(); ++i) acc = acc * x + c[i];
             return acc;
         };
-        std::vector<keel::c64> Acx(A.size());
+        keel::Array<keel::c64> Acx(A.size(), salloc);
         for (keel::usize i = 0; i < A.size(); ++i) Acx[i] = keel::c64(A[i], 0.0);
-        std::vector<bool> grouped(poles.size(), false);
+        keel::Array<keel::u8> grouped(poles.size(), 0, salloc);
         for (keel::usize i = 0; i < poles.size(); ++i) {
             if (grouped[i]) continue;
-            grouped[i] = true;
+            grouped[i] = 1;
             PoleGroup g{poles[i], 1};
             for (keel::usize j = i + 1; j < poles.size(); ++j) {
                 if (grouped[j]) continue;
                 const double scale = std::max(1.0,
                     std::max(keel::abs(poles[i]), keel::abs(poles[j])));
                 if (keel::abs(poles[j] - poles[i]) < 5e-4 * scale) {
-                    grouped[j] = true;
+                    grouped[j] = 1;
                     ++g.m;
                     g.p += poles[j];
                 }
@@ -617,7 +602,7 @@ ResidueResult residueS(const Value &b, const Value &a,
     const bool anyRepeated = groups.size() != poles.size();
 
     // Derivative coefficients (descending).
-    std::vector<double> Aprime;
+    keel::Array<double> Aprime(salloc);
     if (A.size() > 1) {
         const keel::usize n = A.size() - 1;
         Aprime.assign(n, 0.0);
@@ -625,8 +610,8 @@ ResidueResult residueS(const Value &b, const Value &a,
             Aprime[i] = A[i] * static_cast<double>(n - i);
     }
 
-    std::vector<keel::c64> residues;
-    std::vector<keel::c64> polesOut;
+    keel::Array<keel::c64> residues(salloc);
+    keel::Array<keel::c64> polesOut(salloc);
     residues.reserve(poles.size());
     polesOut.reserve(poles.size());
 
@@ -645,7 +630,7 @@ ResidueResult residueS(const Value &b, const Value &a,
         } else {
             residues.assign(poles.size(), keel::c64(0, 0));
         }
-        polesOut = poles;
+        polesOut = std::move(poles);
     } else {
         // Repeated poles: Taylor-series method. For a pole p of
         // multiplicity m, write N/D = H(s)/(s-p)^m with
@@ -654,8 +639,8 @@ ResidueResult residueS(const Value &b, const Value &a,
         // is h_{m-i}. H's Taylor coefficients come from the Taylor
         // series of R and of the reciprocal of A/(s-p)^m at p.
         // Synthetic division of complex descending coeffs by (s - p).
-        auto divideOut = [](std::vector<keel::c64> c, keel::c64 p) {
-            std::vector<keel::c64> q(c.size() - 1);
+        auto divideOut = [salloc](keel::ArrayRef<keel::c64> c, keel::c64 p) {
+            keel::Array<keel::c64> q(c.size() - 1, salloc);
             if (q.empty()) return q;
             q[0] = c[0];
             for (keel::usize i = 1; i + 1 < c.size(); ++i)
@@ -664,10 +649,12 @@ ResidueResult residueS(const Value &b, const Value &a,
         };
         // Taylor coefficients 0..order-1 of a polynomial (descending
         // coeffs) at s = p, via the derivative chain / factorial.
-        auto taylorCoeffs = [](const auto &c, keel::c64 p, keel::usize order) {
-            std::vector<keel::c64> t;
-            std::vector<keel::c64> q(c.begin(), c.end());
-            std::vector<keel::c64> fact(1, keel::c64(1, 0));
+        auto taylorCoeffs = [salloc](keel::ArrayRef<keel::c64> c, keel::c64 p, keel::usize order) {
+            keel::Array<keel::c64> t(salloc);
+            t.reserve(order);
+            keel::Array<keel::c64> q(c.size(), salloc);
+            for (keel::usize i = 0; i < c.size(); ++i) q[i] = c[i];
+            keel::c64 fact(1, 0);
             for (keel::usize d = 0; d < order; ++d) {
                 // Horner at p.
                 keel::c64 acc(0, 0);
@@ -676,13 +663,13 @@ ResidueResult residueS(const Value &b, const Value &a,
                     for (keel::usize i = 1; i < q.size(); ++i)
                         acc = acc * p + q[i];
                 }
-                t.push_back(acc / fact.back());
+                t.push_back(acc / fact);
                 // fact = (d+1)!
-                fact.push_back(fact.back() * keel::c64(static_cast<double>(d) + 1, 0));
+                fact *= keel::c64(static_cast<double>(d) + 1, 0);
                 // q := q' (formal derivative, descending coeffs).
                 if (q.size() > 1) {
                     const keel::usize n = q.size() - 1;
-                    std::vector<keel::c64> dq(n);
+                    keel::Array<keel::c64> dq(n, salloc);
                     for (keel::usize i = 0; i < n; ++i)
                         dq[i] = q[i] * static_cast<double>(n - i);
                     q = std::move(dq);
@@ -692,6 +679,9 @@ ResidueResult residueS(const Value &b, const Value &a,
             }
             return t;
         };
+
+        keel::Array<keel::c64> Rcx(R.size(), salloc);
+        for (keel::usize i = 0; i < R.size(); ++i) Rcx[i] = keel::c64(R[i], 0.0);
 
         for (const auto &g : groups) {
             if (g.m == 1) {
@@ -706,7 +696,7 @@ ResidueResult residueS(const Value &b, const Value &a,
                 continue;
             }
             // D_k = A / (s-p)^m (synthetic division m times).
-            std::vector<keel::c64> Dk(A.size());
+            keel::Array<keel::c64> Dk(A.size(), salloc);
             for (keel::usize i = 0; i < A.size(); ++i) Dk[i] = keel::c64(A[i], 0.0);
             for (keel::usize d = 0; d < g.m && Dk.size() > 1; ++d)
                 Dk = divideOut(Dk, g.p);
@@ -716,7 +706,7 @@ ResidueResult residueS(const Value &b, const Value &a,
                             "repeated pole",
                              0, 0, fn, "", "numkit:residue:denomZero");
             // Reciprocal series of D_k at p, order m.
-            std::vector<keel::c64> recip(g.m, keel::c64(0, 0));
+            keel::Array<keel::c64> recip(g.m, keel::c64(0, 0), salloc);
             recip[0] = keel::c64(1, 0) / dser[0];
             for (keel::usize j = 1; j < g.m; ++j) {
                 keel::c64 s(0, 0);
@@ -727,15 +717,15 @@ ResidueResult residueS(const Value &b, const Value &a,
                 recip[j] = -s / dser[0];
             }
             // R series at p, order m.
-            std::vector<keel::c64> rser(g.m, keel::c64(0, 0));
-            if (!R.empty()) {
-                auto rt = taylorCoeffs(R, g.p, g.m);
+            keel::Array<keel::c64> rser(g.m, keel::c64(0, 0), salloc);
+            if (!Rcx.empty()) {
+                auto rt = taylorCoeffs(Rcx, g.p, g.m);
                 for (keel::usize j = 0; j < g.m && j < rt.size(); ++j)
                     rser[j] = rt[j];
             }
             // h_j = sum r_i recip_{j-i}; residues for powers 1..m =
             // h_{m-1}, h_{m-2}, ..., h_0.
-            std::vector<keel::c64> h(g.m, keel::c64(0, 0));
+            keel::Array<keel::c64> h(g.m, keel::c64(0, 0), salloc);
             for (keel::usize j = 0; j < g.m; ++j)
                 for (keel::usize i = 0; i <= j; ++i)
                     h[j] += rser[i] * recip[j - i];
@@ -762,13 +752,14 @@ ResidueResult residueZ(const Value &b, const Value &a,
     // FLIPPED polynomials, repeated poles by least-squares over the
     // cumulative-filter basis (bugs/closed/signal/residuez-repeated-poles).
     // z-domain convention: a[0] + a[1]·z^-1 + ... ascending.
-    auto av = readPolyStripped(a, fn);
-    auto bv = readPolyStripped(b, fn);
-    if (av.empty() || av[0] == 0.0)
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Allocator *salloc = scratch.allocator();
+    auto A = readPolyStripped(a, fn, salloc);
+    auto B = readPolyStripped(b, fn, salloc);
+    if (A.empty() || A[0] == 0.0)
         throw Error("residuez: denominator a[0] must be non-zero",
                      0, 0, fn, "", "numkit:residuez:zeroDenom");
-    const double a0 = av[0];
-    std::vector<double> A = av, B = bv;
+    const double a0 = A[0];
     for (auto &x : A) x /= a0;
     for (auto &x : B) x /= a0;
 
@@ -780,15 +771,15 @@ ResidueResult residueZ(const Value &b, const Value &a,
     }
     const keel::usize Nres = LA - 1;
 
-    keel::ArenaTemp scratch = keel::get_scratch(mr);
-
     // Direct terms: [k, brem] = deconv(fliplr(B), fliplr(A)), k flipped;
     // the remainder keeps the strictly-proper part.
-    std::vector<double> K;
-    std::vector<double> Bp = B;                 // strictly-proper numerator
+    keel::Array<double> K(salloc);
+    keel::Array<double> Bp = B.clone();                 // strictly-proper numerator
     if (LB0 > Nres) {
-        std::vector<double> bf(Bp.rbegin(), Bp.rend());
-        std::vector<double> af(A.rbegin(), A.rend());
+        keel::Array<double> bf(Bp.size(), salloc);
+        for (keel::usize i = 0; i < Bp.size(); ++i) bf[i] = Bp[Bp.size() - 1 - i];
+        keel::Array<double> af(A.size(), salloc);
+        for (keel::usize i = 0; i < A.size(); ++i) af[i] = A[A.size() - 1 - i];
         const keel::usize qLen = bf.size() - af.size() + 1;
         K.assign(qLen, 0.0);
         for (keel::usize i = 0; i < qLen; ++i) {
@@ -800,14 +791,15 @@ ResidueResult residueZ(const Value &b, const Value &a,
         std::reverse(K.begin(), K.end());
         keel::usize rOff = qLen;
         while (rOff < bf.size() && bf[rOff] == 0.0) ++rOff;
-        Bp.assign(bf.rbegin(), bf.rend() - rOff);   // flip back, strip zeros
-        if (Bp.empty()) Bp = {0.0};
+        Bp.clear();
+        for (keel::usize idx = bf.size(); idx > rOff; --idx)
+            Bp.push_back(bf[idx - 1]);          // flip back, strip zeros
+        if (Bp.empty()) Bp.push_back(0.0);
     }
 
     // Poles and mpoles grouping (tol 1e-3 relative, groups consecutive,
     // order = descending |p| — MATLAB mpoles' sort).
-    auto rs = numkit::ops::polyRootsDurandKerner(A.data(), A.size(), scratch.allocator());
-    std::vector<keel::c64> poles(rs.begin(), rs.end());
+    auto poles = numkit::ops::polyRootsDurandKerner(A.data(), A.size(), salloc);
     {
         // Real coefficients => a pole carrying only DK conjugate-dust on
         // its imaginary part IS real (LAPACK returns these real via
@@ -818,26 +810,27 @@ ResidueResult residueZ(const Value &b, const Value &a,
         for (auto &pz : poles)
             if (keel::abs(pz.imag()) < 1e-4 * (1.0 + keel::abs(pz)))
                 pz = keel::c64(pz.real(), 0.0);
-        std::vector<std::pair<double, keel::usize>> keyed;
+        keel::Array<std::pair<double, keel::usize>> keyed(salloc);
         keyed.reserve(poles.size());
         for (keel::usize i = 0; i < poles.size(); ++i)
             keyed.emplace_back(-keel::abs(poles[i]), i);   // stable desc |p|
         std::stable_sort(keyed.begin(), keyed.end());
-        std::vector<keel::c64> sorted;
+        keel::Array<keel::c64> sorted(salloc);
         sorted.reserve(poles.size());
         for (auto &kv : keyed) sorted.push_back(poles[kv.second]);
         poles = std::move(sorted);
     }
     constexpr double kMpolesTol = 1e-3;
     keel::usize m = poles.size();
-    std::vector<keel::usize> mults;
+    keel::Array<keel::usize> mults(salloc);
+    mults.reserve(m);
     {
         // mpoles semantics: take the first unprocessed pole, gather ALL
         // poles within tol*|p| ANYWHERE in the remaining list, emit them
         // CONSECUTIVELY (groups compact together — a bare in-place
         // marking split interleaved groups like [2 1 -1 1]).
-        std::vector<bool> used(m, false);
-        std::vector<keel::c64> grouped;
+        keel::Array<keel::u8> used(m, 0, salloc);
+        keel::Array<keel::c64> grouped(salloc);
         grouped.reserve(m);
         for (keel::usize i = 0; i < m; ++i) {
             if (used[i]) continue;
@@ -846,10 +839,10 @@ ResidueResult residueZ(const Value &b, const Value &a,
                 if (!used[k] && keel::abs(poles[k]) == 0.0) { allNonzero = false; break; }
             const double thresh = allNonzero ? kMpolesTol * keel::abs(poles[i])
                                              : kMpolesTol;
-            std::vector<keel::usize> members;
+            keel::Array<keel::usize> members(salloc);
             for (keel::usize k = i; k < m; ++k)
                 if (!used[k] && keel::abs(poles[k] - poles[i]) < thresh) {
-                    used[k] = true;
+                    used[k] = 1;
                     members.push_back(k);
                 }
             for (keel::usize d = 0; d < members.size(); ++d) {
@@ -863,10 +856,10 @@ ResidueResult residueZ(const Value &b, const Value &a,
 
     // Direct-form IIR filter (local: the signal layer's filter is above
     // this layer). y(n) = sum b_k x(n-k) - sum a_k y(n-k), a[0]==1.
-    auto zfilter = [](const std::vector<keel::c64> &bb,
-                      const std::vector<keel::c64> &aa,
-                      const std::vector<keel::c64> &xx) {
-        std::vector<keel::c64> y(xx.size(), keel::c64(0, 0));
+    auto zfilter = [salloc](keel::ArrayRef<keel::c64> bb,
+                            keel::ArrayRef<keel::c64> aa,
+                            keel::ArrayRef<keel::c64> xx) {
+        keel::Array<keel::c64> y(xx.size(), keel::c64(0, 0), salloc);
         for (keel::usize n = 0; n < xx.size(); ++n) {
             keel::c64 acc(0, 0);
             for (keel::usize k = 0; k < bb.size() && k <= n; ++k)
@@ -880,40 +873,48 @@ ResidueResult residueZ(const Value &b, const Value &a,
 
     // h = filter(Bp, A, imp), imp = [1 0 ... 0] of length N+1.
     const keel::usize NH = m + 1;
-    std::vector<keel::c64> imp(NH, keel::c64(0, 0));
+    keel::Array<keel::c64> imp(NH, keel::c64(0, 0), salloc);
     imp[0] = keel::c64(1, 0);
-    std::vector<keel::c64> Bc(Bp.size()), Ac(A.size());
+    keel::Array<keel::c64> Bc(Bp.size(), salloc), Ac(A.size(), salloc);
     for (keel::usize i = 0; i < Bp.size(); ++i) Bc[i] = keel::c64(Bp[i], 0.0);
     for (keel::usize i = 0; i < A.size(); ++i) Ac[i] = keel::c64(A[i], 0.0);
-    std::vector<keel::c64> h = zfilter(Bc, Ac, imp);
+    keel::Array<keel::c64> h = zfilter(Bc, Ac, imp);
 
     // S columns: first-of-group from imp, continuations cumulative.
-    std::vector<std::vector<keel::c64>> S(m);
+    keel::Array<keel::Array<keel::c64>> S(salloc);
+    S.reserve(m);
     for (keel::usize j = 0; j < m; ++j) {
+        const keel::c64 num1[1] = {keel::c64(1, 0)};
+        const keel::c64 den1[2] = {keel::c64(1, 0), -poles[j]};
         if (mults[j] > 1)
-            S[j] = zfilter({keel::c64(1, 0)}, {keel::c64(1, 0), -poles[j]}, S[j - 1]);
+            S.push_back(zfilter(keel::ArrayRef<keel::c64>(num1, 1),
+                                keel::ArrayRef<keel::c64>(den1, 2), S[j - 1]));
         else
-            S[j] = zfilter({keel::c64(1, 0)}, {keel::c64(1, 0), -poles[j]}, imp);
+            S.push_back(zfilter(keel::ArrayRef<keel::c64>(num1, 1),
+                                keel::ArrayRef<keel::c64>(den1, 2), imp));
     }
 
     // Simple-pole cover-up at 1/p over flipped polys (poly in z^-1
     // evaluated at 1/p == polynomial with reversed coefficient order).
-    std::vector<keel::c64> residues(m, keel::c64(0, 0));
-    std::vector<bool> jdone(m, false);
-    std::vector<keel::c64> bflip(Bp.rbegin(), Bp.rend());
+    keel::Array<keel::c64> residues(m, keel::c64(0, 0), salloc);
+    keel::Array<keel::u8> jdone(m, 0, salloc);
+    keel::Array<keel::c64> bflip(Bp.size(), salloc);
+    for (keel::usize i = 0; i < Bp.size(); ++i)
+        bflip[i] = keel::c64(Bp[Bp.size() - 1 - i], 0.0);
     for (keel::usize i = 0; i < m; ++i) {
         keel::usize ii = 0;
         if (i == m - 1) ii = m;
         else if (mults[i + 1] == 1) ii = i + 1;
         if (ii == 0) continue;
         // Other poles = all except this pole's group [i-mults[i]+1, i].
-        std::vector<keel::c64> others;
+        keel::Array<keel::c64> others(salloc);
+        others.reserve(m);
         for (keel::usize j = 0; j < m; ++j)
             if (j < i - mults[i] + 1 || j > i) others.push_back(poles[j]);
         // temp = poly(others) with DESCENDING coefficients, then flipped.
-        std::vector<keel::c64> temp{keel::c64(1, 0)};
+        keel::Array<keel::c64> temp(1, keel::c64(1, 0), salloc);
         for (const auto &o : others) {
-            std::vector<keel::c64> next(temp.size() + 1, keel::c64(0, 0));
+            keel::Array<keel::c64> next(temp.size() + 1, keel::c64(0, 0), salloc);
             for (keel::usize t = 0; t < temp.size(); ++t) {
                 next[t] += temp[t];
                 next[t + 1] -= o * temp[t];
@@ -921,7 +922,7 @@ ResidueResult residueZ(const Value &b, const Value &a,
             temp = std::move(next);
         }
         // polyval at 1/p (Horner on flipped coefficient order).
-        auto polyvalAt = [](const std::vector<keel::c64> &c, keel::c64 x) {
+        auto polyvalAt = [](keel::ArrayRef<keel::c64> c, keel::c64 x) {
             keel::c64 acc(0, 0);
             for (const auto &co : c) acc = acc * x + co;
             return acc;
@@ -931,19 +932,21 @@ ResidueResult residueZ(const Value &b, const Value &a,
         // coefficient order (a polynomial in z^-1 at z = p). Evaluating
         // the descending build directly differs by (1/p)^deg — a sign
         // for odd degrees at negative poles.
-        const keel::c64 den = polyvalAt(
-            std::vector<keel::c64>(temp.rbegin(), temp.rend()), xInv);
+        keel::Array<keel::c64> tempFlip(temp.size(), salloc);
+        for (keel::usize t = 0; t < temp.size(); ++t)
+            tempFlip[t] = temp[temp.size() - 1 - t];
+        const keel::c64 den = polyvalAt(tempFlip, xInv);
         if (keel::abs(den) < 1e-300)
             throw Error("residuez: cover-up denominator vanishes",
                          0, 0, fn, "", "numkit:residuez:denomZero");
         residues[i] = polyvalAt(bflip, xInv) / den;
-        jdone[i] = true;
+        jdone[i] = 1;
     }
 
     // Repeated-pole residues: least squares S(:,jkl) \ h via normal
     // equations (the basis is small and well-conditioned; MATLAB's \
     // is QR on the same system).
-    std::vector<keel::usize> jkl;
+    keel::Array<keel::usize> jkl(salloc);
     for (keel::usize j = 0; j < m; ++j)
         if (!jdone[j]) jkl.push_back(j);
     if (!jkl.empty()) {
@@ -953,8 +956,8 @@ ResidueResult residueZ(const Value &b, const Value &a,
                     h[n] -= S[j][n] * residues[j];
             }
         const keel::usize M = jkl.size();
-        std::vector<std::vector<keel::c64>> ATA(M, std::vector<keel::c64>(M));
-        std::vector<keel::c64> ATb(M, keel::c64(0, 0));
+        keel::Array<keel::c64> ATA(M * M, keel::c64(0, 0), salloc);
+        keel::Array<keel::c64> ATb(M, keel::c64(0, 0), salloc);
         for (keel::usize r = 0; r < M; ++r) {
             for (keel::usize n = 0; n < NH; ++n)
                 ATb[r] += keel::conj(S[jkl[r]][n]) * h[n];
@@ -962,23 +965,26 @@ ResidueResult residueZ(const Value &b, const Value &a,
                 keel::c64 acc(0, 0);
                 for (keel::usize n = 0; n < NH; ++n)
                     acc += keel::conj(S[jkl[r]][n]) * S[jkl[c]][n];
-                ATA[r][c] = acc;
+                ATA[r * M + c] = acc;
             }
         }
         // Gaussian elimination with partial pivot on ATA t = ATb.
         for (keel::usize col = 0; col < M; ++col) {
             keel::usize piv = col;
             for (keel::usize r = col + 1; r < M; ++r)
-                if (keel::abs(ATA[r][col]) > keel::abs(ATA[piv][col])) piv = r;
-            std::swap(ATA[col], ATA[piv]);
-            std::swap(ATb[col], ATb[piv]);
-            const keel::c64 d = ATA[col][col];
-            for (keel::usize c = col; c < M; ++c) ATA[col][c] /= d;
+                if (keel::abs(ATA[r * M + col]) > keel::abs(ATA[piv * M + col])) piv = r;
+            if (piv != col) {
+                for (keel::usize c = 0; c < M; ++c)
+                    std::swap(ATA[col * M + c], ATA[piv * M + c]);
+                std::swap(ATb[col], ATb[piv]);
+            }
+            const keel::c64 d = ATA[col * M + col];
+            for (keel::usize c = col; c < M; ++c) ATA[col * M + c] /= d;
             ATb[col] /= d;
             for (keel::usize r = 0; r < M; ++r) {
                 if (r == col) continue;
-                const keel::c64 f = ATA[r][col];
-                for (keel::usize c = col; c < M; ++c) ATA[r][c] -= f * ATA[col][c];
+                const keel::c64 f = ATA[r * M + col];
+                for (keel::usize c = col; c < M; ++c) ATA[r * M + c] -= f * ATA[col * M + c];
                 ATb[r] -= f * ATb[col];
             }
         }

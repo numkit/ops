@@ -10,9 +10,10 @@
 
 #include <numkit/ops/helpers.hpp>
 
+#include <cmath>
 #include <cstdint>
 #include <cstring>
-#include <functional>
+#include <stdexcept>
 
 #include "unary_ops_detail.hpp"
 
@@ -34,9 +35,9 @@ Value uminus(const Value &x, keel::Allocator *mr)
         return r;
     }
     if (x.isComplex())
-        return unaryComplex(x, std::negate<keel::c64>{}, p);
+        return unaryComplex(x, [](keel::c64 v) { return -v; }, p);
     if (x.type() == ValueType::DOUBLE)
-        return unaryDouble(x, std::negate<double>{}, p);
+        return unaryDouble(x, [](double v) { return -v; }, p);
     if (x.type() == ValueType::SINGLE)
         return unaryTyped<float>(x, ValueType::SINGLE, [](float v) { return -v; }, p);
     if (isIntegerType(x.type())) {

@@ -1,4 +1,4 @@
-﻿// toolboxes/image/src/io/jpeg_codec.hpp
+// toolboxes/image/src/io/jpeg_codec.hpp
 //
 // In-tree Baseline JPEG (.jpg, .jpeg) decoder and encoder.
 // Zero external dependencies.
@@ -7,10 +7,10 @@
 
 #include <keel/core.h>
 #include <keel/memory.h>
+#include <keel/string.h>
 #include <cstddef>
 #include <cstdint>
 #include <numkit/value/value.hpp>
-#include <string>
 
 namespace numkit::image {
 
@@ -22,7 +22,7 @@ Value readJpeg(const keel::u8 *data, keel::usize len,
 /// Encode an image Value to JPEG format bytes.
 /// @param A        Image (uint8; HÃ—W grayscale or HÃ—WÃ—3 RGB).
 /// @param quality  Quality level (1..100, default 90).
-std::string writeJpegToBytes(const Value &A, int quality = 90);
+keel::String writeJpegToBytes(const Value &A, int quality = 90);
 
 /// Inspect a JPEG header without decoding pixels.
 bool peekJpeg(const keel::u8 *data, keel::usize len,

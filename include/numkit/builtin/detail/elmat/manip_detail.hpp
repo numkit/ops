@@ -7,6 +7,7 @@
 #include <keel/memory.h>
 #include <keel/arena.h>
 #include <keel/array.h>
+#include <keel/format.h>
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
 #include <numkit/ops/reductions.hpp>  // engine-free numkit::builtin::detail dim-infra (ops re-export)
@@ -18,10 +19,8 @@
 #include <cstring>
 #include <limits>
 #include <numeric>
-#include <string>
 #include <tuple>
 #include <utility>
-#include <vector>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -67,8 +66,8 @@ Value flipCellStr(const Value &x, int axis, const char *fn, keel::Allocator *mr)
 {
     const auto &d = x.dims();
     if (d.ndim() > 2)
-        throw Error(std::string(fn) + ": cell/string arrays support up to 2-D",
-                     0, 0, fn, "", std::string("numkit:") + fn + ":cellRank");
+        throw Error(keel::format("{}: cell/string arrays support up to 2-D", fn),
+                     0, 0, fn, "", keel::format("numkit:{}:cellRank", fn));
     const keel::usize R = d.rows(), C = d.cols();
     Value r = makeCellOrString(x.type(), R, C, mr);
     if (x.numel() == 0) return r;
@@ -101,7 +100,8 @@ Value flipNDAlongAxis(const Value &x, int axis, const char *fn, keel::Allocator 
         const int nd = d.ndim();
         const keel::usize flipDim = (axis < nd) ? d.dim(axis) : 1;
         const keel::usize total = d.numel();
-        std::vector<keel::usize> map(total);
+        keel::ArenaTemp scratch = keel::get_scratch(mr);
+        keel::Array<keel::usize> map(total, scratch.allocator());
         if (flipDim <= 1) {
             for (keel::usize i = 0; i < total; ++i) map[i] = i;
         } else {
@@ -119,15 +119,14 @@ Value flipNDAlongAxis(const Value &x, int axis, const char *fn, keel::Allocator 
         return x.objectGather(map.data(), d, mr);
     }
     if (t == ValueType::STRUCT || t == ValueType::FUNC_HANDLE)
-        throw Error(std::string(fn) + ": ND fallback does not support type '"
-                     + mtypeName(t) + "'",
-                     0, 0, fn, "", std::string("numkit:") + fn + ":typeND");
+        throw Error(keel::format("{}: ND fallback does not support type '{}'", fn, mtypeName(t)),
+                     0, 0, fn, "", keel::format("numkit:{}:typeND", fn));
     const auto &d = x.dims();
     const int nd = d.ndim();
     constexpr int kMaxNd = Dims::kMaxRank;
     if (nd > kMaxNd)
-        throw Error(std::string(fn) + ": rank exceeds 32",
-                     0, 0, fn, "", std::string("numkit:") + fn + ":tooManyDims");
+        throw Error(keel::format("{}: rank exceeds 32", fn),
+                     0, 0, fn, "", keel::format("numkit:{}:tooManyDims", fn));
 
     keel::usize outDimArr[kMaxNd];
     for (int i = 0; i < nd; ++i) outDimArr[i] = d.dim(i);
@@ -324,14 +323,13 @@ Value trilTriuND(const Value &x, int k, PageBytesFn pageFn, const char *fn, keel
     constexpr int kMaxNd = Dims::kMaxRank;
     const int nd = dd.ndim();
     if (nd > kMaxNd)
-        throw Error(std::string(fn) + ": rank exceeds 32",
-                     0, 0, fn, "", std::string("numkit:") + fn + ":tooManyDims");
+        throw Error(keel::format("{}: rank exceeds 32", fn),
+                     0, 0, fn, "", keel::format("numkit:{}:tooManyDims", fn));
     const ValueType t = x.type();
     if (t == ValueType::CELL || t == ValueType::STRUCT || t == ValueType::STRING
         || t == ValueType::FUNC_HANDLE)
-        throw Error(std::string(fn) + ": ND fallback does not support type '"
-                     + mtypeName(t) + "'",
-                     0, 0, fn, "", std::string("numkit:") + fn + ":typeND");
+        throw Error(keel::format("{}: ND fallback does not support type '{}'", fn, mtypeName(t)),
+                     0, 0, fn, "", keel::format("numkit:{}:typeND", fn));
 
     const keel::usize R = dd.rows(), C = dd.cols();
     keel::usize outDimArr[kMaxNd];

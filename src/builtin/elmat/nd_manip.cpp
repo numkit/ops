@@ -8,6 +8,7 @@
 // general case (input strides differ per axis after permutation).
 
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
 #include <keel/arena.h>
@@ -24,7 +25,6 @@
 #include <algorithm>
 #include <cstring>
 #include <numeric>
-#include <vector>
 
 namespace numkit::builtin {
 
@@ -36,18 +36,18 @@ namespace {
 void validatePerm(const int *perm, keel::usize N, const char *fn)
 {
     if (N == 0)
-        throw Error(std::string(fn) + ": perm vector must not be empty",
-                     0, 0, fn, "", std::string("numkit:") + fn + ":emptyPerm");
+        throw Error(keel::format("{}: perm vector must not be empty", fn),
+                     0, 0, fn, "", keel::format("numkit:{}:emptyPerm", fn));
     if (N > Dims::kMaxRank)
-        throw Error(std::string(fn) + ": perm length exceeds 32",
-                     0, 0, fn, "", std::string("numkit:") + fn + ":tooManyDims");
+        throw Error(keel::format("{}: perm length exceeds 32", fn),
+                     0, 0, fn, "", keel::format("numkit:{}:tooManyDims", fn));
     int sorted[Dims::kMaxRank];
     for (keel::usize i = 0; i < N; ++i) sorted[i] = perm[i];
     std::sort(sorted, sorted + N);
     for (keel::usize i = 0; i < N; ++i) {
         if (sorted[i] != static_cast<int>(i + 1))
-            throw Error(std::string(fn) + ": perm must be a permutation of 1..N",
-                         0, 0, fn, "", std::string("numkit:") + fn + ":badPerm");
+            throw Error(keel::format("{}: perm must be a permutation of 1..N", fn),
+                         0, 0, fn, "", keel::format("numkit:{}:badPerm", fn));
     }
 }
 
@@ -128,7 +128,8 @@ Value permute(const Value &x, keel::ArrayRef<int> perm, keel::Allocator *mr)
             return x.objectGather(nullptr, outDimsObj, mr);
         keel::usize inStrides[Dims::kMaxRank];
         computeStridesColMajor(Dims(inDims, inNd), inStrides);
-        std::vector<keel::usize> map(x.numel());
+        keel::ArenaTemp scratch = keel::get_scratch(mr);
+        keel::Array<keel::usize> map(x.numel(), scratch.allocator());
         keel::usize outCoords[Dims::kMaxRank] = {0};
         keel::usize dstOff = 0;
         do {
@@ -148,8 +149,7 @@ Value permute(const Value &x, keel::ArrayRef<int> perm, keel::Allocator *mr)
         const ValueType t = x.type();
         const bool isCell = (t == ValueType::CELL);
         if (t == ValueType::STRING || t == ValueType::STRUCT || t == ValueType::FUNC_HANDLE)
-            throw Error(std::string("permute: does not support type '")
-                         + mtypeName(t) + "'",
+            throw Error(keel::format("permute: does not support type '{}'", mtypeName(t)),
                          0, 0, "permute", "", "numkit:permute:type");
         if (isCell && inNd > 2)
             throw Error("permute: cell array rank > 2 not supported",
@@ -339,8 +339,7 @@ Value catDim3(const Value *values, keel::usize count, keel::Allocator *mr)
         // (mixed-type promotion not implemented), matching ND cat.
         if (t == ValueType::STRING || t == ValueType::STRUCT
             || t == ValueType::FUNC_HANDLE)
-            throw Error(std::string("cat: dim 3 does not support type '")
-                         + mtypeName(t) + "'",
+            throw Error(keel::format("cat: dim 3 does not support type '{}'", mtypeName(t)),
                          0, 0, "cat", "", "numkit:cat:typeDim3");
         const auto &dd = v.dims();
         if (!anchored) {
@@ -429,8 +428,7 @@ Value catND(int dim, const Value *values, keel::usize count, keel::Allocator *mr
         const ValueType t = v.type();
         if (t == ValueType::CELL || t == ValueType::STRUCT || t == ValueType::STRING
             || t == ValueType::FUNC_HANDLE)
-            throw Error(std::string("cat: ND cat does not support type '")
-                         + mtypeName(t) + "'",
+            throw Error(keel::format("cat: ND cat does not support type '{}'", mtypeName(t)),
                          0, 0, "cat", "", "numkit:cat:typeND");
         const auto &d = v.dims();
         if (!anchored) {
@@ -447,9 +445,7 @@ Value catND(int dim, const Value *values, keel::usize count, keel::Allocator *mr
                 if (j == k) {
                     outDim[j] += vd;
                 } else if (vd != outDim[j]) {
-                    throw Error("cat: dim " + std::to_string(dim)
-                                 + " inputs must agree on all axes except dim "
-                                 + std::to_string(dim),
+                    throw Error(keel::format("cat: dim {} inputs must agree on all axes except dim {}", dim, dim),
                                  0, 0, "cat", "", "numkit:cat:badDims");
                 }
             }

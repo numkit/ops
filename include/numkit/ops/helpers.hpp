@@ -571,7 +571,7 @@ Value unaryComplex(const Value &a, Op op, keel::Allocator *mr = nullptr)
 // reference engine. `fn` names the calling builtin for error
 // attribution.
 // ============================================================
-inline DimsArg parseDimsArgs(keel::ArrayRef<Value> args, std::string_view fn)
+inline DimsArg parseDimsArgs(keel::ArrayRef<Value> args, keel::StringRef fn)
 {
     if (args.empty())
         return {1, 1, 0};
@@ -617,7 +617,7 @@ inline DimsArg parseDimsArgs(keel::ArrayRef<Value> args, std::string_view fn)
 // The returned vector is backed by `mr` — typical use is a per-call
 // ScratchArena for the array-creation builtin (zeros/ones/rand/...).
 inline keel::Array<keel::usize> parseDimsArgsND(keel::ArrayRef<Value> args,
-                                          std::string_view fn,
+                                          keel::StringRef fn,
                                           keel::Allocator *mr = nullptr)
 {
     keel::Array<keel::usize> out(mr);
@@ -662,7 +662,7 @@ inline void stripTrailingOnes(keel::Array<keel::usize> &dims)
 // recognised names (the standard numeric / logical types accepted by
 // zeros/ones/true/false/rand). Unknown names return false (caller can
 // throw or fall through to default DOUBLE).
-inline bool valueTypeFromName(std::string_view name, ValueType &out)
+inline bool valueTypeFromName(keel::StringRef name, ValueType &out)
 {
     if      (name == "double")  { out = ValueType::DOUBLE;  return true; }
     else if (name == "single")  { out = ValueType::SINGLE;  return true; }

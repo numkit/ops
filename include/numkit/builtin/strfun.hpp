@@ -6,7 +6,8 @@
 #include <keel/core.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
-#include <string>
+#include <keel/string.h>
+#include <utility>
 #include <numkit/value/value.hpp>
 
 namespace numkit::builtin {
@@ -687,7 +688,7 @@ Value compose(const Value &fmt, const Value &x, keel::Allocator *mr = nullptr);
 /// @param argStart Starting index in args.
 /// @param literalWhenShort Format literal string flag when short.
 /// @return Formatted string.
-std::string formatOnce(keel::StringRef fmt, keel::ArrayRef<Value> args, keel::usize argStart = 0, bool literalWhenShort = false);
+keel::String formatOnce(keel::StringRef fmt, keel::ArrayRef<Value> args, keel::usize argStart = 0, bool literalWhenShort = false);
 
 /// @brief Formats cyclic repetition of format specification across array elements.
 /// @param fmt Format string.
@@ -695,7 +696,7 @@ std::string formatOnce(keel::StringRef fmt, keel::ArrayRef<Value> args, keel::us
 /// @param argStart Starting index in args.
 /// @param mr Memory resource.
 /// @return Formatted string.
-std::string formatCyclic(keel::StringRef fmt, keel::ArrayRef<Value> args, keel::usize argStart = 0, keel::Allocator *mr = nullptr);
+keel::String formatCyclic(keel::StringRef fmt, keel::ArrayRef<Value> args, keel::usize argStart = 0, keel::Allocator *mr = nullptr);
 
 /// @brief Counts number of conversion specifiers in format string.
 /// @param fmt Format string.
@@ -705,7 +706,7 @@ keel::usize countFormatSpecs(keel::StringRef fmt);
 /// @brief Formats Value for terminal display via `disp`.
 /// @param a Input value.
 /// @return Rendered string for display.
-std::string dispFormat(const Value &a);
+keel::String dispFormat(const Value &a);
 
 
 /// @}

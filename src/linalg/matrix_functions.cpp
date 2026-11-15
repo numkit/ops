@@ -24,7 +24,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <string>
 
 namespace numkit::linalg {
 
@@ -251,9 +250,7 @@ Value applyScalarFnSym(const Value &A, double (*f)(double),
         const double e = Ddata[i + i * n];
         const double fe = f(e);
         if (!std::isfinite(fe))
-            throw Error(std::string(fnName)
-                        + ": eigenvalue out of domain (got "
-                        + std::to_string(e) + ")",
+            throw Error(keel::format("{}: eigenvalue out of domain (got {})", fnName, e),
                         0, 0, fnName, "", errId);
         fD[i] = fe;
     }
@@ -373,8 +370,8 @@ Value sylvester(const Value &A, const Value &B, const Value &C, keel::Allocator 
         const ValueType vt = v->type();
         if (vt != ValueType::DOUBLE && vt != ValueType::COMPLEX
             && vt != ValueType::SINGLE)
-            throw Error(std::string("sylvester: inputs must be single or "
-                        "double (got a ") + mtypeName(vt) + " array).",
+            throw Error(keel::format("sylvester: inputs must be single or double (got a {} array).",
+                                     mtypeName(vt)),
                         0, 0, "sylvester", "", "numkit:sylvester:inputType");
     }
     const bool wantSingle = A.type() == ValueType::SINGLE
@@ -397,20 +394,17 @@ Value sylvester(const Value &A, const Value &B, const Value &C, keel::Allocator 
         throw Error("sylvester: inputs must be 2D matrices", 0, 0, "sylvester", "", "numkit:sylvester:notMatrix");
     const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
     if (m != static_cast<keel::usize>(A.dims().dim(1)))
-        throw Error("sylvester: first and second inputs must be square (A is "
-                    + std::to_string(A.dims().dim(0)) + "x"
-                    + std::to_string(A.dims().dim(1)) + ").",
+        throw Error(keel::format("sylvester: first and second inputs must be square (A is {}x{}).",
+                                 A.dims().dim(0), A.dims().dim(1)),
                     0, 0, "sylvester", "", "numkit:sylvester:inputMustBeSquare");
     const keel::usize n = static_cast<keel::usize>(B.dims().dim(0));
     if (n != static_cast<keel::usize>(B.dims().dim(1)))
-        throw Error("sylvester: first and second inputs must be square (B is "
-                    + std::to_string(B.dims().dim(0)) + "x"
-                    + std::to_string(B.dims().dim(1)) + ").",
+        throw Error(keel::format("sylvester: first and second inputs must be square (B is {}x{}).",
+                                 B.dims().dim(0), B.dims().dim(1)),
                     0, 0, "sylvester", "", "numkit:sylvester:inputMustBeSquare");
     if (static_cast<keel::usize>(C.dims().dim(0)) != m || static_cast<keel::usize>(C.dims().dim(1)) != n)
-        throw Error("sylvester: inputs must have compatible size (C must be "
-                    + std::to_string(m) + "x" + std::to_string(n)
-                    + " to match A and B).",
+        throw Error(keel::format("sylvester: inputs must have compatible size (C must be {}x{} to match A and B).",
+                                 m, n),
                     0, 0, "sylvester", "", "numkit:sylvester:inputMustBeCompatibleSize");
     if (m == 0 || n == 0)
         throw Error("sylvester: inputs must have compatible size (empty "
@@ -674,9 +668,9 @@ Value expmv(double t, const Value &A, const Value &v, keel::Allocator *mr)
         if (vt != ValueType::DOUBLE && vt != ValueType::COMPLEX
             && vt != ValueType::SINGLE && vt != ValueType::LOGICAL
             && vt != ValueType::CHAR && !isIntegerType(vt))
-            throw Error("expmv: input 3 (v) must be a numeric, logical or"
-                        " char vector (got a " + detail::shapeOf(v) + " "
-                            + mtypeName(vt) + " array).",
+            throw Error(keel::format("expmv: input 3 (v) must be a numeric, logical or"
+                                     " char vector (got a {} {} array).",
+                                     detail::shapeOf(v), mtypeName(vt)),
                         0, 0, "expmv", "", "numkit:expmv:inputType");
     }
     if (A.dims().ndim() != 2)
@@ -766,7 +760,7 @@ Value expmv(double t, const Value &A, const Value &v, keel::Allocator *mr)
     return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
 
-static Value funm_eval(const Value &A, std::function<keel::c64(keel::c64)> f, keel::Allocator *mr)
+static Value funm_eval(const Value &A, keel::FunctionRef<keel::c64(keel::c64)> f, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "funm");
     if (A.dims().ndim() != 2)
@@ -856,7 +850,7 @@ static Value funm_eval(const Value &A, std::function<keel::c64(keel::c64)> f, ke
     return detail::narrowDoubleToSingleIf(detail::narrow_if_real(out, mr), wantSingle, mr);
 }
 
-Value funm(const Value &A, std::function<keel::c64(keel::c64)> f, keel::Allocator *mr)
+Value funm(const Value &A, keel::FunctionRef<keel::c64(keel::c64)> f, keel::Allocator *mr)
 {
     return funm_eval(A, f, mr);
 }

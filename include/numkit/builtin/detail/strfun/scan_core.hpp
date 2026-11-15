@@ -13,7 +13,6 @@
 #include <numkit/value/value.hpp>
 
 #include <cstddef>
-#include <string>
 
 // SizeSpec is the read-size descriptor from the shared io_helpers infra
 // (numkit::ops). Passed by const-ref here so this header only

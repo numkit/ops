@@ -22,7 +22,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <vector>
 
 // ── Low-level kernel forwarders to keel::fft_kernels ───────────────────
 namespace numkit::ops::detail {
@@ -416,7 +415,7 @@ detail::requireFloatInput(x, "czt");
     }
 
     const int nd = d.ndim();
-    std::vector<keel::usize> outDims(static_cast<keel::usize>(nd));
+    keel::Array<keel::usize> outDims(static_cast<keel::usize>(nd), mr);
     outDims[0] = static_cast<keel::usize>(m);
     for (int i = 1; i < nd; ++i)
         outDims[static_cast<keel::usize>(i)] = d.dim(i);

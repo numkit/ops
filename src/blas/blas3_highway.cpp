@@ -1,3 +1,4 @@
+#include <keel/array.h>
 #include <keel/core.h>
 #include <keel/complex.h>
 #include <numkit/ops/blas.hpp>
@@ -5,7 +6,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <vector>
 #include <atomic>
 
 #undef HWY_TARGET_INCLUDE
@@ -194,12 +194,12 @@ void GemmDoubleKernel(keel::usize m, keel::usize n, keel::usize k,
         const keel::usize mc_padded = ((mc_block + mr - 1) / mr) * mr;
         constexpr keel::usize nc_padded = ((nc_block + nr - 1) / nr) * nr;
         // Zero-allocation thread_local static packing buffers (persisted per thread)
-        thread_local static std::vector<double> A_pack(mc_padded * kc_block + 64, 0.0);
-        thread_local static std::vector<double> B_pack(kc_block * nc_padded + 64, 0.0);
+        thread_local static keel::Array<double> A_pack(mc_padded * kc_block + 64, 0.0, nullptr);
+        thread_local static keel::Array<double> B_pack(kc_block * nc_padded + 64, 0.0, nullptr);
         if (A_pack.size() < mc_padded * kc_block + 64)
-            A_pack.resize(mc_padded * kc_block + 64, 0.0);
+            A_pack = keel::Array<double>(mc_padded * kc_block + 64, 0.0, nullptr);
         if (B_pack.size() < kc_block * nc_padded + 64)
-            B_pack.resize(kc_block * nc_padded + 64, 0.0);
+            B_pack = keel::Array<double>(kc_block * nc_padded + 64, 0.0, nullptr);
 
         for (keel::usize jc = jc_start; jc < jc_end; jc += nc_block) {
             keel::usize nc = std::min(nc_block, jc_end - jc);
@@ -532,17 +532,17 @@ if (m == 0 || n == 0) return;
     numkit::detail::parallel_for(n, p_thresh, [=](keel::usize jc_start, keel::usize jc_end) {
         const keel::usize mc_padded = ((mc_block + mr - 1) / mr) * mr;
         constexpr keel::usize nc_padded = ((nc_block + nr - 1) / nr) * nr;
-        thread_local static std::vector<double> Ar_pack(mc_padded * kc_block + 64, 0.0);
-        thread_local static std::vector<double> Ai_pack(mc_padded * kc_block + 64, 0.0);
-        thread_local static std::vector<double> Br_pack(kc_block * nc_padded + 64, 0.0);
-        thread_local static std::vector<double> Bi_pack(kc_block * nc_padded + 64, 0.0);
+        thread_local static keel::Array<double> Ar_pack(mc_padded * kc_block + 64, 0.0, nullptr);
+        thread_local static keel::Array<double> Ai_pack(mc_padded * kc_block + 64, 0.0, nullptr);
+        thread_local static keel::Array<double> Br_pack(kc_block * nc_padded + 64, 0.0, nullptr);
+        thread_local static keel::Array<double> Bi_pack(kc_block * nc_padded + 64, 0.0, nullptr);
         if (Ar_pack.size() < mc_padded * kc_block + 64) {
-            Ar_pack.resize(mc_padded * kc_block + 64, 0.0);
-            Ai_pack.resize(mc_padded * kc_block + 64, 0.0);
+            Ar_pack = keel::Array<double>(mc_padded * kc_block + 64, 0.0, nullptr);
+            Ai_pack = keel::Array<double>(mc_padded * kc_block + 64, 0.0, nullptr);
         }
         if (Br_pack.size() < kc_block * nc_padded + 64) {
-            Br_pack.resize(kc_block * nc_padded + 64, 0.0);
-            Bi_pack.resize(kc_block * nc_padded + 64, 0.0);
+            Br_pack = keel::Array<double>(kc_block * nc_padded + 64, 0.0, nullptr);
+            Bi_pack = keel::Array<double>(kc_block * nc_padded + 64, 0.0, nullptr);
         }
 
         for (keel::usize jc = jc_start; jc < jc_end; jc += nc_block) {
@@ -999,7 +999,7 @@ void gemm(MatrixTranspose transa, MatrixTranspose transb,
         return;
     const double *A_eff = A;
     keel::usize lda_eff = lda;
-    std::vector<double> A_trans;
+    keel::Array<double> A_trans;
     if (transa != MatrixTranspose::NoTrans && k > 0 && alpha != 0.0) {
         A_trans.resize(m * k);
         for (keel::usize p = 0; p < k; ++p)
@@ -1011,7 +1011,7 @@ void gemm(MatrixTranspose transa, MatrixTranspose transb,
 
     const double *B_eff = B;
     keel::usize ldb_eff = ldb;
-    std::vector<double> B_trans;
+    keel::Array<double> B_trans;
     if (transb != MatrixTranspose::NoTrans && k > 0 && alpha != 0.0) {
         B_trans.resize(k * n);
         for (keel::usize j = 0; j < n; ++j)
@@ -1034,7 +1034,7 @@ void gemm(MatrixTranspose transa, MatrixTranspose transb,
         return;
     const keel::c64 *A_eff = A;
     keel::usize lda_eff = lda;
-    std::vector<keel::c64> A_trans;
+    keel::Array<keel::c64> A_trans;
     if (transa != MatrixTranspose::NoTrans && k > 0 && alpha != keel::c64(0.0, 0.0)) {
         const bool conjA = (transa == MatrixTranspose::ConjTrans);
         A_trans.resize(m * k);
@@ -1049,7 +1049,7 @@ void gemm(MatrixTranspose transa, MatrixTranspose transb,
 
     const keel::c64 *B_eff = B;
     keel::usize ldb_eff = ldb;
-    std::vector<keel::c64> B_trans;
+    keel::Array<keel::c64> B_trans;
     if (transb != MatrixTranspose::NoTrans && k > 0 && alpha != keel::c64(0.0, 0.0)) {
         const bool conjB = (transb == MatrixTranspose::ConjTrans);
         B_trans.resize(k * n);
@@ -1227,7 +1227,7 @@ void trsm_generic(MatrixSide side, MatrixUplo uplo, MatrixTranspose trans, Matri
             trsm_generic(side, uplo, trans, diag, m1, n, T(1), A, lda, B, ldb);
         } else if (uplo == MatrixUplo::Upper && trans != MatrixTranspose::NoTrans) {
             trsm_generic(side, uplo, trans, diag, m1, n, T(1), A, lda, B, ldb);
-            std::vector<T> U01_T(m2 * m1);
+            keel::Array<T> U01_T(m2 * m1, nullptr);
             for(keel::usize c=0; c<m2; ++c) {
                 for(keel::usize r=0; r<m1; ++r) {
                     T val = A[r + (m1 + c)*lda];
@@ -1241,7 +1241,7 @@ void trsm_generic(MatrixSide side, MatrixUplo uplo, MatrixTranspose trans, Matri
             trsm_generic(side, uplo, trans, diag, m2, n, T(1), A + m1 + m1 * lda, lda, B + m1, ldb);
         } else if (uplo == MatrixUplo::Lower && trans != MatrixTranspose::NoTrans) {
             trsm_generic(side, uplo, trans, diag, m2, n, T(1), A + m1 + m1 * lda, lda, B + m1, ldb);
-            std::vector<T> L10_T(m1 * m2);
+            keel::Array<T> L10_T(m1 * m2, nullptr);
             for(keel::usize c=0; c<m1; ++c) {
                 for(keel::usize r=0; r<m2; ++r) {
                     T val = A[(m1 + r) + c*lda];
@@ -1272,7 +1272,7 @@ void trsm_generic(MatrixSide side, MatrixUplo uplo, MatrixTranspose trans, Matri
             trsm_generic(side, uplo, trans, diag, m, n2, T(1), A + n1 + n1 * lda, lda, B + n1 * ldb, ldb);
         } else if (uplo == MatrixUplo::Upper && trans != MatrixTranspose::NoTrans) {
             trsm_generic(side, uplo, trans, diag, m, n2, T(1), A + n1 + n1 * lda, lda, B + n1 * ldb, ldb);
-            std::vector<T> U01_T(n2 * n1);
+            keel::Array<T> U01_T(n2 * n1, nullptr);
             for(keel::usize c=0; c<n2; ++c) {
                 for(keel::usize r=0; r<n1; ++r) {
                     T val = A[r + (n1 + c)*lda];
@@ -1286,7 +1286,7 @@ void trsm_generic(MatrixSide side, MatrixUplo uplo, MatrixTranspose trans, Matri
             trsm_generic(side, uplo, trans, diag, m, n1, T(1), A, lda, B, ldb);
         } else if (uplo == MatrixUplo::Lower && trans != MatrixTranspose::NoTrans) {
             trsm_generic(side, uplo, trans, diag, m, n1, T(1), A, lda, B, ldb);
-            std::vector<T> L10_T(n1 * n2);
+            keel::Array<T> L10_T(n1 * n2, nullptr);
             for(keel::usize c=0; c<n1; ++c) {
                 for(keel::usize r=0; r<n2; ++r) {
                     T val = A[(n1 + r) + c*lda];
@@ -1362,8 +1362,8 @@ void syrk_generic(MatrixUplo uplo, MatrixTranspose trans,
     const bool is_trans = (trans != MatrixTranspose::NoTrans);
     const bool is_conj  = (trans == MatrixTranspose::ConjTrans);
 
-    std::vector<T> V_T(n * k);
-    std::vector<T> V(k * n);
+    keel::Array<T> V_T(n * k, nullptr);
+    keel::Array<T> V(k * n, nullptr);
     
     if (!is_trans) {
         for (keel::usize col = 0; col < k; ++col) {

@@ -3,10 +3,12 @@
 // Clock, current date, CPU time, and execution pausing for numkit::builtin.
 
 #include <keel/memory.h>
+#include <keel/string.h>
 #include <numkit/builtin/timefun.hpp>
 #include <numkit/value/value.hpp>
 
 #include <chrono>
+#include <cstdio>
 #include <ctime>
 #include <thread>
 
@@ -28,7 +30,7 @@ double now() {
     return 719529.0 + static_cast<double>(unix_us) / 86400000000.0;
 }
 
-std::string date() {
+keel::String date() {
     auto t = std::time(nullptr);
     std::tm tm{};
 #if defined(_WIN32)
@@ -39,8 +41,8 @@ std::string date() {
     char buf[64];
     static const char *kMonths[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
                                     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
-    std::snprintf(buf, sizeof(buf), "%02d-%s-%04d", tm.tm_mday, kMonths[tm.tm_mon % 12], 1900 + tm.tm_year);
-    return std::string(buf);
+    const int n = std::snprintf(buf, sizeof(buf), "%02d-%s-%04d", tm.tm_mday, kMonths[tm.tm_mon % 12], 1900 + tm.tm_year);
+    return keel::String(keel::StringRef(buf, n > 0 ? static_cast<keel::usize>(n) : 0));
 }
 
 Value clock(keel::Allocator *mr) {

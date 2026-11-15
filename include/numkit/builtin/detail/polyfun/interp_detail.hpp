@@ -22,10 +22,8 @@
 #include <cstring>
 #include <limits>
 #include <numeric>
-#include <string>
 #include <tuple>
 #include <utility>
-#include <vector>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -588,13 +586,11 @@ enum class Interp2Method { Linear, Nearest, Cubic, Spline };
 // interior points. Implementing that correctly is deferred.
 Interp2Method parseInterp2Method(keel::StringRef m, bool allowSeparable = false)
 {
-    std::string s(m.data(), m.size());
-    for (auto &c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    if (s.empty() || s == "linear") return Interp2Method::Linear;
-    if (s == "nearest")             return Interp2Method::Nearest;
-    if (s == "cubic")               return Interp2Method::Cubic;
-    if (allowSeparable && s == "spline") return Interp2Method::Spline;
-    if (s == "spline" || s == "pchip" || s == "makima")
+    if (m.empty() || m.equals_ignore_ascii_case("linear")) return Interp2Method::Linear;
+    if (m.equals_ignore_ascii_case("nearest"))             return Interp2Method::Nearest;
+    if (m.equals_ignore_ascii_case("cubic"))               return Interp2Method::Cubic;
+    if (allowSeparable && m.equals_ignore_ascii_case("spline")) return Interp2Method::Spline;
+    if (m.equals_ignore_ascii_case("spline") || m.equals_ignore_ascii_case("pchip") || m.equals_ignore_ascii_case("makima"))
         throw Error(keel::format("interp2: '{}' method not yet supported (linear / nearest / cubic / spline available)", m),
                      0, 0, "interp2", "", "numkit:interp2:unsupportedMethod");
     throw Error(keel::format("interp2: unknown method '{}'", m),
@@ -629,8 +625,7 @@ void validateMonotonicAscending(const double *g, keel::usize n, const char *axis
 {
     for (keel::usize i = 1; i < n; ++i)
         if (g[i] <= g[i - 1])
-            throw Error(std::string("interp2: ") + axis
-                         + " must be strictly increasing",
+            throw Error(keel::format("interp2: {} must be strictly increasing", axis),
                          0, 0, "interp2", "", "numkit:interp2:notMonotonic");
 }
 
@@ -738,7 +733,7 @@ void readGridAxis(const Value &g, keel::Array<double> &out, const char *axis)
         return true;
     };
 
-    const std::string ax = axis;
+    const keel::StringRef ax(axis);
     int preferred = (ax == "X") ? 1 : (ax == "Y") ? 0 : (ax == "Z") ? 2 : 1;
     for (int tries = 0; tries < 3; ++tries) {
         int dim = (preferred + tries) % 3;

@@ -12,15 +12,11 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <vector>
+#include <utility>
 
 namespace numkit::ops {
 
 namespace {
-
-std::vector<keel::u8> toStdVec(const keel::Array<keel::u8> &arr) {
-    return std::vector<keel::u8>(arr.data(), arr.data() + arr.size());
-}
 
 keel::ArrayRef<keel::u8> toRef(const keel::u8 *data, keel::usize len) {
     return keel::ArrayRef<keel::u8>(data, len);
@@ -50,9 +46,9 @@ keel::u32 adler32(const keel::u8 *data, keel::usize len) {
     return keel::adler32(toRef(data, len));
 }
 
-std::vector<keel::u8> inflateRaw(const keel::u8 *src, keel::usize len,
-                                     keel::usize expectedSizeHint,
-                                     keel::usize maxOutputBytes) {
+keel::Array<keel::u8> inflateRaw(const keel::u8 *src, keel::usize len,
+                                 keel::usize expectedSizeHint,
+                                 keel::usize maxOutputBytes) {
     keel::InflateOptions opts;
     opts.expected_size_hint = expectedSizeHint;
     opts.max_output_bytes = maxOutputBytes;
@@ -61,17 +57,16 @@ std::vector<keel::u8> inflateRaw(const keel::u8 *src, keel::usize len,
     if (!res) {
         throwInflateError(res.error());
     }
-    return toStdVec(res.value());
+    return std::move(res.value());
 }
 
-std::vector<keel::u8> deflateRaw(const keel::u8 *src, keel::usize len, int level) {
-    auto res = keel::deflate_raw(toRef(src, len), level);
-    return toStdVec(res);
+keel::Array<keel::u8> deflateRaw(const keel::u8 *src, keel::usize len, int level) {
+    return keel::deflate_raw(toRef(src, len), level);
 }
 
-std::vector<keel::u8> zlibDecompress(const keel::u8 *src, keel::usize len,
-                                         keel::usize expectedSizeHint,
-                                         keel::usize maxOutputBytes) {
+keel::Array<keel::u8> zlibDecompress(const keel::u8 *src, keel::usize len,
+                                     keel::usize expectedSizeHint,
+                                     keel::usize maxOutputBytes) {
     if (len < 6) {
         throw Error("zlib: stream too short (< 6 bytes)",
                     0, 0, "zlibDecompress", "", "numkit:zlib:truncated");
@@ -101,7 +96,7 @@ std::vector<keel::u8> zlibDecompress(const keel::u8 *src, keel::usize len,
         throwInflateError(inflated.error());
     }
 
-    const auto &payload = inflated.value();
+    auto &payload = inflated.value();
     const keel::u32 expectedAdler =
         (static_cast<keel::u32>(src[len - 4]) << 24) |
         (static_cast<keel::u32>(src[len - 3]) << 16) |
@@ -113,12 +108,11 @@ std::vector<keel::u8> zlibDecompress(const keel::u8 *src, keel::usize len,
                     0, 0, "zlibDecompress", "", "numkit:zlib:adlerMismatch");
     }
 
-    return toStdVec(payload);
+    return std::move(payload);
 }
 
-std::vector<keel::u8> zlibCompress(const keel::u8 *src, keel::usize len, int level) {
-    auto res = keel::zlib_compress(toRef(src, len), level);
-    return toStdVec(res);
+keel::Array<keel::u8> zlibCompress(const keel::u8 *src, keel::usize len, int level) {
+    return keel::zlib_compress(toRef(src, len), level);
 }
 
 } // namespace numkit::ops

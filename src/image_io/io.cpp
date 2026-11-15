@@ -2,10 +2,13 @@
 //
 // Image I/O facade (imread, imwrite, imfinfo) backed by keel::image.
 
+#include <keel/array.h>
 #include <keel/core.h>
 #include <keel/format.h>
+#include <keel/fs.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
+#include <keel/string.h>
 #include <numkit/image/io/io.hpp>
 #include <numkit/value/error.hpp>
 #include <numkit/value/value.hpp>
@@ -22,16 +25,12 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <fstream>
-#include <iterator>
-#include <string>
-#include <vector>
 
 namespace numkit::image {
 
 namespace {
 
-std::string formatStringFromKeel(keel::ImageFormat fmt) {
+keel::StringRef formatStringFromKeel(keel::ImageFormat fmt) {
     switch (fmt) {
         case keel::ImageFormat::Png:  return "png";
         case keel::ImageFormat::Tiff: return "tif";
@@ -93,7 +92,7 @@ Value imreadFromBytes(keel::StringRef bytes, keel::Allocator *mr) {
     const keel::ImageFormat fmt = keel::sniff_image_format(keel::ArrayRef<keel::u8>(data, len));
     switch (fmt) {
         case keel::ImageFormat::Png:  return readPng(data, len, mr);
-        case keel::ImageFormat::Tiff: return readTiff(std::vector<keel::u8>(data, data + len), 1u, mr);
+        case keel::ImageFormat::Tiff: return readTiff(keel::ArrayRef<keel::u8>(data, len), 1u, mr);
         case keel::ImageFormat::Jpeg: return readJpeg(data, len, mr);
         case keel::ImageFormat::Bmp:  return readBmp(data, len, mr);
         case keel::ImageFormat::Gif:  return readGifViaKeel(data, len, mr);
@@ -113,18 +112,18 @@ Value imreadFromBytes(keel::StringRef bytes, keel::Allocator *mr) {
 }
 
 Value imread(keel::StringRef path, keel::Allocator *mr) {
-    std::ifstream f(std::string(path.data(), path.size()), std::ios::binary);
-    if (!f) {
+    auto res = keel::fs_read_file(path, mr);
+    if (!res.is_ok()) {
         throw Error(keel::format("imread: failed to load '{}' - can't open", path),
                     0, 0, "imread", "", "numkit:imread:load");
     }
-    std::string bytes((std::istreambuf_iterator<char>(f)),
-                      std::istreambuf_iterator<char>());
-    return imreadFromBytes(bytes, mr);
+    const auto &buf = res.value();
+    return imreadFromBytes(
+        keel::StringRef(reinterpret_cast<const char *>(buf.data()), buf.size()), mr);
 }
 
-std::string imwriteToBytes(const Value &A, keel::StringRef ext,
-                           keel::Allocator * /*mr*/) {
+keel::String imwriteToBytes(const Value &A, keel::StringRef ext,
+                            keel::Allocator *mr) {
     if (ext == "png") {
         return writePngToBytes(A, 6);
     }
@@ -141,8 +140,8 @@ std::string imwriteToBytes(const Value &A, keel::StringRef ext,
         return writePnmToBytes(A, ext);
     }
     if (ext == "tif" || ext == "tiff") {
-        const auto buf = writeTiffToBytes(A, "none", nullptr);
-        return std::string(buf.begin(), buf.end());
+        const auto buf = writeTiffToBytes(A, "none");
+        return keel::String(keel::StringRef(reinterpret_cast<const char *>(buf.data()), buf.size()), mr);
     }
 
     throw Error(keel::format("imwrite: unsupported extension '{}' (supported: .png, .jpg, .bmp, .tga, .pnm, .tif)", ext),
@@ -150,20 +149,16 @@ std::string imwriteToBytes(const Value &A, keel::StringRef ext,
 }
 
 void imwrite(const Value &A, keel::StringRef path, keel::Allocator *mr) {
-    const std::string ext = lowerExt(path);
+    const keel::String ext = lowerExt(path);
     if (ext == "tif" || ext == "tiff") {
         writeTiff(A, path, "none", /*appendMode=*/false);
         return;
     }
-    const std::string bytes = imwriteToBytes(A, ext, mr);
-    std::ofstream f(std::string(path.data(), path.size()), std::ios::binary | std::ios::trunc);
-    if (!f) {
+    const keel::String bytes = imwriteToBytes(A, ext, mr);
+    auto wres = keel::fs_write_file(
+        path, keel::ArrayRef<keel::u8>(reinterpret_cast<const keel::u8 *>(bytes.data()), bytes.size()));
+    if (!wres.is_ok()) {
         throw Error(keel::format("imwrite: cannot open '{}' for write", path),
-                    0, 0, "imwrite", "", "numkit:imwrite:write");
-    }
-    f.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
-    if (!f) {
-        throw Error(keel::format("imwrite: failed to write '{}'", path),
                     0, 0, "imwrite", "", "numkit:imwrite:write");
     }
 }
@@ -175,17 +170,16 @@ Value imfinfoFromBytes(keel::StringRef bytes, keel::StringRef filename,
 
     keel::u32 W = 0, H = 0;
     keel::u16 bits = 8, channels = 1;
-    std::string fmt = formatStringFromKeel(
-        keel::sniff_image_format(keel::ArrayRef<keel::u8>(data, len)));
+    keel::String fmt = keel::String::from(formatStringFromKeel(
+        keel::sniff_image_format(keel::ArrayRef<keel::u8>(data, len))), mr);
     if (fmt.empty()) fmt = lowerExt(filename);
 
     bool ok = false;
     if (fmt == "png") {
         ok = peekPng(data, len, W, H, bits, channels);
     } else if (fmt == "tif" || fmt == "tiff") {
-        fmt = "tif";
-        std::vector<keel::u8> buf(data, data + len);
-        peekTiff(buf, W, H, bits, channels);
+        fmt = keel::String::from("tif", mr);
+        peekTiff(keel::ArrayRef<keel::u8>(data, len), W, H, bits, channels);
         ok = true;
     } else if (fmt == "jpg" || fmt == "jpeg") {
         ok = peekJpeg(data, len, W, H, bits, channels);
@@ -225,14 +219,14 @@ Value imfinfoFromBytes(keel::StringRef bytes, keel::StringRef filename,
 }
 
 Value imfinfo(keel::StringRef path, keel::Allocator *mr) {
-    std::ifstream f(std::string(path.data(), path.size()), std::ios::binary);
-    if (!f) {
+    auto res = keel::fs_read_file(path, mr);
+    if (!res.is_ok()) {
         throw Error(keel::format("imfinfo: failed to read '{}' - can't open", path),
                     0, 0, "imfinfo", "", "numkit:imfinfo:read");
     }
-    std::string bytes((std::istreambuf_iterator<char>(f)),
-                      std::istreambuf_iterator<char>());
-    return imfinfoFromBytes(bytes, path, mr);
+    const auto &buf = res.value();
+    return imfinfoFromBytes(
+        keel::StringRef(reinterpret_cast<const char *>(buf.data()), buf.size()), path, mr);
 }
 
 } // namespace numkit::image

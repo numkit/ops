@@ -1,4 +1,4 @@
-﻿// toolboxes/ode/src/ode45.cpp
+// toolboxes/ode/src/ode45.cpp
 //
 // Explicit Dormand-Prince 5(4) Runge-Kutta integrator.
 //
@@ -10,8 +10,11 @@
 //     formulae", J. Comput. Appl. Math. 6(1), pp. 19-26.
 //   â€¢ Shampine & Reichelt (1997), "The MATLAB ODE Suite", Â§3.
 
+#include <keel/array.h>
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/memory.h>
+#include <keel/ref.h>
 #include <numkit/ode/solvers.hpp>
 #include <numkit/ode/options.hpp>
 
@@ -23,7 +26,7 @@
 #include <array>
 #include <cmath>
 #include <limits>
-#include <vector>
+#include <utility>
 
 namespace numkit::ode {
 
@@ -103,11 +106,11 @@ inline DenseCoeffs dense_coeffs(double theta)
 // Evaluate dense output at Î¸ âˆˆ [0,1] within the accepted step
 // (t_n, t_n + dirÂ·h, k1..k7).
 void dense_eval(double theta, double dir, double h,
-                const std::vector<double> &y_n,
-                const std::vector<double> &k1, const std::vector<double> &k3,
-                const std::vector<double> &k4, const std::vector<double> &k5,
-                const std::vector<double> &k6, const std::vector<double> &k7,
-                std::vector<double> &out)
+                keel::ArrayRef<double> y_n,
+                keel::ArrayRef<double> k1, keel::ArrayRef<double> k3,
+                keel::ArrayRef<double> k4, keel::ArrayRef<double> k5,
+                keel::ArrayRef<double> k6, keel::ArrayRef<double> k7,
+                keel::Array<double> &out)
 {
     const DenseCoeffs c = dense_coeffs(theta);
     const keel::usize d = y_n.size();
@@ -122,8 +125,8 @@ void dense_eval(double theta, double dir, double h,
 // The FnHandle RHS bridge lives in ode_detail.hpp (callOdeRhs); this thin
 // binder keeps the call sites below unqualified and names ode45 in errors.
 void eval_rhs(FnHandle rhs, double t,
-              const std::vector<double> &y,
-              std::vector<double> &dydt, keel::Allocator *mr)
+              keel::ArrayRef<double> y,
+              keel::Array<double> &dydt, keel::Allocator *mr)
 {
     callOdeRhs(rhs, t, y, dydt, mr, "ode45");
 }
@@ -139,10 +142,10 @@ ode45(FnHandle rhs, const Value &tspan, const Value &y0,
     if (nspan < 2)
         throw Error("ode45: tspan must have at least 2 elements",
                     0, 0, "ode45", "", "numkit:ode45:tspanShort");
-    std::vector<double> ts(nspan);
+    keel::Array<double> ts(nspan, mr);
     for (keel::usize i = 0; i < nspan; ++i) ts[i] = tspan.elemAsDouble(i);
-    const double t0 = ts.front();
-    const double tf = ts.back();
+    const double t0 = ts[0];
+    const double tf = ts[nspan - 1];
     if (t0 == tf)
         throw Error("ode45: tspan(end) must differ from tspan(1)",
                     0, 0, "ode45", "", "numkit:ode45:tspanDegenerate");
@@ -154,7 +157,7 @@ ode45(FnHandle rhs, const Value &tspan, const Value &y0,
     }
 
     const keel::usize d = y0.numel();
-    std::vector<double> y(d);
+    keel::Array<double> y(d, mr);
     for (keel::usize i = 0; i < d; ++i) y[i] = y0.elemAsDouble(i);
 
     OdeOpts O = read_opts(opts, 4);
@@ -166,7 +169,7 @@ ode45(FnHandle rhs, const Value &tspan, const Value &y0,
     };
 
     // â”€â”€ Initial step size (Hairer-NÃ¸rsett-Wanner I, Eq. (4.14)) â”€â”€â”€â”€
-    std::vector<double> k1(d), k2(d), k3(d), k4(d), k5(d), k6(d), k7(d);
+    keel::Array<double> k1(d, mr), k2(d, mr), k3(d, mr), k4(d, mr), k5(d, mr), k6(d, mr), k7(d, mr);
     eval_rhs(rhs, t0, y, k1, mr);
 
     double h = O.initial_step;
@@ -181,7 +184,7 @@ ode45(FnHandle rhs, const Value &tspan, const Value &y0,
         double h0 = (d0 < 1e-5 || d1 < 1e-5) ? 1e-6 : 0.01 * d0 / d1;
         h0 = std::min(h0, std::fabs(tf - t0));
         // Trial step.
-        std::vector<double> y1(d), k2_trial(d);
+        keel::Array<double> y1(d, mr), k2_trial(d, mr);
         for (keel::usize i = 0; i < d; ++i) y1[i] = y[i] + dir * h0 * k1[i];
         eval_rhs(rhs, t0 + dir * h0, y1, k2_trial, mr);
         double d2 = 0.0;
@@ -199,10 +202,10 @@ ode45(FnHandle rhs, const Value &tspan, const Value &y0,
     }
 
     // â”€â”€ Output buffers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    std::vector<double> t_out;
-    std::vector<std::vector<double>> y_out;   // each entry length d
+    keel::Array<double> t_out;
+    keel::Array<keel::Array<double>> y_out;   // each entry length d
     t_out.reserve(64); y_out.reserve(64);
-    t_out.push_back(t0); y_out.push_back(y);
+    t_out.push_back(t0); y_out.push_back(y.clone());
 
     // For explicit tspan (nspan > 2), we emit only at the requested
     // points (no Refine). For [t0 tf], we emit every accepted step
@@ -227,7 +230,7 @@ ode45(FnHandle rhs, const Value &tspan, const Value &y0,
         trial_h = std::min(trial_h, O.max_step);
 
         // Stages k2..k7 with k1 carried in (FSAL).
-        std::vector<double> ytmp(d);
+        keel::Array<double> ytmp(d, mr);
         // k2 at (t + c2 h, y + h a21 k1)
         for (keel::usize i = 0; i < d; ++i)
             ytmp[i] = y[i] + dir * trial_h * (a21 * k1[i]);
@@ -253,7 +256,7 @@ ode45(FnHandle rhs, const Value &tspan, const Value &y0,
                      + a64 * k4[i] + a65 * k5[i]);
         eval_rhs(rhs, t + dir * trial_h, ytmp, k6, mr);
         // 5th-order solution
-        std::vector<double> y_new(d);
+        keel::Array<double> y_new(d, mr);
         for (keel::usize i = 0; i < d; ++i)
             y_new[i] = y[i] + dir * trial_h
                      * (b1 * k1[i] + b3 * k3[i] + b4 * k4[i]
@@ -281,7 +284,7 @@ ode45(FnHandle rhs, const Value &tspan, const Value &y0,
             if (emit_at_tspan) {
                 // Interpolate via dense output AT every requested ts
                 // that lies in (t_old, t_new].
-                std::vector<double> yint;
+                keel::Array<double> yint;
                 while (next_span_idx < nspan) {
                     const double tt = ts[next_span_idx];
                     const double theta = (tt - t_old) / (dir * trial_h);
@@ -290,35 +293,35 @@ ode45(FnHandle rhs, const Value &tspan, const Value &y0,
                     if (std::fabs(clamped - 1.0) < 1e-15) {
                         // Exact endpoint â€” use y_new for bit-equality.
                         t_out.push_back(tt);
-                        y_out.push_back(y_new);
+                        y_out.push_back(y_new.clone());
                     } else {
                         dense_eval(clamped, dir, trial_h, y,
                                    k1, k3, k4, k5, k6, k7, yint);
                         t_out.push_back(tt);
-                        y_out.push_back(yint);
+                        y_out.push_back(yint.clone());
                     }
                     ++next_span_idx;
                 }
             } else if (refine > 1) {
                 // Emit (refine-1) interior points + endpoint.
-                std::vector<double> yint;
+                keel::Array<double> yint;
                 for (int r = 1; r < refine; ++r) {
                     const double theta = double(r) / double(refine);
                     dense_eval(theta, dir, trial_h, y,
                                k1, k3, k4, k5, k6, k7, yint);
                     t_out.push_back(t_old + dir * trial_h * theta);
-                    y_out.push_back(yint);
+                    y_out.push_back(yint.clone());
                 }
                 t_out.push_back(t_new);
-                y_out.push_back(y_new);
+                y_out.push_back(y_new.clone());
             } else {
                 t_out.push_back(t_new);
-                y_out.push_back(y_new);
+                y_out.push_back(y_new.clone());
             }
 
             t = t_new;
-            y = y_new;
-            k1 = k7;        // FSAL
+            y = std::move(y_new);
+            std::swap(k1, k7);        // FSAL
             failed_in_a_row = 0;
             // Step size update (standard formula, safety = 0.9).
             const double exp = 1.0 / 5.0;
@@ -345,8 +348,8 @@ ode45(FnHandle rhs, const Value &tspan, const Value &y0,
         }
     }
     if (step_count >= max_steps)
-        throw Error("ode45: exceeded " + std::to_string(max_steps)
-                  + " integration steps", 0, 0, "ode45", "", "numkit:ode45:tooManySteps");
+        throw Error(keel::format("ode45: exceeded {} integration steps", max_steps),
+                    0, 0, "ode45", "", "numkit:ode45:tooManySteps");
 
     // Assemble output: t (m Ã— 1) and y (m Ã— d).
     const keel::usize m = t_out.size();

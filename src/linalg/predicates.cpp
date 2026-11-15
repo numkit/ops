@@ -15,6 +15,7 @@
 // Migrated 2026-05-25 from toolboxes/builtin/src/language/arrays/predicates.cpp.
 
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
 #include <keel/complex.h>
@@ -28,7 +29,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <string>
 
 namespace numkit::linalg {
 
@@ -43,8 +43,8 @@ inline keel::usize lin(keel::usize i, keel::usize j, keel::usize R) { return i +
 inline void requireMatrix(const Value &A, const char *who)
 {
     if (A.dims().is3D() || A.dims().ndim() > 3)
-        throw Error(std::string(who) + ": input must be 2D",
-                    0, 0, who, "", std::string("numkit:") + who + ":Not2D");
+        throw Error(keel::format("{}: input must be 2D", who),
+                    0, 0, who, "", keel::format("numkit:{}:Not2D", who));
 }
 
 bool isbandedImpl(const Value &A, long lower, long upper)

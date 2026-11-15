@@ -6,7 +6,7 @@
 #include <keel/core.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
-#include <string>
+#include <keel/string.h>
 #include <numkit/value/value.hpp>
 
 namespace numkit::builtin {
@@ -50,7 +50,7 @@ keel::f64 now();
 /// @brief Current date as formatted text `'dd-mmm-yyyy'` (`date`).
 /// @return Date string.
 /// @see now, clock, datestr
-std::string date();
+keel::String date();
 
 /// @brief Current date and time as a 6-element vector `[Y, M, D, H, MI, S]` (`clock`).
 /// @param mr Memory resource for allocations (nullptr for default).

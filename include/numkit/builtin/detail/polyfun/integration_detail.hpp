@@ -16,7 +16,6 @@
 #include <numkit/value/value.hpp>
 
 #include <cstddef>
-#include <vector>
 
 namespace numkit::builtin::detail {
 

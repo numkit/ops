@@ -1,4 +1,4 @@
-﻿// toolboxes/linalg/src/decompositions_detail.hpp
+// toolboxes/linalg/src/decompositions_detail.hpp
 //
 // PRIVATE (src-level) header â€” NOT part of the public linalg API.
 //
@@ -9,13 +9,13 @@
 
 #include <keel/core.h>
 #include <keel/memory.h>
+#include <keel/array.h>
 #include <keel/complex.h>
 #include <keel/math.h>
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <tuple>
-#include <vector>
 
 #include <numkit/value/value.hpp>
 #include <numkit/ops/blas.hpp>
@@ -80,7 +80,7 @@ Value transposeSquare(const T *src, keel::usize k, keel::Allocator *mr) {
 
 // Column-pivoted QR (the [Q,R,P] form).
 std::tuple<Value, Value>
-qr_pivoted(const Value &A, std::vector<keel::usize> &perm,
+qr_pivoted(const Value &A, keel::Array<keel::usize> &perm,
            keel::Allocator *mr = nullptr);
 
 } // namespace numkit::linalg

@@ -10,6 +10,7 @@
 #include <keel/ref.h>
 #include <keel/arena.h>
 #include <keel/array.h>
+#include <keel/string.h>
 #include <keel/complex.h>
 #include <keel/format.h>
 #include <numkit/builtin/strfun.hpp>
@@ -21,16 +22,14 @@
 #include <numkit/ops/helpers.hpp>
 
 #include <algorithm>
-#include <array>
 #include <cctype>
+#include <cerrno>
 #include <cmath>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <limits>
-#include <sstream>
-#include <string>
-#include <string_view>
-#include <vector>
+#include <utility>
 
 #include "strings_detail.hpp"
 
@@ -51,20 +50,25 @@ namespace numkit::builtin {
 
 // A newline-joined layout string -> a char MATRIX with one row per line
 // (right-padded to max width), matching MATLAB's num2str return shape.
-static Value charMatrixFromLines(const std::string &s, keel::Allocator *mr)
+static Value charMatrixFromLines(keel::StringRef s, keel::Allocator *mr)
 {
-    std::vector<std::string> lines;
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<keel::StringRef> lines(scratch.allocator());
     keel::usize pos = 0;
     for (;;) {
-        keel::usize nl = s.find('\n', pos);
-        lines.push_back(s.substr(pos, nl == std::string::npos ? std::string::npos : nl - pos));
-        if (nl == std::string::npos) break;
-        pos = nl + 1;
+        const keel::StringRef rem = s.substr(pos, s.size() - pos);
+        const keel::usize nl = rem.find('\n');
+        if (nl == keel::kInvalidIndex) {
+            lines.push_back(rem);
+            break;
+        }
+        lines.push_back(rem.substr(0, nl));
+        pos += nl + 1;
     }
     if (lines.size() <= 1)
         return Value::fromString(s, mr);
     keel::usize maxW = 0;
-    for (auto &L : lines) maxW = std::max(maxW, L.size());
+    for (const auto &L : lines) maxW = std::max(maxW, L.size());
     auto m = Value::matrix(lines.size(), maxW, ValueType::CHAR, mr);
     char *dst = static_cast<char *>(m.rawDataMut());
     for (keel::usize r = 0; r < lines.size(); ++r)
@@ -76,16 +80,20 @@ static Value charMatrixFromLines(const std::string &s, keel::Allocator *mr)
 Value num2str(const Value &x, keel::Allocator *mr)
 {
     if (x.type() == ValueType::COMPLEX) {
-        if (!x.isScalar())
-            return charMatrixFromLines(num2strComplexArray(x, -1), mr);
+        if (!x.isScalar()) {
+            const keel::String layout = num2strComplexArray(x, -1);
+            return charMatrixFromLines(layout.as_ref(), mr);
+        }
         return Value::fromString(num2strComplexScalar(x.toComplex(), -1), mr);
     }
     if (x.isEmpty()) return Value::fromString("", mr);
     // Real, non-scalar: synthesise MATLAB's default column format and route
     // through the FMT overload (which handles per-row layout, common-blank-
     // column stripping, and NaN/Inf spelling).
-    if (!x.isScalar())
-        return num2str(x, num2strArrayFormat(x, -1), mr);
+    if (!x.isScalar()) {
+        const keel::String afmt = num2strArrayFormat(x, -1);
+        return num2str(x, afmt.as_ref(), mr);
+    }
     const double v = x.toScalar();
     // MATLAB num2str default precision is MAGNITUDE-AWARE, not a fixed 5 sig
     // figs: it keeps ~4 digits after the integer part, so prec = digits-left-
@@ -101,7 +109,7 @@ Value num2str(const Value &x, keel::Allocator *mr)
     }
     char buf[512];
     std::snprintf(buf, sizeof(buf), "%.*g", prec, v);
-    return Value::fromString(std::string(buf), mr);
+    return Value::fromString(buf, mr);
 }
 
 Value num2str(const Value &x, int N, keel::Allocator *mr)
@@ -109,7 +117,8 @@ Value num2str(const Value &x, int N, keel::Allocator *mr)
     if (x.type() == ValueType::COMPLEX) {
         if (!x.isScalar()) {
             int n = N; if (n < 1) n = 1;
-            return charMatrixFromLines(num2strComplexArray(x, n), mr);
+            const keel::String layout = num2strComplexArray(x, n);
+            return charMatrixFromLines(layout.as_ref(), mr);
         }
         int n = N; if (n < 1) n = 1;
         return Value::fromString(num2strComplexScalar(x.toComplex(), n), mr);
@@ -117,8 +126,10 @@ Value num2str(const Value &x, int N, keel::Allocator *mr)
     if (x.isEmpty()) return Value::fromString("", mr);
     // Real, non-scalar with explicit precision N: MATLAB uses a "%<N+7>.<N>g"
     // column field for every element (no integer-detection in the N form).
-    if (!x.isScalar())
-        return num2str(x, num2strArrayFormat(x, N), mr);
+    if (!x.isScalar()) {
+        const keel::String afmt = num2strArrayFormat(x, N);
+        return num2str(x, afmt.as_ref(), mr);
+    }
     const double v = x.toScalar();
     int n = N;
     if (n < 1)  n = 1;
@@ -127,7 +138,7 @@ Value num2str(const Value &x, int N, keel::Allocator *mr)
     std::snprintf(fmt, sizeof(fmt), "%%.%dg", n);
     char buf[256];
     std::snprintf(buf, sizeof(buf), fmt, v);
-    return Value::fromString(std::string(buf), mr);
+    return Value::fromString(buf, mr);
 }
 
 Value num2str(const Value &x, keel::StringRef fmt,
@@ -165,39 +176,46 @@ Value num2str(const Value &x, keel::StringRef fmt,
             const keel::usize cols = x.dims().cols();
             if (rows * cols == 0) return Value::fromString("", mr);
             const keel::c64 *d = x.complexData();
-            std::vector<std::vector<std::string>> cells(rows, std::vector<std::string>(cols));
-            std::vector<keel::usize> w(cols, 0);
-            for (keel::usize r = 0; r < rows; ++r)
+            keel::ArenaTemp scratch = keel::get_scratch(mr);
+            auto *salloc = scratch.allocator();
+            keel::Array<keel::String> cells(rows * cols, salloc);
+            keel::Array<keel::usize> w(cols, keel::usize{0}, salloc);
+            for (keel::usize r = 0; r < rows; ++r) {
                 for (keel::usize c = 0; c < cols; ++c) {
                     const keel::c64 z = d[r + c * rows];
-                    const std::string sr(num2str(Value::scalar(z.real(), mr), fmt, mr).toString().as_ref());
-                    std::string s = sr;
+                    keel::String s = num2str(Value::scalar(z.real(), mr), fmt, mr).toString();
                     if (z.imag() != 0.0) {
-                        s += (z.imag() < 0.0 ? '-' : '+');
-                        s += std::string_view(num2str(Value::scalar(std::fabs(z.imag()), mr), fmt, mr).toString());
-                        s += 'i';
+                        s.push_back(z.imag() < 0.0 ? '-' : '+');
+                        const keel::String si =
+                            num2str(Value::scalar(std::fabs(z.imag()), mr), fmt, mr).toString();
+                        s.append(si.as_ref());
+                        s.push_back('i');
                     }
-                    cells[r][c] = s;
                     w[c] = std::max(w[c], s.size());
+                    cells[r * cols + c] = std::move(s);
                 }
-            std::string out;
+            }
+            keel::String out(salloc);
             for (keel::usize r = 0; r < rows; ++r) {
-                if (r) out += '\n';
+                if (r) out.push_back('\n');
                 for (keel::usize c = 0; c < cols; ++c) {
-                    if (c) out += ' ';
-                    out.append(w[c] - cells[r][c].size(), ' ');
-                    out += cells[r][c];
+                    if (c) out.push_back(' ');
+                    const keel::String &cell = cells[r * cols + c];
+                    for (keel::usize p = 0; p < w[c] - cell.size(); ++p)
+                        out.push_back(' ');
+                    out.append(cell.as_ref());
                 }
             }
             return Value::fromString(out, mr);
         }
         const keel::c64 z = x.toComplex();
-        const std::string sr(num2str(Value::scalar(z.real(), mr), fmt, mr).toString().as_ref());
-        if (z.imag() == 0.0) return Value::fromString(sr, mr);
-        std::string s = sr;
-        s += (z.imag() < 0.0 ? '-' : '+');
-        s += std::string_view(num2str(Value::scalar(std::fabs(z.imag()), mr), fmt, mr).toString());
-        s += 'i';
+        keel::String s = num2str(Value::scalar(z.real(), mr), fmt, mr).toString();
+        if (z.imag() == 0.0) return Value::fromString(s, mr);
+        s.push_back(z.imag() < 0.0 ? '-' : '+');
+        const keel::String si =
+            num2str(Value::scalar(std::fabs(z.imag()), mr), fmt, mr).toString();
+        s.append(si.as_ref());
+        s.push_back('i');
         return Value::fromString(s, mr);
     }
 
@@ -208,8 +226,9 @@ Value num2str(const Value &x, keel::StringRef fmt,
 
     Value fmtVal = Value::fromString(fmt, mr);
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    auto rows = keel::Array<std::string>(scratch.allocator());
-    rows.reserve(nrows);
+    auto *salloc = scratch.allocator();
+    auto rawRows = keel::Array<keel::String>(salloc);
+    rawRows.reserve(nrows);
 
     // Build one formatted string per row (format cycled across the row's
     // columns, in column order).
@@ -219,15 +238,15 @@ Value num2str(const Value &x, keel::StringRef fmt,
         for (keel::usize c = 0; c < ncols; ++c)
             rd[c] = x.elemAsDouble(c * nrows + r);
         keel::ArrayRef<Value> args(&rowv, 1);
-        rows.emplace_back(sprintf(fmtVal, args, mr).toString().as_ref());
+        rawRows.push_back(sprintf(fmtVal, args, mr).toString());
     }
 
-    auto leadingWS = [](const std::string &s) {
+    auto leadingWS = [](keel::StringRef s) {
         keel::usize k = 0;
         while (k < s.size() && (s[k] == ' ' || s[k] == '\t')) ++k;
         return k;
     };
-    auto trailingWS = [](const std::string &s) {
+    auto trailingWS = [](keel::StringRef s) {
         keel::usize k = 0;
         while (k < s.size() && (s[s.size() - 1 - k] == ' ' || s[s.size() - 1 - k] == '\t'))
             ++k;
@@ -237,21 +256,25 @@ Value num2str(const Value &x, keel::StringRef fmt,
     // Strip the leading/trailing blank columns common to ALL rows (= the
     // minimum leading/trailing whitespace run over the rows). For a scalar
     // this reproduces the old find_first_not_of/find_last_not_of trim.
-    keel::usize kLead = std::string::npos, kTrail = std::string::npos;
-    for (const auto &s : rows) {
-        kLead  = std::min(kLead,  leadingWS(s));
-        kTrail = std::min(kTrail, trailingWS(s));
+    keel::usize kLead = keel::kInvalidIndex, kTrail = keel::kInvalidIndex;
+    for (const auto &s : rawRows) {
+        kLead  = std::min(kLead,  leadingWS(s.as_ref()));
+        kTrail = std::min(kTrail, trailingWS(s.as_ref()));
     }
-    if (kLead == std::string::npos) kLead = 0;
-    if (kTrail == std::string::npos) kTrail = 0;
+    if (kLead == keel::kInvalidIndex) kLead = 0;
+    if (kTrail == keel::kInvalidIndex) kTrail = 0;
 
+    keel::Array<keel::StringRef> rows(salloc);
+    rows.reserve(nrows);
     keel::usize maxW = 0;
-    for (auto &s : rows) {
+    for (const auto &s : rawRows) {
         const keel::usize len = s.size();
         // A row that is entirely whitespace collapses to empty.
-        if (kLead + kTrail >= len) s.clear();
-        else s = s.substr(kLead, len - kLead - kTrail);
-        maxW = std::max(maxW, s.size());
+        keel::StringRef trimmed = (kLead + kTrail >= len)
+            ? keel::StringRef("", 0)
+            : s.as_ref().substr(kLead, len - kLead - kTrail);
+        rows.push_back(trimmed);
+        maxW = std::max(maxW, trimmed.size());
     }
 
     if (nrows == 1)
@@ -298,7 +321,7 @@ Value int2str(const Value &x, keel::Allocator *mr)
             ndigits = static_cast<int>(std::floor(std::log10(maxabs))) + 1;
         char fmt[16];
         std::snprintf(fmt, sizeof(fmt), "%%%d.0f", ndigits + 2);
-        return num2str(rounded, std::string(fmt), mr);
+        return num2str(rounded, keel::StringRef(fmt), mr);
     }
     if (x.isEmpty()) return Value::fromString("", mr);
 
@@ -312,29 +335,24 @@ Value int2str(const Value &x, keel::Allocator *mr)
     if (r == 0.0) r = 0.0;          // normalise -0 -> 0
     char buf[64];
     std::snprintf(buf, sizeof(buf), "%.0f", r);
-    return Value::fromString(std::string(buf), mr);
+    return Value::fromString(buf, mr);
 }
 
 Value validatestring(const Value &str, const Value &valid,
                      keel::Allocator *mr)
 {
-    auto lower = [](std::string s) {
-        for (auto &c : s)
-            c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-        return s;
-    };
-    const std::string s(str.toString().as_ref());
-    const std::string sl = lower(s);
+    const keel::String s = str.toString();
+    const keel::StringRef sRef = s.as_ref();
 
     // Candidates (original case) from a cell array, string array, or a lone
     // char vector.
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<std::string> cands(scratch.allocator());
+    keel::Array<keel::String> cands(scratch.allocator());
     if (valid.isCell() || valid.isString()) {
         const auto &vec = valid.cellDataVec();
-        for (const auto &e : vec) cands.emplace_back(e.toString().as_ref());
+        for (const auto &e : vec) cands.push_back(e.toString());
     } else if (valid.isChar()) {
-        cands.emplace_back(valid.toString().as_ref());
+        cands.push_back(valid.toString());
     } else {
         throw Error("validatestring: second argument must be a cell array of "
                     "char vectors or a string array",
@@ -343,61 +361,65 @@ Value validatestring(const Value &str, const Value &valid,
 
     // 1) Exact (case-insensitive) match wins.
     for (const auto &c : cands)
-        if (lower(c) == sl)
+        if (c.as_ref().equals_ignore_ascii_case(sRef))
             return Value::fromString(c, mr);
 
     // 2) Case-insensitive leading-substring (prefix) matches.
-    keel::Array<const std::string *> pre(scratch.allocator());
+    keel::Array<const keel::String *> pre(scratch.allocator());
     for (const auto &c : cands) {
-        const std::string cl = lower(c);
-        if (cl.size() >= sl.size() && cl.compare(0, sl.size(), sl) == 0)
+        if (c.size() >= sRef.size() &&
+            c.as_ref().substr(0, sRef.size()).equals_ignore_ascii_case(sRef))
             pre.push_back(&c);
     }
     if (pre.empty())
-        throw Error("validatestring: '" + s + "' did not match any valid string",
+        throw Error(keel::format("validatestring: '{}' did not match any valid string", sRef),
                      0, 0, "validatestring", "", "numkit:validatestring:unrecognized");
     if (pre.size() == 1)
         return Value::fromString(*pre[0], mr);
 
     // 3) Multiple prefix matches: unambiguous only if the shortest is itself a
     //    leading substring of every other match (then return the shortest).
-    const std::string *shortest = pre[0];
+    const keel::String *shortest = pre[0];
     for (auto *p : pre)
         if (p->size() < shortest->size()) shortest = p;
-    const std::string shl = lower(*shortest);
+    const keel::StringRef shRef = shortest->as_ref();
     bool prefixOfAll = true;
     for (auto *p : pre) {
-        const std::string pl = lower(*p);
-        if (!(pl.size() >= shl.size() && pl.compare(0, shl.size(), shl) == 0)) {
+        if (!(p->size() >= shRef.size() &&
+              p->as_ref().substr(0, shRef.size()).equals_ignore_ascii_case(shRef))) {
             prefixOfAll = false;
             break;
         }
     }
     if (prefixOfAll)
         return Value::fromString(*shortest, mr);
-    throw Error("validatestring: '" + s + "' matches multiple valid strings",
+    throw Error(keel::format("validatestring: '{}' matches multiple valid strings", sRef),
                  0, 0, "validatestring", "", "numkit:validatestring:ambiguous");
 }
 
 Value str2num(const Value &s, keel::Allocator *mr)
 {
-    try {
-        return Value::scalar(std::stod(std::string(s.toString().as_ref())), mr);
-    } catch (...) {
+    const keel::String str = s.toString();
+    const char *cs = str.c_str();
+    errno = 0;
+    char *end = nullptr;
+    const double v = std::strtod(cs, &end);
+    if (end == cs || errno == ERANGE)
         return Value();
-    }
+    return Value::scalar(v, mr);
 }
 
 // Parse a numeric substring with strtod; the ENTIRE string must be consumed
 // (else NaN). Empty -> defVal. ('42abc' / '42 7' -> NaN; 'Inf'/'-Inf'/'NaN'
 // parse.) strtod parses leading "inf"/"nan" case-insensitively.
-static double strtodFull(const std::string &t, double defVal)
+static double strtodFull(keel::StringRef t, double defVal)
 {
     if (t.empty()) return defVal;
-    const char *cs = t.c_str();
+    const keel::String tmp = keel::String::from(t);
+    const char *cs = tmp.c_str();
     char *end = nullptr;
     const double v = std::strtod(cs, &end);
-    if (end == cs || *end != '\0') return std::numeric_limits<double>::quiet_NaN();
+    if (end != cs + tmp.size()) return std::numeric_limits<double>::quiet_NaN();
     return v;
 }
 
@@ -417,47 +439,53 @@ static Str2DoubleResult str2doubleParse(keel::StringRef str)
         return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f' || c == '\v';
     };
     // Strip commas (thousands separators); trim SURROUNDING whitespace only.
-    std::string t;
-    t.reserve(str.size());
-    for (char c : str) if (c != ',') t.push_back(c);
-    const char *ws = " \t\n\r\f\v";
-    const keel::usize b = t.find_first_not_of(ws);
-    if (b == std::string::npos) return {nan, 0.0, false};   // empty / all-whitespace
-    const keel::usize e = t.find_last_not_of(ws);
-    t = t.substr(b, e - b + 1);
+    keel::String tBuf;
+    tBuf.reserve(str.size());
+    for (char c : str) if (c != ',') tBuf.push_back(c);
+    keel::usize b = 0;
+    while (b < tBuf.size() && isWs(tBuf[b])) ++b;
+    if (b == tBuf.size()) return {nan, 0.0, false};   // empty / all-whitespace
+    keel::usize e = tBuf.size() - 1;
+    while (e > b && isWs(tBuf[e])) --e;
+    const keel::StringRef t = tBuf.as_ref().substr(b, e - b + 1);
 
-    const char last = t.back();
+    const char last = t[t.size() - 1];
     if (last != 'i' && last != 'j')               // pure real
         return { strtodFull(t, nan), 0.0, false };   // internal whitespace -> NaN
 
     // COMPLEX: MATLAB tolerates whitespace around the +/- and the i/j
     // (e.g. ' 2 + 3i '), so strip ALL remaining whitespace before splitting.
-    std::string c2;
+    keel::String c2;
     c2.reserve(t.size());
     for (char ch : t) if (!isWs(ch)) c2.push_back(ch);
-    const std::string body = c2.substr(0, c2.size() - 1);   // drop the i/j
+    const keel::StringRef body = c2.as_ref().substr(0, c2.size() - 1);   // drop the i/j
     // Split at the rightmost +/- at index >= 1 whose predecessor is not e/E
     // (so exponent signs like the '-' in '1e-3' are not treated as a split).
-    keel::usize split = std::string::npos;
+    keel::usize split = keel::kInvalidIndex;
     for (keel::usize k = body.size(); k-- > 1; ) {
         const char c = body[k];
         if ((c == '+' || c == '-') && body[k - 1] != 'e' && body[k - 1] != 'E') {
             split = k; break;
         }
     }
-    auto parseImag = [&](const std::string &is) -> double {
-        std::string m = is;
+    auto parseImag = [&](keel::StringRef is) -> double {
+        keel::StringRef m = is;
         double sign = 1.0;
         if (!m.empty() && (m[0] == '+' || m[0] == '-')) {
             if (m[0] == '-') sign = -1.0;
-            m = m.substr(1);
+            m = m.substr(1, m.size() - 1);
         }
         if (m.empty()) return sign;               // bare i / +i / -i  -> ±1
         return sign * strtodFull(m, nan);
     };
     double re, im;
-    if (split == std::string::npos) { re = 0.0; im = parseImag(body); }
-    else { re = strtodFull(body.substr(0, split), nan); im = parseImag(body.substr(split)); }
+    if (split == keel::kInvalidIndex) {
+        re = 0.0;
+        im = parseImag(body);
+    } else {
+        re = strtodFull(body.substr(0, split), nan);
+        im = parseImag(body.substr(split, body.size() - split));
+    }
     return { re, im, true };
 }
 
@@ -513,18 +541,18 @@ Value str2double(const Value &s, keel::Allocator *mr)
 Value toString(const Value &x, keel::Allocator *mr)
 {
     keel::Allocator *p = mr;
+    auto fmtNum = [](double d) -> keel::String {
+        if (std::isnan(d)) return keel::String::from("NaN");
+        if (std::isinf(d)) return keel::String::from(d < 0 ? "-Inf" : "Inf");
+        char buf[64];
+        std::snprintf(buf, sizeof(buf), "%.6g", d);
+        return keel::String::from(buf);
+    };
     if (x.isString())
         return x;
     if (x.isChar())
         return Value::stringScalar(x.toString(), p);
     if (x.isNumeric()) {
-        auto fmtNum = [](double d) -> std::string {
-            if (std::isnan(d)) return "NaN";
-            if (std::isinf(d)) return d < 0 ? "-Inf" : "Inf";
-            std::ostringstream os;
-            os << d;
-            return os.str();
-        };
         if (x.isScalar()) {
             return Value::stringScalar(fmtNum(x.toScalar()), p);
         }
@@ -546,9 +574,9 @@ Value toString(const Value &x, keel::Allocator *mr)
             if (el.isChar() || el.isString())
                 result.stringElemSet(i, el.toString());
             else if (el.isNumeric() && el.isScalar()) {
-                std::ostringstream os;
-                os << el.toScalar();
-                result.stringElemSet(i, os.str());
+                char buf[64];
+                std::snprintf(buf, sizeof(buf), "%.6g", el.toScalar());
+                result.stringElemSet(i, buf);
             } else {
                 throw Error(
                     "string: cell elements must be char, string, or numeric scalar",
@@ -570,13 +598,14 @@ Value toChar(const Value &x, keel::Allocator *mr)
         const keel::usize n = x.numel();
         if (n == 0)
             return Value::matrix(0, 0, ValueType::CHAR, p);
-        std::vector<std::string> rows(n);
+        keel::ArenaTemp scratch = keel::get_scratch(p);
+        keel::Array<keel::String> rows(n, scratch.allocator());
         keel::usize maxCols = 0;
         for (keel::usize i = 0; i < n; ++i) {
             const Value &el = x.cellAt(i);
             if (!el.isChar() && !el.isString() && !el.isEmpty())
                 throw Error("Cannot convert to char", 0, 0, "char", "", "numkit:char:unsupportedType");
-            rows[i] = el.isEmpty() ? std::string{} : std::string(el.toString().as_ref());
+            rows[i] = el.isEmpty() ? keel::String() : el.toString();
             maxCols = std::max(maxCols, rows[i].size());
         }
         if (n == 1)
@@ -607,13 +636,14 @@ Value toChar(const Value &x, keel::Allocator *mr)
         return out;
     }
     if (x.isNumeric()) {
-        std::string s;
+        keel::String s;
         if (x.isScalar()) {
-            s += static_cast<char>(static_cast<int>(x.toScalar()));
+            s.push_back(static_cast<char>(static_cast<int>(x.toScalar())));
         } else {
             const double *d = x.doubleData();
+            s.reserve(x.numel());
             for (keel::usize i = 0; i < x.numel(); ++i)
-                s += static_cast<char>(static_cast<int>(d[i]));
+                s.push_back(static_cast<char>(static_cast<int>(d[i])));
         }
         return Value::fromString(s, p);
     }
@@ -626,36 +656,32 @@ Value toChar(const Value &x, keel::Allocator *mr)
 Value strcmp(const Value &a, const Value &b, keel::Allocator *mr)
 {
     return strCmpElementwise(a, b,
-        [](const std::string &x, const std::string &y) { return x == y; },
+        [](keel::StringRef x, keel::StringRef y) { return x == y; },
         "strcmp", mr);
 }
 
 Value strcmpi(const Value &a, const Value &b, keel::Allocator *mr)
 {
     return strCmpElementwise(a, b,
-        [](const std::string &x, const std::string &y) {
-            std::string sa = x, sb = y;
-            std::transform(sa.begin(), sa.end(), sa.begin(), ::tolower);
-            std::transform(sb.begin(), sb.end(), sb.begin(), ::tolower);
-            return sa == sb;
+        [](keel::StringRef x, keel::StringRef y) {
+            return x.equals_ignore_ascii_case(y);
         }, "strcmpi", mr);
 }
 
 Value strncmp(const Value &a, const Value &b, keel::usize n, keel::Allocator *mr)
 {
     return strCmpElementwise(a, b,
-        [n](const std::string &x, const std::string &y) { return strnEq(x, y, n); },
+        [n](keel::StringRef x, keel::StringRef y) { return strnEq(x, y, n); },
         "strncmp", mr);
 }
 
 Value strncmpi(const Value &a, const Value &b, keel::usize n, keel::Allocator *mr)
 {
     return strCmpElementwise(a, b,
-        [n](const std::string &x, const std::string &y) {
-            std::string sa = x, sb = y;
-            std::transform(sa.begin(), sa.end(), sa.begin(), ::tolower);
-            std::transform(sb.begin(), sb.end(), sb.begin(), ::tolower);
-            return strnEq(sa, sb, n);
+        [n](keel::StringRef x, keel::StringRef y) {
+            if (x.size() >= n && y.size() >= n)
+                return x.substr(0, n).equals_ignore_ascii_case(y.substr(0, n));
+            return x.equals_ignore_ascii_case(y);
         }, "strncmpi", mr);
 }
 
@@ -672,8 +698,10 @@ static Value mapStringCell(const Value &s, Op op, keel::Allocator *mr)
     const keel::usize c = static_cast<keel::usize>(s.dims().cols());
     auto out = Value::cell(r, c, mr);
     const keel::usize n = s.numel();
-    for (keel::usize i = 0; i < n; ++i)
-        out.cellAt(i) = Value::fromString(op(std::string(s.cellAt(i).toString().as_ref())), mr);
+    for (keel::usize i = 0; i < n; ++i) {
+        const keel::String elem = s.cellAt(i).toString();
+        out.cellAt(i) = Value::fromString(op(elem.as_ref()), mr);
+    }
     return out;
 }
 
@@ -694,26 +722,31 @@ static Value mapStringPreserveClass(const Value &s, Op op, keel::Allocator *mr)
         Value out = Value::stringArray(r, c, mr);
         const keel::usize n = s.numel();
         for (keel::usize i = 0; i < n; ++i)
-            out.stringElemSet(i, op(std::string(s.stringElem(i).as_ref())));
+            out.stringElemSet(i, op(keel::StringRef(s.stringElem(i))));
         return out;
     }
-    return Value::fromString(op(std::string(s.toString().as_ref())), mr);
+    const keel::String str = s.toString();
+    return Value::fromString(op(str.as_ref()), mr);
 }
 
 Value upper(const Value &s, keel::Allocator *mr)
 {
-    auto op = [](std::string r) {
-        std::transform(r.begin(), r.end(), r.begin(), ::toupper);
-        return r;
+    auto op = [](keel::StringRef r) -> keel::String {
+        keel::String out = keel::String::from(r);
+        for (char &ch : out)
+            ch = static_cast<char>(std::toupper(static_cast<unsigned char>(ch)));
+        return out;
     };
     return mapStringPreserveClass(s, op, mr);
 }
 
 Value lower(const Value &s, keel::Allocator *mr)
 {
-    auto op = [](std::string r) {
-        std::transform(r.begin(), r.end(), r.begin(), ::tolower);
-        return r;
+    auto op = [](keel::StringRef r) -> keel::String {
+        keel::String out = keel::String::from(r);
+        for (char &ch : out)
+            ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+        return out;
     };
     return mapStringPreserveClass(s, op, mr);
 }
@@ -722,35 +755,46 @@ Value lower(const Value &s, keel::Allocator *mr)
 
 Value strtrim(const Value &s, keel::Allocator *mr)
 {
-    auto op = [](const std::string &r) -> std::string {
-        keel::usize start = r.find_first_not_of(" \t\r\n");
-        keel::usize end = r.find_last_not_of(" \t\r\n");
-        if (start == std::string::npos) return "";
-        return r.substr(start, end - start + 1);
+    auto op = [](keel::StringRef r) -> keel::String {
+        auto isTrimWs = [](char c) {
+            return c == ' ' || c == '\t' || c == '\r' || c == '\n';
+        };
+        keel::usize start = 0;
+        while (start < r.size() && isTrimWs(r[start])) ++start;
+        if (start == r.size()) return keel::String();
+        keel::usize end = r.size() - 1;
+        while (end > start && isTrimWs(r[end])) --end;
+        return keel::String::from(r.substr(start, end - start + 1));
     };
     return mapStringPreserveClass(s, op, mr);
 }
 
 Value deblank(const Value &s, keel::Allocator *mr)
 {
-    auto op = [](const std::string &r) -> std::string {
-        keel::usize end = r.find_last_not_of(" \t\r\n\f\v");
-        if (end == std::string::npos) return "";
-        return r.substr(0, end + 1);
+    auto op = [](keel::StringRef r) -> keel::String {
+        auto isDeblankWs = [](char c) {
+            return c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == '\f' || c == '\v';
+        };
+        keel::usize len = r.size();
+        while (len > 0 && isDeblankWs(r[len - 1])) --len;
+        return keel::String::from(r.substr(0, len));
     };
     return mapStringPreserveClass(s, op, mr);
 }
 
 Value blanks(keel::usize n, keel::Allocator *mr)
 {
-    return Value::fromString(std::string(n, ' '), mr);
+    keel::String s;
+    s.reserve(n);
+    for (keel::usize i = 0; i < n; ++i) s.push_back(' ');
+    return Value::fromString(s, mr);
 }
 
 
 Value strsplit(const Value &s, keel::Allocator *mr)
 {
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<std::string> delims(scratch.allocator());
+    keel::Array<keel::String> delims(scratch.allocator());
     appendDefaultWhitespace(delims);
     return strsplitImpl(s.toString(), delims, /*collapse=*/true, mr);
 }
@@ -758,15 +802,15 @@ Value strsplit(const Value &s, keel::Allocator *mr)
 Value strsplit(const Value &s, keel::StringRef delim, keel::Allocator *mr)
 {
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<std::string> delims(scratch.allocator());
-    delims.emplace_back(delim.data(), delim.size());
+    keel::Array<keel::String> delims(scratch.allocator());
+    delims.push_back(keel::String::from(delim));
     return strsplitImpl(s.toString(), delims, /*collapse=*/true, mr);
 }
 
 Value strsplit(const Value &s, const Value &delim, keel::Allocator *mr)
 {
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<std::string> delims(scratch.allocator());
+    keel::Array<keel::String> delims(scratch.allocator());
     appendDelims(delim, delims);
     return strsplitImpl(s.toString(), delims, /*collapse=*/true, mr);
 }
@@ -793,18 +837,22 @@ Value strcat(keel::ArrayRef<Value> parts, keel::Allocator *mr)
         Value out = Value::cell(targetRows, targetCols, mr);
         const keel::usize n = targetRows * targetCols;
         for (keel::usize i = 0; i < n; ++i) {
-            std::string s;
+            keel::String s;
             for (const auto &p : parts) {
                 if (p.isCell()) {
-                    if (p.numel() == 1)
-                        s += std::string_view(p.cellAt(0).toString());
-                    else if (i < p.numel())
-                        s += std::string_view(p.cellAt(i).toString());
+                    if (p.numel() == 1) {
+                        const keel::String tmp = p.cellAt(0).toString();
+                        s.append(tmp.as_ref());
+                    } else if (i < p.numel()) {
+                        const keel::String tmp = p.cellAt(i).toString();
+                        s.append(tmp.as_ref());
+                    }
                 } else if (p.isString() && p.numel() != 1) {
                     if (i < p.numel())
-                        s += std::string_view(p.stringElem(i));
+                        s.append(keel::StringRef(p.stringElem(i)));
                 } else {
-                    s += std::string_view(p.toString());
+                    const keel::String tmp = p.toString();
+                    s.append(tmp.as_ref());
                 }
             }
             out.cellAt(i) = Value::fromString(s, mr);
@@ -815,22 +863,25 @@ Value strcat(keel::ArrayRef<Value> parts, keel::Allocator *mr)
         Value out = Value::stringArray(targetRows, targetCols, mr);
         const keel::usize n = targetRows * targetCols;
         for (keel::usize i = 0; i < n; ++i) {
-            std::string s;
+            keel::String s;
             for (const auto &p : parts) {
                 if (p.isString() && p.numel() != 1) {
                     if (i < p.numel())
-                        s += std::string_view(p.stringElem(i));
+                        s.append(keel::StringRef(p.stringElem(i)));
                 } else {
-                    s += std::string_view(p.toString());
+                    const keel::String tmp = p.toString();
+                    s.append(tmp.as_ref());
                 }
             }
             out.stringElemSet(i, s);
         }
         return out;
     }
-    std::string result;
-    for (const auto &p : parts)
-        result += std::string_view(p.toString());
+    keel::String result;
+    for (const auto &p : parts) {
+        const keel::String tmp = p.toString();
+        result.append(tmp.as_ref());
+    }
     return Value::fromString(result, mr);
 }
 
@@ -867,13 +918,17 @@ Value strfind(const Value &s, const Value &pat, keel::Allocator *mr)
         Value out = Value::cell(r, c, mr);
         const keel::usize n = s.numel();
         for (keel::usize i = 0; i < n; ++i) {
-            const auto el =
-                s.isCell() ? s.cellAt(i).toString() : s.stringElem(i);
-            out.cellAt(i) = strfindOne(el, pp, mr);
+            if (s.isCell()) {
+                const keel::String el = s.cellAt(i).toString();
+                out.cellAt(i) = strfindOne(el.as_ref(), pp.as_ref(), mr);
+            } else {
+                out.cellAt(i) = strfindOne(s.stringElem(i), pp.as_ref(), mr);
+            }
         }
         return out;
     }
-    return strfindOne(s.toString(), pp, mr);
+    const keel::String ss = s.toString();
+    return strfindOne(ss.as_ref(), pp.as_ref(), mr);
 }
 
 Value mat2str(const Value &x, int precision, keel::Allocator *mr)
@@ -888,24 +943,25 @@ Value mat2str(const Value &x, int precision, keel::Allocator *mr)
                          0, 0, "mat2str", "", "numkit:mat2str:rank");
         const keel::usize R = x.dims().rows(), C = x.dims().cols();
         const char *cd = (x.numel() > 0) ? x.charData() : nullptr;
-        auto quoteRow = [&](keel::usize r) {
-            std::string s;
-            s.push_back('\'');
+        auto appendQuotedRow = [&](keel::String &dst, keel::usize r) {
+            dst.push_back('\'');
             for (keel::usize c = 0; c < C; ++c) {
                 const char ch = cd[c * R + r];   // col-major
-                if (ch == '\'') s.push_back('\'');   // double internal quote
-                s.push_back(ch);
+                if (ch == '\'') dst.push_back('\'');   // double internal quote
+                dst.push_back(ch);
             }
-            s.push_back('\'');
-            return s;
+            dst.push_back('\'');
         };
-        if (R <= 1)
-            return Value::fromString(quoteRow(0), mr);
-        std::string out;
+        if (R <= 1) {
+            keel::String s;
+            appendQuotedRow(s, 0);
+            return Value::fromString(s, mr);
+        }
+        keel::String out;
         out.push_back('[');
         for (keel::usize r = 0; r < R; ++r) {
             if (r > 0) out.push_back(';');
-            out += quoteRow(r);
+            appendQuotedRow(out, r);
         }
         out.push_back(']');
         return Value::fromString(out, mr);
@@ -928,25 +984,25 @@ Value mat2str(const Value &x, int precision, keel::Allocator *mr)
         };
         if (x.isScalar())
             return Value::fromString(fmtL(x.elemAsDouble(0)), mr);
-        std::string out;
+        keel::String out;
         out.push_back('[');
         for (keel::usize r = 0; r < R; ++r) {
             if (r > 0) out.push_back(';');
             for (keel::usize c = 0; c < C; ++c) {
                 if (c > 0) out.push_back(' ');
-                out += fmtL(x.elemAsDouble(c * R + r));
+                out.append(fmtL(x.elemAsDouble(c * R + r)));
             }
         }
         out.push_back(']');
         return Value::fromString(out, mr);
     }
 
-    auto fmt = [precision](double v) {
+    const int prec = std::clamp(precision, 1, 99);
+    auto appendFmt = [prec](keel::String &dst, double v) {
         if (v == 0.0) v = 0.0;   // normalize -0 → 0 (MATLAB never prints "-0")
-        std::ostringstream os;
-        os.precision(precision);
-        os << v;
-        return os.str();
+        char buf[64];
+        std::snprintf(buf, sizeof(buf), "%.*g", prec, v);
+        dst.append(buf);
     };
 
     // Complex: format each element INDEPENDENTLY (matches MATLAB mat2str) —
@@ -957,24 +1013,28 @@ Value mat2str(const Value &x, int precision, keel::Allocator *mr)
     if (x.type() == ValueType::COMPLEX) {
         const keel::c64 *cd = x.complexData();
         const keel::usize n = x.numel();
-        auto fmtC = [&](const keel::c64 &z) -> std::string {
+        auto appendFmtC = [&](keel::String &dst, const keel::c64 &z) {
             const double im = z.imag();
-            if (im == 0.0) return fmt(z.real());
-            std::string s = fmt(z.real());
-            s += (im < 0.0 ? '-' : '+');
-            s += fmt(im < 0.0 ? -im : im);
-            s += 'i';
-            return s;
+            appendFmt(dst, z.real());
+            if (im != 0.0) {
+                dst.push_back(im < 0.0 ? '-' : '+');
+                appendFmt(dst, im < 0.0 ? -im : im);
+                dst.push_back('i');
+            }
         };
-        if (x.isScalar()) return Value::fromString(fmtC(cd[0]), mr);
-        std::string out;
-        out.reserve(n * (precision + 8) + R + 4);
+        if (x.isScalar()) {
+            keel::String s;
+            appendFmtC(s, cd[0]);
+            return Value::fromString(s, mr);
+        }
+        keel::String out;
+        out.reserve(n * static_cast<keel::usize>(prec + 8) + R + 4);
         out.push_back('[');
         for (keel::usize r = 0; r < R; ++r) {
             if (r > 0) out.push_back(';');
             for (keel::usize c = 0; c < C; ++c) {
                 if (c > 0) out.push_back(' ');
-                out += fmtC(cd[c * R + r]);
+                appendFmtC(out, cd[c * R + r]);
             }
         }
         out.push_back(']');
@@ -985,17 +1045,19 @@ Value mat2str(const Value &x, int precision, keel::Allocator *mr)
     // integer and single arrays format the same way MATLAB mat2str does:
     // bare values with no class wrapper (mat2str(int8([1 2])) -> "[1 2]").
     if (x.isScalar()) {
-        return Value::fromString(fmt(x.elemAsDouble(0)), mr);
+        keel::String s;
+        appendFmt(s, x.elemAsDouble(0));
+        return Value::fromString(s, mr);
     }
 
-    std::string out;
-    out.reserve(R * C * (precision + 4) + R + 4);
+    keel::String out;
+    out.reserve(R * C * static_cast<keel::usize>(prec + 4) + R + 4);
     out.push_back('[');
     for (keel::usize r = 0; r < R; ++r) {
         if (r > 0) out.push_back(';');
         for (keel::usize c = 0; c < C; ++c) {
             if (c > 0) out.push_back(' ');
-            out += fmt(x.elemAsDouble(c * R + r));
+            appendFmt(out, x.elemAsDouble(c * R + r));
         }
     }
     out.push_back(']');
@@ -1008,7 +1070,7 @@ Value strjoin(const Value &c, const Value &delim, keel::Allocator *mr)
         throw Error("strjoin: first argument must be a cell array",
                      0, 0, "strjoin", "", "numkit:strjoin:notCell");
     const keel::usize n = c.numel();
-    std::string out;
+    keel::String out;
     if (delim.isCell()) {
         // MATLAB R2025b: a cell array of numel(C)-1 delimiters, interleaved
         // between consecutive elements: strjoin({'a','b','c'},{', ',' and '})
@@ -1019,15 +1081,20 @@ Value strjoin(const Value &c, const Value &delim, keel::Allocator *mr)
                          "element than the first argument",
                          0, 0, "strjoin", "", "numkit:strjoin:badDelimCount");
         for (keel::usize i = 0; i < n; ++i) {
-            if (i > 0) out += std::string_view(delim.cellAt(i - 1).toString());
-            out += std::string_view(c.cellAt(i).toString());
+            if (i > 0) {
+                const keel::String ds = delim.cellAt(i - 1).toString();
+                out.append(ds.as_ref());
+            }
+            const keel::String cs = c.cellAt(i).toString();
+            out.append(cs.as_ref());
         }
     } else {
-        const std::string sep =
-            delim.isEmpty() ? std::string(" ") : std::string(delim.toString().as_ref());
+        const keel::String sep =
+            delim.isEmpty() ? keel::String::from(" ") : delim.toString();
         for (keel::usize i = 0; i < n; ++i) {
-            if (i > 0) out += sep;
-            out += std::string_view(c.cellAt(i).toString());
+            if (i > 0) out.append(sep.as_ref());
+            const keel::String cs = c.cellAt(i).toString();
+            out.append(cs.as_ref());
         }
     }
     return Value::fromString(out, mr);
@@ -1045,9 +1112,11 @@ Value append(keel::ArrayRef<Value> parts, keel::Allocator *mr)
     // Same shape as strcat but does NOT trim trailing whitespace from
     // char-array operands (MATLAB's "append" is the literal-concatenate
     // variant that script users reach for).
-    std::string out;
-    for (const auto &p : parts)
-        out += std::string_view(p.toString());
+    keel::String out;
+    for (const auto &p : parts) {
+        const keel::String ps = p.toString();
+        out.append(ps.as_ref());
+    }
     return Value::fromString(out, mr);
 }
 
@@ -1059,17 +1128,18 @@ Value count(const Value &s, const Value &pat, keel::Allocator *mr)
     // A cell str input is processed element-wise, returning a DOUBLE array the
     // same shape as the cell (counts per element).
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<std::string> pats(scratch.allocator());
+    keel::Array<keel::String> pats(scratch.allocator());
     collectMatchPatterns(pat, pats);
-    auto countOne = [&](keel::StringRef ssRef) -> double {
-        const std::string_view ss(ssRef);
+    auto countOne = [&](keel::StringRef ss) -> double {
         keel::usize n = 0;
         for (const auto &pp : pats) {
             if (pp.empty()) continue;
             keel::usize pos = 0;
-            while ((pos = ss.find(pp, pos)) != std::string::npos) {
+            while (pos <= ss.size()) {
+                const keel::usize rel = ss.substr(pos, ss.size() - pos).find(pp.as_ref());
+                if (rel == keel::kInvalidIndex) break;
                 ++n;
-                pos += pp.size();   // non-overlapping (matches MATLAB)
+                pos += rel + pp.size();   // non-overlapping (matches MATLAB)
             }
         }
         return static_cast<double>(n);
@@ -1080,7 +1150,10 @@ Value count(const Value &s, const Value &pat, keel::Allocator *mr)
         auto out = Value::matrix(r, c, ValueType::DOUBLE, mr);
         double *od = out.doubleDataMut();
         const keel::usize nn = s.numel();
-        for (keel::usize i = 0; i < nn; ++i) od[i] = countOne(s.cellAt(i).toString());
+        for (keel::usize i = 0; i < nn; ++i) {
+            const keel::String cs = s.cellAt(i).toString();
+            od[i] = countOne(cs.as_ref());
+        }
         return out;
     }
     // A string ARRAY is processed element-wise -> DOUBLE array, same shape.
@@ -1093,7 +1166,8 @@ Value count(const Value &s, const Value &pat, keel::Allocator *mr)
         for (keel::usize i = 0; i < nn; ++i) od[i] = countOne(s.stringElem(i));
         return out;
     }
-    return Value::scalar(countOne(s.toString()), mr);
+    const keel::String ss = s.toString();
+    return Value::scalar(countOne(ss.as_ref()), mr);
 }
 
 Value erase(const Value &s, const Value &pat, keel::Allocator *mr)
@@ -1102,16 +1176,29 @@ Value erase(const Value &s, const Value &pat, keel::Allocator *mr)
     // occurrence of each listed pattern, applied in order. A cell str input is
     // processed element-wise, returning a cell of char vectors (same shape).
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<std::string> pats(scratch.allocator());
+    keel::Array<keel::String> pats(scratch.allocator());
     collectMatchPatterns(pat, pats);
-    auto op = [&](std::string r) -> std::string {
+    auto op = [&](keel::StringRef r0) -> keel::String {
+        keel::String cur = keel::String::from(r0);
         for (const auto &pp : pats) {
             if (pp.empty()) continue;
+            const keel::StringRef curRef = cur.as_ref();
+            if (curRef.find(pp.as_ref()) == keel::kInvalidIndex) continue;
+            keel::String next;
+            next.reserve(cur.size());
             keel::usize pos = 0;
-            while ((pos = r.find(pp, pos)) != std::string::npos)
-                r.erase(pos, pp.size());
+            while (pos <= curRef.size()) {
+                const keel::usize rel = curRef.substr(pos, curRef.size() - pos).find(pp.as_ref());
+                if (rel == keel::kInvalidIndex) {
+                    next.append(curRef.substr(pos, curRef.size() - pos));
+                    break;
+                }
+                next.append(curRef.substr(pos, rel));
+                pos += rel + pp.size();
+            }
+            cur = std::move(next);
         }
-        return r;
+        return cur;
     };
     return mapStringPreserveClass(s, op, mr);
 }
@@ -1124,9 +1211,10 @@ Value replace(const Value &s, const Value &oldPat, const Value &newPat, keel::Al
     // corresponding new text, then the scan advances past the matched source
     // (no re-scanning, no chain-replacement). A single NEW applies to every
     // OLD; otherwise NEW must pair 1:1 with OLD.
-    const std::string ss(s.toString().as_ref());
+    const keel::String ssStr = s.toString();
+    const keel::StringRef ss = ssStr.as_ref();
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<std::string> olds(scratch.allocator()), news(scratch.allocator());
+    keel::Array<keel::String> olds(scratch.allocator()), news(scratch.allocator());
     collectMatchPatterns(oldPat, olds);
     collectMatchPatterns(newPat, news);
     if (news.size() != 1 && news.size() != olds.size())
@@ -1134,23 +1222,23 @@ Value replace(const Value &s, const Value &oldPat, const Value &newPat, keel::Al
                     "OLD patterns",
                      0, 0, "replace", "", "numkit:replace:sizeMismatch");
 
-    std::string out;
+    keel::String out;
     out.reserve(ss.size());
     keel::usize i = 0;
     while (i < ss.size()) {
         bool matched = false;
         for (keel::usize k = 0; k < olds.size(); ++k) {
-            const std::string &o = olds[k];
+            const keel::StringRef o = olds[k].as_ref();
             if (!o.empty() && i + o.size() <= ss.size()
-                && ss.compare(i, o.size(), o) == 0) {
-                out += (news.size() == 1) ? news[0] : news[k];
+                && ss.substr(i, o.size()) == o) {
+                out.append(((news.size() == 1) ? news[0] : news[k]).as_ref());
                 i += o.size();
                 matched = true;
                 break;
             }
         }
         if (!matched) {
-            out += ss[i];
+            out.push_back(ss[i]);
             ++i;
         }
     }
@@ -1160,29 +1248,32 @@ Value replace(const Value &s, const Value &oldPat, const Value &newPat, keel::Al
 
 Value reverse(const Value &s, keel::Allocator *mr)
 {
-    auto op = [](std::string r) {
-        std::reverse(r.begin(), r.end());
-        return r;
+    auto op = [](keel::StringRef r) -> keel::String {
+        keel::String out = keel::String::from(r);
+        std::reverse(out.begin(), out.end());
+        return out;
     };
     return mapStringPreserveClass(s, op, mr);
 }
 
 Value splitlines(const Value &s, keel::Allocator *mr)
 {
-    const std::string ss(s.toString().as_ref());
+    const keel::String ssStr = s.toString();
+    const keel::StringRef ss = ssStr.as_ref();
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<std::string> parts(scratch.allocator());
-    std::string cur;
+    auto *salloc = scratch.allocator();
+    keel::Array<keel::String> parts(salloc);
+    keel::String cur(salloc);
     for (keel::usize i = 0; i < ss.size(); ++i) {
         const char c = ss[i];
         if (c == '\r') {
             parts.push_back(std::move(cur));
-            cur.clear();
+            cur = keel::String(salloc);
             // Skip a following \n to handle CRLF as one separator.
             if (i + 1 < ss.size() && ss[i + 1] == '\n') ++i;
         } else if (c == '\n') {
             parts.push_back(std::move(cur));
-            cur.clear();
+            cur = keel::String(salloc);
         } else {
             cur.push_back(c);
         }
@@ -1199,26 +1290,32 @@ Value splitlines(const Value &s, keel::Allocator *mr)
 
 // Pad ONE string to width n on the given side with char ch. MATLAB 'both'
 // splits the extra padding floor(pad/2) left, ceil(pad/2) right.
-static std::string padOne(std::string r, keel::usize n, const std::string &sd, char ch)
+static keel::String padOne(keel::StringRef r, keel::usize n, keel::StringRef sd, char ch)
 {
-    if (r.size() >= n) return r;
-    const keel::usize pad = n - r.size();
+    if (r.size() >= n) return keel::String::from(r);
+    const keel::usize padLen = n - r.size();
+    keel::String out;
+    out.reserve(n);
     if (sd == "left") {
-        r.insert(r.begin(), pad, ch);
+        for (keel::usize i = 0; i < padLen; ++i) out.push_back(ch);
+        out.append(r);
     } else if (sd == "both") {
-        const keel::usize left = pad / 2;
-        r.insert(r.begin(), left, ch);
-        r.append(pad - left, ch);
+        const keel::usize left = padLen / 2;
+        for (keel::usize i = 0; i < left; ++i) out.push_back(ch);
+        out.append(r);
+        for (keel::usize i = 0; i < padLen - left; ++i) out.push_back(ch);
     } else {  // "right" (default)
-        r.append(pad, ch);
+        out.append(r);
+        for (keel::usize i = 0; i < padLen; ++i) out.push_back(ch);
     }
-    return r;
+    return out;
 }
 
 Value pad(const Value &s, keel::usize n, const Value &side, const Value &padChar, keel::Allocator *mr)
 {
-    const std::string sd = readSide(side, "right");
-    if (sd != "left" && sd != "right" && sd != "both")
+    const keel::String sd = readSide(side, "right");
+    const keel::StringRef sdRef = sd.as_ref();
+    if (sdRef != "left" && sdRef != "right" && sdRef != "both")
         throw Error("pad: side must be 'left', 'right', or 'both'",
                      0, 0, "pad", "", "numkit:pad:badSide");
     char ch = ' ';
@@ -1228,31 +1325,32 @@ Value pad(const Value &s, keel::usize n, const Value &side, const Value &padChar
     }
     // string array -> string array same shape; char -> char; cell -> cell
     // of char vectors. Each element is padded to the SAME width n.
-    auto op = [&](std::string r) { return padOne(std::move(r), n, sd, ch); };
+    auto op = [&](keel::StringRef r) { return padOne(r, n, sdRef, ch); };
     return mapStringPreserveClass(s, op, mr);
 }
 
 Value strip(const Value &s, const Value &side, const Value &ch, keel::Allocator *mr)
 {
-    const std::string sd = readSide(side, "both");
-    std::string charsToStrip = " \t\r\n\f\v";
+    const keel::String sd = readSide(side, "both");
+    const keel::StringRef sdRef = sd.as_ref();
+    keel::String charsToStrip = keel::String::from(" \t\r\n\f\v");
     bool noStrip = false;  // explicit empty strip-set => no-op
     if (!ch.isEmpty() && (ch.isChar() || ch.isString())) {
-        charsToStrip = std::string(ch.toString().as_ref());
+        charsToStrip = ch.toString();
         if (charsToStrip.empty()) noStrip = true;
     }
-    auto stripOne = [&](std::string r) -> std::string {
-        if (noStrip) return r;
-        if (sd == "left" || sd == "both") {
-            keel::usize i = 0;
-            while (i < r.size() && charsToStrip.find(r[i]) != std::string::npos) ++i;
-            if (i > 0) r.erase(0, i);
+    const keel::StringRef csRef = charsToStrip.as_ref();
+    auto stripOne = [&](keel::StringRef r) -> keel::String {
+        if (noStrip) return keel::String::from(r);
+        keel::usize beg = 0;
+        keel::usize end = r.size();
+        if (sdRef == "left" || sdRef == "both") {
+            while (beg < end && csRef.find(r[beg]) != keel::kInvalidIndex) ++beg;
         }
-        if (sd == "right" || sd == "both") {
-            while (!r.empty() && charsToStrip.find(r.back()) != std::string::npos)
-                r.pop_back();
+        if (sdRef == "right" || sdRef == "both") {
+            while (end > beg && csRef.find(r[end - 1]) != keel::kInvalidIndex) --end;
         }
-        return r;
+        return keel::String::from(r.substr(beg, end - beg));
     };
     return mapStringPreserveClass(s, stripOne, mr);
 }
@@ -1262,11 +1360,11 @@ Value matches(const Value &s, const Value &pat, keel::Allocator *mr)
     // The pattern may be a single string or a cell / string array of
     // alternatives; an element matches if it equals ANY of them.
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<std::string> pats(scratch.allocator());
+    keel::Array<keel::String> pats(scratch.allocator());
     collectMatchPatterns(pat, pats);
     auto matchOne = [&](keel::StringRef el) -> bool {
         for (const auto &pp : pats)
-            if (el == pp) return true;
+            if (el == pp.as_ref()) return true;
         return false;
     };
     // A string ARRAY / cell source -> same-shape LOGICAL array (element-wise).
@@ -1277,13 +1375,17 @@ Value matches(const Value &s, const Value &pat, keel::Allocator *mr)
         keel::u8 *od = out.logicalDataMut();
         const keel::usize nn = s.numel();
         for (keel::usize i = 0; i < nn; ++i) {
-            const auto el =
-                s.isCell() ? s.cellAt(i).toString() : s.stringElem(i);
-            od[i] = matchOne(el) ? 1 : 0;
+            if (s.isCell()) {
+                const keel::String el = s.cellAt(i).toString();
+                od[i] = matchOne(el.as_ref()) ? 1 : 0;
+            } else {
+                od[i] = matchOne(s.stringElem(i)) ? 1 : 0;
+            }
         }
         return out;
     }
-    return Value::logicalScalar(matchOne(s.toString()), mr);
+    const keel::String ss = s.toString();
+    return Value::logicalScalar(matchOne(ss.as_ref()), mr);
 }
 
 // ── Pack 21 ──────────────────────────────────────────────────────────
@@ -1354,31 +1456,33 @@ Value isstrprop(const Value &s, const Value &category, keel::Allocator *mr)
     if (!category.isChar() && !category.isString())
         throw Error("isstrprop: category must be a string",
                      0, 0, "isstrprop", "", "numkit:isstrprop:cat");
-    std::string cat(category.toString().as_ref());
-    for (auto &c : cat) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    if (cat == "alpha")
+    const keel::String catStr = category.toString();
+    const keel::StringRef cat = catStr.as_ref();
+    if (cat.equals_ignore_ascii_case("alpha"))
         return applyCharPred(s, [](unsigned char c) { return std::isalpha(c) != 0; }, mr);
-    if (cat == "digit")
+    if (cat.equals_ignore_ascii_case("digit"))
         return applyCharPred(s, [](unsigned char c) { return std::isdigit(c) != 0; }, mr);
-    if (cat == "alphanum")
+    if (cat.equals_ignore_ascii_case("alphanum"))
         return applyCharPred(s, [](unsigned char c) { return std::isalnum(c) != 0; }, mr);
-    if (cat == "lower")
+    if (cat.equals_ignore_ascii_case("lower"))
         return applyCharPred(s, [](unsigned char c) { return std::islower(c) != 0; }, mr);
-    if (cat == "upper")
+    if (cat.equals_ignore_ascii_case("upper"))
         return applyCharPred(s, [](unsigned char c) { return std::isupper(c) != 0; }, mr);
-    if (cat == "punct")
+    if (cat.equals_ignore_ascii_case("punct"))
         return applyCharPred(s, [](unsigned char c) { return std::ispunct(c) != 0; }, mr);
-    if (cat == "space" || cat == "wspace")
+    if (cat.equals_ignore_ascii_case("space") || cat.equals_ignore_ascii_case("wspace"))
         return applyCharPred(s, [](unsigned char c) { return std::isspace(c) != 0; }, mr);
-    if (cat == "xdigit")
+    if (cat.equals_ignore_ascii_case("xdigit"))
         return applyCharPred(s, [](unsigned char c) { return std::isxdigit(c) != 0; }, mr);
-    if (cat == "cntrl")
+    if (cat.equals_ignore_ascii_case("cntrl"))
         return applyCharPred(s, [](unsigned char c) { return std::iscntrl(c) != 0; }, mr);
-    if (cat == "graphic")
+    if (cat.equals_ignore_ascii_case("graphic"))
         return applyCharPred(s, [](unsigned char c) { return std::isgraph(c) != 0; }, mr);
-    if (cat == "print")
+    if (cat.equals_ignore_ascii_case("print"))
         return applyCharPred(s, [](unsigned char c) { return std::isprint(c) != 0; }, mr);
-    throw Error("isstrprop: unknown category '" + cat + "'",
+    keel::String catLow = catStr.clone();
+    asciiLowerInPlace(catLow);
+    throw Error(keel::format("isstrprop: unknown category '{}'", catLow.as_ref()),
                  0, 0, "isstrprop", "", "numkit:isstrprop:badCat");
 }
 
@@ -1407,18 +1511,20 @@ Value extractAfter(const Value &s, const Value &p, keel::Allocator *mr)
 {
     // A cell str is processed element-wise (cell of char vectors); the
     // position/substring anchor p is scalar and applies to every element.
-    auto op = [&](const std::string &ss) -> std::string {
+    auto op = [&](keel::StringRef ss) -> keel::String {
         const auto r = resolvePos(ss, p);
-        return r.found ? ss.substr(r.end) : std::string();
+        return r.found ? keel::String::from(ss.substr(r.end, ss.size() - r.end))
+                       : keel::String();
     };
     return mapStringPreserveClass(s, op, mr);
 }
 
 Value extractBefore(const Value &s, const Value &p, keel::Allocator *mr)
 {
-    auto op = [&](const std::string &ss) -> std::string {
+    auto op = [&](keel::StringRef ss) -> keel::String {
         const auto r = resolvePos(ss, p);
-        return r.found ? ss.substr(0, r.begin) : std::string();
+        return r.found ? keel::String::from(ss.substr(0, r.begin))
+                       : keel::String();
     };
     return mapStringPreserveClass(s, op, mr);
 }
@@ -1426,8 +1532,10 @@ Value extractBefore(const Value &s, const Value &p, keel::Allocator *mr)
 
 Value extractBetween(const Value &s, const Value &start, const Value &end, bool inclusive, keel::Allocator *mr)
 {
-    const std::string ss(s.toString().as_ref());
-    const auto matches = findAllBetweenPairs(ss, start, end);
+    const keel::String ssStr = s.toString();
+    const keel::StringRef ss = ssStr.as_ref();
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    const auto matches = findAllBetweenPairs(ss, start, end, scratch.allocator());
     // MATLAB returns an M-by-1 cell of inner strings — even for a
     // single match. Empty result is a 0-by-1 cell. See BUGS.md #27.
     auto c = Value::cell(matches.size(), 1, mr);
@@ -1435,7 +1543,7 @@ Value extractBetween(const Value &s, const Value &start, const Value &end, bool 
         const auto &m = matches[i];
         const keel::usize beg = inclusive ? m.openBegin : m.openEnd;
         const keel::usize endIdx = inclusive ? m.closeEnd : m.closeBegin;
-        const std::string inner = ss.substr(beg, endIdx - beg);
+        const keel::StringRef inner = ss.substr(beg, endIdx - beg);
         c.cellAt(i) = strLikeOf(s, inner, mr);
     }
     return c;
@@ -1451,44 +1559,56 @@ Value insertAfter(const Value &s, const Value &p, const Value &newText, keel::Al
     // A cell str is processed element-wise (cell of char vectors); the anchor
     // p and inserted text are scalar and apply to every element. An element
     // with no match is left unchanged.
-    const std::string nt(newText.toString().as_ref());
-    auto op = [&](std::string ss) -> std::string {
+    const keel::String nt = newText.toString();
+    auto op = [&](keel::StringRef ss) -> keel::String {
         const auto r = resolvePos(ss, p);
-        if (r.found) ss.insert(r.end, nt);
-        return ss;
+        if (!r.found) return keel::String::from(ss);
+        keel::String out;
+        out.reserve(ss.size() + nt.size());
+        out.append(ss.substr(0, r.end));
+        out.append(nt.as_ref());
+        out.append(ss.substr(r.end, ss.size() - r.end));
+        return out;
     };
     return mapStringPreserveClass(s, op, mr);
 }
 
 Value insertBefore(const Value &s, const Value &p, const Value &newText, keel::Allocator *mr)
 {
-    const std::string nt(newText.toString().as_ref());
-    auto op = [&](std::string ss) -> std::string {
+    const keel::String nt = newText.toString();
+    auto op = [&](keel::StringRef ss) -> keel::String {
         const auto r = resolvePos(ss, p);
-        if (r.found) ss.insert(r.begin, nt);
-        return ss;
+        if (!r.found) return keel::String::from(ss);
+        keel::String out;
+        out.reserve(ss.size() + nt.size());
+        out.append(ss.substr(0, r.begin));
+        out.append(nt.as_ref());
+        out.append(ss.substr(r.begin, ss.size() - r.begin));
+        return out;
     };
     return mapStringPreserveClass(s, op, mr);
 }
 
 Value eraseBetween(const Value &s, const Value &start, const Value &end, bool inclusive, keel::Allocator *mr)
 {
-    const std::string ss(s.toString().as_ref());
-    const auto matches = findAllBetweenPairs(ss, start, end);
+    const keel::String ssStr = s.toString();
+    const keel::StringRef ss = ssStr.as_ref();
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    const auto matches = findAllBetweenPairs(ss, start, end, scratch.allocator());
     if (matches.empty()) return s;
     // Walk left-to-right copying segments outside the matched ranges.
     // See BUGS.md #27.
-    std::string out;
+    keel::String out;
     out.reserve(ss.size());
     keel::usize cursor = 0;
     for (const auto &m : matches) {
         const keel::usize keepUntil = inclusive ? m.openBegin : m.openEnd;
         const keel::usize resumeAt  = inclusive ? m.closeEnd  : m.closeBegin;
-        out.append(ss, cursor, keepUntil - cursor);
+        out.append(ss.substr(cursor, keepUntil - cursor));
         cursor = resumeAt;
     }
-    out.append(ss, cursor, ss.size() - cursor);
-    return strLikeOf(s, out, mr);
+    out.append(ss.substr(cursor, ss.size() - cursor));
+    return strLikeOf(s, out.as_ref(), mr);
 }
 
 Value eraseBetween(const Value &s, const Value &start, const Value &end, keel::Allocator *mr)
@@ -1498,22 +1618,24 @@ Value eraseBetween(const Value &s, const Value &start, const Value &end, keel::A
 
 Value replaceBetween(const Value &s, const Value &start, const Value &end, const Value &newText, bool inclusive, keel::Allocator *mr)
 {
-    const std::string ss(s.toString().as_ref());
-    const std::string nt(newText.toString().as_ref());
-    const auto matches = findAllBetweenPairs(ss, start, end);
+    const keel::String ssStr = s.toString();
+    const keel::StringRef ss = ssStr.as_ref();
+    const keel::String nt = newText.toString();
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    const auto matches = findAllBetweenPairs(ss, start, end, scratch.allocator());
     if (matches.empty()) return s;
-    std::string out;
+    keel::String out;
     out.reserve(ss.size());
     keel::usize cursor = 0;
     for (const auto &m : matches) {
         const keel::usize keepUntil = inclusive ? m.openBegin : m.openEnd;
         const keel::usize resumeAt  = inclusive ? m.closeEnd  : m.closeBegin;
-        out.append(ss, cursor, keepUntil - cursor);
-        out.append(nt);
+        out.append(ss.substr(cursor, keepUntil - cursor));
+        out.append(nt.as_ref());
         cursor = resumeAt;
     }
-    out.append(ss, cursor, ss.size() - cursor);
-    return strLikeOf(s, out, mr);
+    out.append(ss.substr(cursor, ss.size() - cursor));
+    return strLikeOf(s, out.as_ref(), mr);
 }
 
 Value replaceBetween(const Value &s, const Value &start, const Value &end, const Value &newText, keel::Allocator *mr)
@@ -1543,11 +1665,13 @@ Value base2decFixed(const Value &s, int base, keel::Allocator *mr)
         const char *src = static_cast<const char *>(s.rawData());
         Value out = Value::matrix(rows, 1, ValueType::DOUBLE, mr);
         double *od = out.doubleDataMut();
+        keel::ArenaTemp scratch = keel::get_scratch(mr);
+        keel::String row(scratch.allocator());
+        row.reserve(cols);
         for (keel::usize r = 0; r < rows; ++r) {
-            std::string row;
-            row.reserve(cols);
+            row.clear();
             for (keel::usize c = 0; c < cols; ++c) row.push_back(src[c * rows + r]);
-            od[r] = static_cast<double>(parseBase(row, base));
+            od[r] = static_cast<double>(parseBase(row.as_ref(), base));
         }
         return out;
     }
@@ -1557,13 +1681,17 @@ Value base2decFixed(const Value &s, int base, keel::Allocator *mr)
                                   ValueType::DOUBLE, mr);
         double *od = out.doubleDataMut();
         for (keel::usize i = 0; i < n; ++i) {
-            const auto str =
-                s.isCell() ? s.cellAt(i).toString() : s.stringElem(i);
-            od[i] = static_cast<double>(parseBase(str, base));
+            if (s.isCell()) {
+                const keel::String str = s.cellAt(i).toString();
+                od[i] = static_cast<double>(parseBase(str.as_ref(), base));
+            } else {
+                od[i] = static_cast<double>(parseBase(s.stringElem(i), base));
+            }
         }
         return out;
     }
-    return Value::scalar(static_cast<double>(parseBase(s.toString(), base)), mr);
+    const keel::String str = s.toString();
+    return Value::scalar(static_cast<double>(parseBase(str.as_ref(), base)), mr);
 }
 } // namespace
 
@@ -1587,11 +1715,13 @@ Value hex2num(const Value &s, keel::Allocator *mr)
         const char *src = static_cast<const char *>(s.rawData());
         Value out = Value::matrix(rows, 1, ValueType::DOUBLE, mr);
         double *od = out.doubleDataMut();
+        keel::ArenaTemp scratch = keel::get_scratch(mr);
+        keel::String row(scratch.allocator());
+        row.reserve(cols);
         for (keel::usize r = 0; r < rows; ++r) {
-            std::string row;
-            row.reserve(cols);
+            row.clear();
             for (keel::usize c = 0; c < cols; ++c) row.push_back(src[c * rows + r]);
-            od[r] = hexBitsToDouble(row);
+            od[r] = hexBitsToDouble(row.as_ref());
         }
         return out;
     }
@@ -1602,14 +1732,18 @@ Value hex2num(const Value &s, keel::Allocator *mr)
                                   ValueType::DOUBLE, mr);
         double *od = out.doubleDataMut();
         for (keel::usize i = 0; i < n; ++i) {
-            const auto str =
-                s.isCell() ? s.cellAt(i).toString() : s.stringElem(i);
-            od[i] = hexBitsToDouble(str);
+            if (s.isCell()) {
+                const keel::String str = s.cellAt(i).toString();
+                od[i] = hexBitsToDouble(str.as_ref());
+            } else {
+                od[i] = hexBitsToDouble(s.stringElem(i));
+            }
         }
         return out;
     }
     // Scalar char row / string scalar -> scalar double.
-    return Value::scalar(hexBitsToDouble(s.toString()), mr);
+    const keel::String str = s.toString();
+    return Value::scalar(hexBitsToDouble(str.as_ref()), mr);
 }
 
 Value num2hex(const Value &x, keel::Allocator *mr)
@@ -1669,15 +1803,18 @@ Value base2dec(const Value &s, int base, keel::Allocator *mr)
         const char *src = static_cast<const char *>(s.rawData());
         Value out = Value::matrix(rows, 1, ValueType::DOUBLE, mr);
         double *od = out.doubleDataMut();
+        keel::ArenaTemp scratch = keel::get_scratch(mr);
+        keel::String row(scratch.allocator());
+        row.reserve(cols);
         for (keel::usize r = 0; r < rows; ++r) {
-            std::string row;
-            row.reserve(cols);
+            row.clear();
             for (keel::usize c = 0; c < cols; ++c) row.push_back(src[c * rows + r]);
-            od[r] = static_cast<double>(parseBaseN(row, base));
+            od[r] = static_cast<double>(parseBaseN(row.as_ref(), base));
         }
         return out;
     }
-    return Value::scalar(static_cast<double>(parseBaseN(s.toString(), base)), mr);
+    const keel::String str = s.toString();
+    return Value::scalar(static_cast<double>(parseBaseN(str.as_ref(), base)), mr);
 }
 
 
@@ -1715,54 +1852,71 @@ Value rats(const Value &x, int len, keel::Allocator *mr)
     // is right-justified in the full field.
     const int num_width = field_width / 2;          // 7 for default len=13
     const int den_width = field_width - num_width - 1;  // 6 for default
-    auto formatOne = [&](double v) -> std::string {
+    auto appendOne = [&](keel::String &dst, double v) {
         if (!std::isfinite(v)) {
-            const std::string s = std::isnan(v) ? "NaN" : (v > 0 ? "Inf" : "-Inf");
-            const int slack = field_width - static_cast<int>(s.size());
-            return std::string(std::max(0, slack), ' ') + s;
+            const keel::StringRef s = std::isnan(v) ? "NaN" : (v > 0 ? "Inf" : "-Inf");
+            const int slack = std::max(0, field_width - static_cast<int>(s.size()));
+            for (int k = 0; k < slack; ++k) dst.push_back(' ');
+            dst.append(s);
+            return;
         }
         const double tol = defaultRatTol(v);
         const auto exp = ratExpansion(v, tol);
-        const std::string ns = std::to_string(exp.p);
+        char nbuf[32];
+        const int nlen = std::snprintf(nbuf, sizeof(nbuf), "%lld", exp.p);
         if (exp.q == 1) {
-            const int slack = field_width - static_cast<int>(ns.size());
-            return std::string(std::max(0, slack), ' ') + ns;
+            const int slack = std::max(0, field_width - nlen);
+            for (int k = 0; k < slack; ++k) dst.push_back(' ');
+            dst.append(nbuf);
+            return;
         }
-        const std::string ds = std::to_string(exp.q);
-        const int n_pad = std::max(0, num_width - static_cast<int>(ns.size()));
-        const int d_pad = std::max(0, den_width - static_cast<int>(ds.size()));
-        return std::string(n_pad, ' ') + ns + "/" + ds + std::string(d_pad, ' ');
+        char dbuf[32];
+        const int dlen = std::snprintf(dbuf, sizeof(dbuf), "%lld", exp.q);
+        const int n_pad = std::max(0, num_width - nlen);
+        const int d_pad = std::max(0, den_width - dlen);
+        for (int k = 0; k < n_pad; ++k) dst.push_back(' ');
+        dst.append(nbuf);
+        dst.push_back('/');
+        dst.append(dbuf);
+        for (int k = 0; k < d_pad; ++k) dst.push_back(' ');
     };
 
     if (n <= 1) {
         const double v = x.toScalar();
-        return Value::fromString(formatOne(v), mr);
+        keel::String out;
+        out.reserve(static_cast<keel::usize>(field_width));
+        appendOne(out, v);
+        return Value::fromString(out, mr);
     }
 
     // Vector: concatenate per-element fields end-to-end (one row).
-    std::string out;
+    keel::String out;
     out.reserve(n * static_cast<keel::usize>(field_width));
     for (keel::usize i = 0; i < n; ++i)
-        out += formatOne(x.elemAsDouble(i));
+        appendOne(out, x.elemAsDouble(i));
     return Value::fromString(out, mr);
 }
 
 // Single-string literal replacement: replace every non-overlapping occurrence
 // of `op` in `r0` with `np`. Empty `op` is a no-op (matches MATLAB).
-static std::string strrepOne(keel::StringRef r0, keel::StringRef opRef,
-                             keel::StringRef npRef)
+static keel::String strrepOne(keel::StringRef r0, keel::StringRef op,
+                              keel::StringRef np)
 {
-    std::string r(r0.data(), r0.size());
-    const std::string_view op(opRef);
-    const std::string_view np(npRef);
-    if (!op.empty()) {
-        keel::usize pos = 0;
-        while ((pos = r.find(op, pos)) != std::string::npos) {
-            r.replace(pos, op.length(), np);
-            pos += np.length();
+    if (op.empty()) return keel::String::from(r0);
+    keel::String out;
+    out.reserve(r0.size());
+    keel::usize pos = 0;
+    while (pos <= r0.size()) {
+        const keel::usize rel = r0.substr(pos, r0.size() - pos).find(op);
+        if (rel == keel::kInvalidIndex) {
+            out.append(r0.substr(pos, r0.size() - pos));
+            break;
         }
+        out.append(r0.substr(pos, rel));
+        out.append(np);
+        pos += rel + op.size();
     }
-    return r;
+    return out;
 }
 
 Value strrep(const Value &s, const Value &oldPat, const Value &newPat, keel::Allocator *mr)
@@ -1773,7 +1927,10 @@ Value strrep(const Value &s, const Value &oldPat, const Value &newPat, keel::All
     // Scalar path: no cell arguments — return a char (or string) scalar,
     // preserving the original behaviour exactly.
     if (!sc && !oc && !nc) {
-        std::string r = strrepOne(s.toString(), oldPat.toString(), newPat.toString());
+        const keel::String ss = s.toString();
+        const keel::String os = oldPat.toString();
+        const keel::String ns = newPat.toString();
+        const keel::String r = strrepOne(ss.as_ref(), os.as_ref(), ns.as_ref());
         if (s.isString())
             return Value::stringScalar(r, p);
         return Value::fromString(r, p);
@@ -1788,7 +1945,8 @@ Value strrep(const Value &s, const Value &oldPat, const Value &newPat, keel::All
     };
     const keel::usize ns = numelOf(s, sc), no = numelOf(oldPat, oc), nn = numelOf(newPat, nc);
     keel::usize n = 1;
-    for (keel::usize v : {ns, no, nn}) {
+    const keel::usize sizes[3] = {ns, no, nn};
+    for (keel::usize v : sizes) {
         if (v == 1) continue;
         if (n == 1) n = v;
         else if (v != n)
@@ -1809,15 +1967,16 @@ Value strrep(const Value &s, const Value &oldPat, const Value &newPat, keel::All
     else if (oc)                       setShape(oldPat);
     else                               setShape(newPat);
 
-    const std::string ss0 = sc ? std::string() : std::string(s.toString().as_ref());
-    const std::string os0 = oc ? std::string() : std::string(oldPat.toString().as_ref());
-    const std::string ns0 = nc ? std::string() : std::string(newPat.toString().as_ref());
+    const keel::String ss0 = sc ? keel::String() : s.toString();
+    const keel::String os0 = oc ? keel::String() : oldPat.toString();
+    const keel::String ns0 = nc ? keel::String() : newPat.toString();
 
     auto out = Value::cell(rr, cc, p);
     for (keel::usize i = 0; i < n; ++i) {
-        const std::string si = sc ? std::string(s.cellAt(ns == 1 ? 0 : i).toString().as_ref()) : ss0;
-        const std::string oi = oc ? std::string(oldPat.cellAt(no == 1 ? 0 : i).toString().as_ref()) : os0;
-        const std::string ni = nc ? std::string(newPat.cellAt(nn == 1 ? 0 : i).toString().as_ref()) : ns0;
+        keel::String tmpS, tmpO, tmpN;
+        const keel::StringRef si = sc ? (tmpS = s.cellAt(ns == 1 ? 0 : i).toString()).as_ref() : ss0.as_ref();
+        const keel::StringRef oi = oc ? (tmpO = oldPat.cellAt(no == 1 ? 0 : i).toString()).as_ref() : os0.as_ref();
+        const keel::StringRef ni = nc ? (tmpN = newPat.cellAt(nn == 1 ? 0 : i).toString()).as_ref() : ns0.as_ref();
         out.cellAt(i) = Value::fromString(strrepOne(si, oi, ni), p);
     }
     return out;
@@ -1847,7 +2006,8 @@ Value compose(const Value &fmt, const Value &x, keel::Allocator *mr)
     if (!fmt.isChar() && !fmt.isString())
         throw Error("compose: format must be a char or string",
                      0, 0, "compose", "", "numkit:compose:badFmt");
-    const std::string fmtStr(fmt.toString().as_ref());
+    const keel::String fmtStr = fmt.toString();
+    const keel::StringRef fmtRef = fmtStr.as_ref();
     // MATLAB: the output class mirrors the FORMAT class — a string format
     // yields a string array, a char format yields a cell of char vectors.
     const bool wantString = fmt.isString();
@@ -1857,7 +2017,7 @@ Value compose(const Value &fmt, const Value &x, keel::Allocator *mr)
     // consuming M values per output element, so an R×C input yields an
     // R×ceil(C/M) result. A short trailing chunk leaves the unfilled specs
     // as literal text (e.g. compose('%d-%d',[1 2 3]) -> "1-2","3-%d").
-    const keel::usize M = std::max<keel::usize>(1, countFormatSpecs(fmtStr));
+    const keel::usize M = std::max<keel::usize>(1, countFormatSpecs(fmtRef));
 
     const auto &dims = x.dims();
     const keel::usize R = dims.rows();
@@ -1868,7 +2028,7 @@ Value compose(const Value &fmt, const Value &x, keel::Allocator *mr)
         return wantString ? Value::stringArray(rows, cols, mr)
                           : Value::cell(rows, cols, mr);
     };
-    auto setElem = [&](Value &v, keel::usize idx, const std::string &s) {
+    auto setElem = [&](Value &v, keel::usize idx, keel::StringRef s) {
         if (wantString) v.stringElemSet(idx, s);
         else            v.cellAt(idx) = Value::fromString(s, mr);
     };
@@ -1878,7 +2038,8 @@ Value compose(const Value &fmt, const Value &x, keel::Allocator *mr)
 
     Value result = buildResult(R, outCols);
 
-    std::vector<Value> chunk;
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<Value> chunk(scratch.allocator());
     chunk.reserve(M);
     for (keel::usize r = 0; r < R; ++r) {
         for (keel::usize j = 0; j < outCols; ++j) {
@@ -1889,10 +2050,10 @@ Value compose(const Value &fmt, const Value &x, keel::Allocator *mr)
                 // Column-major linear index of x(r, col).
                 chunk.push_back(elemScalar(x, col * R + r, mr));
             }
-            const std::string s =
-                formatOnce(fmtStr, {chunk.data(), chunk.size()}, 0,
+            const keel::String s =
+                formatOnce(fmtRef, {chunk.data(), chunk.size()}, 0,
                            /*literalWhenShort=*/true);
-            setElem(result, j * R + r, s);  // column-major out(r, j)
+            setElem(result, j * R + r, s.as_ref());  // column-major out(r, j)
         }
     }
     return result;
@@ -1909,7 +2070,9 @@ Value strjust(const Value &M, keel::StringRef side, keel::Allocator *mr)
     const auto src = M.toString();
     if (rows == 0 || cols == 0) return M;
 
-    std::string out(rows * cols, ' ');
+    Value res = Value::matrix(rows, cols, ValueType::CHAR, mr);
+    char *out = res.charDataMut();
+    std::memset(out, ' ', rows * cols);
     for (keel::usize r = 0; r < rows; ++r) {
         // Column-major: row r, col c -> src[c*rows + r].
         keel::usize firstNonSp = cols, lastNonSp = 0;
@@ -1935,20 +2098,17 @@ Value strjust(const Value &M, keel::StringRef side, keel::Allocator *mr)
             out[(target + c) * rows + r] = src[(firstNonSp + c) * rows + r];
     }
 
-    // Build a char matrix of the same shape as M.
-    Value r = Value::matrix(rows, cols, ValueType::CHAR, mr);
-    char *p = r.charDataMut();
-    std::memcpy(p, out.data(), rows * cols);
-    return r;
+    return res;
 }
 
 Value extract(const Value &s, const Value &pat, keel::Allocator *mr)
 {
-    const std::string sStr = strInput(s);
-    const std::string pStr = strInput(pat);
+    const keel::String sStr = strInput(s);
+    const keel::String pStr = strInput(pat);
 
-    std::vector<std::string> hits;
-    findAllLiteral(sStr, pStr, hits);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<keel::StringRef> hits(scratch.allocator());
+    findAllLiteral(sStr.as_ref(), pStr.as_ref(), hits);
 
     if (hits.empty()) return Value::cell(0, 0, mr);
     Value c = Value::cell(hits.size(), 1, mr);
@@ -1959,11 +2119,12 @@ Value extract(const Value &s, const Value &pat, keel::Allocator *mr)
 
 Value split(const Value &s, const Value &delim, keel::Allocator *mr)
 {
-    const std::string sStr = strInput(s);
-    const std::string dStr = strInput(delim);
+    const keel::String sStr = strInput(s);
+    const keel::String dStr = strInput(delim);
 
-    std::vector<std::string> parts;
-    splitKeepEmpty(sStr, dStr, parts);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<keel::StringRef> parts(scratch.allocator());
+    splitKeepEmpty(sStr.as_ref(), dStr.as_ref(), parts);
 
     // MATLAB: a STRING input yields a string-array result; a char or cellstr
     // input yields a cell array of character vectors. The values and shape
@@ -1983,16 +2144,24 @@ Value split(const Value &s, const Value &delim, keel::Allocator *mr)
 
 Value join(const Value &arr, const Value &delim, keel::Allocator *mr)
 {
-    const std::string d = delim.isEmpty() ? std::string(" ") : strInput(delim);
+    const keel::String d = delim.isEmpty() ? keel::String::from(" ") : strInput(delim);
 
-    auto getElem = [&](keel::usize i) -> std::string {
-        if (arr.isString()) return std::string(arr.stringElem(i).as_ref());
-        if (arr.isCell())   return std::string(arr.cellAt(i).toString().as_ref());
-        return std::string(arr.toString().as_ref());  // scalar char/string fallback
+    auto appendElem = [&](keel::String &dst, keel::usize i) {
+        if (arr.isString()) {
+            dst.append(keel::StringRef(arr.stringElem(i)));
+        } else if (arr.isCell()) {
+            const keel::String es = arr.cellAt(i).toString();
+            dst.append(es.as_ref());
+        } else {
+            const keel::String es = arr.toString();
+            dst.append(es.as_ref());  // scalar char/string fallback
+        }
     };
 
     if (arr.isScalar()) {
-        return Value::stringScalar(getElem(0), mr);
+        keel::String s;
+        appendElem(s, 0);
+        return Value::stringScalar(s, mr);
     }
 
     const auto &dims = arr.dims();
@@ -2001,11 +2170,11 @@ Value join(const Value &arr, const Value &delim, keel::Allocator *mr)
 
     if (rows == 1 || cols == 1) {
         // 1-D: glue all elements with `d`.
-        std::string out;
+        keel::String out;
         const keel::usize n = arr.numel();
         for (keel::usize i = 0; i < n; ++i) {
-            if (i > 0) out += d;
-            out += getElem(i);
+            if (i > 0) out.append(d.as_ref());
+            appendElem(out, i);
         }
         return Value::stringScalar(out, mr);
     }
@@ -2013,10 +2182,10 @@ Value join(const Value &arr, const Value &delim, keel::Allocator *mr)
     // 2-D: join along columns -> N×1 string column.
     Value r = Value::stringArray(rows, 1, mr);
     for (keel::usize row = 0; row < rows; ++row) {
-        std::string out;
+        keel::String out;
         for (keel::usize col = 0; col < cols; ++col) {
-            if (col > 0) out += d;
-            out += getElem(col * rows + row);
+            if (col > 0) out.append(d.as_ref());
+            appendElem(out, col * rows + row);
         }
         r.stringElemSet(row, out);
     }
@@ -2053,12 +2222,12 @@ Value stringsND(keel::ArrayRef<keel::usize> dims, keel::Allocator *mr)
 }
 
 // strtok: first token + remainder. See language/strings/strings.hpp.
-std::pair<Value, Value> strtok(const Value &str, keel::StringRef delimRef,
+std::pair<Value, Value> strtok(const Value &str, keel::StringRef delim,
                                keel::Allocator *mr)
 {
-    const std::string s(str.toString().as_ref());
-    const std::string_view delim(delimRef);
-    auto isDelim = [&](char c) { return delim.find(c) != std::string_view::npos; };
+    const keel::String sStr = str.toString();
+    const keel::StringRef s = sStr.as_ref();
+    auto isDelim = [&](char c) { return delim.find(c) != keel::kInvalidIndex; };
 
     // Skip leading delim chars.
     keel::usize start = 0;
@@ -2068,8 +2237,9 @@ std::pair<Value, Value> strtok(const Value &str, keel::StringRef delimRef,
     while (end < s.size() && !isDelim(s[end])) ++end;
 
     Value tok = Value::fromString(s.substr(start, end - start), mr);
-    Value rem = Value::fromString(end < s.size() ? s.substr(end) : std::string{},
-                                  mr);
+    Value rem = Value::fromString(
+        end < s.size() ? s.substr(end, s.size() - end) : keel::StringRef("", 0),
+        mr);
     return {std::move(tok), std::move(rem)};
 }
 

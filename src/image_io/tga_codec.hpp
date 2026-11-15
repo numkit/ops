@@ -1,4 +1,4 @@
-﻿// toolboxes/image/src/io/tga_codec.hpp
+// toolboxes/image/src/io/tga_codec.hpp
 //
 // In-tree Truevision TGA (.tga) decoder and encoder. Zero external dependencies.
 
@@ -6,10 +6,10 @@
 
 #include <keel/core.h>
 #include <keel/memory.h>
+#include <keel/string.h>
 #include <cstddef>
 #include <cstdint>
 #include <numkit/value/value.hpp>
-#include <string>
 
 namespace numkit::image {
 
@@ -20,7 +20,7 @@ Value readTga(const keel::u8 *data, keel::usize len,
 
 /// Encode an image Value to TGA format bytes.
 /// @param A Image (HÃ—W grayscale, HÃ—WÃ—3 RGB, or HÃ—WÃ—4 RGBA uint8).
-std::string writeTgaToBytes(const Value &A);
+keel::String writeTgaToBytes(const Value &A);
 
 /// Inspect a TGA header without decoding all pixels.
 bool peekTga(const keel::u8 *data, keel::usize len,

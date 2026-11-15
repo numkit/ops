@@ -17,7 +17,8 @@
 
 #include <cmath>
 #include <cstring>
-#include <vector>
+#include <limits>
+#include <utility>
 
 namespace numkit::signal {
 

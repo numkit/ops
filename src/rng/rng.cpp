@@ -6,11 +6,14 @@
 // R2025b's rng()+rand()+randn()+randperm() under 'twister' and legacy v4.
 
 #include <keel/core.h>
+#include <keel/format.h>
+#include <keel/hash_map.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
 #include <keel/arena.h>
 #include <keel/array.h>
 #include <keel/math.h>
+#include <keel/string.h>
 #include <numkit/ops/rng.hpp>
 
 #include <numkit/value/error.hpp>
@@ -20,10 +23,6 @@
 #include <cstdint>
 #include <numeric>
 #include <random>
-#include <sstream>
-#include <string>
-#include <unordered_map>
-#include <unordered_set>
 
 namespace numkit::ops {
 
@@ -34,35 +33,81 @@ namespace numkit::ops {
 namespace {
 
 // Serialise / restore MT19937 state as a text blob: "mt19937 <624 words> <idx>".
-std::string serializeState(const MatlabMT19937 &gen)
+keel::String serializeState(const MatlabMT19937 &gen)
 {
     keel::u32 state[MatlabMT19937::STATE_SIZE];
     int idx;
     gen.getState(state, idx);
-    std::ostringstream os;
-    os << "mt19937";
+    keel::String out;
+    out.reserve(MatlabMT19937::STATE_SIZE * 11 + 24);
+    out.append("mt19937");
     for (keel::usize i = 0; i < MatlabMT19937::STATE_SIZE; ++i)
-        os << ' ' << state[i];
-    os << ' ' << idx;
-    return os.str();
+        keel::format_into(out, " {}", state[i]);
+    keel::format_into(out, " {}", idx);
+    return out;
 }
 
 void deserializeState(MatlabMT19937 &gen, keel::StringRef blob)
 {
-    std::istringstream is(std::string(blob.data(), blob.size()));
-    std::string tag;
-    is >> tag;
-    if (tag != "mt19937")
+    const char *p = blob.data();
+    const char *end = p + blob.size();
+    auto isSpace = [](char c) {
+        return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f' || c == '\v';
+    };
+    auto nextToken = [&]() -> keel::StringRef {
+        while (p < end && isSpace(*p)) ++p;
+        const char *start = p;
+        while (p < end && !isSpace(*p)) ++p;
+        return keel::StringRef(start, static_cast<keel::usize>(p - start));
+    };
+    auto parseU32 = [](keel::StringRef tok, keel::u32 &out) -> bool {
+        if (tok.empty()) return false;
+        keel::usize pos = 0;
+        if (tok[0] == '+') {
+            pos = 1;
+            if (pos == tok.size()) return false;
+        }
+        keel::u64 acc = 0;
+        for (; pos < tok.size(); ++pos) {
+            const char c = tok[pos];
+            if (c < '0' || c > '9') return false;
+            acc = acc * 10ULL + static_cast<keel::u64>(c - '0');
+            if (acc > 0xFFFFFFFFULL) return false;
+        }
+        out = static_cast<keel::u32>(acc);
+        return true;
+    };
+    auto parseInt = [](keel::StringRef tok, int &out) -> bool {
+        if (tok.empty()) return false;
+        keel::usize pos = 0;
+        bool neg = false;
+        if (tok[0] == '-' || tok[0] == '+') {
+            neg = (tok[0] == '-');
+            pos = 1;
+            if (pos == tok.size()) return false;
+        }
+        keel::u64 acc = 0;
+        for (; pos < tok.size(); ++pos) {
+            const char c = tok[pos];
+            if (c < '0' || c > '9') return false;
+            acc = acc * 10ULL + static_cast<keel::u64>(c - '0');
+            if (acc > 0x7FFFFFFFULL) return false;
+        }
+        out = neg ? -static_cast<int>(acc) : static_cast<int>(acc);
+        return true;
+    };
+
+    if (nextToken() != "mt19937")
         throw Error("rng: malformed state blob",
                      0, 0, "rng", "", "numkit:rng:badState");
     keel::u32 state[MatlabMT19937::STATE_SIZE];
     for (keel::usize i = 0; i < MatlabMT19937::STATE_SIZE; ++i) {
-        if (!(is >> state[i]))
+        if (!parseU32(nextToken(), state[i]))
             throw Error("rng: malformed state blob",
                          0, 0, "rng", "", "numkit:rng:badState");
     }
-    int idx;
-    if (!(is >> idx) || idx < 0 || idx > static_cast<int>(MatlabMT19937::STATE_SIZE))
+    int idx = 0;
+    if (!parseInt(nextToken(), idx) || idx < 0 || idx > static_cast<int>(MatlabMT19937::STATE_SIZE))
         throw Error("rng: malformed state blob",
                      0, 0, "rng", "", "numkit:rng:badState");
     bool anyNonZero = ((state[0] & 0x80000000UL) != 0);
@@ -477,18 +522,18 @@ Value randperm(RngContext &rng, keel::usize n, keel::usize k, keel::Allocator *m
     }
 
     if (4 * k < n) {
-        std::unordered_map<keel::usize, keel::usize> H;
+        keel::HashMap<keel::usize, keel::usize> H;
         H.reserve(k * 2);
         for (keel::usize i = 0; i < k; ++i) {
             const keel::usize m = n - i;
             const keel::usize j = 1 + static_cast<keel::usize>(
                 std::floor(rng.nextUniform() * static_cast<double>(m)));
-            auto itJ = H.find(j);
-            const keel::usize valJ = (itJ != H.end()) ? itJ->second : j;
-            auto itM = H.find(m);
-            const keel::usize valM = (itM != H.end()) ? itM->second : m;
+            const keel::usize *pJ = H.get(j);
+            const keel::usize valJ = pJ ? *pJ : j;
+            const keel::usize *pM = H.get(m);
+            const keel::usize valM = pM ? *pM : m;
             dst[i] = static_cast<double>(valJ);
-            H[j] = valM;
+            H.put(j, valM);
         }
         return r;
     }

@@ -24,8 +24,6 @@
 #include <cctype>
 #include <cmath>
 #include <cstdint>
-#include <string>
-#include <vector>
 
 namespace numkit::linalg {
 
@@ -220,7 +218,7 @@ lu_decompose_impl(const Value &A, keel::Allocator *mr)
         for (keel::usize i = 0; i < i_max; ++i)
             U[i + j * k] = LU[i + j * m];
     }
-    std::vector<keel::usize> perm(m);
+    keel::Array<keel::usize> perm(m, scratch.allocator());
     for (keel::usize i = 0; i < m; ++i) perm[i] = i;
     for (keel::usize j = 0; j < k; ++j)
         std::swap(perm[j], perm[piv[j]]);
@@ -556,7 +554,7 @@ Value qr_R_only(const Value &A, keel::Allocator *mr)
 }
 
 std::tuple<Value, Value>
-qr_pivoted(const Value &A, std::vector<keel::usize> &perm,
+qr_pivoted(const Value &A, keel::Array<keel::usize> &perm,
            keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "qr");

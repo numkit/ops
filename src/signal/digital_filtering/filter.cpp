@@ -1,6 +1,7 @@
 // toolboxes/signal/src/digital_filtering/filter.cpp
 
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/arena.h>
 #include <keel/array.h>
@@ -76,8 +77,8 @@ bool isVectorValue(const Value &v)
 void requireNumericOrLogical(const Value &v, const char *name)
 {
     if (!v.isNumeric() && !v.isLogical())
-        throw Error(std::string("filter: ") + name + " must be numeric or "
-                    "logical (type is " + mtypeName(v.type()) + ").",
+        throw Error(keel::format("filter: {} must be numeric or logical (type is {}).",
+                                 name, mtypeName(v.type())),
                     0, 0, "filter", "", "numkit:filter:inputType");
 }
 
@@ -97,10 +98,8 @@ FilterPlan filter_argcheck(const Value &b, const Value &a, const Value &x,
         const Value &bad = isVectorValue(b) ? a : b;
         const char *name = isVectorValue(b) ? "a" : "b";
         const Dims &d = bad.dims();
-        throw Error(std::string("filter: b and a must be non-empty "
-                    "vectors (") + name + " is "
-                    + std::to_string(d.dim(0)) + "x"
-                    + std::to_string(d.dim(1)) + ").",
+        throw Error(keel::format("filter: b and a must be non-empty vectors ({} is {}x{}).",
+                                 name, d.dim(0), d.dim(1)),
                     0, 0, "filter", "", "numkit:filter:notVector");
     }
 
@@ -131,9 +130,8 @@ FilterPlan filter_argcheck(const Value &b, const Value &a, const Value &x,
         const bool perSignal = p.nSig > 1 && ziLen == p.stateLen * p.nSig;
         if (!(ziLen == p.stateLen || perSignal))
             throw Error(
-                "filter: zi must have max(length(a),length(b))-1 = "
-                + std::to_string(p.stateLen) + " elements per signal (got "
-                + std::to_string(ziLen) + ").",
+                keel::format("filter: zi must have max(length(a),length(b))-1 = {} elements per signal (got {}).",
+                             p.stateLen, ziLen),
                 0, 0, "filter", "", "numkit:filter:invalidInitialConditions");
     }
     return p;

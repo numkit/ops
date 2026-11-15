@@ -3,7 +3,10 @@
 // eigs & svds: Subset of eigenvalues / singular values.
 
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/memory.h>
+#include <keel/ref.h>
+#include <keel/string.h>
 #include <keel/arena.h>
 #include <keel/array.h>
 #include <keel/complex.h>
@@ -17,9 +20,9 @@
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <numeric>
-#include <vector>
 
 namespace numkit::linalg {
 
@@ -42,17 +45,20 @@ void sortEigenPairsBySigma(keel::Array<EigenPair> &pairs, keel::usize k, const V
 
     if (!sigma.isEmpty()) {
         if (sigma.isChar() || sigma.isString()) {
-            std::string s(sigma.toString().as_ref());
-            std::transform(s.begin(), s.end(), s.begin(),
-                           [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-            if (s == "largestabs" || s == "lm") mode = Mode::LargestAbs;
-            else if (s == "smallestabs" || s == "sm") mode = Mode::SmallestAbs;
-            else if (s == "largestreal" || s == "lr" || s == "la") mode = Mode::LargestReal;
-            else if (s == "smallestreal" || s == "sr" || s == "sa") mode = Mode::SmallestReal;
-            else if (s == "bothendsreal" || s == "be") mode = Mode::BothEndsReal;
-            else
-                throw Error("eigs: unknown sigma option '" + s + "'",
+            keel::String raw = sigma.toString();
+            keel::StringRef sr = raw.as_ref();
+            if (sr.equals_ignore_ascii_case("largestabs") || sr.equals_ignore_ascii_case("lm")) mode = Mode::LargestAbs;
+            else if (sr.equals_ignore_ascii_case("smallestabs") || sr.equals_ignore_ascii_case("sm")) mode = Mode::SmallestAbs;
+            else if (sr.equals_ignore_ascii_case("largestreal") || sr.equals_ignore_ascii_case("lr") || sr.equals_ignore_ascii_case("la")) mode = Mode::LargestReal;
+            else if (sr.equals_ignore_ascii_case("smallestreal") || sr.equals_ignore_ascii_case("sr") || sr.equals_ignore_ascii_case("sa")) mode = Mode::SmallestReal;
+            else if (sr.equals_ignore_ascii_case("bothendsreal") || sr.equals_ignore_ascii_case("be")) mode = Mode::BothEndsReal;
+            else {
+                keel::String lower;
+                for (char c : sr)
+                    lower.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+                throw Error(keel::format("eigs: unknown sigma option '{}'", lower),
                             0, 0, "eigs", "", "numkit:eigs:badSigma");
+            }
         } else if (sigma.isNumeric() && sigma.isScalar()) {
             mode = Mode::Shift;
             shiftVal = sigma.isComplex() ? sigma.complexData()[0] : keel::c64(sigma.toScalar(), 0.0);
@@ -85,7 +91,7 @@ void sortEigenPairsBySigma(keel::Array<EigenPair> &pairs, keel::usize k, const V
         while (numFinite < pairs.size() && isFiniteComplex(pairs[numFinite].val))
             ++numFinite;
         if (numFinite > 1) {
-            std::vector<EigenPair> reordered;
+            keel::SmallArray<EigenPair, 64> reordered;
             reordered.reserve(pairs.size());
             keel::usize lo = 0, hi = numFinite - 1;
             while (lo <= hi && reordered.size() < k) {
@@ -235,10 +241,9 @@ std::tuple<Value, Value> eigs_generalized(const Value &A, const Value &B, keel::
     if (k > n) k = n;
 
     if (n > 96 && 2 * k < n && (sigma.isChar() || sigma.isString())) {
-        std::string s(sigma.toString().as_ref());
-        std::transform(s.begin(), s.end(), s.begin(),
-                       [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-        if (s == "smallestabs" || s == "sm") {
+        keel::String raw = sigma.toString();
+        keel::StringRef sr = raw.as_ref();
+        if (sr.equals_ignore_ascii_case("smallestabs") || sr.equals_ignore_ascii_case("sm")) {
             Value Vk, Dk;
             if (try_eigs_generalized_smallestabs(A, B, k, Vk, Dk, mr)) {
                 return {std::move(Vk), std::move(Dk)};

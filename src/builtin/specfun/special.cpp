@@ -3,7 +3,10 @@
 // Special functions — gamma / gammaln / erf / erfc / erfinv.
 
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/memory.h>
+#include <keel/arena.h>
+#include <keel/array.h>
 #include <keel/complex.h>
 #include <keel/math.h>
 #include <numkit/builtin/specfun.hpp>
@@ -14,9 +17,10 @@
 #include <numkit/ops/helpers.hpp>
 
 #define _USE_MATH_DEFINES
+#include <algorithm>
 #include <cmath>
 #include <limits>
-#include <vector>
+#include <utility>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -670,11 +674,13 @@ Value legendre(int n, const Value &x, keel::Allocator *mr)
     const keel::usize L = x.numel();
     auto r = Value::matrix(static_cast<keel::usize>(n + 1), L, ValueType::DOUBLE, mr);
     double *dst = r.doubleDataMut();
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<double> P(static_cast<keel::usize>(n + 1), 0.0, scratch.allocator());
     // Build P_n^m(x) for m = 0..n at each x_k.
     for (keel::usize k = 0; k < L; ++k) {
         const double xk = x.elemAsDouble(k);
         // P_0^0 = 1.
-        std::vector<double> P(n + 1, 0.0);
+        std::fill(P.begin(), P.end(), 0.0);
         // Use the standard recursion. Compute P_n^m via:
         //   P_m^m = (-1)^m (2m-1)!! (1-x²)^(m/2)
         //   P_{m+1}^m = x (2m+1) P_m^m
@@ -906,7 +912,7 @@ double airyScalar(int k, double x)
 Value airy(int k, const Value &x, keel::Allocator *mr)
 {
     if (k < 0 || k > 3)
-        throw Error("airy: kind k must be 0..3 (got " + std::to_string(k) + ")",
+        throw Error(keel::format("airy: kind k must be 0..3 (got {})", k),
                      0, 0, "airy", "", "numkit:airy:badK");
     return unaryDouble(x, [k](double v) { return airyScalar(k, v); }, mr);
 }

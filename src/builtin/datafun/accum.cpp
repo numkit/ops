@@ -3,6 +3,7 @@
 // accumarray — group-by reduction algorithm.
 
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
 #include <keel/arena.h>
@@ -18,7 +19,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
-#include <string>
 
 namespace numkit::builtin {
 
@@ -28,16 +28,16 @@ namespace {
 keel::usize toSubIndex(double v, keel::usize maxAllowed, const char *fn)
 {
     if (!std::isfinite(v) || v < 1.0)
-        throw Error(std::string(fn) + ": subscripts must be positive integers",
-                     0, 0, fn, "", std::string("numkit:") + fn + ":subRange");
+        throw Error(keel::format("{}: subscripts must be positive integers", fn),
+                     0, 0, fn, "", keel::format("numkit:{}:subRange", fn));
     const double rounded = std::round(v);
     if (keel::abs(v - rounded) > 1e-9)
-        throw Error(std::string(fn) + ": subscripts must be integer-valued",
-                     0, 0, fn, "", std::string("numkit:") + fn + ":subInt");
+        throw Error(keel::format("{}: subscripts must be integer-valued", fn),
+                     0, 0, fn, "", keel::format("numkit:{}:subInt", fn));
     const keel::usize idx = static_cast<keel::usize>(rounded);
     if (maxAllowed > 0 && idx > maxAllowed)
-        throw Error(std::string(fn) + ": subscript exceeds output dimension",
-                     0, 0, fn, "", std::string("numkit:") + fn + ":subOOB");
+        throw Error(keel::format("{}: subscript exceeds output dimension", fn),
+                     0, 0, fn, "", keel::format("numkit:{}:subOOB", fn));
     return idx;
 }
 
@@ -80,8 +80,8 @@ keel::Array<keel::usize> resolveOutShape(const Value &subs, const keel::usize *u
     const keel::usize D = (d.ndim() <= 1) ? 1 : d.cols();
     if (nUserShape > 0) {
         if (nUserShape < D)
-            throw Error(std::string(fn) + ": sz length must be at least size(subs, 2)",
-                         0, 0, fn, "", std::string("numkit:") + fn + ":sizeRank");
+            throw Error(keel::format("{}: sz length must be at least size(subs, 2)", fn),
+                         0, 0, fn, "", keel::format("numkit:{}:sizeRank", fn));
         keel::Array<keel::usize> out(keel::ArrayRef<keel::usize>(userShape, nUserShape), mr);
         return out;
     }

@@ -4,6 +4,7 @@
 // pages and dispatch to the 2-D variant.
 
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/arena.h>
 #include <keel/array.h>
@@ -27,7 +28,6 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
-#include <string>
 
 namespace numkit::linalg {
 
@@ -70,8 +70,8 @@ pageShape(const Value &A, const char *who)
 {
     const int nd = A.dims().ndim();
     if (nd < 2 || nd > 3)
-        throw Error(std::string(who) + ": input must be 2-D or 3-D",
-                    0, 0, who, "", std::string("numkit:") + who + ":badDim");
+        throw Error(keel::format("{}: input must be 2-D or 3-D", who),
+                    0, 0, who, "", keel::format("numkit:{}:badDim", who));
     const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
     const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
     const keel::usize p = (nd == 2) ? 1 : static_cast<keel::usize>(A.dims().dim(2));
@@ -301,16 +301,16 @@ void checkPagePair(const Value &A, const Value &B, const char *who,
     const int nda = A.dims().ndim();
     const int ndb = B.dims().ndim();
     if (nda < 2 || nda > 3 || ndb < 2 || ndb > 3)
-        throw Error(std::string(who) + ": inputs must be 2-D or 3-D",
-                    0, 0, who, "", std::string("numkit:") + who + ":badDim");
+        throw Error(keel::format("{}: inputs must be 2-D or 3-D", who),
+                    0, 0, who, "", keel::format("numkit:{}:badDim", who));
     const keel::usize pa = (nda == 2) ? 1 : static_cast<keel::usize>(A.dims().dim(2));
     const keel::usize pb = (ndb == 2) ? 1 : static_cast<keel::usize>(B.dims().dim(2));
     if (pa == pb)            pages = pa;
     else if (pa == 1)        pages = pb;
     else if (pb == 1)        pages = pa;
     else
-        throw Error(std::string(who) + ": page counts of A and B must match (or broadcast)",
-                    0, 0, who, "", std::string("numkit:") + who + ":pageMismatch");
+        throw Error(keel::format("{}: page counts of A and B must match (or broadcast)", who),
+                    0, 0, who, "", keel::format("numkit:{}:pageMismatch", who));
 }
 
 Value pageOfA(const Value &A, keel::usize p, keel::usize m, keel::usize n,

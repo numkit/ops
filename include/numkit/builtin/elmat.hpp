@@ -6,9 +6,8 @@
 #include <keel/core.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
-#include <string>
+#include <keel/array.h>
 #include <tuple>
-#include <vector>
 #include <numkit/value/value.hpp>
 
 namespace numkit::builtin {
@@ -613,7 +612,7 @@ Value sub2ind(const Value &siz, keel::ArrayRef<Value> subs, keel::Allocator *mr 
 /// @param mr Memory resource.
 /// @return Vector of subscript arrays.
 /// @see sub2ind
-std::vector<Value> ind2sub(const Value &siz, const Value &ind, keel::usize nout = 0, keel::Allocator *mr = nullptr);
+keel::Array<Value> ind2sub(const Value &siz, const Value &ind, keel::usize nout = 0, keel::Allocator *mr = nullptr);
 
 /// @brief Applies element-wise binary operator with singleton expansion (broadcasting).
 /// @param op Binary operator name (e.g. "plus", "times", "rdivide", "power").

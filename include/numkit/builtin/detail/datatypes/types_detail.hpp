@@ -6,22 +6,22 @@
 #include <keel/core.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
+#include <keel/string.h>
 #include <keel/complex.h>
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
 #include <numkit/ops/reductions.hpp>  // engine-free numkit::builtin::detail dim-infra (ops re-export)
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <limits>
 #include <numeric>
-#include <string>
 #include <tuple>
 #include <utility>
-#include <vector>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -267,12 +267,12 @@ inline bool runSorted(const double *first, keel::usize n, SortMode mode)
 }
 } // anon
 namespace {
-inline std::string readTypeName(const Value &t, const char *def)
+inline keel::String readTypeName(const Value &t, const char *def)
 {
-    if (t.isEmpty()) return def;
+    if (t.isEmpty()) return keel::String::from(def);
     if (!t.isChar() && !t.isString())
         throw std::runtime_error("numeric-limit: type argument must be a string");
-    std::string s(t.toString().as_ref());
+    keel::String s = t.toString();
     for (auto &c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
     return s;
 }

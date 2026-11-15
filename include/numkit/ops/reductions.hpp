@@ -23,6 +23,7 @@
 #include <keel/memory.h>
 #include <keel/arena.h>
 #include <keel/array.h>
+#include <keel/format.h>
 #include <numkit/ops/value_factory.hpp>
 
 #include <numkit/value/error.hpp>
@@ -32,8 +33,6 @@
 #include <cmath>
 #include <cstddef>
 #include <stdexcept>
-#include <string>
-#include <vector>
 
 namespace numkit::ops {
 
@@ -54,8 +53,8 @@ inline int firstNonSingletonDim(const Value &x)
 inline int validateDim(const Value &x, int dim, const char *fn)
 {
     if (dim < 1)
-        throw Error(std::string(fn) + ": dim must be a positive integer",
-                     0, 0, fn, "", std::string("numkit:") + fn + ":badDim");
+        throw Error(keel::format("{}: dim must be a positive integer", fn),
+                     0, 0, fn, "", keel::format("numkit:{}:badDim", fn));
     const int nd = x.dims().ndim();
     if (dim > nd) {
         // Trailing-singleton semantics — caller produces an identity copy.

@@ -11,24 +11,24 @@
 
 #include <keel/memory.h>
 #include <keel/ref.h>
+#include <keel/string.h>
 #include <numkit/value/value.hpp>
 
-#include <algorithm>
 #include <cctype>
-#include <string>
-#include <string_view>
 
 namespace numkit::image {
 
 // Lower-cased file extension (without the dot), or "" if none. Used by both
 // the native and VFS imread/imwrite paths to dispatch on format.
-inline std::string lowerExt(keel::StringRef pathRef) {
-    std::string_view path(pathRef);
-    auto dot = path.find_last_of('.');
-    if (dot == std::string_view::npos) return {};
-    std::string e(path.substr(dot + 1));
-    std::transform(e.begin(), e.end(), e.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+inline keel::String lowerExt(keel::StringRef pathRef) {
+    auto dot = pathRef.rfind('.');
+    if (dot == keel::kInvalidIndex) return {};
+    keel::StringRef tail = pathRef.substr(dot + 1);
+    keel::String e;
+    e.reserve(tail.size());
+    for (keel::usize i = 0; i < tail.size(); ++i) {
+        e.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(tail[i]))));
+    }
     return e;
 }
 

@@ -5,6 +5,10 @@
 #include <keel/core.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
+#include <keel/arena.h>
+#include <keel/array.h>
+#include <keel/format.h>
+#include <keel/string.h>
 #include <numkit/builtin/timefun.hpp>
 #include <numkit/value/value.hpp>
 
@@ -15,12 +19,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
-#include <iomanip>
-#include <sstream>
 #include <stdexcept>
-#include <string>
-#include <string_view>
-#include <vector>
 
 namespace numkit::builtin {
 
@@ -198,22 +197,19 @@ Value addtodate(const Value &d, double quantity, keel::StringRef unit, keel::All
         throw std::runtime_error("addtodate: date number must be a real numeric scalar");
     const double serial = d.toScalar();
     const double q = quantity;
-    std::string u(unit.data(), unit.size());
-    for (auto &ch : u)
-        ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
 
     double result;
-    if (u == "day")
+    if (unit.equals_ignore_ascii_case("day"))
         result = serial + q;
-    else if (u == "hour")
+    else if (unit.equals_ignore_ascii_case("hour"))
         result = serial + q / 24.0;
-    else if (u == "minute")
+    else if (unit.equals_ignore_ascii_case("minute"))
         result = serial + q / 1440.0;
-    else if (u == "second")
+    else if (unit.equals_ignore_ascii_case("second"))
         result = serial + q / 86400.0;
-    else if (u == "millisecond")
+    else if (unit.equals_ignore_ascii_case("millisecond"))
         result = serial + q / 86400000.0;
-    else if (u == "month" || u == "year") {
+    else if (unit.equals_ignore_ascii_case("month") || unit.equals_ignore_ascii_case("year")) {
         const double dayF = std::floor(serial);
         const double frac = serial - dayF;
         const keel::i64 days = static_cast<keel::i64>(dayF) - 719529;
@@ -229,7 +225,7 @@ Value addtodate(const Value &d, double quantity, keel::StringRef unit, keel::All
         Y += (M <= 2);
 
         keel::i64 nY = Y, nM = M;
-        if (u == "month") {
+        if (unit.equals_ignore_ascii_case("month")) {
             keel::i64 tm = (M - 1) + static_cast<keel::i64>(std::llround(q));
             keel::i64 qd = tm / 12, rd = tm % 12;
             if (rd < 0) { qd -= 1; rd += 12; }
@@ -267,7 +263,9 @@ Value datenum(keel::ArrayRef<Value> args, keel::Allocator *mr) {
         const keel::usize n = args[0].numel();
         auto out = Value::matrix(n, 1, ValueType::DOUBLE, mr);
         double *o = out.doubleDataMut();
-        std::vector<Value> subArgs(args.begin(), args.end());
+        keel::ArenaTemp scratch = keel::get_scratch(mr);
+        keel::Array<Value> subArgs(args.size(), scratch.allocator());
+        for (keel::usize k = 0; k < args.size(); ++k) subArgs[k] = args[k];
         for (keel::usize i = 0; i < n; ++i) {
             subArgs[0] = args[0].isCell() ? args[0].cellAt(i)
                                           : Value::fromString(args[0].stringElem(i), mr);
@@ -277,11 +275,12 @@ Value datenum(keel::ArrayRef<Value> args, keel::Allocator *mr) {
     }
 
     if (args[0].isChar() || args[0].isString()) {
-        const std::string s(args[0].toString().as_ref());
+        const keel::String sOwned = args[0].toString();
+        const keel::StringRef s = sOwned.as_ref();
         static const char *MON3[] = {
             "jan","feb","mar","apr","may","jun",
             "jul","aug","sep","oct","nov","dec"};
-        auto tryFmt = [&](std::string_view fmt, double &Y, double &Mo, double &D, double &H, double &MI, double &S) -> bool {
+        auto tryFmt = [&](keel::StringRef fmt, double &Y, double &Mo, double &D, double &H, double &MI, double &S) -> bool {
             Y = 0; Mo = 1; D = 1; H = 0; MI = 0; S = 0;
             keel::usize si = 0, fi = 0;
             auto readNum = [&](int maxD) -> long {
@@ -291,10 +290,13 @@ Value datenum(keel::ArrayRef<Value> args, keel::Allocator *mr) {
                 }
                 return n > 0 ? v : -1;
             };
+            auto fAt = [&](keel::StringRef tok) {
+                return fmt.substr(fi).starts_with(tok);
+            };
             while (fi < fmt.size()) {
-                if (fmt.compare(fi, 4, "yyyy") == 0) {
+                if (fAt("yyyy")) {
                     long v = readNum(4); if (v < 0) return false; Y = v; fi += 4;
-                } else if (fmt.compare(fi, 2, "yy") == 0) {
+                } else if (fAt("yy")) {
                     long v = readNum(2); if (v < 0) return false;
                     time_t nowSec = time(nullptr);
                     tm tmNow{};
@@ -305,26 +307,25 @@ Value datenum(keel::ArrayRef<Value> args, keel::Allocator *mr) {
 #endif
                     long curCent = (1900 + tmNow.tm_year) / 100 * 100;
                     Y = curCent + v; fi += 2;
-                } else if (fmt.compare(fi, 4, "mmmm") == 0 || fmt.compare(fi, 3, "mmm") == 0) {
-                    keel::usize mlen = fmt.compare(fi, 4, "mmmm") == 0 ? 4 : 3;
+                } else if (fAt("mmmm") || fAt("mmm")) {
+                    keel::usize mlen = fAt("mmmm") ? 4 : 3;
                     if (si + 3 > s.size()) return false;
-                    std::string m3;
-                    for (int i = 0; i < 3; ++i) m3 += static_cast<char>(std::tolower(static_cast<unsigned char>(s[si + i])));
+                    const keel::StringRef m3 = s.substr(si, 3);
                     int mIdx = -1;
-                    for (int i = 0; i < 12; ++i) { if (m3 == MON3[i]) { mIdx = i + 1; break; } }
+                    for (int i = 0; i < 12; ++i) { if (m3.equals_ignore_ascii_case(MON3[i])) { mIdx = i + 1; break; } }
                     if (mIdx < 0) return false;
                     Mo = mIdx; si += 3;
                     if (mlen == 4) { while (si < s.size() && std::isalpha(static_cast<unsigned char>(s[si]))) ++si; }
                     fi += mlen;
-                } else if (fmt.compare(fi, 2, "mm") == 0) {
+                } else if (fAt("mm")) {
                     long v = readNum(2); if (v < 0) return false; Mo = v; fi += 2;
-                } else if (fmt.compare(fi, 2, "dd") == 0) {
+                } else if (fAt("dd")) {
                     long v = readNum(2); if (v < 0) return false; D = v; fi += 2;
-                } else if (fmt.compare(fi, 2, "HH") == 0) {
+                } else if (fAt("HH")) {
                     long v = readNum(2); if (v < 0) return false; H = v; fi += 2;
-                } else if (fmt.compare(fi, 2, "MM") == 0) {
+                } else if (fAt("MM")) {
                     long v = readNum(2); if (v < 0) return false; MI = v; fi += 2;
-                } else if (fmt.compare(fi, 2, "SS") == 0) {
+                } else if (fAt("SS")) {
                     long v = readNum(2); if (v < 0) return false; S = v; fi += 2;
                     if (si < s.size() && (s[si] == '.' || s[si] == ',')) {
                         ++si; double scale = 0.1;
@@ -343,10 +344,11 @@ Value datenum(keel::ArrayRef<Value> args, keel::Allocator *mr) {
 
         double Y, Mo, D, H, MI, S;
         if (args.size() >= 2 && (args[1].isChar() || args[1].isString())) {
-            std::string fmt(args[1].toString().as_ref());
+            const keel::String fmtOwned = args[1].toString();
+            const keel::StringRef fmt = fmtOwned.as_ref();
             if (tryFmt(fmt, Y, Mo, D, H, MI, S))
                 return Value::scalar(civilToSerial(Y, Mo, D, H, MI, S), mr);
-            throw std::runtime_error("datenum: date string does not match format '" + fmt + "'");
+            throw std::runtime_error(keel::format("datenum: date string does not match format '{}'", fmt).c_str());
         }
         static const char *kAutoFmts[] = {
             "yyyy-mm-dd HH:MM:SS", "yyyy-mm-ddTHH:MM:SS", "yyyy-mm-dd",
@@ -357,7 +359,7 @@ Value datenum(keel::ArrayRef<Value> args, keel::Allocator *mr) {
             if (tryFmt(kAutoFmts[i], Y, Mo, D, H, MI, S))
                 return Value::scalar(civilToSerial(Y, Mo, D, H, MI, S), mr);
         }
-        throw std::runtime_error("datenum: could not auto-detect format of date string '" + s + "'");
+        throw std::runtime_error(keel::format("datenum: could not auto-detect format of date string '{}'", s).c_str());
     }
 
     if (args.size() == 1) {
@@ -588,15 +590,18 @@ Value datestr(keel::ArrayRef<Value> args, keel::Allocator *mr) {
         return Comp{ static_cast<int>(Y), M, D, H, MI, static_cast<int>(std::round(S)) };
     };
 
-    std::vector<Comp> dates;
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Allocator *salloc = scratch.allocator();
+    keel::Array<Comp> dates(salloc);
     if (din.isChar() || din.isString()) {
         static const char *MON3p[] = {
             "jan","feb","mar","apr","may","jun",
             "jul","aug","sep","oct","nov","dec"};
-        const std::string s(din.toString().as_ref());
+        const keel::String sOwned = din.toString();
+        const keel::StringRef s = sOwned.as_ref();
         auto tryFmt = [&](const char *fmt, Comp &c) -> bool {
             int Y = 0, Mo = 1, D = 1, H = 0, MI = 0, S = 0;
-            const std::string F = fmt;
+            const keel::StringRef F(fmt);
             keel::usize si = 0, fi = 0;
             auto readNum = [&](int maxD) -> long {
                 long v = 0; int n = 0;
@@ -605,20 +610,22 @@ Value datestr(keel::ArrayRef<Value> args, keel::Allocator *mr) {
                 }
                 return n > 0 ? v : -1;
             };
+            auto fAt = [&](keel::StringRef tok) {
+                return F.substr(fi).starts_with(tok);
+            };
             while (fi < F.size()) {
-                if (F.compare(fi,4,"yyyy")==0) { long v=readNum(4); if(v<0)return false; Y=(int)v; fi+=4; }
-                else if (F.compare(fi,3,"mmm")==0) {
+                if (fAt("yyyy")) { long v=readNum(4); if(v<0)return false; Y=(int)v; fi+=4; }
+                else if (fAt("mmm")) {
                     if (si+3>s.size()) return false;
-                    std::string m=s.substr(si,3);
-                    for (auto &ch:m) ch=(char)std::tolower((unsigned char)ch);
-                    int mi=-1; for(int k=0;k<12;++k) if(m==MON3p[k]){mi=k+1;break;}
+                    const keel::StringRef m=s.substr(si,3);
+                    int mi=-1; for(int k=0;k<12;++k) if(m.equals_ignore_ascii_case(MON3p[k])){mi=k+1;break;}
                     if (mi<0) return false; Mo=mi; si+=3; fi+=3;
                 }
-                else if (F.compare(fi,2,"mm")==0) { long v=readNum(2); if(v<0)return false; Mo=(int)v; fi+=2; }
-                else if (F.compare(fi,2,"dd")==0) { long v=readNum(2); if(v<0)return false; D=(int)v; fi+=2; }
-                else if (F.compare(fi,2,"HH")==0) { long v=readNum(2); if(v<0)return false; H=(int)v; fi+=2; }
-                else if (F.compare(fi,2,"MM")==0) { long v=readNum(2); if(v<0)return false; MI=(int)v; fi+=2; }
-                else if (F.compare(fi,2,"SS")==0) { long v=readNum(2); if(v<0)return false; S=(int)v; fi+=2; }
+                else if (fAt("mm")) { long v=readNum(2); if(v<0)return false; Mo=(int)v; fi+=2; }
+                else if (fAt("dd")) { long v=readNum(2); if(v<0)return false; D=(int)v; fi+=2; }
+                else if (fAt("HH")) { long v=readNum(2); if(v<0)return false; H=(int)v; fi+=2; }
+                else if (fAt("MM")) { long v=readNum(2); if(v<0)return false; MI=(int)v; fi+=2; }
+                else if (fAt("SS")) { long v=readNum(2); if(v<0)return false; S=(int)v; fi+=2; }
                 else { if (si<s.size() && s[si]==F[fi]) { ++si; ++fi; } else return false; }
             }
             if (si != s.size()) return false;
@@ -660,12 +667,14 @@ Value datestr(keel::ArrayRef<Value> args, keel::Allocator *mr) {
     for (const auto &c : dates)
         if (c.h != 0 || c.mi != 0 || c.s != 0) { anyTime = true; break; }
 
-    std::string fmt;
+    keel::String fmtOwned(salloc);
+    keel::StringRef fmt;
     if (args.size() >= 2) {
         const Value &f = args[1];
-        if (f.isChar() || f.isString())
-            fmt = std::string(f.toString().as_ref());
-        else {
+        if (f.isChar() || f.isString()) {
+            fmtOwned = f.toString();
+            fmt = fmtOwned.as_ref();
+        } else {
             static const char *DATEFORM[] = {
                 "dd-mmm-yyyy HH:MM:SS", // 0
                 "dd-mmm-yyyy",          // 1
@@ -729,44 +738,44 @@ Value datestr(keel::ArrayRef<Value> args, keel::Allocator *mr) {
         if ((a == 'a' || a == 'p') && b == 'm') { hour12 = true; break; }
     }
 
-    auto renderOne = [&](const Comp &cc) -> std::string {
+    auto renderOne = [&](const Comp &cc) -> keel::String {
         const int yi = cc.y, moi = cc.mo, di = cc.d,
                   hi = cc.h, mii = cc.mi, si = cc.s;
         int yw = yi - (moi < 3 ? 1 : 0);
         int dow = ((yw + yw/4 - yw/100 + yw/400 + dt[(moi - 1 + 12) % 12] + di) % 7 + 7) % 7;
         const int h12 = (hi % 12 == 0) ? 12 : (hi % 12);
-        std::string out;
+        keel::String out(salloc);
         char buf[16];
         keel::usize i = 0;
         auto at = [&](const char *t, keel::usize L) {
-            return fmt.compare(i, L, t) == 0;
+            return fmt.substr(i).starts_with(keel::StringRef(t, L));
         };
         while (i < fmt.size()) {
-            if (at("yyyy", 4)) { std::snprintf(buf,sizeof buf,"%04d",yi); out+=buf; i+=4; }
-            else if (at("yy", 2)) { std::snprintf(buf,sizeof buf,"%02d",((yi%100)+100)%100); out+=buf; i+=2; }
-            else if (at("mmmm", 4)) { out += MONF[(moi-1+12)%12]; i+=4; }
-            else if (at("mmm", 3)) { out += MON3[(moi-1+12)%12]; i+=3; }
-            else if (at("mm", 2)) { std::snprintf(buf,sizeof buf,"%02d",moi); out+=buf; i+=2; }
-            else if (at("m", 1)) { out += MON3[(moi-1+12)%12][0]; i+=1; }
-            else if (at("QQ", 2)) { out += 'Q'; out += static_cast<char>('0' + ((moi - 1) / 3 + 1)); i+=2; }
-            else if (at("dddd", 4)) { out += DOWF[dow]; i+=4; }
-            else if (at("ddd", 3)) { out += DOW3[dow]; i+=3; }
-            else if (at("dd", 2)) { std::snprintf(buf,sizeof buf,"%02d",di); out+=buf; i+=2; }
-            else if (at("d", 1)) { out += DOW3[dow][0]; i+=1; }
+            if (at("yyyy", 4)) { std::snprintf(buf,sizeof buf,"%04d",yi); out.append(buf); i+=4; }
+            else if (at("yy", 2)) { std::snprintf(buf,sizeof buf,"%02d",((yi%100)+100)%100); out.append(buf); i+=2; }
+            else if (at("mmmm", 4)) { out.append(MONF[(moi-1+12)%12]); i+=4; }
+            else if (at("mmm", 3)) { out.append(MON3[(moi-1+12)%12]); i+=3; }
+            else if (at("mm", 2)) { std::snprintf(buf,sizeof buf,"%02d",moi); out.append(buf); i+=2; }
+            else if (at("m", 1)) { out.push_back(MON3[(moi-1+12)%12][0]); i+=1; }
+            else if (at("QQ", 2)) { out.push_back('Q'); out.push_back(static_cast<char>('0' + ((moi - 1) / 3 + 1))); i+=2; }
+            else if (at("dddd", 4)) { out.append(DOWF[dow]); i+=4; }
+            else if (at("ddd", 3)) { out.append(DOW3[dow]); i+=3; }
+            else if (at("dd", 2)) { std::snprintf(buf,sizeof buf,"%02d",di); out.append(buf); i+=2; }
+            else if (at("d", 1)) { out.push_back(DOW3[dow][0]); i+=1; }
             else if (at("HH", 2)) {
                 if (hour12) std::snprintf(buf,sizeof buf,"%2d",h12);
                 else        std::snprintf(buf,sizeof buf,"%02d",hi);
-                out+=buf; i+=2;
+                out.append(buf); i+=2;
             }
-            else if (at("MM", 2)) { std::snprintf(buf,sizeof buf,"%02d",mii); out+=buf; i+=2; }
-            else if (at("SS", 2)) { std::snprintf(buf,sizeof buf,"%02d",si); out+=buf; i+=2; }
+            else if (at("MM", 2)) { std::snprintf(buf,sizeof buf,"%02d",mii); out.append(buf); i+=2; }
+            else if (at("SS", 2)) { std::snprintf(buf,sizeof buf,"%02d",si); out.append(buf); i+=2; }
             else if (hour12 && i + 1 < fmt.size()
                      && ((std::tolower((unsigned char)fmt[i])=='a'
                           || std::tolower((unsigned char)fmt[i])=='p')
                          && std::tolower((unsigned char)fmt[i+1])=='m')) {
-                out += (hi < 12) ? "AM" : "PM"; i += 2;
+                out.append((hi < 12) ? "AM" : "PM"); i += 2;
             }
-            else { out += fmt[i]; ++i; }
+            else { out.push_back(fmt[i]); ++i; }
         }
         return out;
     };
@@ -774,7 +783,7 @@ Value datestr(keel::ArrayRef<Value> args, keel::Allocator *mr) {
     if (dates.size() == 1) {
         return Value::fromString(renderOne(dates[0]), mr);
     }
-    std::vector<std::string> rowstr;
+    keel::Array<keel::String> rowstr(salloc);
     rowstr.reserve(dates.size());
     keel::usize maxW = 0;
     for (const auto &c : dates) {
@@ -795,11 +804,12 @@ Value datevec(keel::ArrayRef<Value> args, keel::Allocator *mr) {
     if (args.empty())
         throw std::runtime_error("datevec requires at least one argument");
     if (args[0].isChar() || args[0].isString()) {
-        const std::string s(args[0].toString().as_ref());
+        const keel::String sOwned = args[0].toString();
+        const keel::StringRef s = sOwned.as_ref();
         static const char *MON3s[] = {
             "jan","feb","mar","apr","may","jun",
             "jul","aug","sep","oct","nov","dec"};
-        auto tryFmt = [&](std::string_view fmt, double &Y, double &Mo, double &D, double &H, double &MI, double &S) -> bool {
+        auto tryFmt = [&](keel::StringRef fmt, double &Y, double &Mo, double &D, double &H, double &MI, double &S) -> bool {
             Y = 0; Mo = 1; D = 1; H = 0; MI = 0; S = 0;
             keel::usize si = 0, fi = 0;
             auto readNum = [&](int maxD) -> long {
@@ -809,31 +819,33 @@ Value datevec(keel::ArrayRef<Value> args, keel::Allocator *mr) {
                 }
                 return n > 0 ? v : -1;
             };
+            auto fAt = [&](keel::StringRef tok) {
+                return fmt.substr(fi).starts_with(tok);
+            };
             while (fi < fmt.size()) {
-                if (fmt.compare(fi, 4, "yyyy") == 0) {
+                if (fAt("yyyy")) {
                     long v = readNum(4); if (v < 0) return false; Y = static_cast<double>(v); fi += 4;
-                } else if (fmt.compare(fi, 4, "mmmm") == 0 || fmt.compare(fi, 3, "mmm") == 0) {
-                    bool full = fmt.compare(fi, 4, "mmmm") == 0;
+                } else if (fAt("mmmm") || fAt("mmm")) {
+                    bool full = fAt("mmmm");
                     if (si + 3 > s.size()) return false;
-                    std::string mon = s.substr(si, 3);
-                    for (auto &c : mon) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+                    const keel::StringRef mon = s.substr(si, 3);
                     int mi = -1;
-                    for (int k = 0; k < 12; ++k) if (mon == MON3s[k]) { mi = k + 1; break; }
+                    for (int k = 0; k < 12; ++k) if (mon.equals_ignore_ascii_case(MON3s[k])) { mi = k + 1; break; }
                     if (mi < 0) return false;
                     Mo = static_cast<double>(mi); si += 3;
                     if (full) {
                         while (si < s.size() && std::isalpha(static_cast<unsigned char>(s[si]))) ++si;
                         fi += 4;
                     } else { fi += 3; }
-                } else if (fmt.compare(fi, 2, "mm") == 0) {
+                } else if (fAt("mm")) {
                     long v = readNum(2); if (v < 0) return false; Mo = static_cast<double>(v); fi += 2;
-                } else if (fmt.compare(fi, 2, "dd") == 0) {
+                } else if (fAt("dd")) {
                     long v = readNum(2); if (v < 0) return false; D = static_cast<double>(v); fi += 2;
-                } else if (fmt.compare(fi, 2, "HH") == 0) {
+                } else if (fAt("HH")) {
                     long v = readNum(2); if (v < 0) return false; H = static_cast<double>(v); fi += 2;
-                } else if (fmt.compare(fi, 2, "MM") == 0) {
+                } else if (fAt("MM")) {
                     long v = readNum(2); if (v < 0) return false; MI = static_cast<double>(v); fi += 2;
-                } else if (fmt.compare(fi, 2, "SS") == 0) {
+                } else if (fAt("SS")) {
                     long v = readNum(2); if (v < 0) return false; S = static_cast<double>(v); fi += 2;
                 } else {
                     if (si < s.size() && s[si] == fmt[fi]) { ++si; ++fi; }

@@ -5,28 +5,34 @@
 #include <keel/ref.h>
 #include <keel/arena.h>
 #include <keel/array.h>
+#include <keel/string.h>
 #include <numkit/builtin/strfun.hpp>
 
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
 
+#include <algorithm>
 #include <cctype>
 #include <cmath>
 #include <cstdio>
-#include <sstream>
 
 namespace numkit::builtin {
 
 namespace {
+
+inline void appendRepeat(keel::String &out, keel::usize count, char ch)
+{
+    for (keel::usize i = 0; i < count; ++i)
+        out.push_back(ch);
+}
 
 // Apply a %s conversion spec (flags / width / precision) to a string value,
 // matching MATLAB/C printf semantics: precision caps the number of characters
 // emitted, width right-justifies (or left-justifies with the '-' flag) by
 // padding with spaces. Length modifiers (l/h) are ignored. Done manually
 // rather than via snprintf to avoid passing user-controlled format strings.
-std::string applyStringSpec(const std::string &spec, keel::StringRef svRef)
+void applyStringSpec(keel::StringRef spec, keel::StringRef sv, keel::String &out)
 {
-    std::string sv(svRef.data(), svRef.size());
     bool leftAlign = false;
     keel::usize k = 1;                       // skip '%'
     for (; k < spec.size(); ++k) {
@@ -47,31 +53,34 @@ std::string applyStringSpec(const std::string &spec, keel::StringRef svRef)
     }
 
     if (precision >= 0 && static_cast<keel::usize>(precision) < sv.size())
-        sv.resize(static_cast<keel::usize>(precision));
+        sv = sv.substr(0, static_cast<keel::usize>(precision));
     if (width > sv.size()) {
-        const std::string pad(width - sv.size(), ' ');
-        return leftAlign ? sv + pad : pad + sv;
+        const keel::usize pad = width - sv.size();
+        if (!leftAlign) appendRepeat(out, pad, ' ');
+        out.append(sv);
+        if (leftAlign) appendRepeat(out, pad, ' ');
+    } else {
+        out.append(sv);
     }
-    return sv;
 }
 
 // Strip the trailing conversion char (and any l/h length modifiers) from a
 // printf spec, leaving "%[flags][width][.precision]".
-std::string specBody(const std::string &spec)
+keel::StringRef specBody(keel::StringRef spec)
 {
-    std::string base = spec.substr(0, spec.size() - 1); // drop type char
-    while (!base.empty() && (base.back() == 'l' || base.back() == 'h'))
-        base.pop_back();
-    return base;
+    keel::usize len = spec.size() > 0 ? spec.size() - 1 : 0; // drop type char
+    while (len > 0 && (spec[len - 1] == 'l' || spec[len - 1] == 'h'))
+        --len;
+    return spec.substr(0, len);
 }
 
 // Format a non-finite value the way MATLAB does: Inf / -Inf / NaN (capital),
 // honouring the field width and the '+'/' ' sign flags (only on +Inf; NaN
 // never takes a sign). Precision is ignored. Used for both float (%f/%e/%g)
 // and integer (%d/...) conversions.
-std::string formatNonFinite(const std::string &spec, double v)
+void formatNonFinite(keel::StringRef spec, double v, keel::String &out)
 {
-    std::string word = std::isnan(v) ? "NaN" : (v < 0 ? "-Inf" : "Inf");
+    keel::StringRef word = std::isnan(v) ? "NaN" : (v < 0 ? "-Inf" : "Inf");
 
     bool leftAlign = false, plus = false, space = false;
     keel::usize k = 1; // skip '%'
@@ -92,10 +101,13 @@ std::string formatNonFinite(const std::string &spec, double v)
         else if (space) word = " Inf";
     }
     if (width > word.size()) {
-        const std::string pad(width - word.size(), ' ');
-        return leftAlign ? word + pad : pad + word;
+        const keel::usize pad = width - word.size();
+        if (!leftAlign) appendRepeat(out, pad, ' ');
+        out.append(word);
+        if (leftAlign) appendRepeat(out, pad, ' ');
+    } else {
+        out.append(word);
     }
-    return word;
 }
 
 // Format an integer conversion (%d/%i/%u/%o/%x/%X). MATLAB semantics:
@@ -104,37 +116,47 @@ std::string formatNonFinite(const std::string &spec, double v)
 //     (e.g. sprintf('%d',3.7) -> '3.700000e+00', sprintf('%.2d',3.7) ->
 //     '3.70e+00');
 //   - Inf / -Inf / NaN print as 'Inf' / '-Inf' / 'NaN' (width honoured).
-std::string formatIntegerConv(const std::string &spec, char type, double v)
+void formatIntegerConv(keel::StringRef spec, char type, double v, keel::String &out)
 {
     char buf[160];
-    if (!std::isfinite(v))
-        return formatNonFinite(spec, v);
+    if (!std::isfinite(v)) {
+        formatNonFinite(spec, v, out);
+        return;
+    }
+
+    const keel::StringRef body = specBody(spec);
+    keel::SmallString<64> fmtStr;
+    fmtStr.append(body);
 
     const bool whole =
         (v == std::trunc(v)) && std::fabs(v) < 9.2e18; // fits in int64
     if (whole) {
-        const std::string body = specBody(spec);
         if (type == 'u') {
-            std::snprintf(buf, sizeof(buf), (body + "llu").c_str(),
+            fmtStr.append("llu");
+            std::snprintf(buf, sizeof(buf), fmtStr.c_str(),
                           static_cast<unsigned long long>(static_cast<long long>(v)));
         } else if (type == 'x' || type == 'X') {
-            std::string xs = body + "ll";
-            xs.push_back(type);
-            std::snprintf(buf, sizeof(buf), xs.c_str(),
+            fmtStr.append("ll");
+            fmtStr.push_back(type);
+            std::snprintf(buf, sizeof(buf), fmtStr.c_str(),
                           static_cast<unsigned long long>(static_cast<long long>(v)));
         } else if (type == 'o') {
-            std::snprintf(buf, sizeof(buf), (body + "llo").c_str(),
+            fmtStr.append("llo");
+            std::snprintf(buf, sizeof(buf), fmtStr.c_str(),
                           static_cast<unsigned long long>(static_cast<long long>(v)));
         } else { // d, i
-            std::snprintf(buf, sizeof(buf), (body + "lld").c_str(),
+            fmtStr.append("lld");
+            std::snprintf(buf, sizeof(buf), fmtStr.c_str(),
                           static_cast<long long>(v));
         }
-        return buf;
+        out.append(buf);
+        return;
     }
 
     // Non-integer → %e fallback (MATLAB overrides the integer conversion).
-    std::snprintf(buf, sizeof(buf), (specBody(spec) + "e").c_str(), v);
-    return buf;
+    fmtStr.push_back('e');
+    std::snprintf(buf, sizeof(buf), fmtStr.c_str(), v);
+    out.append(buf);
 }
 
 } // namespace
@@ -143,26 +165,27 @@ std::string formatIntegerConv(const std::string &spec, char type, double v)
 // Public API
 // ════════════════════════════════════════════════════════════════════════
 
-std::string formatOnce(keel::StringRef fmt, keel::ArrayRef<Value> args, keel::usize argStart,
-                       bool literalWhenShort)
+keel::String formatOnce(keel::StringRef fmt, keel::ArrayRef<Value> args, keel::usize argStart,
+                        bool literalWhenShort)
 {
-    std::ostringstream out;
+    keel::String out;
+    out.reserve(fmt.size());
     keel::usize ai = argStart;
 
     for (keel::usize i = 0; i < fmt.size(); ++i) {
         if (fmt[i] == '\\' && i + 1 < fmt.size()) {
             char next = fmt[i + 1];
-            if (next == 'n')  { out << '\n'; i++; continue; }
-            if (next == 't')  { out << '\t'; i++; continue; }
-            if (next == '\\') { out << '\\'; i++; continue; }
-            if (next == '\'') { out << '\''; i++; continue; }
-            out << fmt[i];
+            if (next == 'n')  { out.push_back('\n'); i++; continue; }
+            if (next == 't')  { out.push_back('\t'); i++; continue; }
+            if (next == '\\') { out.push_back('\\'); i++; continue; }
+            if (next == '\'') { out.push_back('\''); i++; continue; }
+            out.push_back(fmt[i]);
             continue;
         }
 
         if (fmt[i] == '%') {
             if (i + 1 < fmt.size() && fmt[i + 1] == '%') {
-                out << '%';
+                out.push_back('%');
                 i++;
                 continue;
             }
@@ -196,11 +219,10 @@ std::string formatOnce(keel::StringRef fmt, keel::ArrayRef<Value> args, keel::us
                 break;
 
             char type = fmt[i];
-            std::string spec(fmt.data() + start, i - start + 1);
             // The verbatim spec text (before any '*' splicing), emitted as a
             // literal when this conversion runs out of arguments and the
             // caller asked for that behaviour (MATLAB compose short chunks).
-            const std::string literalSpec = spec;
+            const keel::StringRef literalSpec = fmt.substr(start, i - start + 1);
 
             // Resolve C-style '*' field width / precision taken from the
             // argument list (MATLAB supports this: sprintf('%*.*f',8,2,pi)).
@@ -208,13 +230,19 @@ std::string formatOnce(keel::StringRef fmt, keel::ArrayRef<Value> args, keel::us
             // precision), BEFORE the conversion consumes its value arg. We
             // splice the concrete integer into the spec so the downstream
             // string / integer / float formatters need no '*' awareness.
-            for (keel::usize sp = spec.find('*'); sp != std::string::npos;
-                 sp = spec.find('*')) {
-                long w = (ai < args.size())
-                             ? static_cast<long>(args[ai].toScalar())
-                             : 0;
-                if (ai < args.size()) ++ai;
-                spec.replace(sp, 1, std::to_string(w));
+            keel::SmallString<64> spec;
+            for (keel::usize k = 0; k < literalSpec.size(); ++k) {
+                if (literalSpec[k] == '*') {
+                    long w = (ai < args.size())
+                                 ? static_cast<long>(args[ai].toScalar())
+                                 : 0;
+                    if (ai < args.size()) ++ai;
+                    char wbuf[32];
+                    std::snprintf(wbuf, sizeof(wbuf), "%ld", w);
+                    spec.append(wbuf);
+                } else {
+                    spec.push_back(literalSpec[k]);
+                }
             }
 
             if (type == 's') {
@@ -222,28 +250,28 @@ std::string formatOnce(keel::StringRef fmt, keel::ArrayRef<Value> args, keel::us
                 // honours width / precision in the spec (e.g. %5s, %-5s, %.1s).
                 if (ai < args.size()
                     && (args[ai].isChar() || args[ai].isString()))
-                    out << applyStringSpec(spec, args[ai].toString());
+                    applyStringSpec(spec.as_ref(), args[ai].toString(), out);
                 else if (literalWhenShort && ai >= args.size())
-                    out << literalSpec;
+                    out.append(literalSpec);
                 ai++;
             } else if (type == 'c') {
                 if (ai < args.size()) {
                     if (args[ai].isChar()) {
                         auto s = args[ai].toString();
-                        out << (s.empty() ? ' ' : s[0]);
+                        out.push_back(s.empty() ? ' ' : s[0]);
                     } else {
-                        out << static_cast<char>(static_cast<int>(args[ai].toScalar()));
+                        out.push_back(static_cast<char>(static_cast<int>(args[ai].toScalar())));
                     }
                 } else if (literalWhenShort) {
-                    out << literalSpec;
+                    out.append(literalSpec);
                 }
                 ai++;
             } else if (type == 'd' || type == 'i' || type == 'u'
                        || type == 'x' || type == 'X' || type == 'o') {
                 if (ai < args.size())
-                    out << formatIntegerConv(spec, type, args[ai].toScalar());
+                    formatIntegerConv(spec.as_ref(), type, args[ai].toScalar(), out);
                 else if (literalWhenShort)
-                    out << literalSpec;
+                    out.append(literalSpec);
                 ai++;
             } else if (type == 'f' || type == 'e' || type == 'E' || type == 'g' || type == 'G') {
                 if (ai < args.size()) {
@@ -251,25 +279,25 @@ std::string formatOnce(keel::StringRef fmt, keel::ArrayRef<Value> args, keel::us
                     if (!std::isfinite(v)) {
                         // MATLAB prints Inf / -Inf / NaN (capitalised) rather
                         // than the C library's lowercase inf/nan.
-                        out << formatNonFinite(spec, v);
+                        formatNonFinite(spec.as_ref(), v, out);
                     } else {
                         char buf[128];
                         std::snprintf(buf, sizeof(buf), spec.c_str(), v);
-                        out << buf;
+                        out.append(buf);
                     }
                 } else if (literalWhenShort) {
-                    out << literalSpec;
+                    out.append(literalSpec);
                 }
                 ai++;
             } else {
-                out << spec;
+                out.append(spec.as_ref());
             }
             continue;
         }
 
-        out << fmt[i];
+        out.push_back(fmt[i]);
     }
-    return out.str();
+    return out;
 }
 
 keel::usize countFormatSpecs(keel::StringRef fmt)
@@ -300,7 +328,7 @@ keel::usize countFormatSpecs(keel::StringRef fmt)
     return n;
 }
 
-std::string formatCyclic(keel::StringRef fmt, keel::ArrayRef<Value> args, keel::usize argStart, keel::Allocator *mr)
+keel::String formatCyclic(keel::StringRef fmt, keel::ArrayRef<Value> args, keel::usize argStart, keel::Allocator *mr)
 {
     keel::Allocator *p = mr;
     keel::ArenaTemp scratch = keel::get_scratch(mr);
@@ -342,11 +370,11 @@ std::string formatCyclic(keel::StringRef fmt, keel::ArrayRef<Value> args, keel::
     if (nSpecs == 0 || stream.size() <= nSpecs)
         return formatOnce(fmt, keel::ArrayRef<Value>{stream.data(), stream.size()}, 0);
 
-    std::string out;
+    keel::String out;
     keel::usize pos = 0;
     while (pos < stream.size()) {
         keel::usize end = std::min(pos + nSpecs, stream.size());
-        out += formatOnce(fmt, keel::ArrayRef<Value>{stream.data() + pos, end - pos}, 0);
+        out.append(formatOnce(fmt, keel::ArrayRef<Value>{stream.data() + pos, end - pos}, 0));
         pos = end;
     }
     return out;
@@ -357,7 +385,7 @@ Value sprintf(const Value &fmt, keel::ArrayRef<Value> args, keel::Allocator *mr)
     keel::Allocator *p = mr;
     if (!fmt.isChar())
         return Value::fromString("", p);
-    std::string result = formatCyclic(fmt.toString(), args, 0, mr);
+    keel::String result = formatCyclic(fmt.toString(), args, 0, mr);
     return Value::fromString(result, p);
 }
 

@@ -9,7 +9,6 @@
 #include <keel/memory.h>
 #include <keel/ref.h>
 #include <tuple>
-#include <vector>
 #include <numkit/value/value.hpp>
 
 namespace numkit::linalg {

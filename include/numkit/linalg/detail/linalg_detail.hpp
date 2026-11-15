@@ -6,7 +6,10 @@
 #pragma once
 
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/memory.h>
+#include <keel/ref.h>
+#include <keel/string.h>
 #include <keel/complex.h>
 #include <keel/math.h>
 #include <algorithm>
@@ -14,7 +17,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <type_traits>
-#include <vector>
+#include <utility>
 
 #include <numkit/value/error.hpp>
 #include <numkit/value/value.hpp>
@@ -31,13 +34,12 @@ namespace numkit::linalg::detail {
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // Render "2x2x2" for got-clauses.
-inline std::string shapeOf(const Value &v)
+inline keel::String shapeOf(const Value &v)
 {
     const Dims &d = v.dims();
-    std::string s = std::to_string(d.dim(0));
+    keel::String s = keel::format("{}", d.dim(0));
     for (int k = 1; k < d.ndim(); ++k) {
-        s += "x";
-        s += std::to_string(d.dim(k));
+        keel::format_into(s, "x{}", d.dim(k));
     }
     return s;
 }
@@ -46,21 +48,18 @@ inline std::string shapeOf(const Value &v)
 // norm, eig, pagesvd, pagepinv, pagenorm): the reference accepts single
 // or double, real or complex, and rejects logical, integer classes,
 // char, string and cell as one inputType class.
-inline void requireDoubleInput(const Value &A, std::string_view fn,
-                               std::string_view argName = "A",
+inline void requireDoubleInput(const Value &A, keel::StringRef fn,
+                               keel::StringRef argName = "A",
                                int argNum = 1)
 {
     const ValueType t = A.type();
     if (t == ValueType::DOUBLE || t == ValueType::COMPLEX || t == ValueType::SINGLE)
         return;
-    const std::string who = std::string(fn) + ": input "
-                            + std::to_string(argNum) + " ("
-                            + std::string(argName) + ")";
-    throw Error(who + " must be a single, double or complex matrix "
-                    "(got a " + shapeOf(A) + " " + mtypeName(t)
-                        + " array).",
-                0, 0, std::string(fn), "",
-                "numkit:" + std::string(fn) + ":inputType");
+    throw Error(keel::format("{}: input {} ({}) must be a single, double or complex matrix "
+                             "(got a {} {} array).",
+                             fn, argNum, argName, shapeOf(A), mtypeName(t)),
+                0, 0, fn, "",
+                keel::format("numkit:{}:inputType", fn));
 }
 
 inline Value widenSingleToDouble(const Value &v, keel::Allocator *mr = nullptr)
@@ -103,20 +102,19 @@ inline Value narrowDoubleToSingleIf(const Value &v, bool wantSingle, keel::Alloc
 // logical are accepted; integer classes, char, string and cell are
 // rejected (the element reads coerce, so single/logical answers stay
 // class-correct logical).
-inline void requireFloatOrLogicalInput(const Value &A, std::string_view fn,
-                                       std::string_view argName = "A",
+inline void requireFloatOrLogicalInput(const Value &A, keel::StringRef fn,
+                                       keel::StringRef argName = "A",
                                        int argNum = 1)
 {
     const ValueType t = A.type();
     if (t == ValueType::DOUBLE || t == ValueType::COMPLEX
         || t == ValueType::SINGLE || t == ValueType::LOGICAL)
         return;
-    throw Error(std::string(fn) + ": input " + std::to_string(argNum)
-                    + " (" + std::string(argName) + ") must be a double, "
-                    "single or logical matrix (got a " + shapeOf(A) + " "
-                    + mtypeName(t) + " array).",
-                0, 0, std::string(fn), "",
-                "numkit:" + std::string(fn) + ":inputType");
+    throw Error(keel::format("{}: input {} ({}) must be a double, single or logical matrix "
+                             "(got a {} {} array).",
+                             fn, argNum, argName, shapeOf(A), mtypeName(t)),
+                0, 0, fn, "",
+                keel::format("numkit:{}:inputType", fn));
 }
 
 // Coerce a coercible operand (single / logical / char / integer) to a
@@ -154,21 +152,19 @@ inline Value coerceToDoubleMatrix(const Value &A, keel::Allocator *mr)
 // 2-D requirement voiced per entry (pinv/orth/null/rank previously
 // answered 3-D inputs with the internal svd diagnostic). pageHint names
 // the page function the entry's family offers.
-inline void require2DMatrix(const Value &A, std::string_view fn,
-                            std::string_view argName = "A",
-                            std::string_view pageHint = {})
+inline void require2DMatrix(const Value &A, keel::StringRef fn,
+                            keel::StringRef argName = "A",
+                            keel::StringRef pageHint = {})
 {
     if (A.dims().ndim() == 2)
         return;
-    std::string msg = std::string(fn) + ": input 1 (" + std::string(argName)
-                    + ") must be a 2-D matrix (argument is "
-                    + shapeOf(A) + ")";
+    keel::String msg = keel::format("{}: input 1 ({}) must be a 2-D matrix (argument is {})",
+                                    fn, argName, shapeOf(A));
     if (!pageHint.empty())
-        msg += "; use " + std::string(pageHint)
-             + " to compute each N-D page separately";
-    msg += ".";
-    throw Error(std::move(msg), 0, 0, std::string(fn), "",
-                "numkit:" + std::string(fn) + ":notMatrix");
+        keel::format_into(msg, "; use {} to compute each N-D page separately", pageHint);
+    msg.push_back('.');
+    throw Error(std::move(msg), 0, 0, fn, "",
+                keel::format("numkit:{}:notMatrix", fn));
 }
 
 // Helper to determine if type is std::complex<T>

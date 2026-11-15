@@ -11,7 +11,6 @@
 #include <numkit/value/value.hpp>
 
 #include <cstddef>
-#include <string>
 
 namespace numkit::ops {
 struct SizeSpec;

@@ -6,7 +6,9 @@
 #include <keel/arena.h>
 #include <keel/array.h>
 #include <keel/complex.h>
+#include <keel/format.h>
 #include <keel/math.h>
+#include <keel/string.h>
 #include <numkit/value/value.hpp>
 #include <numkit/ops/helpers.hpp>
 #include <numkit/ops/reductions.hpp>
@@ -22,10 +24,8 @@
 #include <cstring>
 #include <limits>
 #include <numeric>
-#include <string>
 #include <tuple>
 #include <utility>
-#include <vector>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -110,10 +110,10 @@ inline void checkSolveOperandClass(const Value &v, const char *opname)
         || t == ValueType::SINGLE || t == ValueType::LOGICAL
         || t == ValueType::CHAR || isIntegerType(t))
         return;
-    throw Error(std::string(opname) + ": inputs must be numeric, logical"
-                " or char (got a " + mtypeName(t) + " operand).",
+    throw Error(keel::format("{}: inputs must be numeric, logical"
+                " or char (got a {} operand).", opname, mtypeName(t)),
                 0, 0, opname, "",
-                std::string("numkit:") + opname + ":inputType");
+                keel::format("numkit:{}:inputType", opname));
 }
 
 // Reference engine behavior for an exactly singular square solve A \ B:
@@ -187,25 +187,23 @@ Value matrixSolve(const Value &A, const Value &B, const char *opname, keel::Allo
         if (!isIntegerType(t))
             continue;
         const Dims &d = op->dims();
-        throw Error(std::string(opname) + ": integer matrices are not"
-                    " solved directly — convert with double() (got a "
-                        + std::to_string(d.dim(0)) + "x" + std::to_string(d.dim(1))
-                        + " " + mtypeName(t) + " array).",
+        throw Error(keel::format("{}: integer matrices are not"
+                    " solved directly — convert with double() (got a {}x{} {} array).",
+                    opname, d.dim(0), d.dim(1), mtypeName(t)),
                     0, 0, opname, "",
-                    std::string("numkit:") + opname + ":integerUnsupported");
+                    keel::format("numkit:{}:integerUnsupported", opname));
     }
     const keel::usize m  = A.dims().rows();
     const keel::usize n  = A.dims().cols();
     const keel::usize bm = B.dims().rows();
     const keel::usize k  = B.dims().cols();
     if (bm != m)
-        throw Error(std::string(opname) + ": matrix dimensions must agree",
-                    0, 0, opname, "", std::string("numkit:") + opname + ":dim");
+        throw Error(keel::format("{}: matrix dimensions must agree", opname),
+                    0, 0, opname, "", keel::format("numkit:{}:dim", opname));
     if (m < n)
-        throw Error(std::string(opname)
-                    + ": underdetermined (wide A, m<n) not yet supported",
+        throw Error(keel::format("{}: underdetermined (wide A, m<n) not yet supported", opname),
                     0, 0, opname, "",
-                    std::string("numkit:") + opname + ":wide");
+                    keel::format("numkit:{}:wide", opname));
 
     keel::ArenaTemp arena = keel::get_scratch(mr);
 
@@ -228,10 +226,9 @@ keel::Array<keel::c64> A_buf(m * n, arena.allocator());
                 singularSquareSolve(A_buf.data(), n, B_buf.data(), k, X.complexDataMut());
                 return narrowIfReal(X, mr);
             }
-            throw Error(std::string(opname)
-                        + ": matrix is singular or rank-deficient",
+            throw Error(keel::format("{}: matrix is singular or rank-deficient", opname),
                         0, 0, opname, "",
-                        std::string("numkit:") + opname + ":singular");
+                        keel::format("numkit:{}:singular", opname));
         }
         return narrowIfReal(X, mr);
     }
@@ -248,10 +245,9 @@ keel::Array<keel::c64> A_buf(m * n, arena.allocator());
             singularSquareSolve(A_buf.data(), n, B_buf.data(), k, Xd);
             return X;
         }
-        throw Error(std::string(opname)
-                    + ": matrix is singular or rank-deficient",
+        throw Error(keel::format("{}: matrix is singular or rank-deficient", opname),
                     0, 0, opname, "",
-                    std::string("numkit:") + opname + ":singular");
+                    keel::format("numkit:{}:singular", opname));
     }
     return X;
 }
@@ -313,20 +309,24 @@ Value compareImpl(Cmp c, const Value &a, const Value &b)
     }
 
     if (a.isString() || b.isString()) {
-        auto toStr = [](const Value &v) -> std::string {
+        auto toStr = [](const Value &v) -> keel::String {
             if (v.isString() || v.isChar())
-                return std::string(v.toString().as_ref());
+                return v.toString();
             throw Error("Comparison between string and non-string is not supported",
                          0, 0, "compare", "", "numkit:compare:stringType");
         };
-        std::string sa = toStr(a), sb = toStr(b);
+        keel::String sa = toStr(a), sb = toStr(b);
+        const keel::usize minLen = std::min(sa.size(), sb.size());
+        int cmpRes = (minLen > 0) ? std::memcmp(sa.data(), sb.data(), minLen) : 0;
+        if (cmpRes == 0)
+            cmpRes = (sa.size() < sb.size()) ? -1 : (sa.size() > sb.size() ? 1 : 0);
         switch (c) {
-        case Cmp::EQ: return Value::logicalScalar(sa == sb, nullptr);
-        case Cmp::NE: return Value::logicalScalar(sa != sb, nullptr);
-        case Cmp::LT: return Value::logicalScalar(sa <  sb, nullptr);
-        case Cmp::GT: return Value::logicalScalar(sa >  sb, nullptr);
-        case Cmp::LE: return Value::logicalScalar(sa <= sb, nullptr);
-        case Cmp::GE: return Value::logicalScalar(sa >= sb, nullptr);
+        case Cmp::EQ: return Value::logicalScalar(cmpRes == 0, nullptr);
+        case Cmp::NE: return Value::logicalScalar(cmpRes != 0, nullptr);
+        case Cmp::LT: return Value::logicalScalar(cmpRes <  0, nullptr);
+        case Cmp::GT: return Value::logicalScalar(cmpRes >  0, nullptr);
+        case Cmp::LE: return Value::logicalScalar(cmpRes <= 0, nullptr);
+        case Cmp::GE: return Value::logicalScalar(cmpRes >= 0, nullptr);
         }
     }
 
@@ -374,7 +374,8 @@ Value compareImpl(Cmp c, const Value &a, const Value &b)
             return r;
         }
         if (a.dims() != b.dims())
-            throw Error("Matrix dimensions must agree for comparison. a=[" + std::to_string(a.dims().rows()) + "x" + std::to_string(a.dims().cols()) + "], b=[" + std::to_string(b.dims().rows()) + "x" + std::to_string(b.dims().cols()) + "]",
+            throw Error(keel::format("Matrix dimensions must agree for comparison. a=[{}x{}], b=[{}x{}]",
+                                     a.dims().rows(), a.dims().cols(), b.dims().rows(), b.dims().cols()),
                         0, 0, "compareImpl", "", "numkit:compare:dimMismatch");
         auto r = createLike(a, ValueType::LOGICAL, nullptr);
         for (keel::usize i = 0; i < a.numel(); ++i)
@@ -494,7 +495,8 @@ Value compareImpl(Cmp c, const Value &a, const Value &b)
     keel::usize br = b.dims().rows(), bc = b.dims().cols();
     keel::usize outR, outC;
     if (!broadcastDims(ar, ac, br, bc, outR, outC))
-        throw Error("Matrix dimensions must agree for comparison. a=[" + std::to_string(ar) + "x" + std::to_string(ac) + "], b=[" + std::to_string(br) + "x" + std::to_string(bc) + "]",
+        throw Error(keel::format("Matrix dimensions must agree for comparison. a=[{}x{}], b=[{}x{}]",
+                                 ar, ac, br, bc),
                     0, 0, "compareString", "", "numkit:compare:dimMismatch");
 
     auto r = Value::matrix(outR, outC, ValueType::LOGICAL, nullptr);
@@ -587,7 +589,8 @@ Value logicalBinary(const char *opName, Op op,
         return r;
     }
     if (a.numel() != b.numel())
-        throw Error(std::string("Matrix dimensions must agree for ") + opName + ". a=[" + std::to_string(a.dims().rows()) + "x" + std::to_string(a.dims().cols()) + "], b=[" + std::to_string(b.dims().rows()) + "x" + std::to_string(b.dims().cols()) + "]",
+        throw Error(keel::format("Matrix dimensions must agree for {}. a=[{}x{}], b=[{}x{}]",
+                                 opName, a.dims().rows(), a.dims().cols(), b.dims().rows(), b.dims().cols()),
                     0, 0, opName, "", "numkit:binary_ops:dimMismatch");
     auto aa = toBoolArray(a, scratch.allocator());
     auto bb = toBoolArray(b, scratch.allocator());

@@ -359,18 +359,16 @@ xcov(const Value &x, const Value &y, int maxlag,
     const double *ld = lagsfull.doubleData();
 
     // Case-insensitive scaleopt.
-    std::string opt(scaleopt.data(), scaleopt.size());
-    for (char &ch : opt) if (ch >= 'A' && ch <= 'Z') ch = char(ch + 32);
-
-    if (opt == "biased") {
+    if (scaleopt.equals_ignore_ascii_case("biased")) {
         const double inv = (N > 0) ? 1.0 / static_cast<double>(N) : 0.0;
         for (keel::usize i = 0; i < nc; ++i) cd[i] *= inv;
-    } else if (opt == "unbiased") {
+    } else if (scaleopt.equals_ignore_ascii_case("unbiased")) {
         for (keel::usize i = 0; i < nc; ++i) {
             const double div = static_cast<double>(N) - keel::abs(ld[i]);
             cd[i] = (div > 0.0) ? cd[i] / div : 0.0;
         }
-    } else if (opt == "coeff" || opt == "normalized") {
+    } else if (scaleopt.equals_ignore_ascii_case("coeff") ||
+               scaleopt.equals_ignore_ascii_case("normalized")) {
         double c0x = 0.0, c0y = 0.0;
         const double *xd = xc.doubleData();
         const double *yd = yc.doubleData();
@@ -379,7 +377,7 @@ xcov(const Value &x, const Value &y, int maxlag,
         const double denom = std::sqrt(c0x * c0y);
         if (denom > 0.0)
             for (keel::usize i = 0; i < nc; ++i) cd[i] /= denom;
-    } else if (!(opt.empty() || opt == "none")) {
+    } else if (!(scaleopt.empty() || scaleopt.equals_ignore_ascii_case("none"))) {
         throw Error("xcov: scaleopt must be 'none', 'biased', 'unbiased', or 'coeff'",
                      0, 0, "xcov", "", "numkit:xcov:badScaleopt");
     }
@@ -455,8 +453,8 @@ Value cropConv2(const double *full, keel::usize fullR, keel::usize fullC, keel::
                  0, 0, "conv2", "", "numkit:conv2:badShape");
 }
 
-static void convMatrixArgcheck(const Value &v, std::string_view fn,
-                               std::string_view argName, int argNum)
+static void convMatrixArgcheck(const Value &v, keel::StringRef fn,
+                               keel::StringRef argName, int argNum)
 {
     const ValueType t = v.type();
     if (t == ValueType::DOUBLE || t == ValueType::SINGLE || t == ValueType::COMPLEX)
@@ -478,7 +476,7 @@ static Value allocLike(const Value &v, ValueType t, keel::Allocator *mr)
     const auto &d = v.dims();
     if (d.ndim() <= 2) return Value::matrix(d.rows(), d.cols(), t, mr);
     if (d.ndim() == 3) return Value::matrix3d(d.rows(), d.cols(), d.pages(), t, mr);
-    std::vector<keel::usize> od(static_cast<keel::usize>(d.ndim()));
+    keel::Array<keel::usize> od(static_cast<keel::usize>(d.ndim()), mr);
     for (int k = 0; k < d.ndim(); ++k) od[static_cast<keel::usize>(k)] = d.dim(k);
     return Value::matrixND(od.data(), d.ndim(), t, mr);
 }
@@ -628,9 +626,11 @@ Value convn(const Value &A, const Value &B, keel::StringRef shape, keel::Allocat
         return detail::narrowDoubleToSingleIf(conv2(a, b, shape, mr), wantSingle, mr);
     }
     if (nd > 3) {
-        std::vector<keel::usize> sa(static_cast<keel::usize>(nd), 1);
-        std::vector<keel::usize> sb(static_cast<keel::usize>(nd), 1);
-        std::vector<keel::usize> sfull(static_cast<keel::usize>(nd), 1);
+        keel::ArenaTemp scratch = keel::get_scratch(mr);
+        const keel::usize ndu = static_cast<keel::usize>(nd);
+        keel::Array<keel::usize> sa(ndu, static_cast<keel::usize>(1), scratch.allocator());
+        keel::Array<keel::usize> sb(ndu, static_cast<keel::usize>(1), scratch.allocator());
+        keel::Array<keel::usize> sfull(ndu, static_cast<keel::usize>(1), scratch.allocator());
         for (int d = 0; d < nd; ++d) {
             if (d < da) sa[static_cast<keel::usize>(d)] = a.dims().dim(d);
             if (d < db) sb[static_cast<keel::usize>(d)] = b.dims().dim(d);
@@ -638,7 +638,7 @@ Value convn(const Value &A, const Value &B, keel::StringRef shape, keel::Allocat
                 return Value::matrix(0, 0, wantSingle ? ValueType::SINGLE : ValueType::DOUBLE, mr);
             sfull[static_cast<keel::usize>(d)] = sa[static_cast<keel::usize>(d)] + sb[static_cast<keel::usize>(d)] - 1;
         }
-        std::vector<keel::usize> strideFull(static_cast<keel::usize>(nd), 1);
+        keel::Array<keel::usize> strideFull(ndu, static_cast<keel::usize>(1), scratch.allocator());
         for (int d = 1; d < nd; ++d)
             strideFull[static_cast<keel::usize>(d)] =
                 strideFull[static_cast<keel::usize>(d - 1)] * sfull[static_cast<keel::usize>(d - 1)];
@@ -649,8 +649,7 @@ Value convn(const Value &A, const Value &B, keel::StringRef shape, keel::Allocat
         const double *Bd = b.doubleData();
         const keel::usize na = a.numel(), nb = b.numel();
 
-        std::vector<keel::usize> ca(static_cast<keel::usize>(nd), 0);
-        std::vector<keel::usize> cb(static_cast<keel::usize>(nd), 0);
+        keel::Array<keel::usize> cb(ndu, static_cast<keel::usize>(0), scratch.allocator());
         for (keel::usize ib = 0; ib < nb; ++ib) {
             keel::usize tmpB = ib;
             keel::usize baseOffB = 0;
@@ -676,8 +675,8 @@ Value convn(const Value &A, const Value &B, keel::StringRef shape, keel::Allocat
 
         if (shape == "full") return detail::narrowDoubleToSingleIf(fullV, wantSingle, mr);
 
-        std::vector<keel::usize> sout(static_cast<keel::usize>(nd), 1);
-        std::vector<keel::usize> off(static_cast<keel::usize>(nd), 0);
+        keel::Array<keel::usize> sout(ndu, static_cast<keel::usize>(1), scratch.allocator());
+        keel::Array<keel::usize> off(ndu, static_cast<keel::usize>(0), scratch.allocator());
         if (shape == "same") {
             for (int d = 0; d < nd; ++d) {
                 sout[static_cast<keel::usize>(d)] = sa[static_cast<keel::usize>(d)];

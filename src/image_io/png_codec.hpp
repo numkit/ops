@@ -1,4 +1,4 @@
-﻿// toolboxes/image/src/io/png_codec.hpp
+// toolboxes/image/src/io/png_codec.hpp
 //
 // In-tree Portable Network Graphics (.png) decoder and encoder.
 // Full 8-bit and 16-bit support with zero external dependencies.
@@ -7,10 +7,10 @@
 
 #include <keel/core.h>
 #include <keel/memory.h>
+#include <keel/string.h>
 #include <cstddef>
 #include <cstdint>
 #include <numkit/value/value.hpp>
-#include <string>
 #include <utility>
 
 namespace numkit::image {
@@ -29,7 +29,7 @@ readPngWithMap(const keel::u8 *data, keel::usize len,
 /// Encode an image Value to PNG format bytes.
 /// @param A      Image (uint8/uint16; 1, 3, or 4 channels).
 /// @param level  Compression level (0..9, default 6).
-std::string writePngToBytes(const Value &A, int level = 6);
+keel::String writePngToBytes(const Value &A, int level = 6);
 
 /// Inspect a PNG header without decoding pixel data.
 bool peekPng(const keel::u8 *data, keel::usize len,

@@ -9,17 +9,16 @@
 #include <keel/core.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
+#include <keel/string.h>
+#include <keel/optional.h>
 #include <keel/format.h>
 #include <numkit/value/value.hpp>
+#include <numkit/value/error.hpp>
 
-#include <algorithm>
 #include <cctype>
 #include <cmath>
 #include <cstring>
 #include <limits>
-#include <optional>
-#include <string>
-#include <utility>
 
 namespace numkit::ops {
 
@@ -41,14 +40,14 @@ inline SizeSpec parseReadSize(const Value &sz, const char *fn)
         if (std::isinf(s))
             return SizeSpec{SizeSpec::Kind::Flat, SIZE_MAX, 0, 0};
         if (s < 0 || !std::isfinite(s))
-            throw Error(std::string(fn) + ": size must be Inf or a non-negative integer");
+            throw Error(keel::format("{}: size must be Inf or a non-negative integer", fn));
         return SizeSpec{SizeSpec::Kind::Flat, static_cast<keel::usize>(s), 0, 0};
     }
     if (sz.numel() == 2) {
         keel::f64 r = sz(0);
         keel::f64 c = sz(1);
         if (r < 0 || !std::isfinite(r) || std::isinf(r))
-            throw Error(std::string(fn) + ": rows in [m n] must be finite non-negative");
+            throw Error(keel::format("{}: rows in [m n] must be finite non-negative", fn));
         keel::usize rows = static_cast<keel::usize>(r);
         keel::usize cols;
         keel::usize limit;
@@ -57,14 +56,13 @@ inline SizeSpec parseReadSize(const Value &sz, const char *fn)
             limit = SIZE_MAX;
         } else {
             if (c < 0 || !std::isfinite(c))
-                throw Error(std::string(fn)
-                             + ": cols in [m n] must be finite non-negative or Inf");
+                throw Error(keel::format("{}: cols in [m n] must be finite non-negative or Inf", fn));
             cols = static_cast<keel::usize>(c);
             limit = rows * cols;
         }
         return SizeSpec{SizeSpec::Kind::Matrix, limit, rows, cols};
     }
-    throw Error(std::string(fn) + ": size must be scalar, Inf, or a 2-element vector");
+    throw Error(keel::format("{}: size must be scalar, Inf, or a 2-element vector", fn));
 }
 
 inline Value shapeFreadOutput(const keel::f64 *values, keel::usize n,
@@ -87,49 +85,53 @@ inline Value shapeFreadOutput(const keel::f64 *values, keel::usize n,
     return M;
 }
 
+struct PrecisionInfo
+{
+    int first;
+    keel::usize second;
+};
+
 // ── Precision + endian parsing (fread / fwrite) ──────────────────────
 // kind: 0 = unsigned, 1 = signed, 2 = float. byteSize in bytes.
-inline std::optional<std::pair<int, keel::usize>> parsePrecision(keel::StringRef raw)
+inline keel::Optional<PrecisionInfo> parsePrecision(keel::StringRef raw)
 {
-    std::string p(raw.data(), raw.size());
-    auto arrow = p.find("=>");
-    if (arrow != std::string::npos) p = p.substr(0, arrow);
-    while (!p.empty() && std::isspace(static_cast<unsigned char>(p.front()))) p.erase(0, 1);
-    if (!p.empty() && p.front() == '*') p.erase(0, 1);
-    while (!p.empty() && std::isspace(static_cast<unsigned char>(p.front()))) p.erase(0, 1);
-    while (!p.empty() && std::isspace(static_cast<unsigned char>(p.back()))) p.pop_back();
-    for (char &c : p) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    keel::StringRef s = raw;
+    keel::usize arrow = s.find("=>");
+    if (arrow != keel::kInvalidIndex) s = s.substr(0, arrow);
+    s = s.trim();
+    if (!s.empty() && s[0] == '*') s = s.substr(1).trim();
+    keel::SmallString<64> p;
+    for (char c : s) p.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
 
     if (p == "uint8" || p == "uchar" || p == "unsigned char" || p == "char" || p == "char*1")
-        return std::make_pair(0, keel::usize{1});
+        return PrecisionInfo{0, 1};
     if (p == "int8" || p == "schar" || p == "signed char" || p == "integer*1")
-        return std::make_pair(1, keel::usize{1});
+        return PrecisionInfo{1, 1};
     if (p == "uint16" || p == "ushort" || p == "unsigned short")
-        return std::make_pair(0, keel::usize{2});
+        return PrecisionInfo{0, 2};
     if (p == "int16" || p == "short" || p == "integer*2")
-        return std::make_pair(1, keel::usize{2});
+        return PrecisionInfo{1, 2};
     if (p == "uint32" || p == "uint" || p == "unsigned int" || p == "ulong" || p == "unsigned long")
-        return std::make_pair(0, keel::usize{4});
+        return PrecisionInfo{0, 4};
     if (p == "int32" || p == "int" || p == "long" || p == "integer*4")
-        return std::make_pair(1, keel::usize{4});
+        return PrecisionInfo{1, 4};
     if (p == "uint64")
-        return std::make_pair(0, keel::usize{8});
+        return PrecisionInfo{0, 8};
     if (p == "int64" || p == "integer*8")
-        return std::make_pair(1, keel::usize{8});
+        return PrecisionInfo{1, 8};
     if (p == "single" || p == "float" || p == "float32" || p == "real*4")
-        return std::make_pair(2, keel::usize{4});
+        return PrecisionInfo{2, 4};
     if (p == "double" || p == "float64" || p == "real*8")
-        return std::make_pair(2, keel::usize{8});
-    return std::nullopt;
+        return PrecisionInfo{2, 8};
+    return keel::kNullOpt;
 }
 
 // Returns true for big-endian, false for little-endian. 'native' → LE
 // because every target we support (x86_64, ARM64, WASM) is LE.
 inline bool parseEndian(keel::StringRef raw, const char *fn)
 {
-    std::string lo;
-    lo.reserve(raw.size());
-    for (char c : raw) lo += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    keel::SmallString<32> lo;
+    for (char c : raw) lo.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
     if (lo == "b" || lo == "ieee-be" || lo == "ieee-be.l64") return true;
     if (lo == "l" || lo == "ieee-le" || lo == "ieee-le.l64"
         || lo == "n" || lo == "native")
@@ -139,7 +141,11 @@ inline bool parseEndian(keel::StringRef raw, const char *fn)
 
 inline void byteSwap(char *p, keel::usize n)
 {
-    for (keel::usize i = 0, j = n - 1; i < j; ++i, --j) std::swap(p[i], p[j]);
+    for (keel::usize i = 0, j = n - 1; i < j; ++i, --j) {
+        char tmp = p[i];
+        p[i] = p[j];
+        p[j] = tmp;
+    }
 }
 
 } // namespace numkit::ops

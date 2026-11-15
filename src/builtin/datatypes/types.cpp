@@ -2,6 +2,8 @@
 #include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
+#include <keel/arena.h>
+#include <keel/array.h>
 #include <keel/complex.h>
 #include <keel/math.h>
 #include <numkit/builtin/datatypes.hpp>
@@ -18,6 +20,7 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
+#include <stdexcept>
 #include <type_traits>
 
 // Forward-declare the SIMD/portable cast backend (defined in
@@ -204,8 +207,9 @@ Value ismissing(const Value &x, const Value &indicator,
     keel::u8 *out = r.logicalDataMut();
 
     // Build the indicator value list (empty → standard missing only).
+    keel::ArenaTemp scratch = keel::get_scratch(p);
     const bool have_ind = (!indicator.isEmpty());
-    std::vector<double> ind_vals;
+    keel::Array<double> ind_vals(scratch.allocator());
     if (have_ind) {
         ind_vals.reserve(indicator.numel());
         for (keel::usize k = 0; k < indicator.numel(); ++k)
@@ -276,8 +280,8 @@ Value standardizeMissing(const Value &x, const Value &indicator,
         return x;
     }
     if (!indNum)
-        throw Error("standardizeMissing: second argument must be numeric or "
-                    "logical (got " + std::string(mtypeName(IT)) + ")",
+        throw Error(keel::format("standardizeMissing: second argument must be numeric or "
+                                 "logical (got {})", mtypeName(IT)),
                     0, 0, "standardizeMissing", "",
                     "numkit:standardizeMissing:indicatorsDouble");
 
@@ -288,9 +292,8 @@ Value standardizeMissing(const Value &x, const Value &indicator,
         const bool compat = (IT == ValueType::DOUBLE) || indicator.isLogical() ||
                             (intLike && IT == T);
         if (!compat)
-            throw Error("standardizeMissing: second argument must be " +
-                        std::string("double") +
-                        " for " + mtypeName(T) + " inputs",
+            throw Error(keel::format("standardizeMissing: second argument must be double for {} inputs",
+                                     mtypeName(T)),
                         0, 0, "standardizeMissing", "",
                         "numkit:standardizeMissing:indicatorsIntegerLogical");
         return x;
@@ -304,7 +307,8 @@ Value standardizeMissing(const Value &x, const Value &indicator,
                     "numkit:standardizeMissing:indicatorsDouble");
 
     // Build indicator list (skip NaN — won't match anything via ==).
-    std::vector<double> ind_vals;
+    keel::ArenaTemp scratch = keel::get_scratch(p);
+    keel::Array<double> ind_vals(scratch.allocator());
     if (!indicator.isEmpty()) {
         ind_vals.reserve(indicator.numel());
         for (keel::usize k = 0; k < indicator.numel(); ++k) {

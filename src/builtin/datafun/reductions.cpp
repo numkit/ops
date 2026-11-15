@@ -28,7 +28,6 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
-#include <string>
 #include <type_traits>
 
 #include "reductions_detail.hpp"

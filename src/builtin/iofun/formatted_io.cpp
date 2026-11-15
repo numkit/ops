@@ -4,25 +4,31 @@
 
 #include <keel/memory.h>
 #include <keel/ref.h>
+#include <keel/string.h>
 #include <numkit/builtin/iofun.hpp>
 #include <numkit/value/value.hpp>
 #include <numkit/builtin/strfun.hpp>
-#include <numkit/builtin/strfun.hpp>
-#include <numkit/builtin/strfun.hpp>
+
+#include <cstdio>
 
 namespace numkit::builtin {
 
-std::string sprintf(keel::StringRef fmt, keel::ArrayRef<Value> args, keel::Allocator *mr) {
+keel::String sprintf(keel::StringRef fmt, keel::ArrayRef<Value> args, keel::Allocator *mr) {
     return numkit::builtin::formatCyclic(fmt, args, 0, mr);
 }
 
-void disp(const Value &v, std::ostream &os) {
-    os << numkit::builtin::dispFormat(v);
+void disp(const Value &v, std::FILE *stream) {
+    keel::String s = numkit::builtin::dispFormat(v);
+    if (stream && !s.empty()) {
+        std::fwrite(s.data(), 1, s.size(), stream);
+    }
 }
 
-int fprintf(std::ostream &os, keel::StringRef fmt, keel::ArrayRef<Value> args, keel::Allocator *mr) {
-    std::string s = numkit::builtin::formatCyclic(fmt, args, 0, mr);
-    os << s;
+int fprintf(std::FILE *stream, keel::StringRef fmt, keel::ArrayRef<Value> args, keel::Allocator *mr) {
+    keel::String s = numkit::builtin::formatCyclic(fmt, args, 0, mr);
+    if (stream && !s.empty()) {
+        std::fwrite(s.data(), 1, s.size(), stream);
+    }
     return static_cast<int>(s.size());
 }
 

@@ -4,6 +4,7 @@
 // Migrated from toolboxes/builtin/src/language/arrays/matrix.cpp.
 
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/complex.h>
 #include <numkit/linalg/vector_ops.hpp>
@@ -413,9 +414,8 @@ Value kron(const Value &a, const Value &b, keel::Allocator *mr)
         if (t == ValueType::CELL || t == ValueType::STRUCT
             || t == ValueType::STRING || t == ValueType::FUNC_HANDLE
             || t == ValueType::OBJECT)
-            throw Error(std::string("kron: inputs must be numeric, char, "
-                        "or logical (got a ")
-                        + mtypeName(t) + " array).",
+            throw Error(keel::format("kron: inputs must be numeric, char, or logical (got a {} array).",
+                                     mtypeName(t)),
                         0, 0, "kron", "", "numkit:kron:mustBeNumericCharOrLogical");
     }
     if (a.dims().ndim() > 2 || b.dims().ndim() > 2)

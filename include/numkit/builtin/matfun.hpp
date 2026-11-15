@@ -5,7 +5,6 @@
 
 #include <keel/memory.h>
 #include <keel/ref.h>
-#include <string>
 #include <numkit/value/value.hpp>
 
 namespace numkit::builtin {

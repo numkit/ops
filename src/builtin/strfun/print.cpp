@@ -1,7 +1,7 @@
 // toolboxes/builtin/src/datatypes/strings/print.cpp
 
 #include <keel/core.h>
-#include <numkit/builtin/strfun.hpp>
+#include <keel/string.h>
 #include <numkit/builtin/strfun.hpp>
 
 #include <numkit/value/value.hpp>
@@ -9,9 +9,9 @@
 #include <numkit/value/error.hpp>
 
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 #include <cstdint>
-#include <sstream>
 
 namespace numkit::builtin {
 
@@ -19,46 +19,63 @@ namespace numkit::builtin {
 // Public API
 // ════════════════════════════════════════════════════════════════════════
 
-std::string dispFormat(const Value &a)
+keel::String dispFormat(const Value &a)
 {
-    std::ostringstream os;
+    keel::String out;
+    auto appendDouble = [&](double v) {
+        char buf[64];
+        std::snprintf(buf, sizeof(buf), "%.6g", v);
+        out.append(buf);
+    };
+    auto appendLL = [&](long long v) {
+        char buf[32];
+        std::snprintf(buf, sizeof(buf), "%lld", v);
+        out.append(buf);
+    };
+    auto appendUSize = [&](keel::usize v) {
+        char buf[32];
+        std::snprintf(buf, sizeof(buf), "%zu", static_cast<std::size_t>(v));
+        out.append(buf);
+    };
+
     if (a.isChar()) {
         // Row vector (or 1×0): single line. Matrix: one row per line.
         auto d = a.dims();
         if (d.rows() <= 1) {
-            os << std::string_view(a.toString());
+            out.append(a.toString());
         } else {
             for (keel::usize r = 0; r < d.rows(); ++r) {
-                if (r > 0) os << "\n";
-                os << std::string_view(a.charRow(r));
+                if (r > 0) out.push_back('\n');
+                out.append(a.charRow(r));
             }
         }
     } else if (a.isEmpty()) {
-        os << "[]";
+        out.append("[]");
     } else if (a.type() == ValueType::DOUBLE) {
         if (a.isScalar()) {
-            os << a.toScalar();
+            appendDouble(a.toScalar());
         } else {
             auto d = a.dims();
             if (d.rows() == 1) {
-                os << "[";
+                out.push_back('[');
                 for (keel::usize c = 0; c < d.cols(); ++c) {
-                    if (c > 0) os << " ";
+                    if (c > 0) out.push_back(' ');
                     double v = a(0, c);
                     if (v == std::floor(v) && std::isfinite(v))
-                        os << static_cast<long long>(v);
+                        appendLL(static_cast<long long>(v));
                     else
-                        os << v;
+                        appendDouble(v);
                 }
-                os << "]";
+                out.push_back(']');
             } else if (d.cols() == 1) {
                 for (keel::usize r = 0; r < d.rows(); ++r) {
-                    if (r > 0) os << "\n";
+                    if (r > 0) out.push_back('\n');
                     double v = a(r, 0);
+                    out.append("   ");
                     if (v == std::floor(v) && std::isfinite(v))
-                        os << "   " << static_cast<long long>(v);
+                        appendLL(static_cast<long long>(v));
                     else
-                        os << "   " << v;
+                        appendDouble(v);
                 }
             } else {
                 const keel::usize R = d.rows(), C = d.cols();
@@ -66,21 +83,24 @@ std::string dispFormat(const Value &a)
                 const double *base0 = a.doubleData();
                 forEachOuterPage(d, [&](keel::usize plin, const keel::usize *outerCoords) {
                     if (nd >= 3) {
-                        os << "(:,:";
-                        for (int i = 2; i < nd; ++i)
-                            os << "," << outerCoords[i - 2] + 1;
-                        os << ") =\n";
+                        out.append("(:,:");
+                        for (int i = 2; i < nd; ++i) {
+                            out.push_back(',');
+                            appendUSize(outerCoords[i - 2] + 1);
+                        }
+                        out.append(") =\n");
                     }
                     const double *page = base0 + plin * R * C;
                     for (keel::usize r = 0; r < R; ++r) {
-                        if (r > 0) os << "\n";
-                        os << "   ";
+                        if (r > 0) out.push_back('\n');
+                        out.append("   ");
                         for (keel::usize c = 0; c < C; ++c) {
                             double v = page[c * R + r];
+                            out.push_back(' ');
                             if (v == std::floor(v) && std::isfinite(v))
-                                os << " " << static_cast<long long>(v);
+                                appendLL(static_cast<long long>(v));
                             else
-                                os << " " << v;
+                                appendDouble(v);
                         }
                     }
                 });
@@ -88,41 +108,53 @@ std::string dispFormat(const Value &a)
         }
     } else if (a.isLogical()) {
         if (a.isScalar()) {
-            os << (a.toBool() ? "1" : "0");
+            out.push_back(a.toBool() ? '1' : '0');
         } else {
             auto d = a.dims();
             const keel::u8 *ld = a.logicalData();
             for (keel::usize r = 0; r < d.rows(); ++r) {
-                if (r > 0) os << "\n";
-                os << "   ";
-                for (keel::usize c = 0; c < d.cols(); ++c)
-                    os << " " << (ld[d.sub2ind(r, c)] ? "1" : "0");
+                if (r > 0) out.push_back('\n');
+                out.append("   ");
+                for (keel::usize c = 0; c < d.cols(); ++c) {
+                    out.push_back(' ');
+                    out.push_back(ld[d.sub2ind(r, c)] ? '1' : '0');
+                }
             }
         }
     } else if (a.isStruct()) {
-        for (auto entry : a.structFields())
-            os << "    " << std::string_view(entry.key) << ": " << std::string_view(entry.value.debugString()) << "\n";
+        for (auto entry : a.structFields()) {
+            out.append("    ");
+            out.append(entry.key);
+            out.append(": ");
+            out.append(entry.value.debugString());
+            out.push_back('\n');
+        }
     } else if (a.isCell()) {
         auto d = a.dims();
-        os << "{" << d.rows() << "x" << d.cols() << " cell}";
+        out.push_back('{');
+        appendUSize(d.rows());
+        out.push_back('x');
+        appendUSize(d.cols());
+        out.append(" cell}");
     } else if (a.isComplex()) {
         if (a.isScalar()) {
             auto c = a.toComplex();
             if (c.real() != 0.0 || c.imag() == 0.0)
-                os << c.real();
+                appendDouble(c.real());
             if (c.imag() != 0.0) {
                 if (c.real() != 0.0 && c.imag() > 0)
-                    os << "+";
-                os << c.imag() << "i";
+                    out.push_back('+');
+                appendDouble(c.imag());
+                out.push_back('i');
             }
         } else {
-            os << std::string_view(a.debugString());
+            out.append(a.debugString());
         }
     } else {
-        os << std::string_view(a.debugString());
+        out.append(a.debugString());
     }
-    os << "\n";
-    return os.str();
+    out.push_back('\n');
+    return out;
 }
 
 } // namespace numkit::builtin

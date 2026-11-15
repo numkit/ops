@@ -38,9 +38,7 @@
 #include <cmath>
 #include <cstdio>
 #include <limits>
-#include <string>
 #include <tuple>
-#include <vector>
 
 namespace numkit::linalg {
 
@@ -730,7 +728,7 @@ bool tryCholeskyUpper(const double *M, keel::usize n, double *R)
     if (!(diagMax > 0.0)) return false;
     const double tol = 1e-12 * diagMax;
 
-    std::vector<keel::usize> firstNz(n, 0);
+    keel::SmallArray<keel::usize, 64> firstNz(n, keel::usize(0));
     for (keel::usize j = 0; j < n; ++j) {
         const double *mj = M + j * n;
         keel::usize fnz = j;
@@ -1130,8 +1128,10 @@ bool try_eigs_generalized_smallestabs(const Value &A, const Value &B, keel::usiz
     const double *ad = Aw.doubleData();
     const double *bd = Bw.doubleData();
 
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+
     // Compute skyline envelope of A so upper Cholesky R_A and triangular solves exploit banded structure.
-    std::vector<keel::usize> aFirstNz(n, 0);
+    keel::Array<keel::usize> aFirstNz(n, keel::usize(0), scratch.allocator());
     for (keel::usize j = 0; j < n; ++j) {
         const double *aj = ad + j * n;
         keel::usize fnz = j;
@@ -1141,13 +1141,13 @@ bool try_eigs_generalized_smallestabs(const Value &A, const Value &B, keel::usiz
         aFirstNz[j] = fnz;
     }
 
-    keel::ArenaTemp scratch = keel::get_scratch(mr);
     keel::Array<double> RA(n * n, scratch.allocator());
     if (!tryCholeskyUpper(ad, n, RA.data()))
         return false;
 
     // Precompute column non-zero spans of B for fast B * z.
-    std::vector<keel::usize> bFirst(n, 0), bLast(n, 0);
+    keel::Array<keel::usize> bFirst(n, keel::usize(0), scratch.allocator());
+    keel::Array<keel::usize> bLast(n, keel::usize(0), scratch.allocator());
     bool bDiagAllPos = true;
     for (keel::usize j = 0; j < n; ++j) {
         const double *bj = bd + j * n;
@@ -1301,7 +1301,7 @@ bool try_eigs_generalized_smallestabs(const Value &A, const Value &B, keel::usiz
         muMax = std::max(muMax, std::fabs(dTrid[i]));
     const double muTol = 1e-12 * std::max(1.0, muMax);
 
-    std::vector<keel::usize> idx(mActual);
+    keel::Array<keel::usize> idx(mActual, scratch.allocator());
     for (keel::usize i = 0; i < mActual; ++i) idx[i] = i;
     std::sort(idx.begin(), idx.end(), [&](keel::usize a, keel::usize b) {
         return std::fabs(dTrid[a]) > std::fabs(dTrid[b]);
@@ -2087,7 +2087,8 @@ Value ordeig(const Value &T, keel::Allocator *mr)
     // T(i+1, i)). Eigenvalues from them are complex conjugate pairs.
     // Real diagonal entries pass through.
     bool any_complex = false;
-    std::vector<keel::c64> out_complex;
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<keel::c64> out_complex(scratch.allocator());
     out_complex.reserve(n);
 
     keel::usize i = 0;
@@ -2095,7 +2096,7 @@ Value ordeig(const Value &T, keel::Allocator *mr)
         const double sub = (i + 1 < n) ? Td[(i + 1) + i * n] : 0.0;
         if (std::fabs(sub) <= 1e-14 * (1.0 + std::fabs(Td[i + i * n]))) {
             // Real eigenvalue (diagonal entry).
-            out_complex.emplace_back(Td[i + i * n], 0.0);
+            out_complex.push_back(keel::c64(Td[i + i * n], 0.0));
             ++i;
         } else {
             // 2Ã—2 block at (i, i+1):
@@ -2108,12 +2109,12 @@ Value ordeig(const Value &T, keel::Allocator *mr)
             const double mean = 0.5 * (a + ap);
             if (disc_re >= 0.0) {
                 const double half_sqrt = 0.5 * std::sqrt(disc_re);
-                out_complex.emplace_back(mean + half_sqrt, 0.0);
-                out_complex.emplace_back(mean - half_sqrt, 0.0);
+                out_complex.push_back(keel::c64(mean + half_sqrt, 0.0));
+                out_complex.push_back(keel::c64(mean - half_sqrt, 0.0));
             } else {
                 const double half_imag = 0.5 * std::sqrt(-disc_re);
-                out_complex.emplace_back(mean,  half_imag);
-                out_complex.emplace_back(mean, -half_imag);
+                out_complex.push_back(keel::c64(mean,  half_imag));
+                out_complex.push_back(keel::c64(mean, -half_imag));
                 any_complex = true;
             }
             i += 2;

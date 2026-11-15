@@ -8,6 +8,7 @@
 #include <keel/arena.h>
 #include <keel/array.h>
 #include <keel/complex.h>
+#include <keel/format.h>
 #include <keel/math.h>
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
@@ -20,10 +21,8 @@
 #include <cstring>
 #include <limits>
 #include <numeric>
-#include <string>
 #include <tuple>
 #include <utility>
-#include <vector>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -365,8 +364,8 @@ std::tuple<Value, Value>
 reduceMinMaxComplexAll(const Value &x, keel::Allocator *mr, const char *fn)
 {
     if (x.numel() == 0)
-        throw Error(std::string(fn) + " of empty array is not supported",
-                     0, 0, fn, "", std::string("numkit:") + fn + ":empty");
+        throw Error(keel::format("{} of empty array is not supported", fn),
+                     0, 0, fn, "", keel::format("numkit:{}:empty", fn));
     const keel::c64 *data = x.complexData();
     const bool allReal = allImagZero(data, x.numel());
     if (x.isScalar() || x.dims().isVector()) {
@@ -606,8 +605,8 @@ std::tuple<Value, Value>
 reduceMinMaxComplexNanAll(const Value &x, keel::Allocator *mr, const char *fn)
 {
     if (x.numel() == 0)
-        throw Error(std::string(fn) + " of empty array is not supported",
-                     0, 0, fn, "", std::string("numkit:") + fn + ":empty");
+        throw Error(keel::format("{} of empty array is not supported", fn),
+                     0, 0, fn, "", keel::format("numkit:{}:empty", fn));
     const keel::c64 *data = x.complexData();
     auto isNan = [](keel::c64 c) { return std::isnan(c.real()) || std::isnan(c.imag()); };
     // For all-real check, only consider non-NaN elements.
@@ -781,8 +780,8 @@ dispatchMinMaxAll(const Value &x, Cmp cmp, keel::Allocator *mr, const char *fn)
     case ValueType::CHAR:    return reduceMinMaxAllT<char    >(x, cmp, ValueType::CHAR,    mr);
     case ValueType::COMPLEX: return reduceMinMaxComplexAll<IsMax>(x, mr, fn);
     default:
-        throw Error(std::string(fn) + ": unsupported input type",
-                     0, 0, fn, "", std::string("numkit:") + fn + ":type");
+        throw Error(keel::format("{}: unsupported input type", fn),
+                     0, 0, fn, "", keel::format("numkit:{}:type", fn));
     }
 }
 
@@ -806,8 +805,8 @@ dispatchMinMaxAlongDim(const Value &x, int dim, Cmp cmp, keel::Allocator *mr, co
     case ValueType::CHAR:    return reduceMinMaxAlongDimT<char    >(x, dim, cmp, ValueType::CHAR,    mr);
     case ValueType::COMPLEX: return reduceMinMaxComplexAlongDim<IsMax>(x, dim, mr, fn);
     default:
-        throw Error(std::string(fn) + ": unsupported input type",
-                     0, 0, fn, "", std::string("numkit:") + fn + ":type");
+        throw Error(keel::format("{}: unsupported input type", fn),
+                     0, 0, fn, "", keel::format("numkit:{}:type", fn));
     }
 }
 

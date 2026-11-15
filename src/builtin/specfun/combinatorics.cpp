@@ -16,9 +16,7 @@
 #include <cstring>
 #include <limits>
 #include <numeric>
-#include <string>
 #include <utility>
-#include <vector>
 
 #include "discrete_detail.hpp"
 
@@ -132,7 +130,7 @@ Value perms(const Value &v, keel::Allocator *mr)
         vals[i] = v.elemAsDouble(i);
 
     keel::Array<double> cur(vals, scratch.allocator());
-    std::sort(cur.begin(), cur.end(), std::greater<double>());
+    std::sort(cur.begin(), cur.end(), [](double a, double b) { return a > b; });
 
     const keel::usize totalRows = static_cast<keel::usize>(permFactorial(static_cast<int>(n)));
     auto out = Value::matrix(totalRows, n, ValueType::DOUBLE, mr);
@@ -290,7 +288,10 @@ Value symrcm(const Value &s, keel::Allocator *mr)
         return Value::matrix(1, 0, ValueType::DOUBLE, mr);
 
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    std::vector<std::vector<keel::usize>> adj(n);
+    keel::Array<keel::Array<keel::usize>> adj(scratch.allocator());
+    adj.reserve(n);
+    for (keel::usize i = 0; i < n; ++i)
+        adj.push_back(keel::Array<keel::usize>(scratch.allocator()));
 
     for (keel::usize i = 0; i < n; ++i) {
         for (keel::usize j = 0; j < n; ++j) {

@@ -7,10 +7,10 @@
 
 #pragma once
 
+#include <keel/array.h>
 #include <keel/core.h>
 #include <cstddef>
 #include <cstdint>
-#include <vector>
 
 namespace numkit::ops {
 
@@ -27,17 +27,17 @@ keel::u32 adler32(const keel::u8 *data, keel::usize len);
 /// @param maxOutputBytes    Maximum allowed uncompressed size (0 = unlimited).
 /// @return                  Decompressed byte vector.
 /// @throws                  numkit::Error on corrupted / truncated / oversized stream.
-std::vector<keel::u8> inflateRaw(const keel::u8 *src, keel::usize len,
-                                     keel::usize expectedSizeHint = 0,
-                                     keel::usize maxOutputBytes = 512ULL * 1024 * 1024);
+keel::Array<keel::u8> inflateRaw(const keel::u8 *src, keel::usize len,
+                                 keel::usize expectedSizeHint = 0,
+                                 keel::usize maxOutputBytes = 512ULL * 1024 * 1024);
 
 /// Compress uncompressed bytes using raw RFC 1951 Deflate.
 /// @param src    Input bytes.
 /// @param len    Length of input bytes.
 /// @param level  Compression level: 0 = store uncompressed, 1..9 = LZ77 + Huffman.
 /// @return       Compressed Deflate bitstream.
-std::vector<keel::u8> deflateRaw(const keel::u8 *src, keel::usize len,
-                                     int level = 6);
+keel::Array<keel::u8> deflateRaw(const keel::u8 *src, keel::usize len,
+                                 int level = 6);
 
 /// Decompress RFC 1950 ZLIB stream (2-byte header + Deflate stream + 4-byte Adler-32).
 /// @param src               ZLIB stream bytes.
@@ -46,16 +46,16 @@ std::vector<keel::u8> deflateRaw(const keel::u8 *src, keel::usize len,
 /// @param maxOutputBytes    Maximum allowed uncompressed size (0 = unlimited).
 /// @return                  Decompressed payload bytes.
 /// @throws                  numkit::Error on bad header, corrupted data, oversized output, or Adler-32 mismatch.
-std::vector<keel::u8> zlibDecompress(const keel::u8 *src, keel::usize len,
-                                         keel::usize expectedSizeHint = 0,
-                                         keel::usize maxOutputBytes = 512ULL * 1024 * 1024);
+keel::Array<keel::u8> zlibDecompress(const keel::u8 *src, keel::usize len,
+                                     keel::usize expectedSizeHint = 0,
+                                     keel::usize maxOutputBytes = 512ULL * 1024 * 1024);
 
 /// Compress payload into an RFC 1950 ZLIB stream.
 /// @param src    Input payload.
 /// @param len    Length of payload.
 /// @param level  Compression level (0..9).
 /// @return       Complete ZLIB stream (header + Deflate + Adler-32).
-std::vector<keel::u8> zlibCompress(const keel::u8 *src, keel::usize len,
-                                       int level = 6);
+keel::Array<keel::u8> zlibCompress(const keel::u8 *src, keel::usize len,
+                                   int level = 6);
 
 } // namespace numkit::ops

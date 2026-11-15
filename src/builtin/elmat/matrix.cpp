@@ -1,12 +1,14 @@
 // toolboxes/builtin/src/lang/arrays/matrix.cpp
 
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
 #include <keel/arena.h>
 #include <keel/array.h>
 #include <keel/complex.h>
 #include <keel/math.h>
+#include <keel/string.h>
 #include <numkit/builtin/elmat.hpp>
 
 #include <numkit/value/value.hpp>
@@ -30,7 +32,6 @@
 #include <cstring>
 #include <limits>
 #include <type_traits>
-#include <vector>
 
 #include "matrix_detail.hpp"
 
@@ -178,9 +179,9 @@ Value poly_of_matrix(const Value &A, keel::Allocator *mr)
 // be nullptr) receives the 0-indexed selected rows for the 2-output
 // form. Stable on full ties.
 Value topkrows_full(const Value &A, keel::usize k,
-                    const std::vector<keel::usize> &colsIn,
-                    const std::vector<keel::u8> &descIn,
-                    std::vector<keel::usize> *out_idx,
+                    keel::ArrayRef<keel::usize> colsIn,
+                    keel::ArrayRef<keel::u8> descIn,
+                    keel::Array<keel::usize> *out_idx,
                     keel::Allocator *mr)
 {
     if (A.dims().ndim() != 2)
@@ -190,21 +191,23 @@ Value topkrows_full(const Value &A, keel::usize k,
     const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
     const keel::usize kk = std::min(k, m);
 
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+
     // Resolve cols / desc defaults.
-    std::vector<keel::usize> cols;
-    std::vector<keel::u8> desc;
+    keel::Array<keel::usize> cols(scratch.allocator());
+    keel::Array<keel::u8> desc(scratch.allocator());
     if (colsIn.empty()) {
         cols.reserve(n);
         for (keel::usize j = 0; j < n; ++j) cols.push_back(j);
     } else {
-        cols = colsIn;
+        cols.assign(colsIn);
     }
     if (descIn.size() == 1) {
         desc.assign(cols.size(), descIn[0]);
     } else if (descIn.empty()) {
         desc.assign(cols.size(), 1);  // default descend
     } else if (descIn.size() == cols.size()) {
-        desc = descIn;
+        desc.assign(descIn);
     } else {
         throw Error("topkrows: direction must be a scalar or match the "
                     "length of col",
@@ -215,7 +218,6 @@ Value topkrows_full(const Value &A, keel::usize k,
             throw Error("topkrows: column index out of range",
                         0, 0, "topkrows", "", "numkit:topkrows:badCol");
 
-    keel::ArenaTemp scratch = keel::get_scratch(mr);
     keel::Array<keel::usize> idx(m, scratch.allocator());
     for (keel::usize i = 0; i < m; ++i) idx[i] = i;
 
@@ -274,7 +276,7 @@ Value topkrows_full(const Value &A, keel::usize k,
 
 Value topkrows(const Value &A, keel::usize k, keel::Allocator *mr)
 {
-    return topkrows_full(A, k, {}, {}, nullptr, mr);
+    return topkrows_full(A, k, keel::ArrayRef<keel::usize>(), keel::ArrayRef<keel::u8>(), nullptr, mr);
 }
 
 // ── Toeplitz / Hankel / Vandermonde / Companion ─────────────────────
@@ -628,7 +630,8 @@ Value magic(keel::usize N, keel::Allocator *mr)
     auto m = Value::matrix(N, N, ValueType::DOUBLE, mr);
     // Build into a row-major scratch then transpose into column-major
     // storage. Algorithms above are written in row-major for clarity.
-    std::vector<double> buf(N * N, 0.0);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<double> buf(N * N, 0.0, scratch.allocator());
     if (N % 2 == 1) {
         magicOdd(buf.data(), N);
     } else if (N % 4 == 0) {
@@ -701,18 +704,17 @@ namespace {
 void reshape_argcheck(const Value &x, keel::ArrayRef<keel::usize> dims)
 {
     keel::usize newNumel = 1;
-    std::string dimsDesc;
+    keel::String dimsDesc;
     for (keel::usize i = 0; i < dims.size(); ++i) {
         newNumel *= dims[i];
-        if (i) dimsDesc += "x";
-        dimsDesc += std::to_string(dims[i]);
+        if (i) dimsDesc.push_back('x');
+        keel::format_into(dimsDesc, "{}", dims[i]);
     }
     if (newNumel != x.numel())
-        throw Error("reshape: cannot reshape " + std::to_string(x.numel())
-                        + " elements into " + dimsDesc + " ("
-                        + std::to_string(newNumel) + " elements): the "
-                        "element count must not change — use [] to infer "
-                        "one dimension.",
+        throw Error(keel::format("reshape: cannot reshape {} elements into {} ({} elements): the "
+                                 "element count must not change — use [] to infer "
+                                 "one dimension.",
+                                 x.numel(), dimsDesc, newNumel),
                     0, 0, "reshape", "", "numkit:reshape:elementCountMismatch");
 }
 } // namespace
@@ -826,7 +828,9 @@ Surface3 sphere(keel::usize n, keel::Allocator *mr)
 
     if (n == 0) return { std::move(X), std::move(Y), std::move(Z) };
 
-    std::vector<double> cosPhi(m), sinPhi(m);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<double> cosPhi(m, scratch.allocator());
+    keel::Array<double> sinPhi(m, scratch.allocator());
     for (keel::usize i = 0; i < m; ++i) {
         const double phi = (2.0 * static_cast<double>(i) - static_cast<double>(n))
                               / static_cast<double>(n) * (kPi / 2.0);
@@ -836,7 +840,8 @@ Surface3 sphere(keel::usize n, keel::Allocator *mr)
     cosPhi[0] = 0.0;
     cosPhi[m - 1] = 0.0;
 
-    std::vector<double> cosTh(m), sinTh(m);
+    keel::Array<double> cosTh(m, scratch.allocator());
+    keel::Array<double> sinTh(m, scratch.allocator());
     for (keel::usize j = 0; j < m; ++j) {
         const double theta = (2.0 * static_cast<double>(j) - static_cast<double>(n))
                                 / static_cast<double>(n) * kPi;

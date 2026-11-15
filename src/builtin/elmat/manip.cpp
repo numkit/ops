@@ -23,7 +23,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
-#include <vector>
 
 #include "manip_detail.hpp"
 
@@ -95,8 +94,7 @@ Value repmatND(const Value &x, keel::ArrayRef<keel::usize> tiles, keel::Allocato
 {
     const ValueType t = x.type();
     if (t == ValueType::FUNC_HANDLE)
-        throw Error(std::string("repmat: ND repmat does not support type '")
-                     + mtypeName(t) + "'",
+        throw Error(keel::format("repmat: ND repmat does not support type '{}'", mtypeName(t)),
                      0, 0, "repmat", "", "numkit:repmat:typeND");
 
     const auto &inDims = x.dims();
@@ -119,7 +117,8 @@ Value repmatND(const Value &x, keel::ArrayRef<keel::usize> tiles, keel::Allocato
         }
         Dims outDims(outD, outNdim);
         const keel::usize total = outDims.numel();
-        std::vector<keel::usize> srcMap(total, 0);
+        keel::ArenaTemp scratch = keel::get_scratch(mr);
+        keel::Array<keel::usize> srcMap(total, static_cast<keel::usize>(0), scratch.allocator());
         if (x.numel() > 0 && total > 0) {
             keel::usize outStrides[kMaxNd], srcStrides[kMaxNd];
             computeStridesColMajor(outDims, outStrides);
@@ -362,7 +361,8 @@ Value rot90(const Value &x, int k, keel::Allocator *mr)
     // OBJECT (2-D): rotate via the same index map as rot90CellStr (each
     // assignment is result[outIdx] = src[srcIdx]) → objectGather.
     if (x.isObject() && nd < 4) {
-        std::vector<keel::usize> map(R * C);
+        keel::ArenaTemp scratch = keel::get_scratch(mr);
+        keel::Array<keel::usize> map(R * C, scratch.allocator());
         Dims outD = (kMod == 1 || kMod == 3) ? Dims(C, R) : Dims(R, C);
         for (keel::usize c = 0; c < C; ++c)
             for (keel::usize rr = 0; rr < R; ++rr) {
@@ -385,8 +385,7 @@ Value rot90(const Value &x, int k, keel::Allocator *mr)
         const ValueType t = x.type();
         if (t == ValueType::CELL || t == ValueType::STRUCT || t == ValueType::STRING
             || t == ValueType::FUNC_HANDLE)
-            throw Error(std::string("rot90: ND fallback does not support type '")
-                         + mtypeName(t) + "'",
+            throw Error(keel::format("rot90: ND fallback does not support type '{}'", mtypeName(t)),
                          0, 0, "rot90", "", "numkit:rot90:typeND");
         constexpr int kMaxNd = Dims::kMaxRank;
         if (nd > kMaxNd)
@@ -535,8 +534,7 @@ Value circshiftND(const Value &x, keel::ArrayRef<keel::i64> shifts, keel::Alloca
     // STRING arrays + struct arrays + function-handle arrays are deferred.
     if (t == ValueType::STRUCT || t == ValueType::FUNC_HANDLE
         || t == ValueType::STRING)
-        throw Error(std::string("circshift: does not support type '")
-                     + mtypeName(t) + "'",
+        throw Error(keel::format("circshift: does not support type '{}'", mtypeName(t)),
                      0, 0, "circshift", "", "numkit:circshift:typeND");
     const auto &d = x.dims();
     const int nd = d.ndim();
@@ -569,7 +567,8 @@ Value circshiftND(const Value &x, keel::ArrayRef<keel::i64> shifts, keel::Alloca
         keel::usize strides[kMaxNd];
         computeStridesColMajor(d, strides);
         const keel::usize total = d.numel();
-        std::vector<keel::usize> map(total);
+        keel::ArenaTemp scratch = keel::get_scratch(mr);
+        keel::Array<keel::usize> map(total, scratch.allocator());
         for (keel::usize dstLin = 0; dstLin < total; ++dstLin) {
             keel::usize rem = dstLin, srcLin = 0;
             for (int i = nd - 1; i >= 0; --i) {
@@ -905,9 +904,10 @@ Value paddata(const Value &v, keel::usize n, int dim, keel::StringRef side, doub
         throw Error("paddata: only 1-D or 2-D inputs supported",
                      0, 0, "paddata", "", "numkit:paddata:rank");
 
-    std::string sd(side.data(), side.size());
-    for (char &c : sd) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    if (sd != "right" && sd != "trailing" && sd != "left" && sd != "leading" && sd != "both")
+    const bool isRight = side.equals_ignore_ascii_case("right") || side.equals_ignore_ascii_case("trailing");
+    const bool isLeft = side.equals_ignore_ascii_case("left") || side.equals_ignore_ascii_case("leading");
+    const bool isBoth = side.equals_ignore_ascii_case("both");
+    if (!isRight && !isLeft && !isBoth)
         throw Error("paddata: side must be 'trailing', 'leading', or 'both'",
                      0, 0, "paddata", "", "numkit:paddata:badSide");
 
@@ -925,8 +925,8 @@ Value paddata(const Value &v, keel::usize n, int dim, keel::StringRef side, doub
 
     const keel::usize padTotal = n - cur;
     keel::usize padBefore = 0;
-    if (sd == "left" || sd == "leading") padBefore = padTotal;
-    else if (sd == "both")               padBefore = padTotal / 2;
+    if (isLeft)      padBefore = padTotal;
+    else if (isBoth) padBefore = padTotal / 2;
 
     if (opDim == 1) {
         const keel::usize outC = (R == 0 && C == 0) ? 1 : C;
@@ -975,9 +975,10 @@ Value trimdata(const Value &v, keel::usize n, int dim, keel::StringRef side, kee
         throw Error("trimdata: only 1-D or 2-D inputs supported",
                      0, 0, "trimdata", "", "numkit:trimdata:rank");
 
-    std::string sd(side.data(), side.size());
-    for (char &c : sd) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    if (sd != "right" && sd != "trailing" && sd != "left" && sd != "leading" && sd != "both")
+    const bool isRight = side.equals_ignore_ascii_case("right") || side.equals_ignore_ascii_case("trailing");
+    const bool isLeft = side.equals_ignore_ascii_case("left") || side.equals_ignore_ascii_case("leading");
+    const bool isBoth = side.equals_ignore_ascii_case("both");
+    if (!isRight && !isLeft && !isBoth)
         throw Error("trimdata: side must be 'trailing', 'leading', or 'both'",
                      0, 0, "trimdata", "", "numkit:trimdata:badSide");
 
@@ -993,8 +994,8 @@ Value trimdata(const Value &v, keel::usize n, int dim, keel::StringRef side, kee
 
     const keel::usize trimTotal = cur - n;
     keel::usize keepStart = 0;
-    if (sd == "left" || sd == "leading") keepStart = trimTotal;
-    else if (sd == "both")               keepStart = trimTotal / 2;
+    if (isLeft)      keepStart = trimTotal;
+    else if (isBoth) keepStart = trimTotal / 2;
 
     if (opDim == 1) {
         auto out = Value::matrix(n, C, ValueType::DOUBLE, mr);
@@ -1160,7 +1161,7 @@ Value sub2ind(const Value &siz, keel::ArrayRef<Value> subs,
     return r;
 }
 
-std::vector<Value> ind2sub(const Value &siz, const Value &ind, keel::usize nout,
+keel::Array<Value> ind2sub(const Value &siz, const Value &ind, keel::usize nout,
                            keel::Allocator *mr)
 {
     const keel::usize nDims = siz.numel();
@@ -1199,9 +1200,9 @@ std::vector<Value> ind2sub(const Value &siz, const Value &ind, keel::usize nout,
                    : Value::matrix(ind.dims().rows(), ind.dims().cols(),
                                    ValueType::DOUBLE, mr);
     };
-    std::vector<Value> rs;
+    keel::Array<Value> rs(mr);
     rs.reserve(outDims);
-    for (keel::usize i = 0; i < outDims; ++i) rs.emplace_back(makeLike());
+    for (keel::usize i = 0; i < outDims; ++i) rs.push_back(makeLike());
 
     for (keel::usize k = 0; k < outN; ++k) {
         const double iv = ind.isScalar() ? ind.toScalar() : ind.doubleData()[k];

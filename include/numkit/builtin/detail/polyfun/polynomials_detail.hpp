@@ -7,6 +7,7 @@
 #include <keel/memory.h>
 #include <keel/array.h>
 #include <keel/complex.h>
+#include <keel/format.h>
 #include <keel/math.h>
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
@@ -19,10 +20,8 @@
 #include <cstring>
 #include <limits>
 #include <numeric>
-#include <string>
 #include <tuple>
 #include <utility>
-#include <vector>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -35,11 +34,11 @@ namespace {
 keel::Array<double> readPolyAsDouble(const Value &p, const char *fn, keel::Allocator *mr)
 {
     if (p.type() == ValueType::COMPLEX)
-        throw Error(std::string(fn) + ": complex coefficient input is not supported",
-                     0, 0, fn, "", std::string("numkit:") + fn + ":complex");
+        throw Error(keel::format("{}: complex coefficient input is not supported", fn),
+                     0, 0, fn, "", keel::format("numkit:{}:complex", fn));
     if (!p.dims().isVector() && !p.isScalar() && !p.isEmpty())
-        throw Error(std::string(fn) + ": argument must be a vector",
-                     0, 0, fn, "", std::string("numkit:") + fn + ":notVector");
+        throw Error(keel::format("{}: argument must be a vector", fn),
+                     0, 0, fn, "", keel::format("numkit:{}:notVector", fn));
     const keel::usize n = p.numel();
     keel::Array<double> v(n, mr);
     for (keel::usize i = 0; i < n; ++i) v[i] = p.elemAsDouble(i);
@@ -98,8 +97,8 @@ namespace {
 keel::Array<keel::c64> readVecAsComplex(const Value &v, const char *fn, keel::Allocator *mr)
 {
     if (!v.dims().isVector() && !v.isScalar() && !v.isEmpty())
-        throw Error(std::string(fn) + ": argument must be a vector",
-                     0, 0, fn, "", std::string("numkit:") + fn + ":notVector");
+        throw Error(keel::format("{}: argument must be a vector", fn),
+                     0, 0, fn, "", keel::format("numkit:{}:notVector", fn));
     const keel::usize n = v.numel();
     keel::Array<keel::c64> r(n, mr);
     if (v.type() == ValueType::COMPLEX) {

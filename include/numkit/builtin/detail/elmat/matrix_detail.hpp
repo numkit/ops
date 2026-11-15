@@ -9,6 +9,7 @@
 #include <keel/arena.h>
 #include <keel/array.h>
 #include <keel/complex.h>
+#include <keel/format.h>
 #include <keel/math.h>
 #include <numkit/value/value.hpp>
 #include <numkit/ops/helpers.hpp>
@@ -25,10 +26,8 @@
 #include <cstring>
 #include <limits>
 #include <numeric>
-#include <string>
 #include <tuple>
 #include <utility>
-#include <vector>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -90,7 +89,7 @@ void magicSinglyEven(double *p, keel::usize N)
     const keel::usize K = (N - 2) / 4;    // num "full" left/right cols to swap
 
     // Build one (P×P) odd-magic and tile into four quadrants.
-    std::vector<double> sq(P * P, 0.0);
+    keel::Array<double> sq(P * P, 0.0);
     magicOdd(sq.data(), P);
 
     for (keel::usize i = 0; i < P; ++i) {
@@ -435,8 +434,8 @@ namespace {
 Value toDoubleMatrix2D(const Value &x, const char *fn, keel::Allocator *mr)
 {
     if (x.dims().is3D() || x.dims().ndim() > 2)
-        throw Error(std::string(fn) + ": input must be 2D",
-                     0, 0, fn, "", std::string("numkit:") + fn + ":bad2D");
+        throw Error(keel::format("{}: input must be 2D", fn),
+                     0, 0, fn, "", keel::format("numkit:{}:bad2D", fn));
     const keel::usize R = x.dims().rows();
     const keel::usize C = x.dims().cols();
     if (x.type() == ValueType::DOUBLE) {
@@ -967,8 +966,8 @@ Value cumScanDispatch(const Value &x, int dim, ScanFn scan, Op scalarOp, const c
     if (dd.ndim() >= 4) {
         constexpr int kMaxNd = Dims::kMaxRank;
         if (dd.ndim() > kMaxNd)
-            throw Error(std::string(fn) + ": rank exceeds 32",
-                         0, 0, fn, "", std::string("numkit:") + fn + ":tooManyDims");
+            throw Error(keel::format("{}: rank exceeds 32", fn),
+                         0, 0, fn, "", keel::format("numkit:{}:tooManyDims", fn));
         keel::usize outDims[kMaxNd];
         for (int i = 0; i < dd.ndim(); ++i) outDims[i] = dd.dim(i);
         auto r = Value::matrixND(outDims, dd.ndim(), ValueType::DOUBLE, mr);
@@ -1256,9 +1255,9 @@ Value promoteToDouble(const Value &x, keel::Allocator *mr)
 
 // topkrows worker (def in matrix.cpp, external).
 Value topkrows_full(const Value &A, keel::usize k,
-                    const std::vector<keel::usize> &colsIn,
-                    const std::vector<keel::u8> &descIn,
-                    std::vector<keel::usize> *out_idx,
+                    keel::ArrayRef<keel::usize> colsIn,
+                    keel::ArrayRef<keel::u8> descIn,
+                    keel::Array<keel::usize> *out_idx,
                     keel::Allocator *mr);
 
 } // namespace numkit::builtin

@@ -6,6 +6,9 @@
 #include <keel/core.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
+#include <keel/array.h>
+#include <keel/format.h>
+#include <keel/string.h>
 #include <numkit/value/value.hpp>
 
 #include <regex>
@@ -13,16 +16,15 @@
 #include <numkit/ops/reductions.hpp>  // engine-free numkit::builtin::detail dim-infra (ops re-export)
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <limits>
 #include <numeric>
-#include <string>
 #include <tuple>
 #include <utility>
-#include <vector>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -39,7 +41,7 @@ std::regex compileRegex(keel::StringRef pat, bool ignoreCase)
     try {
         return std::regex(pat.data(), pat.size(), flags);
     } catch (const std::regex_error &e) {
-        throw Error(std::string("regex: invalid pattern — ") + e.what(),
+        throw Error(keel::format("regex: invalid pattern — {}", e.what()),
                      0, 0, "regexp", "", "numkit:regexp:badPattern");
     }
 }
@@ -51,31 +53,34 @@ std::regex compileRegex(keel::StringRef pat, bool ignoreCase)
 // left untouched (and don't consume a capture index). Escapes and
 // character classes are honoured so `\(` and `[(]` are not miscounted.
 struct NamedGroups {
-    std::string cleaned;
-    std::vector<std::pair<std::string, keel::usize>> names;  // name → group #
+    keel::String cleaned;
+    keel::Array<std::pair<keel::String, keel::usize>> names;  // name → group #
+    explicit NamedGroups(keel::Allocator *alloc = keel::default_allocator())
+        : cleaned(alloc), names(alloc) {}
 };
 
-NamedGroups extractNamedGroups(keel::StringRef pat)
+NamedGroups extractNamedGroups(keel::StringRef pat,
+                               keel::Allocator *alloc = keel::default_allocator())
 {
-    NamedGroups ng;
+    NamedGroups ng(alloc);
     ng.cleaned.reserve(pat.size());
     keel::usize group = 0;
     bool inClass = false;
     for (keel::usize i = 0; i < pat.size();) {
         const char c = pat[i];
         if (c == '\\' && i + 1 < pat.size()) {           // escaped pair
-            ng.cleaned += c;
-            ng.cleaned += pat[i + 1];
+            ng.cleaned.push_back(c);
+            ng.cleaned.push_back(pat[i + 1]);
             i += 2;
             continue;
         }
         if (inClass) {
             if (c == ']') inClass = false;
-            ng.cleaned += c;
+            ng.cleaned.push_back(c);
             ++i;
             continue;
         }
-        if (c == '[') { inClass = true; ng.cleaned += c; ++i; continue; }
+        if (c == '[') { inClass = true; ng.cleaned.push_back(c); ++i; continue; }
         if (c == '(') {
             const bool named = i + 3 < pat.size() && pat[i + 1] == '?'
                                && pat[i + 2] == '<'
@@ -83,25 +88,25 @@ NamedGroups extractNamedGroups(keel::StringRef pat)
                                    || pat[i + 3] == '_');
             if (named) {
                 keel::usize j = i + 3;
-                std::string name;
-                while (j < pat.size() && pat[j] != '>') name += pat[j++];
+                keel::String name(alloc);
+                while (j < pat.size() && pat[j] != '>') name.push_back(pat[j++]);
                 ++group;
-                ng.names.emplace_back(name, group);
-                ng.cleaned += '(';          // plain capture group
+                ng.names.emplace_back(std::move(name), group);
+                ng.cleaned.push_back('(');          // plain capture group
                 i = (j < pat.size()) ? j + 1 : j;   // skip past '>'
                 continue;
             }
             if (i + 1 < pat.size() && pat[i + 1] == '?') {   // (?: (?= (?! (?<= (?<!
-                ng.cleaned += c;             // non-capturing / lookaround
+                ng.cleaned.push_back(c);             // non-capturing / lookaround
                 ++i;
                 continue;
             }
             ++group;                         // plain capture group
-            ng.cleaned += c;
+            ng.cleaned.push_back(c);
             ++i;
             continue;
         }
-        ng.cleaned += c;
+        ng.cleaned.push_back(c);
         ++i;
     }
     return ng;
@@ -115,7 +120,7 @@ Value rowFromIndices(const double *v, keel::usize n, keel::Allocator *mr)
     return out;
 }
 
-Value rowCellOfStrings(const std::string *v, keel::usize n, keel::Allocator *mr)
+Value rowCellOfStrings(const keel::StringRef *v, keel::usize n, keel::Allocator *mr)
 {
     auto out = Value::cell(1, n);
     for (keel::usize i = 0; i < n; ++i)

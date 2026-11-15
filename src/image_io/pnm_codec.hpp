@@ -7,10 +7,10 @@
 #include <keel/core.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
+#include <keel/string.h>
 #include <cstddef>
 #include <cstdint>
 #include <numkit/value/value.hpp>
-#include <string>
 
 namespace numkit::image {
 
@@ -21,7 +21,7 @@ Value readPnm(const keel::u8 *data, keel::usize len,
 
 /// Encode an image Value to PNM (PGM/PPM) format bytes.
 /// @param A Image (HÃ—W grayscale or HÃ—WÃ—3 RGB uint8/uint16).
-std::string writePnmToBytes(const Value &A, keel::StringRef ext = "ppm");
+keel::String writePnmToBytes(const Value &A, keel::StringRef ext = "ppm");
 
 /// Inspect a PNM header without decoding all pixels.
 bool peekPnm(const keel::u8 *data, keel::usize len,

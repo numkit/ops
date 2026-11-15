@@ -8,8 +8,7 @@
 #include <keel/core.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
-#include <functional>
-#include <string>
+#include <tuple>
 #include <numkit/value/value.hpp>
 #include <numkit/value/fn_handle.hpp>
 
@@ -72,8 +71,6 @@ Value polyint(const Value &p, keel::f64 k = 0.0, keel::Allocator *mr = nullptr);
 /// @param mr Memory resource.
 /// @return Fitted polynomial coefficients of length `n + 1`.
 Value polyfit(const Value &x, const Value &y, int n, keel::Allocator *mr = nullptr);
-
-#include <tuple>
 
 /// @brief Result of polynomial division and deconvolution (`[q, r] = polydiv(b, a)`).
 struct PolyDiv {

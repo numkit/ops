@@ -7,6 +7,7 @@
 #include <keel/memory.h>
 #include <keel/arena.h>
 #include <keel/array.h>
+#include <keel/string.h>
 #include <keel/complex.h>
 #include <keel/math.h>
 #include <numkit/linalg/solvers.hpp>
@@ -27,8 +28,6 @@
 #include <cmath>
 #include <cstddef>
 #include <limits>
-#include <string>
-#include <vector>
 
 namespace numkit::linalg {
 
@@ -184,8 +183,8 @@ lsqnonneg_impl(const Value &C, const Value &d, keel::Allocator *mr)
 
     NnlsResult R;
     R.exitflag = 1;
-    R.algorithm = "active-set";
-    R.message = "Optimization terminated.";
+    R.algorithm = keel::String::from("active-set", mr);
+    R.message = keel::String::from("Optimization terminated.", mr);
     R.iterations = 0;
 
     R.x = Value::matrix(N, 1, ValueType::DOUBLE, mr);

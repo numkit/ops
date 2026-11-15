@@ -11,7 +11,6 @@
 #include <keel/memory.h>
 #include <keel/ref.h>
 #include <keel/complex.h>
-#include <functional>
 #include <numkit/value/value.hpp>
 
 namespace numkit::linalg {
@@ -58,7 +57,7 @@ Value expmv(keel::f64 t, const Value &A, const Value &v,
 
 /// @brief General matrix function evaluator `funm(A, fun)`.
 /// Evaluates scalar function f on square matrix A via Schurâ€“Parlett algorithm.
-Value funm(const Value &A, std::function<keel::c64(keel::c64)> f,
+Value funm(const Value &A, keel::FunctionRef<keel::c64(keel::c64)> f,
            keel::Allocator *mr = nullptr);
 
 /// @brief General matrix function evaluator by string name (`'exp'`, `'sin'`, `'cos'`, `'sinh'`, `'cosh'`).

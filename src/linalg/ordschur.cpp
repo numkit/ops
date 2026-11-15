@@ -18,7 +18,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <vector>
 
 namespace numkit::linalg {
 
@@ -99,9 +98,9 @@ std::tuple<Value, Value> ordschur(const Value &U, const Value &T,
         if (st != ValueType::DOUBLE && st != ValueType::COMPLEX
             && st != ValueType::SINGLE && st != ValueType::LOGICAL
             && !isIntegerType(st))
-            throw Error("ordschur: input 3 (select) must be a numeric or"
-                        " logical vector (got a " + detail::shapeOf(select)
-                            + " " + mtypeName(st) + " array).",
+            throw Error(keel::format("ordschur: input 3 (select) must be a numeric or"
+                                     " logical vector (got a {} {} array).",
+                                     detail::shapeOf(select), mtypeName(st)),
                         0, 0, "ordschur", "", "numkit:ordschur:badSelect");
     }
     if (U.dims().ndim() != 2 || T.dims().ndim() != 2)

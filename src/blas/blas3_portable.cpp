@@ -1,10 +1,10 @@
+#include <keel/array.h>
 #include <keel/core.h>
 #include <keel/complex.h>
 #include <keel/math.h>
 #include <numkit/ops/blas3.hpp>
 #include <numkit/ops/blas.hpp>
 #include <numkit/ops/parallel_for.hpp>
-#include <vector>
 #include <algorithm>
 
 namespace numkit::ops {
@@ -259,7 +259,7 @@ void trsm_generic(MatrixSide side, MatrixUplo uplo, MatrixTranspose trans, Matri
             trsm_generic(side, uplo, trans, diag, m1, n, T(1), A, lda, B, ldb);
         } else if (uplo == MatrixUplo::Upper && trans != MatrixTranspose::NoTrans) {
             trsm_generic(side, uplo, trans, diag, m1, n, T(1), A, lda, B, ldb);
-            std::vector<T> U01_T(m2 * m1);
+            keel::Array<T> U01_T(m2 * m1, nullptr);
             for(keel::usize c=0; c<m2; ++c) {
                 for(keel::usize r=0; r<m1; ++r) {
                     T val = A[r + (m1 + c)*lda];
@@ -273,7 +273,7 @@ void trsm_generic(MatrixSide side, MatrixUplo uplo, MatrixTranspose trans, Matri
             trsm_generic(side, uplo, trans, diag, m2, n, T(1), A + m1 + m1 * lda, lda, B + m1, ldb);
         } else if (uplo == MatrixUplo::Lower && trans != MatrixTranspose::NoTrans) {
             trsm_generic(side, uplo, trans, diag, m2, n, T(1), A + m1 + m1 * lda, lda, B + m1, ldb);
-            std::vector<T> L10_T(m1 * m2);
+            keel::Array<T> L10_T(m1 * m2, nullptr);
             for(keel::usize c=0; c<m1; ++c) {
                 for(keel::usize r=0; r<m2; ++r) {
                     T val = A[(m1 + r) + c*lda];
@@ -309,7 +309,7 @@ void trsm_generic(MatrixSide side, MatrixUplo uplo, MatrixTranspose trans, Matri
             trsm_generic(side, uplo, trans, diag, m, n2, T(1), A + n1 + n1 * lda, lda, B + n1 * ldb, ldb);
         } else if (uplo == MatrixUplo::Upper && trans != MatrixTranspose::NoTrans) {
             trsm_generic(side, uplo, trans, diag, m, n2, T(1), A + n1 + n1 * lda, lda, B + n1 * ldb, ldb);
-            std::vector<T> U01_T(n2 * n1);
+            keel::Array<T> U01_T(n2 * n1, nullptr);
             for(keel::usize c=0; c<n2; ++c) {
                 for(keel::usize r=0; r<n1; ++r) {
                     T val = A[r + (n1 + c)*lda];
@@ -323,7 +323,7 @@ void trsm_generic(MatrixSide side, MatrixUplo uplo, MatrixTranspose trans, Matri
             trsm_generic(side, uplo, trans, diag, m, n1, T(1), A, lda, B, ldb);
         } else if (uplo == MatrixUplo::Lower && trans != MatrixTranspose::NoTrans) {
             trsm_generic(side, uplo, trans, diag, m, n1, T(1), A, lda, B, ldb);
-            std::vector<T> L10_T(n1 * n2);
+            keel::Array<T> L10_T(n1 * n2, nullptr);
             for(keel::usize c=0; c<n1; ++c) {
                 for(keel::usize r=0; r<n2; ++r) {
                     T val = A[(n1 + r) + c*lda];
@@ -399,8 +399,8 @@ void syrk_generic(MatrixUplo uplo, MatrixTranspose trans,
     const bool is_trans = (trans != MatrixTranspose::NoTrans);
     const bool is_conj  = (trans == MatrixTranspose::ConjTrans);
 
-    std::vector<T> V_T(n * k);
-    std::vector<T> V(k * n);
+    keel::Array<T> V_T(n * k, nullptr);
+    keel::Array<T> V(k * n, nullptr);
     
     if (!is_trans) {
         for (keel::usize col = 0; col < k; ++col) {

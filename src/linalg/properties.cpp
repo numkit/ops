@@ -8,6 +8,7 @@
 // kernel still living in toolboxes/builtin.
 
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/arena.h>
 #include <keel/array.h>
@@ -127,9 +128,9 @@ Value trace(const Value &A, keel::Allocator *mr)
     if (t != ValueType::DOUBLE && t != ValueType::COMPLEX
         && t != ValueType::SINGLE && t != ValueType::LOGICAL
         && !isIntegerType(t))
-        throw Error("trace: input 1 (A) must be a numeric or logical matrix"
-                    " (got a " + detail::shapeOf(A) + " " + mtypeName(t)
-                        + " array).",
+        throw Error(keel::format("trace: input 1 (A) must be a numeric or logical matrix"
+                                 " (got a {} {} array).",
+                                 detail::shapeOf(A), mtypeName(t)),
                     0, 0, "trace", "", "numkit:trace:inputType");
     if (A.dims().ndim() != 2)
         throw Error("trace: input must be a 2D matrix",
@@ -299,9 +300,9 @@ Value normest(const Value &A, keel::Allocator *mr)
     if (t != ValueType::DOUBLE && t != ValueType::COMPLEX
         && t != ValueType::SINGLE && t != ValueType::LOGICAL
         && t != ValueType::CHAR)
-        throw Error("normest: input 1 (A) must be a double, single, logical"
-                    " or char matrix (got a " + detail::shapeOf(A) + " "
-                        + mtypeName(t) + " array).",
+        throw Error(keel::format("normest: input 1 (A) must be a double, single, logical"
+                                 " or char matrix (got a {} {} array).",
+                                 detail::shapeOf(A), mtypeName(t)),
                     0, 0, "normest", "", "numkit:normest:inputType");
     const bool wantSingle = t == ValueType::SINGLE;
     auto sv = svd_values(detail::coerceToDoubleMatrix(A, mr), mr);

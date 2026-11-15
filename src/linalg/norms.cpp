@@ -7,6 +7,7 @@
 // in nk/linalg/decompositions.hpp.
 
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/math.h>
 #include <numkit/linalg/norms.hpp>
@@ -52,9 +53,9 @@ void vecnorm_argcheck(const Value &A)
     if (t == ValueType::DOUBLE || t == ValueType::COMPLEX
         || t == ValueType::SINGLE)
         return;
-    throw Error("vecnorm: input 1 (A) must be a single or double array "
-                "(got a " + detail::shapeOf(A) + " " + mtypeName(t)
-                    + " array).",
+    throw Error(keel::format("vecnorm: input 1 (A) must be a single or double array "
+                             "(got a {} {} array).",
+                             detail::shapeOf(A), mtypeName(t)),
                 0, 0, "vecnorm", "", "numkit:vecnorm:inputType");
 }
 

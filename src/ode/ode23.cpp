@@ -1,4 +1,4 @@
-﻿// toolboxes/ode/src/ode23.cpp
+// toolboxes/ode/src/ode23.cpp
 //
 // Explicit Bogacki-Shampine 3(2) Runge-Kutta integrator.
 //
@@ -13,8 +13,11 @@
 //     Equations I" (Springer, 2nd ed.) â€” general adaptive step-size
 //     control formula (Â§II.4, Eq. 4.13).
 
+#include <keel/array.h>
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/memory.h>
+#include <keel/ref.h>
 #include <numkit/ode/solvers.hpp>
 #include <numkit/ode/options.hpp>
 
@@ -26,7 +29,7 @@
 #include <array>
 #include <cmath>
 #include <limits>
-#include <vector>
+#include <utility>
 
 namespace numkit::ode {
 
@@ -70,11 +73,11 @@ constexpr double e4 = 0.0 - 1.0 / 8.0;          // = -1/8
 // y(Î¸) = (1-Î¸)Â·y_n + Î¸Â·y_new + Î¸(Î¸-1)Â·[(1-2Î¸)Â·(y_new-y_n)
 //                                    + (Î¸-1)Â·hÂ·k1 + Î¸Â·hÂ·k4]
 void hermite_interp(double theta, double dir, double h,
-                    const std::vector<double> &y_n,
-                    const std::vector<double> &y_new,
-                    const std::vector<double> &k1,
-                    const std::vector<double> &k4,
-                    std::vector<double> &out)
+                    keel::ArrayRef<double> y_n,
+                    keel::ArrayRef<double> y_new,
+                    keel::ArrayRef<double> k1,
+                    keel::ArrayRef<double> k4,
+                    keel::Array<double> &out)
 {
     const double one_m_t = 1.0 - theta;
     const double t_tm1   = theta * (theta - 1.0);
@@ -94,8 +97,8 @@ void hermite_interp(double theta, double dir, double h,
 // The FnHandle RHS bridge lives in ode_detail.hpp (callOdeRhs); this thin
 // binder keeps the call sites below unqualified and names ode23 in errors.
 void eval_rhs(FnHandle rhs, double t,
-              const std::vector<double> &y,
-              std::vector<double> &dydt, keel::Allocator *mr)
+              keel::ArrayRef<double> y,
+              keel::Array<double> &dydt, keel::Allocator *mr)
 {
     callOdeRhs(rhs, t, y, dydt, mr, "ode23");
 }
@@ -111,10 +114,10 @@ ode23(FnHandle rhs, const Value &tspan, const Value &y0,
     if (nspan < 2)
         throw Error("ode23: tspan must have at least 2 elements",
                     0, 0, "ode23", "", "numkit:ode23:tspanShort");
-    std::vector<double> ts(nspan);
+    keel::Array<double> ts(nspan, mr);
     for (keel::usize i = 0; i < nspan; ++i) ts[i] = tspan.elemAsDouble(i);
-    const double t0 = ts.front();
-    const double tf = ts.back();
+    const double t0 = ts[0];
+    const double tf = ts[nspan - 1];
     if (t0 == tf)
         throw Error("ode23: tspan(end) must differ from tspan(1)",
                     0, 0, "ode23", "", "numkit:ode23:tspanDegenerate");
@@ -126,7 +129,7 @@ ode23(FnHandle rhs, const Value &tspan, const Value &y0,
     }
 
     const keel::usize d = y0.numel();
-    std::vector<double> y(d);
+    keel::Array<double> y(d, mr);
     for (keel::usize i = 0; i < d; ++i) y[i] = y0.elemAsDouble(i);
 
     OdeOpts O = read_opts(opts, 1);
@@ -139,7 +142,7 @@ ode23(FnHandle rhs, const Value &tspan, const Value &y0,
 
     // â”€â”€ Initial step size (Hairer-NÃ¸rsett-Wanner I, Eq. 4.14) â”€â”€â”€â”€â”€â”€
     // 3rd-order method â‡’ exponent 1/3.
-    std::vector<double> k1(d), k2(d), k3(d), k4(d);
+    keel::Array<double> k1(d, mr), k2(d, mr), k3(d, mr), k4(d, mr);
     eval_rhs(rhs, t0, y, k1, mr);
 
     double h = O.initial_step;
@@ -153,7 +156,7 @@ ode23(FnHandle rhs, const Value &tspan, const Value &y0,
         d0 = std::sqrt(d0 / d); d1 = std::sqrt(d1 / d);
         double h0 = (d0 < 1e-5 || d1 < 1e-5) ? 1e-6 : 0.01 * d0 / d1;
         h0 = std::min(h0, std::fabs(tf - t0));
-        std::vector<double> y1(d), k2_trial(d);
+        keel::Array<double> y1(d, mr), k2_trial(d, mr);
         for (keel::usize i = 0; i < d; ++i) y1[i] = y[i] + dir * h0 * k1[i];
         eval_rhs(rhs, t0 + dir * h0, y1, k2_trial, mr);
         double d2 = 0.0;
@@ -171,10 +174,10 @@ ode23(FnHandle rhs, const Value &tspan, const Value &y0,
     }
 
     // â”€â”€ Output buffers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    std::vector<double> t_out;
-    std::vector<std::vector<double>> y_out;
+    keel::Array<double> t_out;
+    keel::Array<keel::Array<double>> y_out;
     t_out.reserve(64); y_out.reserve(64);
-    t_out.push_back(t0); y_out.push_back(y);
+    t_out.push_back(t0); y_out.push_back(y.clone());
 
     const bool emit_at_tspan = (nspan > 2);
     const int refine = emit_at_tspan ? 1 : std::max(1, O.refine);
@@ -192,7 +195,7 @@ ode23(FnHandle rhs, const Value &tspan, const Value &y0,
         trial_h = std::min(trial_h, O.max_step);
 
         // Stages k2..k4 (k1 carried in via FSAL).
-        std::vector<double> ytmp(d);
+        keel::Array<double> ytmp(d, mr);
         // k2 at (t + c2 h, y + h a21 k1)
         for (keel::usize i = 0; i < d; ++i)
             ytmp[i] = y[i] + dir * trial_h * (a21 * k1[i]);
@@ -202,7 +205,7 @@ ode23(FnHandle rhs, const Value &tspan, const Value &y0,
             ytmp[i] = y[i] + dir * trial_h * (a31 * k1[i] + a32 * k2[i]);
         eval_rhs(rhs, t + dir * c3 * trial_h, ytmp, k3, mr);
         // 3rd-order solution
-        std::vector<double> y_new(d);
+        keel::Array<double> y_new(d, mr);
         for (keel::usize i = 0; i < d; ++i)
             y_new[i] = y[i] + dir * trial_h
                      * (b1 * k1[i] + b2 * k2[i] + b3 * k3[i]);
@@ -227,7 +230,7 @@ ode23(FnHandle rhs, const Value &tspan, const Value &y0,
             const double t_new = t + dir * trial_h;
 
             if (emit_at_tspan) {
-                std::vector<double> yint;
+                keel::Array<double> yint;
                 while (next_span_idx < nspan) {
                     const double tt = ts[next_span_idx];
                     const double theta = (tt - t_old) / (dir * trial_h);
@@ -235,34 +238,34 @@ ode23(FnHandle rhs, const Value &tspan, const Value &y0,
                     const double clamped = std::max(0.0, std::min(1.0, theta));
                     if (std::fabs(clamped - 1.0) < 1e-15) {
                         t_out.push_back(tt);
-                        y_out.push_back(y_new);
+                        y_out.push_back(y_new.clone());
                     } else {
                         hermite_interp(clamped, dir, trial_h,
                                        y, y_new, k1, k4, yint);
                         t_out.push_back(tt);
-                        y_out.push_back(yint);
+                        y_out.push_back(yint.clone());
                     }
                     ++next_span_idx;
                 }
             } else if (refine > 1) {
-                std::vector<double> yint;
+                keel::Array<double> yint;
                 for (int r = 1; r < refine; ++r) {
                     const double theta = double(r) / double(refine);
                     hermite_interp(theta, dir, trial_h,
                                    y, y_new, k1, k4, yint);
                     t_out.push_back(t_old + dir * trial_h * theta);
-                    y_out.push_back(yint);
+                    y_out.push_back(yint.clone());
                 }
                 t_out.push_back(t_new);
-                y_out.push_back(y_new);
+                y_out.push_back(y_new.clone());
             } else {
                 t_out.push_back(t_new);
-                y_out.push_back(y_new);
+                y_out.push_back(y_new.clone());
             }
 
             t = t_new;
-            y = y_new;
-            k1 = k4;        // FSAL
+            y = std::move(y_new);
+            std::swap(k1, k4);        // FSAL
             failed_in_a_row = 0;
             // Step size update â€” 3rd-order exponent.
             const double exp = 1.0 / 3.0;
@@ -289,8 +292,7 @@ ode23(FnHandle rhs, const Value &tspan, const Value &y0,
         }
     }
     if (step_count >= max_steps)
-        throw Error("ode23: exceeded " + std::to_string(max_steps)
-                  + " integration steps",
+        throw Error(keel::format("ode23: exceeded {} integration steps", max_steps),
                     0, 0, "ode23", "", "numkit:ode23:tooManySteps");
 
     // Assemble output: t (m Ã— 1) and y (m Ã— d).

@@ -19,12 +19,12 @@
 #include <numkit/ops/compare.hpp>
 #include <numkit/linalg/eig.hpp>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
-#include <functional>
 #include <limits>
-#include <string>
+#include <type_traits>
 
 #include "binary_ops_detail.hpp"
 
@@ -52,17 +52,20 @@ bool isTfOrScalarGain(const Value &v)
 }
 
 struct TfPolyPair {
-    std::vector<double> num;
-    std::vector<double> den;
+    keel::Array<double> num;
+    keel::Array<double> den;
     double Ts = -1.0;
+
+    explicit TfPolyPair(keel::Allocator *alloc = nullptr)
+        : num(alloc), den(alloc) {}
 };
 
-TfPolyPair extractTfPoly(const Value &v)
+TfPolyPair extractTfPoly(const Value &v, keel::Allocator *alloc)
 {
     if (isTfStruct(v)) {
         const Value &nv = v.field("num");
         const Value &dv = v.field("den");
-        TfPolyPair out;
+        TfPolyPair out(alloc);
         out.num.resize(nv.numel());
         out.den.resize(dv.numel());
         for (keel::usize i = 0; i < nv.numel(); ++i) out.num[i] = nv.elemAsDouble(i);
@@ -70,7 +73,11 @@ TfPolyPair extractTfPoly(const Value &v)
         out.Ts = v.hasField("Ts") ? v.field("Ts").toScalar() : 0.0;
         return out;
     }
-    return {{v.toScalar()}, {1.0}, -1.0};
+    TfPolyPair out(alloc);
+    out.num.push_back(v.toScalar());
+    out.den.push_back(1.0);
+    out.Ts = -1.0;
+    return out;
 }
 
 double combineTfTs(double Ts1, double Ts2, const char *op)
@@ -79,33 +86,35 @@ double combineTfTs(double Ts1, double Ts2, const char *op)
     if (Ts1 == Ts2) return Ts1;
     if (Ts1 == -1.0) return Ts2;
     if (Ts2 == -1.0) return Ts1;
-    throw Error(std::string(op) + ": transfer function sample times must match",
-                0, 0, op, "", std::string("numkit:") + op + ":TsMismatch");
+    throw Error(keel::format("{}: transfer function sample times must match", op),
+                0, 0, op, "", keel::format("numkit:{}:TsMismatch", op));
 }
 
-std::vector<double> polyConv(const std::vector<double> &a, const std::vector<double> &b)
+keel::Array<double> polyConv(keel::ArrayRef<double> a, keel::ArrayRef<double> b,
+                             keel::Allocator *alloc)
 {
-    if (a.empty() || b.empty()) return {};
-    std::vector<double> y(a.size() + b.size() - 1, 0.0);
+    if (a.empty() || b.empty()) return keel::Array<double>(alloc);
+    keel::Array<double> y(a.size() + b.size() - 1, 0.0, alloc);
     for (keel::usize i = 0; i < a.size(); ++i)
         for (keel::usize j = 0; j < b.size(); ++j)
             y[i + j] += a[i] * b[j];
     return y;
 }
 
-std::vector<double> polyAddRightAligned(const std::vector<double> &a,
-                                        const std::vector<double> &b,
-                                        double bSign)
+keel::Array<double> polyAddRightAligned(keel::ArrayRef<double> a,
+                                        keel::ArrayRef<double> b,
+                                        double bSign,
+                                        keel::Allocator *alloc)
 {
     const keel::usize na = a.size(), nb = b.size();
     const keel::usize n = std::max(na, nb);
-    std::vector<double> y(n, 0.0);
+    keel::Array<double> y(n, 0.0, alloc);
     for (keel::usize i = 0; i < na; ++i) y[n - na + i] += a[i];
     for (keel::usize i = 0; i < nb; ++i) y[n - nb + i] += bSign * b[i];
     return y;
 }
 
-Value buildTfValue(const std::vector<double> &num, const std::vector<double> &den,
+Value buildTfValue(keel::ArrayRef<double> num, keel::ArrayRef<double> den,
                    double Ts, keel::Allocator *mr)
 {
     Value nv = Value::matrix(1, num.size(), ValueType::DOUBLE, mr);
@@ -126,10 +135,14 @@ Value plus(const Value &a, const Value &b, keel::Allocator *mr)
 {
     keel::Allocator *p = mr;
     if ((isTfStruct(a) || isTfStruct(b)) && isTfOrScalarGain(a) && isTfOrScalarGain(b)) {
-        auto ta = extractTfPoly(a);
-        auto tb = extractTfPoly(b);
-        auto num = polyAddRightAligned(polyConv(ta.num, tb.den), polyConv(tb.num, ta.den), +1.0);
-        auto den = polyConv(ta.den, tb.den);
+        keel::ArenaTemp scratch = keel::get_scratch(p);
+        keel::Allocator *sa = scratch.allocator();
+        auto ta = extractTfPoly(a, sa);
+        auto tb = extractTfPoly(b, sa);
+        auto c1 = polyConv(ta.num, tb.den, sa);
+        auto c2 = polyConv(tb.num, ta.den, sa);
+        auto num = polyAddRightAligned(c1, c2, +1.0, sa);
+        auto den = polyConv(ta.den, tb.den, sa);
         return buildTfValue(num, den, combineTfTs(ta.Ts, tb.Ts, "plus"), p);
     }
     if (a.isEmpty() || b.isEmpty())
@@ -138,14 +151,14 @@ Value plus(const Value &a, const Value &b, keel::Allocator *mr)
     if (a.type() == ValueType::LOGICAL || b.type() == ValueType::LOGICAL)
         return plus(coerceLogicalToDouble(a, p), coerceLogicalToDouble(b, p), p);
     if (a.isComplex() || b.isComplex())
-        return elementwiseComplex(a, b, std::plus<keel::c64>{}, p);
+        return elementwiseComplex(a, b, [](keel::c64 x, keel::c64 y) { return x + y; }, p);
     if (a.type() == ValueType::DOUBLE && b.type() == ValueType::DOUBLE) {
         if (sameShapeDoubleFastPath(a, b)) {
             auto r = createLike(a, ValueType::DOUBLE, p);
             ops::detail::plusLoop(a.doubleData(), b.doubleData(), r.doubleDataMut(), a.numel());
             return r;
         }
-        return elementwiseDouble(a, b, std::plus<double>{}, p);
+        return elementwiseDouble(a, b, [](double x, double y) { return x + y; }, p);
     }
     if (a.isChar() && b.isChar())
         return Value::fromString(keel::format("{}{}", a.toString(), b.toString()), p);
@@ -155,7 +168,7 @@ Value plus(const Value &a, const Value &b, keel::Allocator *mr)
         double *dd = ca.doubleDataMut();
         for (keel::usize i = 0; i < a.numel(); ++i)
             dd[i] = static_cast<double>(static_cast<unsigned char>(cd[i]));
-        return elementwiseDouble(ca, b, std::plus<double>{}, p);
+        return elementwiseDouble(ca, b, [](double x, double y) { return x + y; }, p);
     }
     if (a.type() == ValueType::DOUBLE && b.isChar()) {
         auto cb = createLike(b, ValueType::DOUBLE, p);
@@ -163,7 +176,7 @@ Value plus(const Value &a, const Value &b, keel::Allocator *mr)
         double *dd = cb.doubleDataMut();
         for (keel::usize i = 0; i < b.numel(); ++i)
             dd[i] = static_cast<double>(static_cast<unsigned char>(cd[i]));
-        return elementwiseDouble(a, cb, std::plus<double>{}, p);
+        return elementwiseDouble(a, cb, [](double x, double y) { return x + y; }, p);
     }
     if (a.isString() && b.isString())
         return Value::stringScalar(keel::format("{}{}", a.toString(), b.toString()), p);
@@ -172,9 +185,9 @@ Value plus(const Value &a, const Value &b, keel::Allocator *mr)
     if (a.isChar() && b.isString())
         return Value::stringScalar(keel::format("{}{}", a.toString(), b.toString()), p);
     if (a.isString() && b.isNumeric())
-        return Value::stringScalar(keel::format("{}{}", a.toString(), std::to_string(b.toScalar())), p);
+        return Value::stringScalar(keel::format("{}{}", a.toString(), b.toScalar()), p);
     if (a.isNumeric() && b.isString())
-        return Value::stringScalar(keel::format("{}{}", std::to_string(a.toScalar()), b.toString()), p);
+        return Value::stringScalar(keel::format("{}{}", a.toScalar(), b.toString()), p);
     if (a.type() == ValueType::CHAR || b.type() == ValueType::CHAR)
         return plus(coerceCharToDouble(a, p), coerceCharToDouble(b, p), p);
     {
@@ -188,10 +201,14 @@ Value minus(const Value &a, const Value &b, keel::Allocator *mr)
 {
     keel::Allocator *p = mr;
     if ((isTfStruct(a) || isTfStruct(b)) && isTfOrScalarGain(a) && isTfOrScalarGain(b)) {
-        auto ta = extractTfPoly(a);
-        auto tb = extractTfPoly(b);
-        auto num = polyAddRightAligned(polyConv(ta.num, tb.den), polyConv(tb.num, ta.den), -1.0);
-        auto den = polyConv(ta.den, tb.den);
+        keel::ArenaTemp scratch = keel::get_scratch(p);
+        keel::Allocator *sa = scratch.allocator();
+        auto ta = extractTfPoly(a, sa);
+        auto tb = extractTfPoly(b, sa);
+        auto c1 = polyConv(ta.num, tb.den, sa);
+        auto c2 = polyConv(tb.num, ta.den, sa);
+        auto num = polyAddRightAligned(c1, c2, -1.0, sa);
+        auto den = polyConv(ta.den, tb.den, sa);
         return buildTfValue(num, den, combineTfTs(ta.Ts, tb.Ts, "minus"), p);
     }
     if (a.isEmpty() || b.isEmpty())
@@ -201,14 +218,14 @@ Value minus(const Value &a, const Value &b, keel::Allocator *mr)
     if (a.type() == ValueType::CHAR || b.type() == ValueType::CHAR)
         return minus(coerceCharToDouble(a, p), coerceCharToDouble(b, p), p);
     if (a.isComplex() || b.isComplex())
-        return elementwiseComplex(a, b, std::minus<keel::c64>{}, p);
+        return elementwiseComplex(a, b, [](keel::c64 x, keel::c64 y) { return x - y; }, p);
     if (a.type() == ValueType::DOUBLE && b.type() == ValueType::DOUBLE) {
         if (sameShapeDoubleFastPath(a, b)) {
             auto r = createLike(a, ValueType::DOUBLE, p);
             ops::detail::minusLoop(a.doubleData(), b.doubleData(), r.doubleDataMut(), a.numel());
             return r;
         }
-        return elementwiseDouble(a, b, std::minus<double>{}, p);
+        return elementwiseDouble(a, b, [](double x, double y) { return x - y; }, p);
     }
     {
         auto r = dispatchIntegerBinaryOp(a, b, [](auto x, auto y) { return saturateSub(x, y); }, p);
@@ -227,14 +244,14 @@ Value times(const Value &a, const Value &b, keel::Allocator *mr)
     if (a.type() == ValueType::CHAR || b.type() == ValueType::CHAR)
         return times(coerceCharToDouble(a, p), coerceCharToDouble(b, p), p);
     if (a.isComplex() || b.isComplex())
-        return elementwiseComplex(a, b, std::multiplies<keel::c64>{}, p);
+        return elementwiseComplex(a, b, [](keel::c64 x, keel::c64 y) { return x * y; }, p);
     if (a.type() == ValueType::DOUBLE && b.type() == ValueType::DOUBLE) {
         if (sameShapeDoubleFastPath(a, b)) {
             auto r = createLike(a, ValueType::DOUBLE, p);
             ops::detail::timesLoop(a.doubleData(), b.doubleData(), r.doubleDataMut(), a.numel());
             return r;
         }
-        return elementwiseDouble(a, b, std::multiplies<double>{}, p);
+        return elementwiseDouble(a, b, [](double x, double y) { return x * y; }, p);
     }
     {
         auto r = dispatchIntegerBinaryOp(a, b, [](auto x, auto y) { return saturateMul(x, y); }, p);
@@ -248,10 +265,12 @@ Value mtimes(const Value &a, const Value &b, keel::Allocator *mr)
     keel::Allocator *p = mr;
 
     if ((isTfStruct(a) || isTfStruct(b)) && isTfOrScalarGain(a) && isTfOrScalarGain(b)) {
-        auto ta = extractTfPoly(a);
-        auto tb = extractTfPoly(b);
-        auto num = polyConv(ta.num, tb.num);
-        auto den = polyConv(ta.den, tb.den);
+        keel::ArenaTemp scratch = keel::get_scratch(p);
+        keel::Allocator *sa = scratch.allocator();
+        auto ta = extractTfPoly(a, sa);
+        auto tb = extractTfPoly(b, sa);
+        auto num = polyConv(ta.num, tb.num, sa);
+        auto den = polyConv(ta.den, tb.den, sa);
         return buildTfValue(num, den, combineTfTs(ta.Ts, tb.Ts, "mtimes"), p);
     }
 
@@ -267,7 +286,7 @@ Value mtimes(const Value &a, const Value &b, keel::Allocator *mr)
     if (a.isComplex() || b.isComplex()) {
         auto [ca, cb] = promoteToComplex(a, b, p);
         if (ca.isScalar() || cb.isScalar())
-            return elementwiseComplex(a, b, std::multiplies<keel::c64>{}, p);
+            return elementwiseComplex(a, b, [](keel::c64 x, keel::c64 y) { return x * y; }, p);
         keel::usize M = ca.dims().rows(), K = ca.dims().cols(), N = cb.dims().cols();
         if (K != cb.dims().rows())
             throw Error("Inner matrix dimensions must agree", 0, 0, "mtimes", "",
@@ -288,7 +307,7 @@ Value mtimes(const Value &a, const Value &b, keel::Allocator *mr)
     if (a.isScalar() || b.isScalar()) {
         auto r = dispatchIntegerBinaryOp(a, b, [](auto x, auto y) { return saturateMul(x, y); }, p);
         if (!r.isUnset()) return r;
-        return elementwiseDouble(a, b, std::multiplies<double>{}, p);
+        return elementwiseDouble(a, b, [](double x, double y) { return x * y; }, p);
     }
     if ((a.type() == ValueType::SINGLE || b.type() == ValueType::SINGLE) &&
         (a.type() == ValueType::SINGLE || a.type() == ValueType::DOUBLE) &&
@@ -355,14 +374,14 @@ Value rdivide(const Value &a, const Value &b, keel::Allocator *mr)
     if (a.type() == ValueType::CHAR || b.type() == ValueType::CHAR)
         return rdivide(coerceCharToDouble(a, p), coerceCharToDouble(b, p), p);
     if (a.isComplex() || b.isComplex())
-        return elementwiseComplex(a, b, std::divides<keel::c64>{}, p);
+        return elementwiseComplex(a, b, [](keel::c64 x, keel::c64 y) { return x / y; }, p);
     if (a.type() == ValueType::DOUBLE && b.type() == ValueType::DOUBLE) {
         if (sameShapeDoubleFastPath(a, b)) {
             auto r = createLike(a, ValueType::DOUBLE, p);
             ops::detail::rdivideLoop(a.doubleData(), b.doubleData(), r.doubleDataMut(), a.numel());
             return r;
         }
-        return elementwiseDouble(a, b, std::divides<double>{}, p);
+        return elementwiseDouble(a, b, [](double x, double y) { return x / y; }, p);
     }
     {
         auto r = dispatchIntegerBinaryOp(a, b, [](auto x, auto y) { return saturateDiv(x, y); }, p);
@@ -401,8 +420,8 @@ Value mrdivide(const Value &a, const Value &b, keel::Allocator *mr)
     }
     if (b.isScalar()) {
         if (a.isComplex() || b.isComplex())
-            return elementwiseComplex(a, b, std::divides<keel::c64>{}, p);
-        return elementwiseDouble(a, b, std::divides<double>{}, p);
+            return elementwiseComplex(a, b, [](keel::c64 x, keel::c64 y) { return x / y; }, p);
+        return elementwiseDouble(a, b, [](double x, double y) { return x / y; }, p);
     }
     if (a.isScalar() && !b.isScalar()) {
         if (b.dims().ndim() > 2)
@@ -445,8 +464,8 @@ Value mldivide(const Value &a, const Value &b, keel::Allocator *mr)
     }
     if (a.isScalar() && !b.isScalar()) {
         if (a.isComplex() || b.isComplex())
-            return elementwiseComplex(b, a, std::divides<keel::c64>{}, p);
-        return elementwiseDouble(b, a, std::divides<double>{}, p);
+            return elementwiseComplex(b, a, [](keel::c64 x, keel::c64 y) { return x / y; }, p);
+        return elementwiseDouble(b, a, [](double x, double y) { return x / y; }, p);
     }
     return matrixSolve(a, b, "mldivide", p);
 }

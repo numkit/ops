@@ -8,14 +8,10 @@
 #include <keel/memory.h>
 #include <keel/ref.h>
 #include <keel/format.h>
+#include <keel/string.h>
 #include <numkit/ode/options.hpp>
 
 #include <numkit/value/error.hpp>
-
-#include <algorithm>
-#include <cctype>
-#include <string>
-#include <unordered_set>
 
 namespace numkit::ode {
 
@@ -32,22 +28,14 @@ const char *const kOptionNames[] = {
 };
 constexpr keel::usize kNumOptions = sizeof(kOptionNames) / sizeof(kOptionNames[0]);
 
-std::string to_lower(keel::StringRef raw)
+// Map case-insensitive name â†’ canonical capitalisation; return nullptr
+// if not a recognised option.
+const char *canonical_name(keel::StringRef raw)
 {
-    std::string s(raw.data(), raw.size());
-    for (auto &c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    return s;
-}
-
-// Map case-insensitive name â†’ canonical capitalisation; return empty
-// string if not a recognised option.
-std::string canonical_name(keel::StringRef raw)
-{
-    const std::string lower = to_lower(raw);
     for (keel::usize i = 0; i < kNumOptions; ++i) {
-        if (to_lower(kOptionNames[i]) == lower) return std::string(kOptionNames[i]);
+        if (raw.equals_ignore_ascii_case(kOptionNames[i])) return kOptionNames[i];
     }
-    return {};
+    return nullptr;
 }
 
 // Build the default options struct (all fields = []).
@@ -83,19 +71,17 @@ Value odeset(const Value *args, keel::usize nargs,
     // Name-value pairs.
     while (i + 1 < nargs) {
         if (!args[i].isChar() && !args[i].isString())
-            throw Error("odeset: expected a string option name at arg "
-                      + std::to_string(i + 1),
+            throw Error(keel::format("odeset: expected a string option name at arg {}", i + 1),
                         0, 0, "odeset", "", "numkit:odeset:badArg");
-        const std::string name = canonical_name(args[i].toString());
-        if (name.empty())
+        const char *name = canonical_name(args[i].toString());
+        if (!name)
             throw Error(keel::format("odeset: unknown option '{}'", args[i].toString()),
                         0, 0, "odeset", "", "numkit:odeset:badName");
-        out.field(name.c_str()) = args[i + 1];
+        out.field(name) = args[i + 1];
         i += 2;
     }
     if (i < nargs)
-        throw Error("odeset: trailing unmatched argument at position "
-                  + std::to_string(i + 1),
+        throw Error(keel::format("odeset: trailing unmatched argument at position {}", i + 1),
                     0, 0, "odeset", "", "numkit:odeset:unpaired");
     return out;
 }
@@ -118,9 +104,9 @@ Value odeget(const Value &opts, const Value &name,
     if (opts.isEmpty())
         return default_v.isEmpty() ? Value::Empty : default_v;
     if (!opts.isStruct())
-        throw Error("odeget: input 1 (options) must be an options struct "
-                    "created by odeset (got a "
-                    + std::string(mtypeName(opts.type())) + " array).",
+        throw Error(keel::format("odeget: input 1 (options) must be an options struct "
+                                 "created by odeset (got a {} array).",
+                                 mtypeName(opts.type())),
                     0, 0, "odeget", "", "numkit:odeget:notStruct");
     if (!((name.isChar() && name.numel() >= 0)
           || (name.isString() && name.numel() == 1)))
@@ -128,7 +114,7 @@ Value odeget(const Value &opts, const Value &name,
                     "string scalar.",
                     0, 0, "odeget", "", "numkit:odeget:mustBeTextScalar");
 
-    const std::string raw(name.toString().as_ref());
+    const keel::String raw = name.toString();
 
     // 3. Exact field first.
     if (opts.hasField(raw.c_str())) {
@@ -138,31 +124,31 @@ Value odeget(const Value &opts, const Value &name,
     }
 
     // 4. Case-insensitive unambiguous prefix over the canonical names.
-    const std::string lowerRaw = to_lower(raw);
-    std::string canon;
+    const char *canon = nullptr;
     int matches = 0;
-    if (lowerRaw.empty()) {
+    if (raw.empty()) {
         matches = static_cast<int>(kNumOptions);   // every name matches ""
     } else {
+        const keel::StringRef rawRef = raw.as_ref();
         for (keel::usize i = 0; i < kNumOptions; ++i) {
-            const std::string lo = to_lower(kOptionNames[i]);
-            if (lo.size() >= lowerRaw.size()
-                && lo.compare(0, lowerRaw.size(), lowerRaw) == 0) {
+            const keel::StringRef optRef(kOptionNames[i]);
+            if (optRef.size() >= rawRef.size()
+                && optRef.substr(0, rawRef.size()).equals_ignore_ascii_case(rawRef)) {
                 ++matches;
                 canon = kOptionNames[i];
             }
         }
     }
     if (matches == 0)
-        throw Error("odeget: unrecognized option name '" + raw + "'.",
+        throw Error(keel::format("odeget: unrecognized option name '{}'.", raw),
                     0, 0, "odeget", "", "numkit:odeget:invalidName");
     if (matches > 1)
-        throw Error("odeget: '" + raw + "' is an ambiguous option prefix "
-                    "â€” use enough characters to be unambiguous.",
+        throw Error(keel::format("odeget: '{}' is an ambiguous option prefix "
+                                 "â€” use enough characters to be unambiguous.", raw),
                     0, 0, "odeget", "", "numkit:odeget:ambiguousName");
 
-    if (opts.hasField(canon.c_str())) {
-        const Value &v = opts.field(canon.c_str());
+    if (opts.hasField(canon)) {
+        const Value &v = opts.field(canon);
         if (!v.isEmpty()) return v;
     }
     return default_v.isEmpty() ? Value::Empty : default_v;

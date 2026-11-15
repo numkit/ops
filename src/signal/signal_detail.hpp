@@ -9,49 +9,45 @@
 
 #pragma once
 
+#include <keel/array.h>
 #include <keel/core.h>
 #include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
+#include <keel/string.h>
 #include <numkit/value/error.hpp>
 #include <numkit/value/value.hpp>
 #include <numkit/value/value_type.hpp>   // mtypeName (argcheck got-clauses)
 
-#include <string>
-#include <string_view>
-#include <vector>
-
 namespace numkit::signal::detail {
 
 // Render "2x2x2" for got-clauses.
-inline std::string shapeOf(const Value &v)
+inline keel::String shapeOf(const Value &v)
 {
     const Dims &d = v.dims();
-    std::string s = std::to_string(d.dim(0));
+    keel::String s = keel::format("{}", d.dim(0));
     for (int k = 1; k < d.ndim(); ++k) {
-        s += "x";
-        s += std::to_string(d.dim(k));
+        keel::format_into(s, "x{}", d.dim(k));
     }
     return s;
 }
 
-inline void throwInputType(const Value &v, std::string_view fn,
-                           std::string_view argName, int argNum,
-                           std::string_view expectation)
+inline void throwInputType(const Value &v, keel::StringRef fn,
+                           keel::StringRef argName, int argNum,
+                           keel::StringRef expectation)
 {
-    throw Error(std::string(fn) + ": input " + std::to_string(argNum)
-                    + " (" + std::string(argName) + ") must be "
-                    + std::string(expectation) + " (got a " + shapeOf(v)
-                    + " " + mtypeName(v.type()) + " array).",
-                0, 0, std::string(fn), "",
-                "numkit:" + std::string(fn) + ":inputType");
+    throw Error(keel::format("{}: input {} ({}) must be {} (got a {} {} array).",
+                             fn, argNum, argName, expectation, shapeOf(v),
+                             mtypeName(v.type())),
+                0, 0, fn, "",
+                keel::format("numkit:{}:inputType", fn));
 }
 
 // Numeric-or-logical family (conv, bitrevorder, ifft 'symmetric'):
 // every numeric class plus logical passes; char, string, cell and struct are
 // rejected as one inputType class.
-inline void requireNumericOrLogicalInput(const Value &v, std::string_view fn,
-                                         std::string_view argName = "x",
+inline void requireNumericOrLogicalInput(const Value &v, keel::StringRef fn,
+                                         keel::StringRef argName = "x",
                                          int argNum = 1)
 {
     if (v.isNumeric() || v.isLogical())
@@ -59,8 +55,8 @@ inline void requireNumericOrLogicalInput(const Value &v, std::string_view fn,
     throwInputType(v, fn, argName, argNum, "numeric or logical");
 }
 
-inline void requireNumericSignalInput(const Value &v, std::string_view fn,
-                                      std::string_view argName = "x",
+inline void requireNumericSignalInput(const Value &v, keel::StringRef fn,
+                                      keel::StringRef argName = "x",
                                       int argNum = 1)
 {
     requireNumericOrLogicalInput(v, fn, argName, argNum);
@@ -69,8 +65,8 @@ inline void requireNumericSignalInput(const Value &v, std::string_view fn,
 // Float family (the reference's "must be double or single" class):
 // double, single, and complex double pass; logical / integer /
 // char / cell are rejected (the reference rejects them as invalidType).
-inline void requireFloatInput(const Value &v, std::string_view fn,
-                              std::string_view argName = "x", int argNum = 1)
+inline void requireFloatInput(const Value &v, keel::StringRef fn,
+                              keel::StringRef argName = "x", int argNum = 1)
 {
     const ValueType t = v.type();
     if (t == ValueType::DOUBLE || t == ValueType::SINGLE
@@ -89,7 +85,7 @@ inline Value widenSingleToDouble(const Value &v, keel::Allocator *mr)
     } else if (d.ndim() == 3) {
         out = Value::matrix3d(d.rows(), d.cols(), d.pages(), ValueType::DOUBLE, mr);
     } else {
-        std::vector<keel::usize> od(static_cast<keel::usize>(d.ndim()));
+        keel::Array<keel::usize> od(static_cast<keel::usize>(d.ndim()), mr);
         for (int k = 0; k < d.ndim(); ++k) od[static_cast<keel::usize>(k)] = d.dim(k);
         out = Value::matrixND(od.data(), d.ndim(), ValueType::DOUBLE, mr);
     }
@@ -111,7 +107,7 @@ inline Value narrowDoubleToSingle(const Value &v, keel::Allocator *mr)
     } else if (d.ndim() == 3) {
         out = Value::matrix3d(d.rows(), d.cols(), d.pages(), ValueType::SINGLE, mr);
     } else {
-        std::vector<keel::usize> od(static_cast<keel::usize>(d.ndim()));
+        keel::Array<keel::usize> od(static_cast<keel::usize>(d.ndim()), mr);
         for (int k = 0; k < d.ndim(); ++k) od[static_cast<keel::usize>(k)] = d.dim(k);
         out = Value::matrixND(od.data(), d.ndim(), ValueType::SINGLE, mr);
     }
@@ -131,54 +127,47 @@ inline Value narrowDoubleToSingleIf(const Value &v, bool wantSingle,
 
 // Real float family (medfilt1): the reference additionally rejects
 // complex input with an expectedReal-class error.
-inline void requireRealFloatInput(const Value &v, std::string_view fn,
-                                  std::string_view argName = "x",
+inline void requireRealFloatInput(const Value &v, keel::StringRef fn,
+                                  keel::StringRef argName = "x",
                                   int argNum = 1)
 {
     if (v.type() == ValueType::COMPLEX)
-        throw Error(std::string(fn) + ": input " + std::to_string(argNum)
-                        + " (" + std::string(argName)
-                        + ") must be real (got a " + shapeOf(v)
-                        + " complex array).",
-                    0, 0, std::string(fn), "",
-                    "numkit:" + std::string(fn) + ":inputReal");
+        throw Error(keel::format("{}: input {} ({}) must be real (got a {} complex array).",
+                                 fn, argNum, argName, shapeOf(v)),
+                    0, 0, fn, "",
+                    keel::format("numkit:{}:inputReal", fn));
     requireFloatInput(v, fn, argName, argNum);
 }
 
 // Complex kernels that do not exist yet voice their own identifier so
 // the rejection is attributed and grep-able
 // (bugs/opened/signal/complex-kernel-gaps.md).
-inline void requireDoubleNotComplexInput(const Value &v, std::string_view fn,
-                                         std::string_view argName = "x",
+inline void requireDoubleNotComplexInput(const Value &v, keel::StringRef fn,
+                                         keel::StringRef argName = "x",
                                          int argNum = 1)
 {
     if (v.type() == ValueType::COMPLEX)
-        throw Error(std::string(fn) + ": input " + std::to_string(argNum)
-                        + " (" + std::string(argName)
-                        + "): complex inputs are not supported yet (got a "
-                        + shapeOf(v) + " complex array).",
-                    0, 0, std::string(fn), "",
-                    "numkit:" + std::string(fn) + ":complexUnsupported");
+        throw Error(keel::format("{}: input {} ({}): complex inputs are not supported yet (got a {} complex array).",
+                                 fn, argNum, argName, shapeOf(v)),
+                    0, 0, fn, "",
+                    keel::format("numkit:{}:complexUnsupported", fn));
     requireFloatInput(v, fn, argName, argNum);
 }
 
 // Non-empty vector (conv / convmtx / polystab / extractsigroi x):
 // the reference rejects matrices AND empties with one notVector class.
-inline void requireVectorInput(const Value &v, std::string_view fn,
-                               std::string_view argName = "x", int argNum = 1)
+inline void requireVectorInput(const Value &v, keel::StringRef fn,
+                               keel::StringRef argName = "x", int argNum = 1)
 {
     if (!v.dims().isVector() || v.numel() == 0)
-        throw Error(std::string(fn) + ": input " + std::to_string(argNum)
-                        + " (" + std::string(argName)
-                        + ") must be a non-empty row or column vector "
-                          "(got a " + shapeOf(v) + " "
-                        + mtypeName(v.type()) + " array).",
-                    0, 0, std::string(fn), "",
-                    "numkit:" + std::string(fn) + ":notVector");
+        throw Error(keel::format("{}: input {} ({}) must be a non-empty row or column vector (got a {} {} array).",
+                                 fn, argNum, argName, shapeOf(v), mtypeName(v.type())),
+                    0, 0, fn, "",
+                    keel::format("numkit:{}:notVector", fn));
 }
 
 // Shape option shared by conv / conv2 / convn / filter2.
-inline void validateShapeOption(keel::StringRef shape, std::string_view fn)
+inline void validateShapeOption(keel::StringRef shape, keel::StringRef fn)
 {
     if (shape == "full" || shape == "same" || shape == "valid")
         return;

@@ -6,6 +6,8 @@
 #include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
+#include <keel/arena.h>
+#include <keel/array.h>
 #include <keel/complex.h>
 #include <keel/math.h>
 #include <numkit/linalg/ordqz.hpp>
@@ -17,9 +19,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
-#include <string>
 #include <tuple>
-#include <vector>
 
 namespace numkit::linalg {
 
@@ -176,7 +176,8 @@ std::tuple<Value, Value, Value, Value> ordqz(const Value &AA, const Value &BB,
         for (keel::usize i = 0; i < n * n; ++i) zd[i] = keel::c64(Z.elemAsDouble(i), 0.0);
     }
 
-    std::vector<keel::u8> sel(n, 0);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<keel::u8> sel(n, keel::u8(0), scratch.allocator());
     for (keel::usize i = 0; i < n; ++i) {
         sel[i] = select.isLogical() ? select.logicalData()[i] : (select.elemAsDouble(i) != 0.0);
     }

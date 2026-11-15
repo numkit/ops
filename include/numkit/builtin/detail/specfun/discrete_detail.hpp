@@ -12,6 +12,7 @@
 
 #include <keel/arena.h>
 #include <keel/array.h>
+#include <keel/format.h>
 #include <keel/hash_map.h>
 #include <keel/hash_set.h>
 #include <keel/math.h>
@@ -21,10 +22,8 @@
 #include <cmath>
 #include <cstring>
 #include <numeric>
-#include <string>
 #include <tuple>
 #include <utility>
-#include <vector>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -201,11 +200,11 @@ inline Value emptyRowsResult(keel::usize cols, keel::Allocator *alloc)
 void validateUniqueRowsInput(const Value &x, const char *fn)
 {
     if (x.type() != ValueType::DOUBLE)
-        throw Error(std::string(fn) + ": 'rows' flag requires a DOUBLE matrix",
-                     0, 0, fn, "", std::string("numkit:") + fn + ":rowsType");
+        throw Error(keel::format("{}: 'rows' flag requires a DOUBLE matrix", fn),
+                     0, 0, fn, "", keel::format("numkit:{}:rowsType", fn));
     if (x.dims().ndim() > 2)
-        throw Error(std::string(fn) + ": 'rows' flag requires a 2D matrix",
-                     0, 0, fn, "", std::string("numkit:") + fn + ":rowsND");
+        throw Error(keel::format("{}: 'rows' flag requires a 2D matrix", fn),
+                     0, 0, fn, "", keel::format("numkit:{}:rowsND", fn));
 }
 
 keel::HashSet<keel::f64, DoubleHashEq0>
@@ -223,13 +222,13 @@ hashSetNoNaN(const Value &x, keel::Allocator *alloc)
 void validateEdges(const Value &edges, const char *fn)
 {
     if (edges.numel() < 2)
-        throw Error(std::string(fn) + ": edges must have length >= 2",
-                     0, 0, fn, "", std::string("numkit:") + fn + ":shortEdges");
+        throw Error(keel::format("{}: edges must have length >= 2", fn),
+                     0, 0, fn, "", keel::format("numkit:{}:shortEdges", fn));
     const double *e = edges.doubleData();
     for (keel::usize i = 1; i < edges.numel(); ++i)
         if (!(e[i] >= e[i - 1]))
-            throw Error(std::string(fn) + ": edges must be ascending",
-                         0, 0, fn, "", std::string("numkit:") + fn + ":badEdges");
+            throw Error(keel::format("{}: edges must be ascending", fn),
+                         0, 0, fn, "", keel::format("numkit:{}:badEdges", fn));
 }
 
 bool edgesAreUniform(const double *e, keel::usize nEdges, double &outStep)
@@ -310,9 +309,8 @@ keel::u64 permFactorial(int n)
 double factorialDouble(double v, const char *fn)
 {
     if (!std::isfinite(v) || v < 0 || v != std::floor(v))
-        throw Error(std::string(fn)
-                     + ": entries must be non-negative integers",
-                     0, 0, fn, "", std::string("numkit:") + fn + ":badArg");
+        throw Error(keel::format("{}: entries must be non-negative integers", fn),
+                     0, 0, fn, "", keel::format("numkit:{}:badArg", fn));
     if (v > 170.0)
         return std::numeric_limits<double>::infinity();
     double r = 1.0;

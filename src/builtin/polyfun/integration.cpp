@@ -13,6 +13,7 @@
 #include <keel/array.h>
 #include <keel/complex.h>
 #include <keel/math.h>
+#include <tuple>
 #include <numkit/builtin/polyfun.hpp>
 #include "integration_detail.hpp"
 
@@ -25,7 +26,6 @@
 #include <cmath>
 #include <cstring>
 #include <utility>
-#include <vector>
 
 namespace numkit::builtin {
 

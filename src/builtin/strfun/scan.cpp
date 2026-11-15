@@ -8,6 +8,8 @@
 #include <keel/ref.h>
 #include <keel/arena.h>
 #include <keel/array.h>
+#include <keel/format.h>
+#include <keel/string.h>
 #include <numkit/builtin/strfun.hpp>
 #include "scan_core.hpp"
 
@@ -23,7 +25,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <limits>
-#include <string>
 #include <utility>
 
 namespace numkit::builtin {
@@ -57,7 +58,7 @@ bool formatHasNumeric(keel::StringRef fmt)
     return false;
 }
 
-ScanfOut scanfCycle(const std::string &input, keel::StringRef fmt, keel::usize limit,
+ScanfOut scanfCycle(const keel::String &input, keel::StringRef fmt, keel::usize limit,
                      keel::Array<double> &out)
 {
     keel::usize inPos = 0;
@@ -231,8 +232,7 @@ ScanfOut scanfCycle(const std::string &input, keel::StringRef fmt, keel::usize l
                 break;
             }
             default:
-                throw Error(std::string("scanf: unsupported conversion '%")
-                                + spec + "'");
+                throw Error(keel::format("scanf: unsupported conversion '%{}'", spec));
             }
             if (!ok) break;
 
@@ -265,7 +265,8 @@ Value makeColumn(const double *vals, keel::usize n, keel::Allocator *mr)
 
 Value makeCharRow(const double *vals, keel::usize n, keel::Allocator *mr)
 {
-    std::string s;
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::String s(scratch.allocator());
     s.reserve(n);
     for (keel::usize i = 0; i < n; ++i)
         s.push_back(static_cast<char>(static_cast<int>(vals[i])));
@@ -318,7 +319,7 @@ void scanfEmit(keel::StringRef input, keel::StringRef fmt,
 {
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     keel::Array<double> values(scratch.allocator());
-    const std::string inputStr(input.data(), input.size());
+    const keel::String inputStr(input, scratch.allocator());
     r = scanfCycle(inputStr, fmt, sz.limit, values);
     const bool hasNum = formatHasNumeric(fmt);
     // Matrix-shape dispatch: numeric format → double matrix,

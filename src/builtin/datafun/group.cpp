@@ -9,6 +9,8 @@
 #include <keel/core.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
+#include <keel/arena.h>
+#include <keel/array.h>
 #include <keel/format.h>
 #include <numkit/builtin/datafun.hpp>
 #include <numkit/value/error.hpp>
@@ -18,7 +20,6 @@
 #include <cmath>
 #include <cstring>
 #include <limits>
-#include <vector>
 
 namespace numkit::builtin {
 
@@ -33,33 +34,34 @@ namespace {
 // out_groups[i] = 0 (sentinel for "missing"). The caller decides
 // what to do with them (findgroups -> NaN; groupcounts -> trailing
 // NaN bucket).
-void groupOf(const Value &g, std::vector<keel::usize> &out_groups,
-             std::vector<double> &out_unique)
+void groupOf(const Value &g, keel::Array<keel::usize> &out_groups,
+             keel::Array<double> &out_unique, keel::Allocator *alloc)
 {
     const keel::usize n = g.numel();
     out_groups.assign(n, 0);
     if (n == 0) { out_unique.clear(); return; }
 
-    std::vector<double> vals(n);
+    keel::Array<double> vals(n, alloc);
     for (keel::usize i = 0; i < n; ++i) vals[i] = g.elemAsDouble(i);
 
     // Build sorted-unique list of finite values (skip NaN — handled
     // separately by callers).
-    std::vector<double> sorted;
+    keel::Array<double> sorted(alloc);
     sorted.reserve(n);
     for (double v : vals)
         if (!std::isnan(v)) sorted.push_back(v);
     std::sort(sorted.begin(), sorted.end());
-    sorted.erase(std::unique(sorted.begin(), sorted.end(),
+    auto newEnd = std::unique(sorted.begin(), sorted.end(),
                               [](double a, double b) {
                                   return a == b;
-                              }), sorted.end());
-    out_unique = sorted;
+                              });
+    sorted.resize(static_cast<keel::usize>(newEnd - sorted.begin()));
     for (keel::usize i = 0; i < n; ++i) {
         if (std::isnan(vals[i])) { out_groups[i] = 0; continue; }
         const auto it = std::lower_bound(sorted.begin(), sorted.end(), vals[i]);
         out_groups[i] = (keel::usize)(it - sorted.begin()) + 1;   // 1-based
     }
+    out_unique = std::move(sorted);
 }
 
 } // namespace
@@ -68,9 +70,10 @@ void groupOf(const Value &g, std::vector<keel::usize> &out_groups,
 
 FindgroupsResult findgroups(const Value &g, keel::Allocator *mr)
 {
-    std::vector<keel::usize> groups;
-    std::vector<double> uniqueVals;
-    groupOf(g, groups, uniqueVals);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<keel::usize> groups(scratch.allocator());
+    keel::Array<double> uniqueVals(scratch.allocator());
+    groupOf(g, groups, uniqueVals, scratch.allocator());
     auto G = Value::matrix(g.dims().rows(), g.dims().cols(),
                            ValueType::DOUBLE, mr);
     double *gd = G.doubleDataMut();
@@ -86,9 +89,10 @@ FindgroupsResult findgroups(const Value &g, keel::Allocator *mr)
 
 GroupcountsResult groupcounts(const Value &g, keel::Allocator *mr)
 {
-    std::vector<keel::usize> groups;
-    std::vector<double> uniqueVals;
-    groupOf(g, groups, uniqueVals);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<keel::usize> groups(scratch.allocator());
+    keel::Array<double> uniqueVals(scratch.allocator());
+    groupOf(g, groups, uniqueVals, scratch.allocator());
     keel::usize nan_count = 0;
     for (auto gg : groups) if (gg == 0) ++nan_count;
     const bool have_nan = nan_count > 0;
@@ -100,7 +104,7 @@ GroupcountsResult groupcounts(const Value &g, keel::Allocator *mr)
         R.P  = Value::matrix(0, 1, ValueType::DOUBLE, mr);
         return R;
     }
-    std::vector<keel::usize> counts(nGroups, 0);
+    keel::Array<keel::usize> counts(nGroups, static_cast<keel::usize>(0), scratch.allocator());
     for (auto gg : groups) {
         if (gg == 0) counts[uniqueVals.size()]++;  // trailing NaN bucket
         else         counts[gg - 1]++;
@@ -137,17 +141,22 @@ GroupsummaryResult groupsummary(const Value &A, const Value &G,
         throw Error("groupsummary: groupvars must have length size(A, 1)",
                     0, 0, "groupsummary", "", "numkit:groupsummary:shape");
 
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+
     // Group the rows.
-    std::vector<keel::usize> groups;
-    std::vector<double> uniqueVals;
-    groupOf(G, groups, uniqueVals);
+    keel::Array<keel::usize> groups(scratch.allocator());
+    keel::Array<double> uniqueVals(scratch.allocator());
+    groupOf(G, groups, uniqueVals, scratch.allocator());
     keel::usize nan_count = 0;
     for (auto g : groups) if (g == 0) ++nan_count;
     const bool have_nan = nan_count > 0;
     const keel::usize nGroups = uniqueVals.size() + (have_nan ? 1 : 0);
 
     // Bucket row indices by group ID (0 = NaN bucket -> trailing).
-    std::vector<std::vector<keel::usize>> buckets(nGroups);
+    keel::Array<keel::Array<keel::usize>> buckets(scratch.allocator());
+    buckets.reserve(nGroups);
+    for (keel::usize i = 0; i < nGroups; ++i)
+        buckets.push_back(keel::Array<keel::usize>(scratch.allocator()));
     for (keel::usize i = 0; i < groups.size(); ++i) {
         const keel::usize gi = (groups[i] == 0) ? uniqueVals.size()
                                                 : (groups[i] - 1);
@@ -176,7 +185,7 @@ GroupsummaryResult groupsummary(const Value &A, const Value &G,
                     out = s / double(kn);
                 }
             } else if (method == "median") {
-                std::vector<double> v; v.reserve(kn);
+                keel::Array<double> v(scratch.allocator()); v.reserve(kn);
                 for (auto r : rows) v.push_back(Aget(r, c));
                 std::sort(v.begin(), v.end());
                 out = (kn == 0)            ? std::numeric_limits<double>::quiet_NaN()
@@ -207,17 +216,17 @@ GroupsummaryResult groupsummary(const Value &A, const Value &G,
                                              : std::sqrt(std::max(0.0, v));
                 }
             } else if (method == "numunique") {
-                std::vector<double> v; v.reserve(kn);
+                keel::Array<double> v(scratch.allocator()); v.reserve(kn);
                 for (auto r : rows) v.push_back(Aget(r, c));
                 std::sort(v.begin(), v.end());
-                v.erase(std::unique(v.begin(), v.end()), v.end());
-                out = double(v.size());
+                auto newEnd = std::unique(v.begin(), v.end());
+                out = double(newEnd - v.begin());
             } else if (method == "nnz") {
                 keel::usize k = 0;
                 for (auto r : rows) if (Aget(r, c) != 0.0) ++k;
                 out = double(k);
             } else if (method == "mode") {
-                std::vector<double> v; v.reserve(kn);
+                keel::Array<double> v(scratch.allocator()); v.reserve(kn);
                 for (auto r : rows) v.push_back(Aget(r, c));
                 std::sort(v.begin(), v.end());
                 keel::usize best_run = 0, cur_run = 0;
@@ -283,14 +292,18 @@ Value grouptransform(const Value &A, const Value &G,
                     "numkit:grouptransform:badMethod");
     }
 
-    std::vector<keel::usize> groups;
-    std::vector<double> uniqueVals;
-    groupOf(G, groups, uniqueVals);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<keel::usize> groups(scratch.allocator());
+    keel::Array<double> uniqueVals(scratch.allocator());
+    groupOf(G, groups, uniqueVals, scratch.allocator());
     keel::usize nan_count = 0;
     for (auto g : groups) if (g == 0) ++nan_count;
     const bool have_nan = nan_count > 0;
     const keel::usize nGroups = uniqueVals.size() + (have_nan ? 1 : 0);
-    std::vector<std::vector<keel::usize>> buckets(nGroups);
+    keel::Array<keel::Array<keel::usize>> buckets(scratch.allocator());
+    buckets.reserve(nGroups);
+    for (keel::usize i = 0; i < nGroups; ++i)
+        buckets.push_back(keel::Array<keel::usize>(scratch.allocator()));
     for (keel::usize i = 0; i < groups.size(); ++i) {
         const keel::usize gi = (groups[i] == 0) ? uniqueVals.size()
                                                 : (groups[i] - 1);
@@ -369,13 +382,13 @@ Value grouptransform(const Value &A, const Value &G,
                     bd[r + c * nRows] = std::isnan(v) ? mean : v;
                 }
             } else if (method == "linearfill") {
-                std::vector<double> vals(kn);
+                keel::Array<double> vals(kn, scratch.allocator());
                 for (keel::usize j = 0; j < kn; ++j) vals[j] = Aget(rows[j], c);
-                std::vector<keel::usize> good;
+                keel::Array<keel::usize> good(scratch.allocator());
                 good.reserve(kn);
                 for (keel::usize j = 0; j < kn; ++j)
                     if (!std::isnan(vals[j])) good.push_back(j);
-                std::vector<double> out = vals;
+                keel::Array<double> out(keel::ArrayRef<double>(vals), scratch.allocator());
                 if (good.size() >= 2) {
                     for (keel::usize k = 0; k + 1 < good.size(); ++k) {
                         const keel::usize a = good[k];
@@ -385,14 +398,14 @@ Value grouptransform(const Value &A, const Value &G,
                         for (keel::usize j = a + 1; j < b; ++j)
                             out[j] = vals[a] + slope * double(j - a);
                     }
-                    if (good.front() > 0) {
+                    if (good[0] > 0) {
                         const keel::usize a = good[0];
                         const keel::usize b = good[1];
                         const double slope = (vals[b] - vals[a]) / double(b - a);
                         for (keel::usize j = 0; j < a; ++j)
                             out[j] = vals[a] - slope * double(a - j);
                     }
-                    if (good.back() + 1 < kn) {
+                    if (good[good.size() - 1] + 1 < kn) {
                         const keel::usize a = good[good.size() - 2];
                         const keel::usize b = good[good.size() - 1];
                         const double slope = (vals[b] - vals[a]) / double(b - a);

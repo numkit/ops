@@ -16,6 +16,8 @@
 
 #include <keel/core.h>
 #include <keel/memory.h>
+#include <keel/arena.h>
+#include <keel/array.h>
 #include <keel/complex.h>
 #include <keel/math.h>
 #include <numkit/linalg/schur_convert.hpp>
@@ -27,7 +29,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <vector>
 
 namespace numkit::linalg {
 
@@ -152,7 +153,9 @@ rsf2csf(const Value &UR, const Value &TR, keel::Allocator *mr)
             Value::matrix(0, 0, ValueType::COMPLEX, mr));
 
     // Working copies promoted to complex.
-    std::vector<keel::c64> Td(n * n), Ud(n * n);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<keel::c64> Td(n * n, scratch.allocator());
+    keel::Array<keel::c64> Ud(n * n, scratch.allocator());
     for (keel::usize j = 0; j < n; ++j)
         for (keel::usize i = 0; i < n; ++i) {
             Td[i + j * n] = keel::c64(TR.elemAsDouble(i + j * n), 0.0);

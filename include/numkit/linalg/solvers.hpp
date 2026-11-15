@@ -1,4 +1,4 @@
-﻿/// @file solvers.hpp
+/// @file solvers.hpp
 /// @ingroup group_matfun
 // toolboxes/linalg/include/numkit/linalg/solvers.hpp
 //
@@ -9,7 +9,7 @@
 
 #include <keel/core.h>
 #include <keel/memory.h>
-#include <string>
+#include <keel/string.h>
 #include <numkit/value/value.hpp>
 
 namespace numkit::linalg {
@@ -39,8 +39,8 @@ struct NnlsResult {
     Value residual;      ///< Residual column `d âˆ’ CÂ·x`.
     int exitflag;        ///< 1 on convergence.
     int iterations;      ///< Outer-loop iteration count.
-    std::string algorithm; ///< Always "active-set".
-    std::string message; ///< Termination message.
+    keel::String algorithm; ///< Always "active-set".
+    keel::String message; ///< Termination message.
 };
 
 /// @brief Non-negative least-squares (`x = lsqnonneg(C, d)`).

@@ -17,17 +17,32 @@
 // x is assumed ascending (plot(y) → 1..N; plot(x,y) with sorted x). A
 // non-finite y is a gap; it is kept when it lands on a bucket endpoint.
 
+#include <keel/array.h>
 #include <keel/core.h>
-#include <vector>
+#include <keel/ref.h>
 #include <cstddef>
 #include <cmath>
 #include <algorithm>
+#include <utility>
 
 namespace numkit {
 
 struct DecimatedSeries {
-    std::vector<keel::f64> x;
-    std::vector<keel::f64> y;
+    keel::Array<keel::f64> x;
+    keel::Array<keel::f64> y;
+
+    DecimatedSeries() = default;
+    DecimatedSeries(DecimatedSeries &&) noexcept = default;
+    DecimatedSeries &operator=(DecimatedSeries &&) noexcept = default;
+    DecimatedSeries(const DecimatedSeries &other)
+        : x(other.x.clone()), y(other.y.clone()) {}
+    DecimatedSeries &operator=(const DecimatedSeries &other) {
+        if (this != &other) {
+            x = other.x.clone();
+            y = other.y.clone();
+        }
+        return *this;
+    }
 };
 
 // First index i with x[i] >= target (x ascending); n if none.
@@ -218,9 +233,9 @@ inline DecimatedSeries decimateSeries(const keel::f64 *x, const keel::f64 *y, ke
 // Returns the COARSER levels only (raw stays the implicit finest level, so
 // we never copy the full series). level[0] ≈ raw/8, each next ≤ half, all
 // extrema-preserving (M4). Stops at ~baseTarget points. O(N) total.
-inline std::vector<DecimatedSeries> buildPyramid(const keel::f64 *x, const keel::f64 *y,
+inline keel::Array<DecimatedSeries> buildPyramid(const keel::f64 *x, const keel::f64 *y,
                                                  keel::usize n, keel::usize baseTarget = 8000) {
-    std::vector<DecimatedSeries> levels;
+    keel::Array<DecimatedSeries> levels;
     const keel::f64 *cx = x;
     const keel::f64 *cy = y;
     keel::usize s = n;
@@ -229,9 +244,10 @@ inline std::vector<DecimatedSeries> buildPyramid(const keel::f64 *x, const keel:
         DecimatedSeries d = decimateM4(cx, cy, s, cx[0], cx[s - 1], cols);
         if (d.x.size() >= s) break;            // no progress
         levels.push_back(std::move(d));
-        cx = levels.back().x.data();
-        cy = levels.back().y.data();
-        s = levels.back().x.size();
+        const DecimatedSeries &last = levels[levels.size() - 1];
+        cx = last.x.data();
+        cy = last.y.data();
+        s = last.x.size();
     }
     return levels;
 }
@@ -239,7 +255,7 @@ inline std::vector<DecimatedSeries> buildPyramid(const keel::f64 *x, const keel:
 // Decimate from the coarsest of {raw, pyramid...} that still has ≥ 2*width
 // points in [x0,x1] (finer as you zoom in) → O(width) per call at any zoom.
 inline DecimatedSeries decimateLOD(const keel::f64 *rawX, const keel::f64 *rawY, keel::usize rawN,
-                                   const std::vector<DecimatedSeries> &pyramid,
+                                   keel::ArrayRef<DecimatedSeries> pyramid,
                                    keel::f64 x0, keel::f64 x1, int width, DecimAlgo algo) {
     const int w = width < 1 ? 1 : width;
     const keel::f64 *bx = rawX;
@@ -247,7 +263,10 @@ inline DecimatedSeries decimateLOD(const keel::f64 *rawX, const keel::f64 *rawY,
     keel::usize bn = rawN;
     for (int i = static_cast<int>(pyramid.size()) - 1; i >= -1; --i) {
         const keel::f64 *lx; const keel::f64 *ly; keel::usize ln;
-        if (i >= 0) { lx = pyramid[i].x.data(); ly = pyramid[i].y.data(); ln = pyramid[i].x.size(); }
+        if (i >= 0) {
+            const DecimatedSeries &lvl = pyramid[static_cast<keel::usize>(i)];
+            lx = lvl.x.data(); ly = lvl.y.data(); ln = lvl.x.size();
+        }
         else        { lx = rawX; ly = rawY; ln = rawN; }
         keel::usize a, b;
         decimVisibleRange(lx, ln, x0, x1, a, b);

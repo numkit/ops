@@ -1,4 +1,4 @@
-﻿// toolboxes/image/src/io/bmp_codec.hpp
+// toolboxes/image/src/io/bmp_codec.hpp
 //
 // In-tree Windows Bitmap (.bmp) decoder and encoder. Zero external dependencies.
 
@@ -6,10 +6,10 @@
 
 #include <keel/core.h>
 #include <keel/memory.h>
+#include <keel/string.h>
 #include <cstddef>
 #include <cstdint>
 #include <numkit/value/value.hpp>
-#include <string>
 
 namespace numkit::image {
 
@@ -20,7 +20,7 @@ Value readBmp(const keel::u8 *data, keel::usize len,
 
 /// Encode an image Value to BMP format bytes.
 /// @param A Image (HÃ—W grayscale, HÃ—WÃ—3 RGB, or HÃ—WÃ—4 RGBA uint8).
-std::string writeBmpToBytes(const Value &A);
+keel::String writeBmpToBytes(const Value &A);
 
 /// Inspect a BMP header without decoding all pixels.
 bool peekBmp(const keel::u8 *data, keel::usize len,

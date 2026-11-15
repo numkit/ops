@@ -10,7 +10,9 @@
 // interpolants, the stepping loops) stay in their own TUs.
 #pragma once
 
+#include <keel/array.h>
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
 #include <numkit/value/value.hpp>
@@ -20,8 +22,6 @@
 #include <array>
 #include <cstddef>
 #include <limits>
-#include <string>
-#include <vector>
 
 namespace numkit::ode {
 
@@ -30,7 +30,7 @@ namespace numkit::ode {
 // to read_opts; the field initialiser here is only a placeholder.
 struct OdeOpts {
     double              rel_tol      = 1e-3;
-    std::vector<double> abs_tol{1e-6};
+    keel::Array<double> abs_tol      = keel::Array<double>(1, 1e-6, nullptr);
     double              max_step     = std::numeric_limits<double>::infinity();
     double              initial_step = 0.0;
     int                 refine       = 4;
@@ -91,8 +91,8 @@ inline OdeOpts read_opts(const Value &opts, int refine_default)
 // is a numkit::FnHandle (args = {t, y}, outs[0] = dy/dt). `solver` ("ode45" /
 // "ode23") names the caller in the size-mismatch error so each integrator keeps
 // its own message + identifier. The per-TU `eval_rhs` wrapper binds it.
-inline void callOdeRhs(FnHandle rhs, double t, const std::vector<double> &y,
-                       std::vector<double> &dydt, keel::Allocator *mr,
+inline void callOdeRhs(FnHandle rhs, double t, keel::ArrayRef<double> y,
+                       keel::Array<double> &dydt, keel::Allocator *mr,
                        const char *solver)
 {
     const keel::usize d = y.size();
@@ -103,9 +103,9 @@ inline void callOdeRhs(FnHandle rhs, double t, const std::vector<double> &y,
     Value                out_buf;
     rhs(keel::ArrayRef<Value>(args_buf.data(), 2), keel::MutArrayRef<Value>(&out_buf, 1), mr);
     if (out_buf.numel() != d)
-        throw Error(std::string(solver) + ": RHS returned " + std::to_string(out_buf.numel())
-                  + " values but expected " + std::to_string(d),
-                    0, 0, solver, "", "numkit:" + std::string(solver) + ":badRhsSize");
+        throw Error(keel::format("{}: RHS returned {} values but expected {}",
+                                 solver, out_buf.numel(), d),
+                    0, 0, solver, "", keel::format("numkit:{}:badRhsSize", solver));
     dydt.resize(d);
     for (keel::usize i = 0; i < d; ++i) dydt[i] = out_buf.elemAsDouble(i);
 }

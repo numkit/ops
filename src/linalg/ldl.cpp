@@ -33,7 +33,6 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
-#include <string>
 
 namespace numkit::linalg {
 

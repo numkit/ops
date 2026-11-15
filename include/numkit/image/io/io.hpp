@@ -10,14 +10,14 @@
 
 #pragma once
 
+#include <keel/array.h>
 #include <keel/core.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
+#include <keel/string.h>
 #include <cstdint>
 #include <numkit/value/value.hpp>
-#include <string>
 #include <utility>
-#include <vector>
 
 namespace numkit::image {
 
@@ -70,8 +70,8 @@ void imwrite(const Value &A, keel::StringRef path,
 /// writeTiffToBytes().
 ///
 /// @throws Error on unsupported extension or encode failure.
-std::string imwriteToBytes(const Value &A, keel::StringRef ext,
-                           keel::Allocator *mr = nullptr);
+keel::String imwriteToBytes(const Value &A, keel::StringRef ext,
+                            keel::Allocator *mr = nullptr);
 
 /// Read image header metadata without decoding pixels (`S = imfinfo(path)`).
 ///
@@ -129,10 +129,10 @@ Value readTiff(keel::StringRef path, keel::u32 page,
 
 /// Buffer overloads â€” decode TIFF from already-loaded bytes (the IDE feeds
 /// these from the VFS so reads work on the virtual + real filesystem).
-Value readTiff(std::vector<keel::u8> buf, keel::u32 page,
+Value readTiff(keel::ArrayRef<keel::u8> buf, keel::u32 page,
                keel::Allocator *mr = nullptr);
 std::pair<Value, Value>
-readTiffWithMap(std::vector<keel::u8> buf, keel::u32 page,
+readTiffWithMap(keel::ArrayRef<keel::u8> buf, keel::u32 page,
                 keel::Allocator *mr = nullptr);
 
 /// Two-output read for palette TIFFs: returns `(indices, colormap)`.
@@ -156,7 +156,7 @@ void peekTiff(keel::StringRef path,
 
 /// Buffer overload â€” peek metadata from already-loaded TIFF bytes (the IDE
 /// feeds these from the VFS so imfinfo works on the virtual + real FS).
-void peekTiff(const std::vector<keel::u8> &buf,
+void peekTiff(keel::ArrayRef<keel::u8> buf,
               keel::u32 &W,
               keel::u32 &H,
               keel::u16 &bits,
@@ -183,17 +183,17 @@ void writeTiff(const Value &A, keel::StringRef path,
                bool appendMode = false);
 
 /// Buffer form â€” encode `A` to a TIFF byte vector (the engine entry writes
-/// these through the VFS). When `existing` is non-null and non-empty, a new
+/// these through the VFS). When `existing` is non-empty, a new
 /// IFD is appended to those bytes (multi-page); otherwise a fresh
 /// single-page file is produced.
 ///
 /// @param A            Image (uint8 / uint16; 1, 3, or 4 channels).
 /// @param compression  "none" | "packbits" | "lzw" | "deflate".
 /// @param existing     Optional bytes of a prior TIFF to append a page to.
-std::vector<keel::u8>
+keel::Array<keel::u8>
 writeTiffToBytes(const Value &A,
                  keel::StringRef compression = "none",
-                 const std::vector<keel::u8> *existing = nullptr);
+                 keel::ArrayRef<keel::u8> existing = {});
 
 
 /// @}

@@ -7,6 +7,7 @@
 #include <keel/memory.h>
 #include <keel/arena.h>
 #include <keel/array.h>
+#include <tuple>
 #include <numkit/builtin/polyfun.hpp>
 
 #include <numkit/value/value.hpp>
@@ -19,7 +20,6 @@
 #include <cmath>
 #include <cstring>
 #include <limits>
-#include <string>
 
 #include "interp_detail.hpp"
 
