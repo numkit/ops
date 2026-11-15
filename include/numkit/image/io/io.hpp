@@ -1,4 +1,4 @@
-﻿/// @file io.hpp
+/// @file io.hpp
 /// @ingroup group_image
 // toolboxes/image/include/numkit/image/io/io.hpp
 //
@@ -12,6 +12,7 @@
 
 #include <keel/core.h>
 #include <keel/memory.h>
+#include <keel/ref.h>
 #include <cstdint>
 #include <numkit/value/value.hpp>
 #include <string>
@@ -38,7 +39,7 @@ namespace numkit::image {
 /// @throws      Error on missing file or unsupported / corrupt format.
 ///
 /// @see imwrite, imfinfo
-Value imread(const std::string &path,
+Value imread(keel::StringRef path,
              keel::Allocator *mr = nullptr);
 
 /// Write an image to disk (`imwrite(A, path)`).
@@ -59,7 +60,7 @@ Value imread(const std::string &path,
 /// @throws      Error on unsupported extension or write failure.
 ///
 /// @see imread
-void imwrite(const Value &A, const std::string &path,
+void imwrite(const Value &A, keel::StringRef path,
              keel::Allocator *mr = nullptr);
 
 /// Encode an image to in-memory bytes (companion to imwrite). Used by the
@@ -69,7 +70,7 @@ void imwrite(const Value &A, const std::string &path,
 /// writeTiffToBytes().
 ///
 /// @throws Error on unsupported extension or encode failure.
-std::string imwriteToBytes(const Value &A, const std::string &ext,
+std::string imwriteToBytes(const Value &A, keel::StringRef ext,
                            keel::Allocator *mr = nullptr);
 
 /// Read image header metadata without decoding pixels (`S = imfinfo(path)`).
@@ -88,7 +89,7 @@ std::string imwriteToBytes(const Value &A, const std::string &ext,
 /// @return      Struct Value with the metadata fields above.
 ///
 /// @see imread
-Value imfinfo(const std::string &path,
+Value imfinfo(keel::StringRef path,
               keel::Allocator *mr = nullptr);
 
 /// imfinfo from already-loaded bytes (the engine entry feeds these from the
@@ -96,7 +97,7 @@ Value imfinfo(const std::string &path,
 /// in the returned struct's Filename field but is not opened.
 ///
 /// @see imfinfo
-Value imfinfoFromBytes(const std::string &bytes, const std::string &filename,
+Value imfinfoFromBytes(keel::StringRef bytes, keel::StringRef filename,
                        keel::Allocator *mr = nullptr);
 
 /// Minimal TIFF reader for the formats stb doesn't decode.
@@ -118,12 +119,12 @@ Value imfinfoFromBytes(const std::string &bytes, const std::string &filename,
 /// @return      H Ã— W uint8 / uint16 (gray) or H Ã— W Ã— {3, 4} uint8 / uint16.
 ///
 /// @see imread
-Value readTiff(const std::string &path,
+Value readTiff(keel::StringRef path,
                keel::Allocator *mr = nullptr);
 
 /// Multi-page form: read the `page`-th IFD (1-based). MATLAB's
 /// `imread(file, k)` semantics.
-Value readTiff(const std::string &path, keel::u32 page,
+Value readTiff(keel::StringRef path, keel::u32 page,
                keel::Allocator *mr = nullptr);
 
 /// Buffer overloads â€” decode TIFF from already-loaded bytes (the IDE feeds
@@ -140,14 +141,14 @@ readTiffWithMap(std::vector<keel::u8> buf, keel::u32 page,
 /// for non-palette files. K = 2^BitsPerSample. Matches MATLAB's
 /// `[A, map] = imread(file)` for indexed images.
 std::pair<Value, Value>
-readTiffWithMap(const std::string &path, keel::u32 page,
+readTiffWithMap(keel::StringRef path, keel::u32 page,
                 keel::Allocator *mr = nullptr);
 
 /// Peek a TIFF file's first-IFD metadata without decoding pixels.
 /// Output struct: `Width`, `Height`, `BitsPerSample`, `NumberOfChannels`.
 ///
 /// @see imfinfo
-void peekTiff(const std::string &path,
+void peekTiff(keel::StringRef path,
               keel::u32 &W,
               keel::u32 &H,
               keel::u16 &bits,
@@ -163,7 +164,7 @@ void peekTiff(const std::vector<keel::u8> &buf,
 
 /// Count the number of IFDs (pages) in a TIFF file. Walks the IFD chain
 /// without decoding any pixel data.
-keel::u32 tiffNumPages(const std::string &path);
+keel::u32 tiffNumPages(keel::StringRef path);
 
 /// Write `A` to `path` as a baseline TIFF. Companion to readTiff().
 ///
@@ -177,8 +178,8 @@ keel::u32 tiffNumPages(const std::string &path);
 /// @param compression  Compression scheme name.
 /// @param appendMode   If true and the file already exists, append a
 ///                     new IFD; otherwise overwrite.
-void writeTiff(const Value &A, const std::string &path,
-               const std::string &compression = "none",
+void writeTiff(const Value &A, keel::StringRef path,
+               keel::StringRef compression = "none",
                bool appendMode = false);
 
 /// Buffer form â€” encode `A` to a TIFF byte vector (the engine entry writes
@@ -191,7 +192,7 @@ void writeTiff(const Value &A, const std::string &path,
 /// @param existing     Optional bytes of a prior TIFF to append a page to.
 std::vector<keel::u8>
 writeTiffToBytes(const Value &A,
-                 const std::string &compression = "none",
+                 keel::StringRef compression = "none",
                  const std::vector<keel::u8> *existing = nullptr);
 
 

@@ -3,7 +3,9 @@
 // ordqz â€” Reorder Generalized Schur decomposition Q * AA * Z = AA, Q * BB * Z = BB.
 
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/memory.h>
+#include <keel/ref.h>
 #include <keel/complex.h>
 #include <keel/math.h>
 #include <numkit/linalg/ordqz.hpp>
@@ -199,7 +201,7 @@ std::tuple<Value, Value, Value, Value> ordqz(const Value &AA, const Value &BB,
 
 std::tuple<Value, Value, Value, Value> ordqz(const Value &AA, const Value &BB,
                                               const Value &Q, const Value &Z,
-                                              const std::string &domain,
+                                              keel::StringRef domain,
                                               keel::Allocator *mr)
 {
     const keel::usize n = static_cast<keel::usize>(AA.dims().dim(0));
@@ -220,7 +222,7 @@ std::tuple<Value, Value, Value, Value> ordqz(const Value &AA, const Value &BB,
         } else if (domain == "uop") {
             sd[i] = (keel::abs(lambda) > 1.0) ? 1 : 0;
         } else {
-            throw Error("ordqz: unknown domain '" + domain + "'", 0, 0, "ordqz", "", "numkit:ordqz:badDomain");
+            throw Error(keel::format("ordqz: unknown domain '{}'", domain), 0, 0, "ordqz", "", "numkit:ordqz:badDomain");
         }
     }
 

@@ -38,7 +38,7 @@ struct ScanfOut
 /// @param outs Output spans to fill with results.
 /// @param r Output statistics struct (count + bytes consumed).
 /// @param mr Memory resource for allocations.
-void scanfEmit(const std::string &input, const std::string &fmt,
+void scanfEmit(keel::StringRef input, keel::StringRef fmt,
                const ::numkit::ops::SizeSpec &sz, keel::usize nargout,
                keel::MutArrayRef<Value> outs, ScanfOut &r,
                keel::Allocator *mr = nullptr);

@@ -35,8 +35,9 @@ struct ScanfOut
 // Common fscanf/sscanf body once the input buffer has been materialised:
 // parse `input` per `fmt` (cyclically, bounded by `sz`), write the shaped
 // result into outs[0] and (when nargout > 1) the count into outs[1].
-void scanfEmit(const std::string &input, const std::string &fmt,
+void scanfEmit(keel::StringRef input, keel::StringRef fmt,
                const ::numkit::ops::SizeSpec &sz, keel::usize nargout,
-               keel::MutArrayRef<Value> outs, keel::Allocator *mr, ScanfOut &r);
+               keel::MutArrayRef<Value> outs, ScanfOut &r,
+               keel::Allocator *mr = nullptr);
 
 } // namespace numkit::builtin::detail

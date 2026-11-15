@@ -47,9 +47,9 @@ std::string serializeState(const MatlabMT19937 &gen)
     return os.str();
 }
 
-void deserializeState(MatlabMT19937 &gen, const std::string &blob)
+void deserializeState(MatlabMT19937 &gen, keel::StringRef blob)
 {
-    std::istringstream is(blob);
+    std::istringstream is(std::string(blob.data(), blob.size()));
     std::string tag;
     is >> tag;
     if (tag != "mt19937")

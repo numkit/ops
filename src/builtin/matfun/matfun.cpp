@@ -15,9 +15,9 @@
 
 namespace numkit::builtin {
 
-Value idivide(const Value &a, const Value &b, const std::string &mode, keel::Allocator *mr)
+Value idivide(const Value &a, const Value &b, keel::StringRef mode, keel::Allocator *mr)
 {
-    std::string opt = mode;
+    std::string opt(mode.data(), mode.size());
     for (auto &c : opt)
         c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
     if (opt.empty()) opt = "fix";

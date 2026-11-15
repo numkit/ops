@@ -19,6 +19,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace numkit::builtin {
@@ -192,12 +193,12 @@ Value weeknum(keel::ArrayRef<Value> args, keel::Allocator *mr) {
     return out;
 }
 
-Value addtodate(const Value &d, double quantity, const std::string &unit, keel::Allocator *mr) {
+Value addtodate(const Value &d, double quantity, keel::StringRef unit, keel::Allocator *mr) {
     if (d.numel() != 1)
         throw std::runtime_error("addtodate: date number must be a real numeric scalar");
     const double serial = d.toScalar();
     const double q = quantity;
-    std::string u = unit;
+    std::string u(unit.data(), unit.size());
     for (auto &ch : u)
         ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
 
@@ -276,11 +277,11 @@ Value datenum(keel::ArrayRef<Value> args, keel::Allocator *mr) {
     }
 
     if (args[0].isChar() || args[0].isString()) {
-        const std::string s = args[0].toString();
+        const std::string s(args[0].toString().as_ref());
         static const char *MON3[] = {
             "jan","feb","mar","apr","may","jun",
             "jul","aug","sep","oct","nov","dec"};
-        auto tryFmt = [&](const std::string &fmt, double &Y, double &Mo, double &D, double &H, double &MI, double &S) -> bool {
+        auto tryFmt = [&](std::string_view fmt, double &Y, double &Mo, double &D, double &H, double &MI, double &S) -> bool {
             Y = 0; Mo = 1; D = 1; H = 0; MI = 0; S = 0;
             keel::usize si = 0, fi = 0;
             auto readNum = [&](int maxD) -> long {
@@ -342,7 +343,7 @@ Value datenum(keel::ArrayRef<Value> args, keel::Allocator *mr) {
 
         double Y, Mo, D, H, MI, S;
         if (args.size() >= 2 && (args[1].isChar() || args[1].isString())) {
-            std::string fmt = args[1].toString();
+            std::string fmt(args[1].toString().as_ref());
             if (tryFmt(fmt, Y, Mo, D, H, MI, S))
                 return Value::scalar(civilToSerial(Y, Mo, D, H, MI, S), mr);
             throw std::runtime_error("datenum: date string does not match format '" + fmt + "'");
@@ -592,7 +593,7 @@ Value datestr(keel::ArrayRef<Value> args, keel::Allocator *mr) {
         static const char *MON3p[] = {
             "jan","feb","mar","apr","may","jun",
             "jul","aug","sep","oct","nov","dec"};
-        const std::string s = din.toString();
+        const std::string s(din.toString().as_ref());
         auto tryFmt = [&](const char *fmt, Comp &c) -> bool {
             int Y = 0, Mo = 1, D = 1, H = 0, MI = 0, S = 0;
             const std::string F = fmt;
@@ -663,7 +664,7 @@ Value datestr(keel::ArrayRef<Value> args, keel::Allocator *mr) {
     if (args.size() >= 2) {
         const Value &f = args[1];
         if (f.isChar() || f.isString())
-            fmt = f.toString();
+            fmt = std::string(f.toString().as_ref());
         else {
             static const char *DATEFORM[] = {
                 "dd-mmm-yyyy HH:MM:SS", // 0
@@ -794,11 +795,11 @@ Value datevec(keel::ArrayRef<Value> args, keel::Allocator *mr) {
     if (args.empty())
         throw std::runtime_error("datevec requires at least one argument");
     if (args[0].isChar() || args[0].isString()) {
-        const std::string s = args[0].toString();
+        const std::string s(args[0].toString().as_ref());
         static const char *MON3s[] = {
             "jan","feb","mar","apr","may","jun",
             "jul","aug","sep","oct","nov","dec"};
-        auto tryFmt = [&](const std::string &fmt, double &Y, double &Mo, double &D, double &H, double &MI, double &S) -> bool {
+        auto tryFmt = [&](std::string_view fmt, double &Y, double &Mo, double &D, double &H, double &MI, double &S) -> bool {
             Y = 0; Mo = 1; D = 1; H = 0; MI = 0; S = 0;
             keel::usize si = 0, fi = 0;
             auto readNum = [&](int maxD) -> long {

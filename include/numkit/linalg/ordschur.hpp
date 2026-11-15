@@ -1,4 +1,4 @@
-﻿/// @file ordschur.hpp
+/// @file ordschur.hpp
 /// @ingroup group_matfun
 // toolboxes/linalg/include/numkit/linalg/ordschur.hpp
 //
@@ -7,7 +7,7 @@
 #pragma once
 
 #include <keel/memory.h>
-#include <string>
+#include <keel/ref.h>
 #include <tuple>
 #include <vector>
 #include <numkit/value/value.hpp>
@@ -27,7 +27,7 @@ std::tuple<Value, Value> ordschur(const Value &U, const Value &T,
 /// @brief Reorder Schur decomposition A = U * T * U^H using domain keyword
 /// ('lhp', 'rhp', 'uip', 'uop').
 std::tuple<Value, Value> ordschur(const Value &U, const Value &T,
-                                  const std::string &domain,
+                                  keel::StringRef domain,
                                   keel::Allocator *mr = nullptr);
 
 

@@ -5,6 +5,7 @@
 
 #include <keel/core.h>
 #include <keel/memory.h>
+#include <keel/ref.h>
 #include <numkit/value/value.hpp>
 
 #include <regex>
@@ -31,12 +32,12 @@ namespace numkit::builtin {
 
 namespace {
 
-std::regex compileRegex(const std::string &pat, bool ignoreCase)
+std::regex compileRegex(keel::StringRef pat, bool ignoreCase)
 {
     auto flags = std::regex::ECMAScript;
     if (ignoreCase) flags |= std::regex::icase;
     try {
-        return std::regex(pat, flags);
+        return std::regex(pat.data(), pat.size(), flags);
     } catch (const std::regex_error &e) {
         throw Error(std::string("regex: invalid pattern — ") + e.what(),
                      0, 0, "regexp", "", "numkit:regexp:badPattern");
@@ -54,7 +55,7 @@ struct NamedGroups {
     std::vector<std::pair<std::string, keel::usize>> names;  // name → group #
 };
 
-NamedGroups extractNamedGroups(const std::string &pat)
+NamedGroups extractNamedGroups(keel::StringRef pat)
 {
     NamedGroups ng;
     ng.cleaned.reserve(pat.size());
@@ -125,7 +126,7 @@ Value rowCellOfStrings(const std::string *v, keel::usize n, keel::Allocator *mr)
 } // namespace
 
 // regexp single-match worker (def in regex.cpp, external).
-Value regexpFindOnce(const Value &s, const Value &pat, const std::string &option,
+Value regexpFindOnce(const Value &s, const Value &pat, keel::StringRef option,
                      bool ignoreCase, keel::Allocator *mr);
 
 } // namespace numkit::builtin

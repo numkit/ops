@@ -10,7 +10,9 @@
 #pragma once
 
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/memory.h>
+#include <keel/ref.h>
 #include <numkit/value/error.hpp>
 #include <numkit/value/value.hpp>
 #include <numkit/value/value_type.hpp>   // mtypeName (argcheck got-clauses)
@@ -176,14 +178,14 @@ inline void requireVectorInput(const Value &v, std::string_view fn,
 }
 
 // Shape option shared by conv / conv2 / convn / filter2.
-inline void validateShapeOption(const std::string &shape, std::string_view fn)
+inline void validateShapeOption(keel::StringRef shape, std::string_view fn)
 {
     if (shape == "full" || shape == "same" || shape == "valid")
         return;
-    throw Error(std::string(fn) + ": shape option must be 'full', 'same', "
-                    "or 'valid' (got '" + shape + "')",
-                0, 0, std::string(fn), "",
-                "numkit:" + std::string(fn) + ":badShape");
+    throw Error(keel::format("{}: shape option must be 'full', 'same', or 'valid' (got '{}')",
+                             fn, shape),
+                0, 0, fn, "",
+                keel::format("numkit:{}:badShape", fn));
 }
 
 } // namespace numkit::signal::detail

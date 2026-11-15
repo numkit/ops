@@ -1,4 +1,4 @@
-﻿/// @file matrix_functions.hpp
+/// @file matrix_functions.hpp
 /// @ingroup group_matfun
 // toolboxes/linalg/include/numkit/linalg/matrix_functions.hpp
 //
@@ -9,9 +9,9 @@
 
 #include <keel/core.h>
 #include <keel/memory.h>
+#include <keel/ref.h>
 #include <keel/complex.h>
 #include <functional>
-#include <string>
 #include <numkit/value/value.hpp>
 
 namespace numkit::linalg {
@@ -62,7 +62,7 @@ Value funm(const Value &A, std::function<keel::c64(keel::c64)> f,
            keel::Allocator *mr = nullptr);
 
 /// @brief General matrix function evaluator by string name (`'exp'`, `'sin'`, `'cos'`, `'sinh'`, `'cosh'`).
-Value funm(const Value &A, const std::string &fnName,
+Value funm(const Value &A, keel::StringRef fnName,
            keel::Allocator *mr = nullptr);
 
 

@@ -6,6 +6,8 @@
 
 #include <keel/core.h>
 #include <keel/memory.h>
+#include <keel/ref.h>
+#include <keel/format.h>
 #include <keel/arena.h>
 #include <keel/array.h>
 #include <keel/math.h>
@@ -343,7 +345,7 @@ Value delaunay(const Value &x, const Value &y, keel::Allocator *mr)
 // adapter.
 
 Value griddata(const Value &x, const Value &y, const Value &v,
-               const Value &xqIn, const Value &yqIn, const std::string &methodIn,
+               const Value &xqIn, const Value &yqIn, keel::StringRef methodIn,
                keel::Allocator *mr)
 {
     const keel::usize n = x.numel();
@@ -351,7 +353,7 @@ Value griddata(const Value &x, const Value &y, const Value &v,
         throw Error("griddata: x, y, v must have the same numel",
                      0, 0, "griddata", "", "numkit:griddata:shape");
 
-    std::string method = methodIn;
+    std::string method(methodIn.data(), methodIn.size());
     for (char &c : method) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
     if (method.empty()) method = "linear";
 
@@ -501,7 +503,7 @@ Value griddata(const Value &x, const Value &y, const Value &v,
     }
 
     if (method != "linear" && method != "natural" && method != "cubic")
-        throw Error("griddata: unknown method '" + methodIn + "'",
+        throw Error(keel::format("griddata: unknown method '{}'", methodIn),
                      0, 0, "griddata", "", "numkit:griddata:badMethod");
 
     if (n < 3) {
@@ -714,7 +716,7 @@ Value histcounts2(const Value &x, const Value &y, const Value &xedgesV,
 // implementation plus its adapter.
 
 Value griddatan(const Value &Xv, const Value &vv, const Value &xi,
-                const std::string &method, keel::Allocator *mr)
+                keel::StringRef method, keel::Allocator *mr)
 {
     // Shape: X is m×n, xi is k×n. Use rows/cols directly so a row
     // vector `xi = [a b]` reads as 1×n (one query point in n-D), and
@@ -835,8 +837,7 @@ Value griddatan(const Value &Xv, const Value &vv, const Value &xi,
         return out;
     }
 
-    throw Error("griddatan: unknown method '" + method
-                + "' (supported: 'linear', 'nearest')",
+    throw Error(keel::format("griddatan: unknown method '{}' (supported: 'linear', 'nearest')", method),
                  0, 0, "griddatan", "", "numkit:griddatan:badMethod");
 }
 
@@ -870,7 +871,7 @@ Value griddatan(const Value &Xv, const Value &vv, const Value &xi, keel::Allocat
 // 'max' mode negates both Cost AND costUnmatched (MATLAB convention —
 // costUnmatched becomes a REWARD for leaving unmatched).
 MatchpairsResult matchpairs(const Value &C, double cU,
-                            const std::string &mode,
+                            keel::StringRef mode,
                             keel::Allocator *mr)
 {
     if (C.type() == ValueType::COMPLEX)

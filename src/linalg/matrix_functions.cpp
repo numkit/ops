@@ -4,7 +4,9 @@
 // Migrated 2026-05-25 from toolboxes/builtin/src/language/arrays/matrix.cpp.
 
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/memory.h>
+#include <keel/ref.h>
 #include <keel/arena.h>
 #include <keel/array.h>
 #include <keel/complex.h>
@@ -859,7 +861,7 @@ Value funm(const Value &A, std::function<keel::c64(keel::c64)> f, keel::Allocato
     return funm_eval(A, f, mr);
 }
 
-Value funm(const Value &A, const std::string &fnName, keel::Allocator *mr)
+Value funm(const Value &A, keel::StringRef fnName, keel::Allocator *mr)
 {
     if (fnName == "exp") return expm(A, mr);
     if (fnName == "log") return logm(A, mr);
@@ -869,7 +871,7 @@ Value funm(const Value &A, const std::string &fnName, keel::Allocator *mr)
     if (fnName == "sinh") return funm_eval(A, [](keel::c64 x) { return keel::sinh(x); }, mr);
     if (fnName == "cosh") return funm_eval(A, [](keel::c64 x) { return keel::cosh(x); }, mr);
 
-    throw Error("funm: unsupported function '" + fnName + "'", 0, 0, "funm", "", "numkit:funm:unknownFn");
+    throw Error(keel::format("funm: unsupported function '{}'", fnName), 0, 0, "funm", "", "numkit:funm:unknownFn");
 }
 
 } // namespace numkit::linalg

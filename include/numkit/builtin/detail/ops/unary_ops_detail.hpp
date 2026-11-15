@@ -101,7 +101,8 @@ inline Value transpose2D(const Value &x, bool conjugate, const char *fnName,
             r.setFieldAll(fn, Value());
         for (keel::usize i = 0; i < rows; ++i)
             for (keel::usize j = 0; j < cols; ++j)
-                r.structArrayElem(i * cols + j) = x.structArrayElem(j * rows + i);
+                for (auto entry : x.structArrayElem(j * rows + i))
+                    r.setField(i * cols + j, entry.key, entry.value);
         return r;
     }
 

@@ -6,6 +6,7 @@
 
 #include <keel/core.h>
 #include <keel/memory.h>
+#include <keel/ref.h>
 #include <keel/arena.h>
 #include <keel/array.h>
 #include <keel/complex.h>
@@ -30,7 +31,7 @@ namespace numkit::signal {
 // Reference (R2025b) rejects char/cell with a numeric-or-logical class,
 // matrices and empties with AorBNotVector, and a numeric shape argument
 // with unknownShapeParameter — all before any computation.
-static void conv_argcheck(const Value &a, const Value &b, const std::string &shape)
+static void conv_argcheck(const Value &a, const Value &b, keel::StringRef shape)
 {
     detail::requireNumericSignalInput(a, "conv", "a", 1);
     detail::requireNumericSignalInput(b, "conv", "b", 2);
@@ -83,7 +84,7 @@ static bool convRowOut(const Value &a, const Value &b)
     return !isCol(a) && !isCol(b);
 }
 
-Value conv(const Value &aIn, const Value &bIn, const std::string &shape, keel::Allocator *mr)
+Value conv(const Value &aIn, const Value &bIn, keel::StringRef shape, keel::Allocator *mr)
 {
     conv_argcheck(aIn, bIn, shape);
     const bool wantSingle = (aIn.type() == ValueType::SINGLE ||
@@ -333,7 +334,7 @@ xcorr(const Value &xIn, const Value &yIn, keel::Allocator *mr)
 // otherwise the result is cropped (or zero-padded) to lags -maxlag..maxlag.
 std::tuple<Value, Value>
 xcov(const Value &x, const Value &y, int maxlag,
-     const std::string &scaleopt, keel::Allocator *mr)
+     keel::StringRef scaleopt, keel::Allocator *mr)
 {
     auto center = [mr](const Value &v) -> Value {
         const keel::usize n = v.numel();
@@ -358,7 +359,7 @@ xcov(const Value &x, const Value &y, int maxlag,
     const double *ld = lagsfull.doubleData();
 
     // Case-insensitive scaleopt.
-    std::string opt = scaleopt;
+    std::string opt(scaleopt.data(), scaleopt.size());
     for (char &ch : opt) if (ch >= 'A' && ch <= 'Z') ch = char(ch + 32);
 
     if (opt == "biased") {
@@ -415,7 +416,7 @@ namespace {
 // Returns a fresh Value sized appropriately. fullR/fullC are dims of
 // the full result; A is the first input (size M×N), B is the second
 // (size P×Q).
-Value cropConv2(const double *full, keel::usize fullR, keel::usize fullC, keel::usize M, keel::usize N, keel::usize P, keel::usize Q, const std::string &shape, keel::Allocator *mr)
+Value cropConv2(const double *full, keel::usize fullR, keel::usize fullC, keel::usize M, keel::usize N, keel::usize P, keel::usize Q, keel::StringRef shape, keel::Allocator *mr)
 {
     if (shape == "full") {
         auto out = Value::matrix(fullR, fullC, ValueType::DOUBLE, mr);
@@ -502,7 +503,7 @@ static Value extractPartValue(const Value &v, bool imagPart, keel::Allocator *mr
 
 } // namespace
 
-Value conv2(const Value &A, const Value &B, const std::string &shape, keel::Allocator *mr)
+Value conv2(const Value &A, const Value &B, keel::StringRef shape, keel::Allocator *mr)
 {
     convMatrixArgcheck(A, "conv2", "A", 1);
     convMatrixArgcheck(B, "conv2", "B", 2);
@@ -553,7 +554,7 @@ Value conv2(const Value &A, const Value &B, const std::string &shape, keel::Allo
         cropConv2(full.data(), fullR, fullC, M, N, P, Q, shape, mr), wantSingle, mr);
 }
 
-Value filter2(const Value &h, const Value &X, const std::string &shape, keel::Allocator *mr)
+Value filter2(const Value &h, const Value &X, keel::StringRef shape, keel::Allocator *mr)
 {
     convMatrixArgcheck(h, "filter2", "h", 1);
     convMatrixArgcheck(X, "filter2", "X", 2);
@@ -587,7 +588,7 @@ Value filter2(const Value &h, const Value &X, const std::string &shape, keel::Al
     return detail::narrowDoubleToSingleIf(conv2(xx, hf, shape, mr), wantSingle, mr);
 }
 
-Value convn(const Value &A, const Value &B, const std::string &shape, keel::Allocator *mr)
+Value convn(const Value &A, const Value &B, keel::StringRef shape, keel::Allocator *mr)
 {
     convMatrixArgcheck(A, "convn", "A", 1);
     convMatrixArgcheck(B, "convn", "B", 2);

@@ -1,4 +1,4 @@
-﻿// toolboxes/image/src/io/pnm_codec.hpp
+// toolboxes/image/src/io/pnm_codec.hpp
 //
 // In-tree Netpbm (.pnm, .ppm, .pgm, .pbm) decoder and encoder. Zero external dependencies.
 
@@ -6,6 +6,7 @@
 
 #include <keel/core.h>
 #include <keel/memory.h>
+#include <keel/ref.h>
 #include <cstddef>
 #include <cstdint>
 #include <numkit/value/value.hpp>
@@ -20,7 +21,7 @@ Value readPnm(const keel::u8 *data, keel::usize len,
 
 /// Encode an image Value to PNM (PGM/PPM) format bytes.
 /// @param A Image (HÃ—W grayscale or HÃ—WÃ—3 RGB uint8/uint16).
-std::string writePnmToBytes(const Value &A, const std::string &ext = "ppm");
+std::string writePnmToBytes(const Value &A, keel::StringRef ext = "ppm");
 
 /// Inspect a PNM header without decoding all pixels.
 bool peekPnm(const keel::u8 *data, keel::usize len,

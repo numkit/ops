@@ -37,7 +37,7 @@ Value sprintf(const Value &fmt, keel::ArrayRef<Value> args, keel::Allocator *mr 
 /// @param mr Memory resource.
 /// @return Formatted std::string.
 /// @see fprintf, disp
-std::string sprintf(const std::string &fmt, keel::ArrayRef<Value> args, keel::Allocator *mr = nullptr);
+std::string sprintf(keel::StringRef fmt, keel::ArrayRef<Value> args, keel::Allocator *mr = nullptr);
 
 /// @brief Formats Value for terminal display via `disp`.
 /// @param a Input value to format.
@@ -56,7 +56,7 @@ void disp(const Value &v, std::ostream &os = std::cout);
 /// @param mr Memory resource.
 /// @return Number of characters written.
 /// @see sprintf, disp
-int fprintf(std::ostream &os, const std::string &fmt, keel::ArrayRef<Value> args, keel::Allocator *mr = nullptr);
+int fprintf(std::ostream &os, keel::StringRef fmt, keel::ArrayRef<Value> args, keel::Allocator *mr = nullptr);
 
 /// @brief Reads formatted data from a string according to format specifier `fmt` (`sscanf(str, fmt)`).
 /// @param str Source string to scan.
@@ -64,7 +64,7 @@ int fprintf(std::ostream &os, const std::string &fmt, keel::ArrayRef<Value> args
 /// @param mr Memory resource.
 /// @return Scanned values array.
 /// @see textscan, sprintf
-Value sscanf(const std::string &str, const std::string &fmt, keel::Allocator *mr = nullptr);
+Value sscanf(keel::StringRef str, keel::StringRef fmt, keel::Allocator *mr = nullptr);
 
 /// @brief Reads formatted data from a string with multi-output support (`[A, count, errmsg, nextindex] = sscanf(...)`).
 /// @param args Input arguments span `[str, fmt, size]`.

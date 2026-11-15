@@ -4,9 +4,9 @@
 #pragma once
 
 #include <keel/memory.h>
+#include <keel/ref.h>
 #include <numkit/value/value.hpp>
 
-#include <string>
 #include <tuple>
 
 namespace numkit::signal {
@@ -40,7 +40,7 @@ namespace numkit::signal {
 /// @see conv2, convn, deconv, cconv
 Value conv(const Value &                a,
            const Value &                b,
-           const std::string &          shape = "full",
+           keel::StringRef              shape = "full",
            keel::Allocator *  mr    = nullptr);
 
 /// Polynomial long-division: `b = conv(a, q) + r`.
@@ -121,14 +121,14 @@ std::tuple<Value, Value>
 xcov(const Value &                x,
      const Value &                y,
      int                          maxlag,
-     const std::string &          scaleopt,
+     keel::StringRef              scaleopt,
      keel::Allocator *  mr = nullptr);
 
 /// @brief Cross-covariance with full lags and `"none"` scaling.
 inline std::tuple<Value, Value>
 xcov(const Value &x, const Value &y, keel::Allocator *mr = nullptr)
 {
-    return xcov(x, y, -1, std::string("none"), mr);
+    return xcov(x, y, -1, "none", mr);
 }
 
 /// @brief Auto-covariance — equivalent to `xcov(x, x)`.
@@ -166,7 +166,7 @@ xcov(const Value &x, keel::Allocator *mr = nullptr)
 /// @see conv, convn, filter2
 Value conv2(const Value &                A,
             const Value &                B,
-            const std::string &          shape = "full",
+            keel::StringRef              shape = "full",
             keel::Allocator *  mr    = nullptr);
 
 /// 2-D filter — `filter2(h, X[, shape])`.
@@ -184,7 +184,7 @@ Value conv2(const Value &                A,
 /// @see conv2
 Value filter2(const Value &                h,
               const Value &                X,
-              const std::string &          shape = "same",
+              keel::StringRef              shape = "same",
               keel::Allocator *  mr    = nullptr);
 
 /// N-D convolution.
@@ -202,7 +202,7 @@ Value filter2(const Value &                h,
 /// @see conv, conv2
 Value convn(const Value &                A,
             const Value &                B,
-            const std::string &          shape = "full",
+            keel::StringRef              shape = "full",
             keel::Allocator *  mr    = nullptr);
 
 

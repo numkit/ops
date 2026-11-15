@@ -1,4 +1,4 @@
-﻿// toolboxes/image/src/io/io_detail.hpp
+// toolboxes/image/src/io/io_detail.hpp
 //
 // Private (src-only) declarations shared between the engine-free compute in
 // io.cpp and its CallContext register half in io_reg.cpp. NOT part of the
@@ -10,20 +10,23 @@
 #pragma once
 
 #include <keel/memory.h>
+#include <keel/ref.h>
 #include <numkit/value/value.hpp>
 
 #include <algorithm>
 #include <cctype>
 #include <string>
+#include <string_view>
 
 namespace numkit::image {
 
 // Lower-cased file extension (without the dot), or "" if none. Used by both
 // the native and VFS imread/imwrite paths to dispatch on format.
-inline std::string lowerExt(const std::string &path) {
+inline std::string lowerExt(keel::StringRef pathRef) {
+    std::string_view path(pathRef);
     auto dot = path.find_last_of('.');
-    if (dot == std::string::npos) return {};
-    std::string e = path.substr(dot + 1);
+    if (dot == std::string_view::npos) return {};
+    std::string e(path.substr(dot + 1));
     std::transform(e.begin(), e.end(), e.begin(),
                    [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
     return e;
@@ -31,9 +34,9 @@ inline std::string lowerExt(const std::string &path) {
 
 // True if the byte buffer carries a TIFF magic header (II*. or MM.*, classic
 // or BigTIFF).
-bool isTiffBytes(const std::string &b);
+bool isTiffBytes(keel::StringRef b);
 
 // Decode an image from in-memory bytes â€” the single place pixels are produced.
-Value imreadFromBytes(const std::string &bytes, keel::Allocator *mr);
+Value imreadFromBytes(keel::StringRef bytes, keel::Allocator *mr);
 
 } // namespace numkit::image

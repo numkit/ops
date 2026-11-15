@@ -1,4 +1,4 @@
-﻿// toolboxes/ode/src/ode_detail.hpp
+// toolboxes/ode/src/ode_detail.hpp
 //
 // Private (src-only) helpers shared by the explicit Runge-Kutta integrators
 // ode45 (Dormand-Prince 5(4)) and ode23 (Bogacki-Shampine 3(2)): the options
@@ -65,7 +65,7 @@ inline OdeOpts read_opts(const Value &opts, int refine_default)
     if (opts.hasField("NormControl")) {
         const Value &v = opts.field("NormControl");
         if (!v.isEmpty()) {
-            const std::string s = v.toString();
+            const auto s = v.toString();
             o.norm_control = (!s.empty() && (s[0] == 'o' || s[0] == 'O'));
         }
     }
@@ -80,7 +80,7 @@ inline OdeOpts read_opts(const Value &opts, int refine_default)
     if (opts.hasField("Stats")) {
         const Value &v = opts.field("Stats");
         if (!v.isEmpty()) {
-            const std::string s = v.toString();
+            const auto s = v.toString();
             o.stats = (!s.empty() && (s[0] == 'o' || s[0] == 'O'));
         }
     }

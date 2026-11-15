@@ -42,7 +42,7 @@ void sortEigenPairsBySigma(keel::Array<EigenPair> &pairs, keel::usize k, const V
 
     if (!sigma.isEmpty()) {
         if (sigma.isChar() || sigma.isString()) {
-            std::string s = sigma.toString();
+            std::string s(sigma.toString().as_ref());
             std::transform(s.begin(), s.end(), s.begin(),
                            [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
             if (s == "largestabs" || s == "lm") mode = Mode::LargestAbs;
@@ -235,7 +235,7 @@ std::tuple<Value, Value> eigs_generalized(const Value &A, const Value &B, keel::
     if (k > n) k = n;
 
     if (n > 96 && 2 * k < n && (sigma.isChar() || sigma.isString())) {
-        std::string s = sigma.toString();
+        std::string s(sigma.toString().as_ref());
         std::transform(s.begin(), s.end(), s.begin(),
                        [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
         if (s == "smallestabs" || s == "sm") {

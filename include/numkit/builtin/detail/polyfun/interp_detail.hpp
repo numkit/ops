@@ -5,6 +5,8 @@
 
 #include <keel/core.h>
 #include <keel/memory.h>
+#include <keel/ref.h>
+#include <keel/format.h>
 #include <keel/arena.h>
 #include <keel/array.h>
 #include <keel/complex.h>
@@ -437,7 +439,7 @@ enum class Interp1Extrap { Default, Method, Const };
 // interval); previous/next emit NaN, so they get special handling.
 void applyInterp1Extrap(double *yq, const double *xqd, keel::usize nq,
                         const double *xd, const double *yd, keel::usize n,
-                        const std::string &method, Interp1Extrap mode,
+                        keel::StringRef method, Interp1Extrap mode,
                         double fill)
 {
     const double NaN = std::numeric_limits<double>::quiet_NaN();
@@ -477,7 +479,7 @@ void applyInterp1Extrap(double *yq, const double *xqd, keel::usize nq,
 // Shared interp1 core: dispatch on method, then apply the extrapolation
 // policy. Both the public interp1() and interp1_reg() funnel through here.
 Value interp1Dispatch(const Value &x, const Value &y, const Value &xq,
-                      const std::string &method, Interp1Extrap mode,
+                      keel::StringRef method, Interp1Extrap mode,
                       double fill, keel::Allocator *mr)
 {
     const keel::usize n = x.numel();
@@ -529,7 +531,7 @@ Value interp1Dispatch(const Value &x, const Value &y, const Value &xq,
                 // non-uniform); out-of-range → NaN (NOT a method-
                 // extrapolator, see applyInterp1Extrap).
                 return interpV5Cubic(xd, yd, n, xqd, nq, scratch.allocator());
-            throw Error("interp1: unknown method '" + method + "'",
+            throw Error(keel::format("interp1: unknown method '{}'", method),
                          0, 0, "interp1", "", "numkit:interp1:badMethod");
         }();
         applyInterp1Extrap(yq.data(), xqd, nq, xd, yd, n, method, mode, fill);
@@ -584,19 +586,18 @@ enum class Interp2Method { Linear, Nearest, Cubic, Spline };
 // so the naive separable form diverges from MATLAB's true tensor-product
 // bicubic Hermite (which needs consistent cross ∂²/∂x∂y derivatives) at
 // interior points. Implementing that correctly is deferred.
-Interp2Method parseInterp2Method(const std::string &m, bool allowSeparable = false)
+Interp2Method parseInterp2Method(keel::StringRef m, bool allowSeparable = false)
 {
-    std::string s = m;
+    std::string s(m.data(), m.size());
     for (auto &c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
     if (s.empty() || s == "linear") return Interp2Method::Linear;
     if (s == "nearest")             return Interp2Method::Nearest;
     if (s == "cubic")               return Interp2Method::Cubic;
     if (allowSeparable && s == "spline") return Interp2Method::Spline;
     if (s == "spline" || s == "pchip" || s == "makima")
-        throw Error("interp2: '" + m + "' method not yet supported "
-                     "(linear / nearest / cubic / spline available)",
+        throw Error(keel::format("interp2: '{}' method not yet supported (linear / nearest / cubic / spline available)", m),
                      0, 0, "interp2", "", "numkit:interp2:unsupportedMethod");
-    throw Error("interp2: unknown method '" + m + "'",
+    throw Error(keel::format("interp2: unknown method '{}'", m),
                  0, 0, "interp2", "", "numkit:interp2:badMethod");
 }
 
@@ -752,7 +753,7 @@ void readGridAxis(const Value &g, keel::Array<double> &out, const char *axis)
     out = extractAlong(preferred);
 }
 
-Value interp2Impl(const Value &V, const double *xGrid, keel::usize xN, const double *yGrid, keel::usize yN, const Value &Xq, const Value &Yq, const std::string &method, keel::Allocator *mr)
+Value interp2Impl(const Value &V, const double *xGrid, keel::usize xN, const double *yGrid, keel::usize yN, const Value &Xq, const Value &Yq, keel::StringRef method, keel::Allocator *mr)
 {
     if (V.type() == ValueType::COMPLEX)
         throw Error("interp2: complex inputs are not supported",
@@ -948,7 +949,7 @@ double interp3Sample(const double *V, keel::usize R, keel::usize C, keel::usize 
     return (1 - tz) * c0 + tz * c1;
 }
 
-Value interp3Impl(const Value &V, const double *xGrid, keel::usize xN, const double *yGrid, keel::usize yN, const double *zGrid, keel::usize zN, const Value &Xq, const Value &Yq, const Value &Zq, const std::string &method, keel::Allocator *mr)
+Value interp3Impl(const Value &V, const double *xGrid, keel::usize xN, const double *yGrid, keel::usize yN, const double *zGrid, keel::usize zN, const Value &Xq, const Value &Yq, const Value &Zq, keel::StringRef method, keel::Allocator *mr)
 {
     if (V.type() == ValueType::COMPLEX)
         throw Error("interp3: complex inputs are not supported",

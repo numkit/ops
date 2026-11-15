@@ -315,7 +315,7 @@ Value compareImpl(Cmp c, const Value &a, const Value &b)
     if (a.isString() || b.isString()) {
         auto toStr = [](const Value &v) -> std::string {
             if (v.isString() || v.isChar())
-                return v.toString();
+                return std::string(v.toString().as_ref());
             throw Error("Comparison between string and non-string is not supported",
                          0, 0, "compare", "", "numkit:compare:stringType");
         };

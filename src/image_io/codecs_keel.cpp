@@ -4,6 +4,7 @@
 // (PNG, JPEG, BMP, TGA, PNM, TIFF) to keel::image.
 
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
 #include <keel/array.h>
@@ -373,11 +374,11 @@ PackedImageBuffer packTiffImage(const Value &A) {
     return out;
 }
 
-std::vector<keel::u8> loadFileBytes(const std::string &path, const char *who) {
-    std::ifstream in(path, std::ios::binary);
+std::vector<keel::u8> loadFileBytes(keel::StringRef path, const char *who) {
+    std::ifstream in(std::string(path.data(), path.size()), std::ios::binary);
     if (!in) {
-        throw Error(std::string(who) + ": cannot open '" + path + "'",
-                    0, 0, who, "", std::string("numkit:") + who + ":open");
+        throw Error(keel::format("{}: cannot open '{}'", who, path),
+                    0, 0, who, "", keel::format("numkit:{}:open", who));
     }
     in.seekg(0, std::ios::end);
     const std::streamoff sz = in.tellg();
@@ -389,12 +390,12 @@ std::vector<keel::u8> loadFileBytes(const std::string &path, const char *who) {
     return buf;
 }
 
-keel::TiffCompression parseTiffCompression(const std::string &s) {
+keel::TiffCompression parseTiffCompression(keel::StringRef s) {
     if (s.empty() || s == "none") return keel::TiffCompression::None;
     if (s == "packbits")          return keel::TiffCompression::PackBits;
     if (s == "lzw")               return keel::TiffCompression::Lzw;
     if (s == "deflate")           return keel::TiffCompression::Deflate;
-    throw Error("imwrite TIFF: unknown Compression '" + s + "' (use none, packbits, lzw, or deflate)",
+    throw Error(keel::format("imwrite TIFF: unknown Compression '{}' (use none, packbits, lzw, or deflate)", s),
                 0, 0, "imwrite", "", "numkit:imwrite:tiffCompression");
 }
 
@@ -570,7 +571,7 @@ Value readPnm(const keel::u8 *data, keel::usize len,
     return keelImageToValue(res.value(), mr);
 }
 
-std::string writePnmToBytes(const Value &A, const std::string & /*ext*/) {
+std::string writePnmToBytes(const Value &A, keel::StringRef /*ext*/) {
     auto packed = packStandardImage(
         A, /*allowU16=*/true, /*allow4Ch=*/false,
         "imwrite: PNM only supports 1 (PGM) or 3 (PPM) channels",
@@ -599,7 +600,7 @@ bool isTiffBytes(const keel::u8 *data, keel::usize len) {
     return keel::is_tiff_bytes(toRef(data, len));
 }
 
-bool isTiffBytes(const std::string &b) {
+bool isTiffBytes(keel::StringRef b) {
     return isTiffBytes(reinterpret_cast<const keel::u8 *>(b.data()), b.size());
 }
 
@@ -628,7 +629,7 @@ std::pair<Value, Value> readTiffWithMap(std::vector<keel::u8> buf, keel::u32 pag
     };
 }
 
-std::pair<Value, Value> readTiffWithMap(const std::string &path, keel::u32 page,
+std::pair<Value, Value> readTiffWithMap(keel::StringRef path, keel::u32 page,
                                         keel::Allocator *mr) {
     return readTiffWithMap(loadFileBytes(path, "imread"), page, mr);
 }
@@ -638,12 +639,12 @@ Value readTiff(std::vector<keel::u8> buf, keel::u32 page,
     return readTiffWithMap(std::move(buf), page, mr).first;
 }
 
-Value readTiff(const std::string &path, keel::u32 page,
+Value readTiff(keel::StringRef path, keel::u32 page,
                keel::Allocator *mr) {
     return readTiff(loadFileBytes(path, "imread"), page, mr);
 }
 
-Value readTiff(const std::string &path, keel::Allocator *mr) {
+Value readTiff(keel::StringRef path, keel::Allocator *mr) {
     return readTiff(path, 1u, mr);
 }
 
@@ -661,12 +662,12 @@ void peekTiff(const std::vector<keel::u8> &buf, keel::u32 &W,
     channels = info.channels;
 }
 
-void peekTiff(const std::string &path, keel::u32 &W, keel::u32 &H,
+void peekTiff(keel::StringRef path, keel::u32 &W, keel::u32 &H,
               keel::u16 &bits, keel::u16 &channels) {
     peekTiff(loadFileBytes(path, "imfinfo"), W, H, bits, channels);
 }
 
-keel::u32 tiffNumPages(const std::string &path) {
+keel::u32 tiffNumPages(keel::StringRef path) {
     const auto buf = loadFileBytes(path, "imfinfo");
     auto res = keel::tiff_page_count(toRef(buf.data(), buf.size()));
     if (!res) {
@@ -676,7 +677,7 @@ keel::u32 tiffNumPages(const std::string &path) {
     return res.value();
 }
 
-std::vector<keel::u8> writeTiffToBytes(const Value &A, const std::string &compression,
+std::vector<keel::u8> writeTiffToBytes(const Value &A, keel::StringRef compression,
                                            const std::vector<keel::u8> *existing) {
     keel::TiffEncodeOptions opts;
     opts.compression = parseTiffCompression(compression);
@@ -695,8 +696,8 @@ std::vector<keel::u8> writeTiffToBytes(const Value &A, const std::string &compre
     return toStdVec(res.value());
 }
 
-void writeTiff(const Value &A, const std::string &path,
-               const std::string &compression, bool appendMode) {
+void writeTiff(const Value &A, keel::StringRef path,
+               keel::StringRef compression, bool appendMode) {
     std::vector<keel::u8> existing;
     const std::vector<keel::u8> *exptr = nullptr;
     if (appendMode && keel::fs_exists(path)) {
@@ -706,9 +707,9 @@ void writeTiff(const Value &A, const std::string &path,
 
     const std::vector<keel::u8> buf = writeTiffToBytes(A, compression, exptr);
 
-    std::ofstream out(path, std::ios::binary | std::ios::trunc);
+    std::ofstream out(std::string(path.data(), path.size()), std::ios::binary | std::ios::trunc);
     if (!out) {
-        throw Error("imwrite TIFF: cannot open '" + path + "' for write",
+        throw Error(keel::format("imwrite TIFF: cannot open '{}' for write", path),
                     0, 0, "imwrite", "", "numkit:imwrite:open");
     }
     out.write(reinterpret_cast<const char *>(buf.data()), static_cast<std::streamsize>(buf.size()));

@@ -1,6 +1,7 @@
 // src/builtin/src/ops/binary_ops.cpp
 
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/arena.h>
 #include <keel/array.h>
@@ -147,7 +148,7 @@ Value plus(const Value &a, const Value &b, keel::Allocator *mr)
         return elementwiseDouble(a, b, std::plus<double>{}, p);
     }
     if (a.isChar() && b.isChar())
-        return Value::fromString(a.toString() + b.toString(), p);
+        return Value::fromString(keel::format("{}{}", a.toString(), b.toString()), p);
     if (a.isChar() && b.type() == ValueType::DOUBLE) {
         auto ca = createLike(a, ValueType::DOUBLE, p);
         const char *cd = a.charData();
@@ -165,15 +166,15 @@ Value plus(const Value &a, const Value &b, keel::Allocator *mr)
         return elementwiseDouble(a, cb, std::plus<double>{}, p);
     }
     if (a.isString() && b.isString())
-        return Value::stringScalar(a.toString() + b.toString(), p);
+        return Value::stringScalar(keel::format("{}{}", a.toString(), b.toString()), p);
     if (a.isString() && b.isChar())
-        return Value::stringScalar(a.toString() + b.toString(), p);
+        return Value::stringScalar(keel::format("{}{}", a.toString(), b.toString()), p);
     if (a.isChar() && b.isString())
-        return Value::stringScalar(a.toString() + b.toString(), p);
+        return Value::stringScalar(keel::format("{}{}", a.toString(), b.toString()), p);
     if (a.isString() && b.isNumeric())
-        return Value::stringScalar(a.toString() + std::to_string(b.toScalar()), p);
+        return Value::stringScalar(keel::format("{}{}", a.toString(), std::to_string(b.toScalar())), p);
     if (a.isNumeric() && b.isString())
-        return Value::stringScalar(std::to_string(a.toScalar()) + b.toString(), p);
+        return Value::stringScalar(keel::format("{}{}", std::to_string(a.toScalar()), b.toString()), p);
     if (a.type() == ValueType::CHAR || b.type() == ValueType::CHAR)
         return plus(coerceCharToDouble(a, p), coerceCharToDouble(b, p), p);
     {

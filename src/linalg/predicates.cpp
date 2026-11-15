@@ -1,4 +1,4 @@
-﻿// toolboxes/linalg/src/predicates.cpp
+// toolboxes/linalg/src/predicates.cpp
 //
 // MATLAB matrix-structure predicates and bandwidth queries.
 //
@@ -16,6 +16,7 @@
 
 #include <keel/core.h>
 #include <keel/memory.h>
+#include <keel/ref.h>
 #include <keel/complex.h>
 #include <numkit/linalg/predicates.hpp>
 
@@ -214,7 +215,7 @@ bandwidth(const Value &A, keel::Allocator *mr)
             Value::scalar(static_cast<double>(up), mr)};
 }
 
-Value bandwidthOpt(const Value &A, const std::string &which, keel::Allocator *mr)
+Value bandwidthOpt(const Value &A, keel::StringRef which, keel::Allocator *mr)
 {
     detail::requireFloatOrLogicalInput(A, "bandwidth");
     requireMatrix(A, "bandwidth");

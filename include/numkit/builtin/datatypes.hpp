@@ -4,6 +4,7 @@
 #pragma once
 
 #include <keel/memory.h>
+#include <keel/ref.h>
 #include <string>
 #include <vector>
 #include <numkit/value/value.hpp>
@@ -29,7 +30,7 @@ namespace numkit::builtin {
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Logical true if field exists.
 /// @see getfield, setfield, rmfield
-Value isfield(const Value &s, const std::string &field, keel::Allocator *mr = nullptr);
+Value isfield(const Value &s, keel::StringRef field, keel::Allocator *mr = nullptr);
 
 /// @brief Gets value of structure field by string name (`getfield(s, field)`).
 /// @param s Structure value.
@@ -37,7 +38,7 @@ Value isfield(const Value &s, const std::string &field, keel::Allocator *mr = nu
 /// @param mr Memory resource.
 /// @return Value contained in structure field.
 /// @see isfield, setfield, rmfield
-Value getfield(const Value &s, const std::string &field, keel::Allocator *mr = nullptr);
+Value getfield(const Value &s, keel::StringRef field, keel::Allocator *mr = nullptr);
 
 /// @brief Sets value of structure field by string name (`setfield(s, field, val)`).
 /// @param s Structure value.
@@ -46,14 +47,14 @@ Value getfield(const Value &s, const std::string &field, keel::Allocator *mr = n
 /// @param mr Memory resource.
 /// @return Updated structure value.
 /// @see getfield, isfield, rmfield
-Value setfield(const Value &s, const std::string &field, const Value &val, keel::Allocator *mr = nullptr);
+Value setfield(const Value &s, keel::StringRef field, const Value &val, keel::Allocator *mr = nullptr);
 
 /// @brief Removes field from structure by string name (`rmfield(s, field)`).
 /// @param s Structure value.
 /// @param field Field name string to remove.
 /// @param mr Memory resource.
 /// @return Structure with field removed.
-Value rmfield(const Value &s, const std::string &field, keel::Allocator *mr = nullptr);
+Value rmfield(const Value &s, keel::StringRef field, keel::Allocator *mr = nullptr);
 
 /// @brief Converts input array to double-precision floating point (`double(x)`).
 /// @param x Input array or scalar.
@@ -295,7 +296,7 @@ Value isequaln(const Value &a, const Value &b, keel::Allocator *mr = nullptr);
 /// @param targetType Target class name (e.g. `'double'`, `'single'`, `'int32'`, `'uint8'`, `'logical'`).
 /// @param mr Memory resource.
 /// @return Casted array.
-Value cast(const Value &v, const std::string &targetType, keel::Allocator *mr = nullptr);
+Value cast(const Value &v, keel::StringRef targetType, keel::Allocator *mr = nullptr);
 
 /// @brief Replaces specified indicator values with standard missing values (`standardizeMissing(x, indicator)`).
 /// @param x Input array.
@@ -333,7 +334,7 @@ Value swapbytes(const Value &x, keel::Allocator *mr = nullptr);
 /// @param datatype Target data type name.
 /// @param mr Memory resource.
 /// @return Typecasted array.
-Value typecast(const Value &x, const std::string &datatype, keel::Allocator *mr = nullptr);
+Value typecast(const Value &x, keel::StringRef datatype, keel::Allocator *mr = nullptr);
 
 /// @brief True if all elements are finite numbers (`allfinite(x)`).
 /// @param x Input array.
@@ -352,7 +353,7 @@ Value anynan(const Value &x, keel::Allocator *mr = nullptr);
 /// @param mr Memory resource.
 /// @return Smallest positive normalized float.
 /// @see realmax, eps
-Value realmin(const std::string &className = "double", keel::Allocator *mr = nullptr);
+Value realmin(keel::StringRef className = "double", keel::Allocator *mr = nullptr);
 
 /// @brief Smallest positive normalized floating-point number (`realmin(t)`).
 /// @param t Type name value.
@@ -365,7 +366,7 @@ Value realmin(const Value &t, keel::Allocator *mr = nullptr);
 /// @param mr Memory resource.
 /// @return Largest finite float.
 /// @see realmin, intmax
-Value realmax(const std::string &className = "double", keel::Allocator *mr = nullptr);
+Value realmax(keel::StringRef className = "double", keel::Allocator *mr = nullptr);
 
 /// @brief Largest finite floating-point number (`realmax(t)`).
 /// @param t Type name value.
@@ -378,7 +379,7 @@ Value realmax(const Value &t, keel::Allocator *mr = nullptr);
 /// @param mr Memory resource.
 /// @return Smallest integer value.
 /// @see intmax
-Value intmin(const std::string &className = "int32", keel::Allocator *mr = nullptr);
+Value intmin(keel::StringRef className = "int32", keel::Allocator *mr = nullptr);
 
 /// @brief Smallest integer value for specified integer class value (`intmin(t)`).
 /// @param t Integer class value.
@@ -391,7 +392,7 @@ Value intmin(const Value &t, keel::Allocator *mr = nullptr);
 /// @param mr Memory resource.
 /// @return Largest integer value.
 /// @see intmin
-Value intmax(const std::string &className = "int32", keel::Allocator *mr = nullptr);
+Value intmax(keel::StringRef className = "int32", keel::Allocator *mr = nullptr);
 
 /// @brief Largest integer value for specified integer class value (`intmax(t)`).
 /// @param t Integer class value.
@@ -403,7 +404,7 @@ Value intmax(const Value &t, keel::Allocator *mr = nullptr);
 /// @param className Floating-point class name (`"double"` for `2^53`, `"single"` for `2^24`).
 /// @param mr Memory resource.
 /// @return Maximum consecutive float integer.
-Value flintmax(const std::string &className = "double", keel::Allocator *mr = nullptr);
+Value flintmax(keel::StringRef className = "double", keel::Allocator *mr = nullptr);
 
 /// @brief Largest consecutive integer accurately representable in floating-point format (`flintmax(t)`).
 /// @param t Type name value.

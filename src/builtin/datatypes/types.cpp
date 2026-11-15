@@ -1,5 +1,7 @@
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/memory.h>
+#include <keel/ref.h>
 #include <keel/complex.h>
 #include <keel/math.h>
 #include <numkit/builtin/datatypes.hpp>
@@ -529,6 +531,31 @@ Value realmin(const Value &t, keel::Allocator *mr)
     throw std::runtime_error("realmin: type must be 'double' or 'single'");
 }
 
+Value flintmax(keel::StringRef className, keel::Allocator *mr)
+{
+    return flintmax(Value::fromString(className, mr), mr);
+}
+
+Value intmax(keel::StringRef className, keel::Allocator *mr)
+{
+    return intmax(Value::fromString(className, mr), mr);
+}
+
+Value intmin(keel::StringRef className, keel::Allocator *mr)
+{
+    return intmin(Value::fromString(className, mr), mr);
+}
+
+Value realmax(keel::StringRef className, keel::Allocator *mr)
+{
+    return realmax(Value::fromString(className, mr), mr);
+}
+
+Value realmin(keel::StringRef className, keel::Allocator *mr)
+{
+    return realmin(Value::fromString(className, mr), mr);
+}
+
 // ── Whole-array float predicates ────────────────────────────────────
 
 Value allfinite(const Value &x, keel::Allocator *mr)
@@ -613,7 +640,7 @@ Value classOf(const Value &x, keel::Allocator *mr)
 }
 
 // ── Pack 36: cast + swapbytes ────────────────────────────────────────
-Value cast(const Value &x, const std::string &classname, keel::Allocator *mr)
+Value cast(const Value &x, keel::StringRef classname, keel::Allocator *mr)
 {
     if (classname == "double")  return toDouble(x, mr);
     if (classname == "single")  return single(x, mr);
@@ -628,18 +655,18 @@ Value cast(const Value &x, const std::string &classname, keel::Allocator *mr)
     if (classname == "logical") return logical(x, mr);
     if (classname == "char")    return toChar(x, mr);
     if (classname == "string")  return toString(x, mr);
-    throw Error("cast: unsupported class '" + classname + "'",
+    throw Error(keel::format("cast: unsupported class '{}'", classname),
                  0, 0, "cast", "", "numkit:cast:badClass");
 }
 
 
 // Map a MATLAB classname string → (ValueType, element-size-in-bytes).
 
-Value typecast(const Value &x, const std::string &classname, keel::Allocator *mr)
+Value typecast(const Value &x, keel::StringRef classname, keel::Allocator *mr)
 {
     TypeInfo info = typeInfoFor(classname);
     if (info.elemSize == 0)
-        throw Error("typecast: unsupported class '" + classname + "'",
+        throw Error(keel::format("typecast: unsupported class '{}'", classname),
                      0, 0, "typecast", "", "numkit:typecast:badClass");
 
     const keel::usize srcElemSize = elemSizeOf(x.type());

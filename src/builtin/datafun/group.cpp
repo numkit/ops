@@ -8,6 +8,8 @@
 
 #include <keel/core.h>
 #include <keel/memory.h>
+#include <keel/ref.h>
+#include <keel/format.h>
 #include <numkit/builtin/datafun.hpp>
 #include <numkit/value/error.hpp>
 #include <numkit/value/value.hpp>
@@ -126,7 +128,7 @@ GroupcountsResult groupcounts(const Value &g, keel::Allocator *mr)
 }
 
 GroupsummaryResult groupsummary(const Value &A, const Value &G,
-                                const std::string &method,
+                                keel::StringRef method,
                                 keel::Allocator *mr)
 {
     const keel::usize nRows = A.dims().rows();
@@ -235,8 +237,7 @@ GroupsummaryResult groupsummary(const Value &A, const Value &G,
                 for (auto r : rows) if (Aget(r, c) != 0.0) { ok = true; break; }
                 out = ok ? 1.0 : 0.0;
             } else {
-                throw Error("groupsummary: method '" + method
-                            + "' not supported in this revision",
+                throw Error(keel::format("groupsummary: method '{}' not supported in this revision", method),
                             0, 0, "groupsummary", "",
                             "numkit:groupsummary:badMethod");
             }
@@ -262,7 +263,7 @@ GroupsummaryResult groupsummary(const Value &A, const Value &G,
 }
 
 Value grouptransform(const Value &A, const Value &G,
-                     const std::string &method,
+                     keel::StringRef method,
                      keel::Allocator *mr)
 {
     const keel::usize nRows = A.dims().rows();

@@ -235,13 +235,15 @@ Value strCmpElementwise(const Value &a, const Value &b, Pred cmp,
         return v.isCell() ? isText(v.cellAt(idx)) : v.isString();
     };
     auto elemAt = [](const Value &v, keel::usize idx) -> std::string {
-        return v.isCell() ? v.cellAt(idx).toString() : v.stringElem(idx);
+        return v.isCell() ? std::string(v.cellAt(idx).toString().as_ref())
+                          : std::string(v.stringElem(idx).as_ref());
     };
     const bool ac = isArr(a), bc = isArr(b);
     if (!ac && !bc) {
         if (!isText(a) || !isText(b))
             return Value::logicalScalar(false, mr);
-        return Value::logicalScalar(cmp(a.toString(), b.toString()), mr);
+        return Value::logicalScalar(
+            cmp(std::string(a.toString().as_ref()), std::string(b.toString().as_ref())), mr);
     }
 
     const keel::usize na = ac ? a.numel() : 1;
@@ -267,8 +269,8 @@ Value strCmpElementwise(const Value &a, const Value &b, Pred cmp,
         std::memset(od, 0, n);
         return out;
     }
-    const std::string scalA = ac ? std::string() : a.toString();
-    const std::string scalB = bc ? std::string() : b.toString();
+    const std::string scalA = ac ? std::string() : std::string(a.toString().as_ref());
+    const std::string scalB = bc ? std::string() : std::string(b.toString().as_ref());
     for (keel::usize i = 0; i < n; ++i) {
         const keel::usize ia = (na == 1 ? 0 : i);
         const keel::usize ib = (nb == 1 ? 0 : i);
@@ -299,7 +301,7 @@ namespace {
 // Length of the LONGEST delimiter (literal) in `delims` matching `s` at
 // position `i`, or 0 if none match. Longest-match so a delimiter ", " wins
 // over "," when both are listed.
-keel::usize matchDelimAt(const std::string &s, keel::usize i,
+keel::usize matchDelimAt(std::string_view s, keel::usize i,
                     keel::ArrayRef<std::string> delims)
 {
     keel::usize best = 0;
@@ -310,11 +312,12 @@ keel::usize matchDelimAt(const std::string &s, keel::usize i,
     return best;
 }
 
-Value strsplitImpl(const std::string &s,
+Value strsplitImpl(keel::StringRef sRef,
                    keel::ArrayRef<std::string> delims, bool collapse,
                    keel::Allocator *mr,
                    keel::Array<std::string> *matchesOut = nullptr)
 {
+    const std::string_view s(sRef);
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     keel::Array<std::string> parts(scratch.allocator());
     std::string current;
@@ -333,7 +336,7 @@ Value strsplitImpl(const std::string &s,
                     i += m2;
             }
             if (matchesOut)
-                matchesOut->push_back(s.substr(matchStart, i - matchStart));
+                matchesOut->emplace_back(s.substr(matchStart, i - matchStart));
         } else {
             current.push_back(s[i++]);
         }
@@ -358,18 +361,20 @@ void appendDelims(const Value &delim, keel::Array<std::string> &delims)
 {
     if (delim.isCell())
         for (keel::usize i = 0; i < delim.numel(); ++i)
-            delims.push_back(delim.cellAt(i).toString());
+            delims.emplace_back(delim.cellAt(i).toString().as_ref());
     else
-        delims.push_back(delim.toString());
+        delims.emplace_back(delim.toString().as_ref());
 }
 
 } // namespace
 namespace {
 // All 1-based indices of `pp` in `ss` (overlapping, like MATLAB) as a 1×k
 // DOUBLE row vector; [] (0×0) if no match or `pp` is empty.
-Value strfindOne(const std::string &ss, const std::string &pp,
+Value strfindOne(keel::StringRef ssRef, keel::StringRef ppRef,
                  keel::Allocator *mr)
 {
+    const std::string_view ss(ssRef);
+    const std::string_view pp(ppRef);
     if (pp.empty())
         return Value::matrix(0, 0, ValueType::DOUBLE, mr);  // strfind(s,'') -> []
     keel::ArenaTemp scratch = keel::get_scratch(mr);
@@ -398,9 +403,9 @@ void collectMatchPatterns(const Value &pat, keel::Array<std::string> &out)
 {
     if (pat.isCell() || (pat.isString() && pat.numel() != 1)) {
         const auto &vec = pat.cellDataVec();
-        for (const auto &e : vec) out.push_back(e.toString());
+        for (const auto &e : vec) out.emplace_back(e.toString().as_ref());
     } else {
-        out.push_back(pat.toString());
+        out.emplace_back(pat.toString().as_ref());
     }
 }
 
@@ -419,7 +424,7 @@ inline std::string readSide(const Value &side, const char *def)
     if (side.isEmpty()) return def;
     if (!side.isChar() && !side.isString())
         throw std::runtime_error("string-side argument must be a string");
-    auto s = side.toString();
+    std::string s(side.toString().as_ref());
     for (auto &c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
     return s;
 }
@@ -431,7 +436,7 @@ template <typename PredFn>
 Value applyCharPred(const Value &s, PredFn pred, keel::Allocator *mr)
 {
     if (s.isChar()) {
-        const std::string str = s.toString();
+        const auto str = s.toString();
         const keel::usize n = str.size();
         // Mirror char's shape (1×N for typical char rows).
         const auto &d = s.dims();
@@ -448,7 +453,7 @@ Value applyCharPred(const Value &s, PredFn pred, keel::Allocator *mr)
         // For string array, MATLAB returns a cell array of logical
         // arrays (one per element). For now support scalar strings.
         if (s.numel() == 1) {
-            const std::string str = s.toString();
+            const auto str = s.toString();
             auto r = Value::matrix(1, str.size(), ValueType::LOGICAL, mr);
             for (keel::usize i = 0; i < str.size(); ++i)
                 r.logicalDataMut()[i] = pred(static_cast<unsigned char>(str[i])) ? 1 : 0;
@@ -467,13 +472,14 @@ struct PosRange { keel::usize begin; keel::usize end; bool found; };
 // Resolve `p` to a [begin, end) range in `s`. For a numeric position
 // p, [p-1, p) is returned (so callers can treat it as a "single
 // character" anchor). For a string pattern, [pos, pos+len).
-PosRange resolvePos(const std::string &s, const Value &p)
+PosRange resolvePos(keel::StringRef sRef, const Value &p)
 {
+    const std::string_view s(sRef);
     if (p.isChar() || p.isString()) {
-        const std::string pat = p.toString();
+        const auto pat = p.toString();
         if (pat.empty()) return {0, 0, false};
-        const keel::usize pos = s.find(pat);
-        if (pos == std::string::npos) return {0, 0, false};
+        const keel::usize pos = s.find(std::string_view(pat));
+        if (pos == std::string_view::npos) return {0, 0, false};
         return {pos, pos + pat.size(), true};
     }
     // Numeric scalar (1-based).
@@ -483,7 +489,7 @@ PosRange resolvePos(const std::string &s, const Value &p)
     return {static_cast<keel::usize>(p1 - 1), static_cast<keel::usize>(p1), true};
 }
 
-inline Value strLikeOf(const Value &s, const std::string &out, keel::Allocator *mr)
+inline Value strLikeOf(const Value &s, keel::StringRef out, keel::Allocator *mr)
 {
     if (s.isString()) return Value::stringScalar(out, mr);
     return Value::fromString(out, mr);
@@ -504,34 +510,35 @@ struct BetweenMatch {
 };
 
 std::vector<BetweenMatch>
-findAllBetweenPairs(const std::string &ss, const Value &start, const Value &end)
+findAllBetweenPairs(keel::StringRef ssRef, const Value &start, const Value &end)
 {
+    const std::string_view ss(ssRef);
     std::vector<BetweenMatch> matches;
     const bool startIsPattern = (start.isChar() || start.isString());
     const bool endIsPattern   = (end.isChar()   || end.isString());
 
     if (!startIsPattern || !endIsPattern) {
         // Numeric-anchor form: at most one match.
-        const auto rs = resolvePos(ss, start);
+        const auto rs = resolvePos(ssRef, start);
         if (!rs.found) return matches;
-        const std::string tail = ss.substr(rs.end);
-        const auto re = resolvePos(tail, end);
+        const std::string_view tail = ss.substr(rs.end);
+        const auto re = resolvePos(keel::StringRef(tail.data(), tail.size()), end);
         if (!re.found) return matches;
         matches.push_back({rs.begin, rs.end, rs.end + re.begin, rs.end + re.end});
         return matches;
     }
 
-    const std::string sp = start.toString();
-    const std::string ep = end.toString();
+    const std::string sp(start.toString().as_ref());
+    const std::string ep(end.toString().as_ref());
     if (sp.empty() || ep.empty()) return matches;
 
     keel::usize cursor = 0;
     while (cursor < ss.size()) {
         const keel::usize sPos = ss.find(sp, cursor);
-        if (sPos == std::string::npos) break;
+        if (sPos == std::string_view::npos) break;
         const keel::usize innerBeg = sPos + sp.size();
         const keel::usize ePos = ss.find(ep, innerBeg);
-        if (ePos == std::string::npos) break;
+        if (ePos == std::string_view::npos) break;
         matches.push_back({sPos, innerBeg, ePos, ePos + ep.size()});
         // Advance past the closing delimiter so non-overlapping pairs
         // are matched — `<<a>><<b>>` yields 2 matches, not 1.
@@ -559,7 +566,7 @@ std::string toBaseString(keel::u64 v, int base, int minWidth)
     return out;
 }
 
-keel::u64 parseBase(const std::string &s, int base)
+keel::u64 parseBase(keel::StringRef s, int base)
 {
     keel::u64 v = 0;
     for (char c : s) {
@@ -623,7 +630,7 @@ namespace {
 // Interpret a hex string as the raw IEEE-754 bit pattern of a double.
 // Whitespace is skipped (a char matrix pads short rows with spaces); the
 // digits are right-padded with '0' to 16 (MATLAB: hex2num('4') == 2).
-double hexBitsToDouble(const std::string &raw)
+double hexBitsToDouble(keel::StringRef raw)
 {
     std::string h;
     h.reserve(16);
@@ -651,7 +658,7 @@ double hexBitsToDouble(const std::string &raw)
 namespace {
 // Parse a base-`base` (2..36) digit string: 0-9 then A-Z / a-z. Whitespace
 // is skipped (MATLAB pads short rows of a char matrix with spaces).
-keel::u64 parseBaseN(const std::string &s, int base)
+keel::u64 parseBaseN(keel::StringRef s, int base)
 {
     keel::u64 v = 0;
     for (char c : s) {
@@ -755,9 +762,10 @@ enum class StrPred { Contains, StartsWith, EndsWith };
 
 // Test one source string against the collected patterns (any-match) under the
 // chosen predicate. ignoreCase ASCII-lowercases both sides.
-bool strMatchAny(std::string src, const keel::Array<std::string> &pats,
+bool strMatchAny(keel::StringRef srcRef, const keel::Array<std::string> &pats,
                  bool ignoreCase, StrPred pred)
 {
+    std::string src(srcRef.data(), srcRef.size());
     if (ignoreCase) asciiLowerInPlace(src);
     for (std::string pp : pats) {
         if (ignoreCase) asciiLowerInPlace(pp);
@@ -797,7 +805,7 @@ Value strPredicate(const Value &s, const Value &pat, bool ignoreCase,
         keel::u8 *od = out.logicalDataMut();
         const keel::usize n = s.numel();
         for (keel::usize i = 0; i < n; ++i) {
-            const std::string el =
+            const auto el =
                 s.isCell() ? s.cellAt(i).toString() : s.stringElem(i);
             od[i] = strMatchAny(el, pats, ignoreCase, pred) ? 1 : 0;
         }
@@ -826,39 +834,43 @@ Value elemScalar(const Value &x, keel::usize i, keel::Allocator *mr)
 // Get a char input string from char or string-scalar.
 const std::string strInput(const Value &v)
 {
-    if (v.isChar() || (v.isString() && v.isScalar())) return v.toString();
-    if (v.isString()) return v.stringElem(0);  // first elem of array
-    return v.toString();  // last-resort coercion
+    if (v.isChar() || (v.isString() && v.isScalar())) return std::string(v.toString().as_ref());
+    if (v.isString()) return std::string(v.stringElem(0).as_ref());  // first elem of array
+    return std::string(v.toString().as_ref());  // last-resort coercion
 }
 
 // Find every non-overlapping occurrence of `needle` in `hay` and append
 // each matched substring to `out`.
-void findAllLiteral(const std::string &hay, const std::string &needle,
+void findAllLiteral(keel::StringRef hayRef, keel::StringRef needleRef,
                     std::vector<std::string> &out)
 {
+    const std::string_view hay(hayRef);
+    const std::string_view needle(needleRef);
     if (needle.empty()) return;
     keel::usize pos = 0;
     while (true) {
         keel::usize f = hay.find(needle, pos);
-        if (f == std::string::npos) break;
-        out.push_back(needle);
+        if (f == std::string_view::npos) break;
+        out.emplace_back(needle);
         pos = f + needle.size();
     }
 }
 
 // Split `s` by `delim` keeping empty tokens (MATLAB `split` semantics).
-void splitKeepEmpty(const std::string &s, const std::string &delim,
+void splitKeepEmpty(keel::StringRef sRef, keel::StringRef delimRef,
                     std::vector<std::string> &out)
 {
-    if (delim.empty()) { out.push_back(s); return; }
+    const std::string_view s(sRef);
+    const std::string_view delim(delimRef);
+    if (delim.empty()) { out.emplace_back(s); return; }
     keel::usize pos = 0;
     while (true) {
         keel::usize f = s.find(delim, pos);
-        if (f == std::string::npos) {
-            out.push_back(s.substr(pos));
+        if (f == std::string_view::npos) {
+            out.emplace_back(s.substr(pos));
             return;
         }
-        out.push_back(s.substr(pos, f - pos));
+        out.emplace_back(s.substr(pos, f - pos));
         pos = f + delim.size();
     }
 }

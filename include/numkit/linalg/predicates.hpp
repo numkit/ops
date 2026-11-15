@@ -1,4 +1,4 @@
-﻿/// @file predicates.hpp
+/// @file predicates.hpp
 /// @ingroup group_matfun
 // toolboxes/linalg/include/numkit/linalg/predicates.hpp
 //
@@ -8,7 +8,7 @@
 #pragma once
 
 #include <keel/memory.h>
-#include <string>
+#include <keel/ref.h>
 #include <utility>
 #include <numkit/value/value.hpp>
 
@@ -47,7 +47,7 @@ std::pair<Value, Value>
 bandwidth(const Value &A, keel::Allocator *mr = nullptr);
 
 /// @brief Single-output bandwidth selector (`x = bandwidth(A, which)`).
-Value bandwidthOpt(const Value &A, const std::string &which, keel::Allocator *mr = nullptr);
+Value bandwidthOpt(const Value &A, keel::StringRef which, keel::Allocator *mr = nullptr);
 
 
 /// @}

@@ -1,4 +1,4 @@
-﻿// toolboxes/ode/src/options.cpp
+// toolboxes/ode/src/options.cpp
 //
 // odeset / odeget â€” options struct for the ODE solvers.
 //
@@ -6,6 +6,8 @@
 
 #include <keel/core.h>
 #include <keel/memory.h>
+#include <keel/ref.h>
+#include <keel/format.h>
 #include <numkit/ode/options.hpp>
 
 #include <numkit/value/error.hpp>
@@ -30,15 +32,16 @@ const char *const kOptionNames[] = {
 };
 constexpr keel::usize kNumOptions = sizeof(kOptionNames) / sizeof(kOptionNames[0]);
 
-std::string to_lower(std::string s)
+std::string to_lower(keel::StringRef raw)
 {
+    std::string s(raw.data(), raw.size());
     for (auto &c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
     return s;
 }
 
 // Map case-insensitive name â†’ canonical capitalisation; return empty
 // string if not a recognised option.
-std::string canonical_name(const std::string &raw)
+std::string canonical_name(keel::StringRef raw)
 {
     const std::string lower = to_lower(raw);
     for (keel::usize i = 0; i < kNumOptions; ++i) {
@@ -85,7 +88,7 @@ Value odeset(const Value *args, keel::usize nargs,
                         0, 0, "odeset", "", "numkit:odeset:badArg");
         const std::string name = canonical_name(args[i].toString());
         if (name.empty())
-            throw Error("odeset: unknown option '" + args[i].toString() + "'",
+            throw Error(keel::format("odeset: unknown option '{}'", args[i].toString()),
                         0, 0, "odeset", "", "numkit:odeset:badName");
         out.field(name.c_str()) = args[i + 1];
         i += 2;
@@ -125,7 +128,7 @@ Value odeget(const Value &opts, const Value &name,
                     "string scalar.",
                     0, 0, "odeget", "", "numkit:odeget:mustBeTextScalar");
 
-    const std::string raw = name.toString();
+    const std::string raw(name.toString().as_ref());
 
     // 3. Exact field first.
     if (opts.hasField(raw.c_str())) {

@@ -26,11 +26,11 @@ std::string dispFormat(const Value &a)
         // Row vector (or 1×0): single line. Matrix: one row per line.
         auto d = a.dims();
         if (d.rows() <= 1) {
-            os << a.toString();
+            os << std::string_view(a.toString());
         } else {
             for (keel::usize r = 0; r < d.rows(); ++r) {
                 if (r > 0) os << "\n";
-                os << a.charRow(r);
+                os << std::string_view(a.charRow(r));
             }
         }
     } else if (a.isEmpty()) {
@@ -100,8 +100,8 @@ std::string dispFormat(const Value &a)
             }
         }
     } else if (a.isStruct()) {
-        for (auto &[k, v] : a.structFields())
-            os << "    " << k << ": " << v.debugString() << "\n";
+        for (auto entry : a.structFields())
+            os << "    " << std::string_view(entry.key) << ": " << std::string_view(entry.value.debugString()) << "\n";
     } else if (a.isCell()) {
         auto d = a.dims();
         os << "{" << d.rows() << "x" << d.cols() << " cell}";
@@ -116,10 +116,10 @@ std::string dispFormat(const Value &a)
                 os << c.imag() << "i";
             }
         } else {
-            os << a.debugString();
+            os << std::string_view(a.debugString());
         }
     } else {
-        os << a.debugString();
+        os << std::string_view(a.debugString());
     }
     os << "\n";
     return os.str();

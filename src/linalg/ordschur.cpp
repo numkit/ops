@@ -3,7 +3,9 @@
 // ordschur â€” Reorder Schur decomposition A = U * T * U^H.
 
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/memory.h>
+#include <keel/ref.h>
 #include <keel/arena.h>
 #include <keel/array.h>
 #include <keel/complex.h>
@@ -165,7 +167,7 @@ std::tuple<Value, Value> ordschur(const Value &U, const Value &T,
 }
 
 std::tuple<Value, Value> ordschur(const Value &U, const Value &T,
-                                  const std::string &domain,
+                                  keel::StringRef domain,
                                   keel::Allocator *mr)
 {
     detail::requireDoubleInput(U, "ordschur", "U", 1);
@@ -186,7 +188,7 @@ std::tuple<Value, Value> ordschur(const Value &U, const Value &T,
         } else if (domain == "uop") {
             s = (keel::abs(val) > 1.0);
         } else {
-            throw Error("ordschur: unknown domain keyword '" + domain + "'", 0, 0, "ordschur", "", "numkit:ordschur:badDomain");
+            throw Error(keel::format("ordschur: unknown domain keyword '{}'", domain), 0, 0, "ordschur", "", "numkit:ordschur:badDomain");
         }
         sd[i] = s ? 1 : 0;
     }

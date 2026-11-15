@@ -479,7 +479,7 @@ struct GroupsummaryResult {
 /// @return @ref GroupsummaryResult `{ B, BG, BC }`.
 /// @see findgroups, groupcounts, grouptransform
 GroupsummaryResult groupsummary(const Value &A, const Value &G,
-                                const std::string &method,
+                                keel::StringRef method,
                                 keel::Allocator *mr = nullptr);
 
 /// @brief Group transformation (`grouptransform(A, G, method)`).
@@ -494,7 +494,7 @@ GroupsummaryResult groupsummary(const Value &A, const Value &G,
 /// @return Transformed array with same shape as @p A.
 /// @see groupsummary, findgroups
 Value grouptransform(const Value &A, const Value &G,
-                     const std::string &method,
+                     keel::StringRef method,
                      keel::Allocator *mr = nullptr);
 
 /// @brief Built-in reducers recognised by @ref accumarray.

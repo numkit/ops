@@ -570,8 +570,8 @@ Value paddata(const Value &x, keel::usize len, keel::Allocator *mr = nullptr);
 /// @param side Direction (`"left"`, `"right"`).
 /// @param mr Memory resource.
 /// @return Padded array.
-Value paddata(const Value &x, keel::usize len, int dim, const std::string &side = "right", keel::Allocator *mr = nullptr);
-Value paddata(const Value &x, keel::usize len, int dim, const std::string &side, keel::f64 fillValue, keel::Allocator *mr = nullptr);
+Value paddata(const Value &x, keel::usize len, int dim, keel::StringRef side = "right", keel::Allocator *mr = nullptr);
+Value paddata(const Value &x, keel::usize len, int dim, keel::StringRef side, keel::f64 fillValue, keel::Allocator *mr = nullptr);
 
 /// @brief Trims data array to specified length (`trimdata(x, len)`).
 /// @param x Input array.
@@ -588,7 +588,7 @@ Value trimdata(const Value &x, keel::usize len, keel::Allocator *mr = nullptr);
 /// @param side Direction (`"left"`, `"right"`).
 /// @param mr Memory resource.
 /// @return Trimmed array.
-Value trimdata(const Value &x, keel::usize len, int dim, const std::string &side = "right", keel::Allocator *mr = nullptr);
+Value trimdata(const Value &x, keel::usize len, int dim, keel::StringRef side = "right", keel::Allocator *mr = nullptr);
 
 /// @brief Resizes 1-D vector to length `n` by padding or trimming (`resize(v, n)`).
 /// @param v Input vector.
@@ -596,7 +596,7 @@ Value trimdata(const Value &x, keel::usize len, int dim, const std::string &side
 /// @param mr Memory resource.
 /// @return Resized vector.
 Value resize(const Value &v, keel::usize n, keel::Allocator *mr = nullptr);
-Value resize(const Value &v, keel::usize n, int dim, const std::string &side, keel::f64 fillValue = 0.0, keel::Allocator *mr = nullptr);
+Value resize(const Value &v, keel::usize n, int dim, keel::StringRef side, keel::f64 fillValue = 0.0, keel::Allocator *mr = nullptr);
 
 /// @brief Converts subscript indices to linear index (`sub2ind(siz, i, j, ...)`).
 /// @param siz Array size vector.
@@ -621,7 +621,7 @@ std::vector<Value> ind2sub(const Value &siz, const Value &ind, keel::usize nout 
 /// @param b Second array operand.
 /// @param mr Memory resource.
 /// @return Broadcasted result array.
-Value bsxfun(const std::string &op, const Value &a, const Value &b, keel::Allocator *mr = nullptr);
+Value bsxfun(keel::StringRef op, const Value &a, const Value &b, keel::Allocator *mr = nullptr);
 
 /// @brief Extracts lower triangular part of a matrix.
 /// @param x Input matrix.

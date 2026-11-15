@@ -4,6 +4,7 @@
 #pragma once
 
 #include <keel/memory.h>
+#include <keel/ref.h>
 #include <string>
 #include <numkit/value/value.hpp>
 
@@ -36,7 +37,7 @@ namespace numkit::builtin {
 /// @return Quotient after integer division, maintaining integer type of operands.
 /// @throws std::runtime_error If neither argument is an integer class or if invalid mode is passed.
 /// @see numkit::builtin::rdivide, numkit::builtin::ldivide
-Value idivide(const Value &a, const Value &b, const std::string &mode = "fix", keel::Allocator *mr = nullptr);
+Value idivide(const Value &a, const Value &b, keel::StringRef mode = "fix", keel::Allocator *mr = nullptr);
 
 
 /// @}

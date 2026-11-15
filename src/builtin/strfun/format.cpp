@@ -24,8 +24,9 @@ namespace {
 // emitted, width right-justifies (or left-justifies with the '-' flag) by
 // padding with spaces. Length modifiers (l/h) are ignored. Done manually
 // rather than via snprintf to avoid passing user-controlled format strings.
-std::string applyStringSpec(const std::string &spec, std::string sv)
+std::string applyStringSpec(const std::string &spec, keel::StringRef svRef)
 {
+    std::string sv(svRef.data(), svRef.size());
     bool leftAlign = false;
     keel::usize k = 1;                       // skip '%'
     for (; k < spec.size(); ++k) {
@@ -142,7 +143,7 @@ std::string formatIntegerConv(const std::string &spec, char type, double v)
 // Public API
 // ════════════════════════════════════════════════════════════════════════
 
-std::string formatOnce(const std::string &fmt, keel::ArrayRef<Value> args, keel::usize argStart,
+std::string formatOnce(keel::StringRef fmt, keel::ArrayRef<Value> args, keel::usize argStart,
                        bool literalWhenShort)
 {
     std::ostringstream out;
@@ -195,7 +196,7 @@ std::string formatOnce(const std::string &fmt, keel::ArrayRef<Value> args, keel:
                 break;
 
             char type = fmt[i];
-            std::string spec(fmt, start, i - start + 1);
+            std::string spec(fmt.data() + start, i - start + 1);
             // The verbatim spec text (before any '*' splicing), emitted as a
             // literal when this conversion runs out of arguments and the
             // caller asked for that behaviour (MATLAB compose short chunks).
@@ -228,7 +229,7 @@ std::string formatOnce(const std::string &fmt, keel::ArrayRef<Value> args, keel:
             } else if (type == 'c') {
                 if (ai < args.size()) {
                     if (args[ai].isChar()) {
-                        std::string s = args[ai].toString();
+                        auto s = args[ai].toString();
                         out << (s.empty() ? ' ' : s[0]);
                     } else {
                         out << static_cast<char>(static_cast<int>(args[ai].toScalar()));
@@ -271,7 +272,7 @@ std::string formatOnce(const std::string &fmt, keel::ArrayRef<Value> args, keel:
     return out.str();
 }
 
-keel::usize countFormatSpecs(const std::string &fmt)
+keel::usize countFormatSpecs(keel::StringRef fmt)
 {
     keel::usize n = 0;
     for (keel::usize i = 0; i < fmt.size(); ++i) {
@@ -299,7 +300,7 @@ keel::usize countFormatSpecs(const std::string &fmt)
     return n;
 }
 
-std::string formatCyclic(const std::string &fmt, keel::ArrayRef<Value> args, keel::usize argStart, keel::Allocator *mr)
+std::string formatCyclic(keel::StringRef fmt, keel::ArrayRef<Value> args, keel::usize argStart, keel::Allocator *mr)
 {
     keel::Allocator *p = mr;
     keel::ArenaTemp scratch = keel::get_scratch(mr);

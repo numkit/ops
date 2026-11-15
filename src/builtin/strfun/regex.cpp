@@ -3,7 +3,9 @@
 // regexp / regexpi / regexprep — ECMAScript regex via std::regex.
 
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/memory.h>
+#include <keel/ref.h>
 #include <keel/arena.h>
 #include <keel/array.h>
 #include <numkit/builtin/strfun.hpp>
@@ -22,18 +24,18 @@
 namespace numkit::builtin {
 
 
-Value regexpFind(const Value &s, const Value &pat, const std::string &option, bool ignoreCase, keel::Allocator *mr)
+Value regexpFind(const Value &s, const Value &pat, keel::StringRef option, bool ignoreCase, keel::Allocator *mr)
 {
     if ((!s.isChar() && !s.isString()) || (!pat.isChar() && !pat.isString()))
         throw Error("regexp: s and pat must be strings",
                      0, 0, "regexp", "", "numkit:regexp:badArg");
-    const std::string text = s.toString();
+    const std::string text(s.toString().as_ref());
     // Strip MATLAB named-group syntax to a std::regex-compatible pattern,
     // keeping the name → capture-group-index map for the 'names' option.
     const NamedGroups ng = extractNamedGroups(pat.toString());
     const std::regex  re = compileRegex(ng.cleaned, ignoreCase);
 
-    std::string opt = option;
+    std::string opt(option.data(), option.size());
     for (auto &c : opt)
         c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
 
@@ -146,9 +148,8 @@ Value regexpFind(const Value &s, const Value &pat, const std::string &option, bo
     }
 
     if (!opt.empty() && opt != "start")
-        throw Error("regexp: unknown option '" + option
-                     + "' (supported: 'start' / 'end' / 'tokenExtents' / "
-                       "'match' / 'tokens' / 'names' / 'split')",
+        throw Error(keel::format("regexp: unknown option '{}' (supported: 'start' / 'end' / 'tokenExtents' / "
+                                 "'match' / 'tokens' / 'names' / 'split')", option),
                      0, 0, "regexp", "", "numkit:regexp:badOption");
 
     // Default ('start'): 1-based start indices.
@@ -169,17 +170,17 @@ Value regexpFind(const Value &s, const Value &pat, const std::string &option, bo
 //   'split'            -> {prefix, remainder} split at the first match only
 // Kept separate from regexpFind so the all-matches paths stay byte-for-byte
 // unchanged.
-Value regexpFindOnce(const Value &s, const Value &pat, const std::string &option,
+Value regexpFindOnce(const Value &s, const Value &pat, keel::StringRef option,
                      bool ignoreCase, keel::Allocator *mr)
 {
     if ((!s.isChar() && !s.isString()) || (!pat.isChar() && !pat.isString()))
         throw Error("regexp: s and pat must be strings",
                      0, 0, "regexp", "", "numkit:regexp:badArg");
-    const std::string text = s.toString();
+    const std::string text(s.toString().as_ref());
     const NamedGroups ng = extractNamedGroups(pat.toString());
     const std::regex  re = compileRegex(ng.cleaned, ignoreCase);
 
-    std::string opt = option;
+    std::string opt(option.data(), option.size());
     for (auto &c : opt)
         c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
 
@@ -246,9 +247,8 @@ Value regexpFindOnce(const Value &s, const Value &pat, const std::string &option
     }
 
     if (!opt.empty() && opt != "start")
-        throw Error("regexp: unknown option '" + option
-                     + "' (supported: 'start' / 'end' / 'tokenExtents' / "
-                       "'match' / 'tokens' / 'names' / 'split')",
+        throw Error(keel::format("regexp: unknown option '{}' (supported: 'start' / 'end' / 'tokenExtents' / "
+                                 "'match' / 'tokens' / 'names' / 'split')", option),
                      0, 0, "regexp", "", "numkit:regexp:badOption");
 
     // 'start' (default): scalar 1-based index of the first match.
@@ -271,12 +271,12 @@ static std::string regexrepOne(const std::string &text, const std::string &pat,
 // a cell pattern array applies each pattern/replacement in turn, feeding the
 // result of one into the next). A single replacement is recycled for every
 // pattern; otherwise the replacement count must equal the pattern count.
-static std::string regexrepSeq(const std::string &text0,
+static std::string regexrepSeq(keel::StringRef text0,
                                const keel::Array<std::string> &pats,
                                const keel::Array<std::string> &reps,
                                bool ignoreCase, bool once)
 {
-    std::string text = text0;
+    std::string text(text0.data(), text0.size());
     for (keel::usize i = 0; i < pats.size(); ++i)
         text = regexrepOne(text, pats[i], reps.size() == 1 ? reps[0] : reps[i], ignoreCase, once);
     return text;
@@ -294,9 +294,9 @@ Value regexprep(const Value &s, const Value &pat, const Value &rep, bool ignoreC
     auto collect = [](const Value &v, keel::Array<std::string> &out) {
         if (v.isCell()) {
             const keel::usize n = v.numel();
-            for (keel::usize i = 0; i < n; ++i) out.push_back(v.cellAt(i).toString());
+            for (keel::usize i = 0; i < n; ++i) out.emplace_back(v.cellAt(i).toString().as_ref());
         } else {
-            out.push_back(v.toString());
+            out.emplace_back(v.toString().as_ref());
         }
     };
     collect(pat, pats);
@@ -323,7 +323,7 @@ Value regexprep(const Value &s, const Value &pat, const Value &rep, bool ignoreC
 }
 
 // ── Pack 36: regexptranslate ─────────────────────────────────────────
-Value regexptranslate(const std::string &op, const std::string &s, keel::Allocator *mr)
+Value regexptranslate(keel::StringRef op, keel::StringRef s, keel::Allocator *mr)
 {
     // Characters that carry special meaning in ECMAScript regex syntax —
     // matches the set MATLAB's regexptranslate('escape', …) prepends `\`
@@ -362,9 +362,13 @@ Value regexptranslate(const std::string &op, const std::string &s, keel::Allocat
         }
         return Value::fromString(out, mr);
     }
-    throw Error("regexptranslate: unsupported op '" + op + "' "
-                "(supported: 'escape', 'wildcard')",
+    throw Error(keel::format("regexptranslate: unsupported op '{}' (supported: 'escape', 'wildcard')", op),
                  0, 0, "regexptranslate", "", "numkit:regexptranslate:badOp");
+}
+
+Value regexptranslate(keel::StringRef op, const Value &str, keel::Allocator *mr)
+{
+    return regexptranslate(op, str.toString(), mr);
 }
 
 } // namespace numkit::builtin

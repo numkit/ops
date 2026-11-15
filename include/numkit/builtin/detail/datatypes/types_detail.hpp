@@ -5,6 +5,7 @@
 
 #include <keel/core.h>
 #include <keel/memory.h>
+#include <keel/ref.h>
 #include <keel/complex.h>
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
@@ -187,10 +188,10 @@ bool valuesEqual(const Value &a, const Value &b, bool nanEqual)
     if (t == ValueType::STRUCT) {
         auto &fa = a.structFields(), &fb = b.structFields();
         if (fa.size() != fb.size()) return false;
-        for (auto &[k, v] : fa) {
-            auto it = fb.find(k);
-            if (it == fb.end()) return false;
-            if (!valuesEqual(v, it->second, nanEqual)) return false;
+        for (auto entry : fa) {
+            const Value *bv = fb.get(entry.key);
+            if (!bv) return false;
+            if (!valuesEqual(entry.value, *bv, nanEqual)) return false;
         }
         return true;
     }
@@ -271,7 +272,7 @@ inline std::string readTypeName(const Value &t, const char *def)
     if (t.isEmpty()) return def;
     if (!t.isChar() && !t.isString())
         throw std::runtime_error("numeric-limit: type argument must be a string");
-    auto s = t.toString();
+    std::string s(t.toString().as_ref());
     for (auto &c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
     return s;
 }
@@ -330,7 +331,7 @@ namespace {
 
 struct TypeInfo { ValueType vt; keel::usize elemSize; };
 
-TypeInfo typeInfoFor(const std::string &classname)
+TypeInfo typeInfoFor(keel::StringRef classname)
 {
     if (classname == "double")  return { ValueType::DOUBLE,  sizeof(double)   };
     if (classname == "single")  return { ValueType::SINGLE,  sizeof(float)    };

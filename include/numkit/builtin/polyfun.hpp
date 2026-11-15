@@ -7,6 +7,7 @@
 
 #include <keel/core.h>
 #include <keel/memory.h>
+#include <keel/ref.h>
 #include <functional>
 #include <string>
 #include <numkit/value/value.hpp>
@@ -187,7 +188,7 @@ ResidueResult residuez(const Value &b, const Value &a, keel::Allocator *mr = nul
 /// @param mr Memory resource.
 /// @return Interpolated values at query points `xq`.
 /// @see interp2, spline, pchip
-Value interp1(const Value &x, const Value &v, const Value &xq, const std::string &method = "linear", keel::Allocator *mr = nullptr);
+Value interp1(const Value &x, const Value &v, const Value &xq, keel::StringRef method = "linear", keel::Allocator *mr = nullptr);
 
 /// @brief 2-D data interpolation on a grid (`interp2(x, y, v, xq, yq, method)`).
 /// @param x Grid coordinates along columns.
@@ -206,7 +207,7 @@ Value interp1(const Value &x, const Value &v, const Value &xq, const std::string
 /// @param method Interpolation method (`"linear"`, `"nearest"`, `"cubic"`, `"spline"`).
 /// @param mr Memory resource.
 /// @return Interpolated values.
-Value interp2(const Value &V, const Value &Xq, const Value &Yq, const std::string &method = "linear", keel::Allocator *mr = nullptr);
+Value interp2(const Value &V, const Value &Xq, const Value &Yq, keel::StringRef method = "linear", keel::Allocator *mr = nullptr);
 
 /// @brief 2-D data interpolation on a grid (`interp2(x, y, v, xq, yq, method)`).
 /// @param x Grid coordinates along columns.
@@ -218,7 +219,7 @@ Value interp2(const Value &V, const Value &Xq, const Value &Yq, const std::strin
 /// @param mr Memory resource.
 /// @return Interpolated values.
 /// @see interp1
-Value interp2(const Value &x, const Value &y, const Value &v, const Value &xq, const Value &yq, const std::string &method = "linear", keel::Allocator *mr = nullptr);
+Value interp2(const Value &x, const Value &y, const Value &v, const Value &xq, const Value &yq, keel::StringRef method = "linear", keel::Allocator *mr = nullptr);
 
 /// @brief 3-D data interpolation on a uniform grid (`interp3(V, Xq, Yq, Zq, method)`).
 /// @param V 3-D array of values.
@@ -228,7 +229,7 @@ Value interp2(const Value &x, const Value &y, const Value &v, const Value &xq, c
 /// @param method Interpolation method.
 /// @param mr Memory resource.
 /// @return Interpolated 3-D array.
-Value interp3(const Value &V, const Value &Xq, const Value &Yq, const Value &Zq, const std::string &method = "linear", keel::Allocator *mr = nullptr);
+Value interp3(const Value &V, const Value &Xq, const Value &Yq, const Value &Zq, keel::StringRef method = "linear", keel::Allocator *mr = nullptr);
 
 /// @brief 3-D data interpolation on a grid (`interp3(X, Y, Z, V, Xq, Yq, Zq, method)`).
 /// @param X Grid coordinates along X.
@@ -241,7 +242,7 @@ Value interp3(const Value &V, const Value &Xq, const Value &Yq, const Value &Zq,
 /// @param method Interpolation method.
 /// @param mr Memory resource.
 /// @return Interpolated 3-D array.
-Value interp3(const Value &X, const Value &Y, const Value &Z, const Value &V, const Value &Xq, const Value &Yq, const Value &Zq, const std::string &method = "linear", keel::Allocator *mr = nullptr);
+Value interp3(const Value &X, const Value &Y, const Value &Z, const Value &V, const Value &Xq, const Value &Yq, const Value &Zq, keel::StringRef method = "linear", keel::Allocator *mr = nullptr);
 
 /// @brief Cubic spline data interpolation (`spline(x, y, xq)`).
 /// @param x Sample grid points.
@@ -476,7 +477,7 @@ PolyxpolyResult polyxpoly(const Value &x1, const Value &y1, const Value &x2, con
 /// @param mode Optimization mode (`"min"` or `"max"`).
 /// @param mr Memory resource.
 /// @return Matchpairs result containing matched indices and unmatched rows/cols.
-MatchpairsResult matchpairs(const Value &C, keel::f64 cU, const std::string &mode = "min", keel::Allocator *mr = nullptr);
+MatchpairsResult matchpairs(const Value &C, keel::f64 cU, keel::StringRef mode = "min", keel::Allocator *mr = nullptr);
 
 /// @brief Computes boundary / alpha-shape around 2-D point cloud (`boundary(x, y, shrink)`).
 /// @param x Point x-coordinates.
@@ -515,7 +516,7 @@ Value griddata(const Value &x, const Value &y, const Value &v, const Value &xq, 
 /// @param method Interpolation method (`"linear"`, `"nearest"`, `"cubic"`, `"natural"`).
 /// @param mr Memory resource.
 /// @return Interpolated surface values.
-Value griddata(const Value &x, const Value &y, const Value &v, const Value &xq, const Value &yq, const std::string &method, keel::Allocator *mr = nullptr);
+Value griddata(const Value &x, const Value &y, const Value &v, const Value &xq, const Value &yq, keel::StringRef method, keel::Allocator *mr = nullptr);
 
 /// @brief N-D scattered data interpolation (`griddatan(Xv, vv, xi, method)`).
 /// @param Xv `M x N` matrix of scattered sample point coordinates.
@@ -533,7 +534,7 @@ Value griddatan(const Value &Xv, const Value &vv, const Value &xi, keel::Allocat
 /// @param method Interpolation method (`"linear"`, `"nearest"`).
 /// @param mr Memory resource.
 /// @return Interpolated values.
-Value griddatan(const Value &Xv, const Value &vv, const Value &xi, const std::string &method, keel::Allocator *mr = nullptr);
+Value griddatan(const Value &Xv, const Value &vv, const Value &xi, keel::StringRef method, keel::Allocator *mr = nullptr);
 
 /// @brief Computes 2-D bivariate histogram bin counts (`histcounts2(x, y, xedges, yedges)`).
 /// @param x Data points x-coordinates.

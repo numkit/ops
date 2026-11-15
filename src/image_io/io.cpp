@@ -3,6 +3,7 @@
 // Image I/O facade (imread, imwrite, imfinfo) backed by keel::image.
 
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
 #include <numkit/image/io/io.hpp>
@@ -80,7 +81,7 @@ const char *colorTypeFromChannels(int c) {
 
 } // anonymous namespace
 
-Value imreadFromBytes(const std::string &bytes, keel::Allocator *mr) {
+Value imreadFromBytes(keel::StringRef bytes, keel::Allocator *mr) {
     const auto *data = reinterpret_cast<const keel::u8 *>(bytes.data());
     const keel::usize len = bytes.size();
 
@@ -92,7 +93,7 @@ Value imreadFromBytes(const std::string &bytes, keel::Allocator *mr) {
     const keel::ImageFormat fmt = keel::sniff_image_format(keel::ArrayRef<keel::u8>(data, len));
     switch (fmt) {
         case keel::ImageFormat::Png:  return readPng(data, len, mr);
-        case keel::ImageFormat::Tiff: return readTiff(std::vector<keel::u8>(bytes.begin(), bytes.end()), 1u, mr);
+        case keel::ImageFormat::Tiff: return readTiff(std::vector<keel::u8>(data, data + len), 1u, mr);
         case keel::ImageFormat::Jpeg: return readJpeg(data, len, mr);
         case keel::ImageFormat::Bmp:  return readBmp(data, len, mr);
         case keel::ImageFormat::Gif:  return readGifViaKeel(data, len, mr);
@@ -111,10 +112,10 @@ Value imreadFromBytes(const std::string &bytes, keel::Allocator *mr) {
                 0, 0, "imread", "", "numkit:imread:unknownFormat");
 }
 
-Value imread(const std::string &path, keel::Allocator *mr) {
-    std::ifstream f(path, std::ios::binary);
+Value imread(keel::StringRef path, keel::Allocator *mr) {
+    std::ifstream f(std::string(path.data(), path.size()), std::ios::binary);
     if (!f) {
-        throw Error("imread: failed to load '" + path + "' - can't open",
+        throw Error(keel::format("imread: failed to load '{}' - can't open", path),
                     0, 0, "imread", "", "numkit:imread:load");
     }
     std::string bytes((std::istreambuf_iterator<char>(f)),
@@ -122,7 +123,7 @@ Value imread(const std::string &path, keel::Allocator *mr) {
     return imreadFromBytes(bytes, mr);
 }
 
-std::string imwriteToBytes(const Value &A, const std::string &ext,
+std::string imwriteToBytes(const Value &A, keel::StringRef ext,
                            keel::Allocator * /*mr*/) {
     if (ext == "png") {
         return writePngToBytes(A, 6);
@@ -144,31 +145,30 @@ std::string imwriteToBytes(const Value &A, const std::string &ext,
         return std::string(buf.begin(), buf.end());
     }
 
-    throw Error("imwrite: unsupported extension '" + ext +
-                "' (supported: .png, .jpg, .bmp, .tga, .pnm, .tif)",
+    throw Error(keel::format("imwrite: unsupported extension '{}' (supported: .png, .jpg, .bmp, .tga, .pnm, .tif)", ext),
                 0, 0, "imwrite", "", "numkit:imwrite:ext");
 }
 
-void imwrite(const Value &A, const std::string &path, keel::Allocator *mr) {
+void imwrite(const Value &A, keel::StringRef path, keel::Allocator *mr) {
     const std::string ext = lowerExt(path);
     if (ext == "tif" || ext == "tiff") {
         writeTiff(A, path, "none", /*appendMode=*/false);
         return;
     }
     const std::string bytes = imwriteToBytes(A, ext, mr);
-    std::ofstream f(path, std::ios::binary | std::ios::trunc);
+    std::ofstream f(std::string(path.data(), path.size()), std::ios::binary | std::ios::trunc);
     if (!f) {
-        throw Error("imwrite: cannot open '" + path + "' for write",
+        throw Error(keel::format("imwrite: cannot open '{}' for write", path),
                     0, 0, "imwrite", "", "numkit:imwrite:write");
     }
     f.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
     if (!f) {
-        throw Error("imwrite: failed to write '" + path + "'",
+        throw Error(keel::format("imwrite: failed to write '{}'", path),
                     0, 0, "imwrite", "", "numkit:imwrite:write");
     }
 }
 
-Value imfinfoFromBytes(const std::string &bytes, const std::string &filename,
+Value imfinfoFromBytes(keel::StringRef bytes, keel::StringRef filename,
                        keel::Allocator *mr) {
     const auto *data = reinterpret_cast<const keel::u8 *>(bytes.data());
     const keel::usize len = bytes.size();
@@ -184,7 +184,7 @@ Value imfinfoFromBytes(const std::string &bytes, const std::string &filename,
         ok = peekPng(data, len, W, H, bits, channels);
     } else if (fmt == "tif" || fmt == "tiff") {
         fmt = "tif";
-        std::vector<keel::u8> buf(bytes.begin(), bytes.end());
+        std::vector<keel::u8> buf(data, data + len);
         peekTiff(buf, W, H, bits, channels);
         ok = true;
     } else if (fmt == "jpg" || fmt == "jpeg") {
@@ -207,7 +207,7 @@ Value imfinfoFromBytes(const std::string &bytes, const std::string &filename,
     }
 
     if (!ok) {
-        throw Error("imfinfo: failed to parse header for '" + filename + "'",
+        throw Error(keel::format("imfinfo: failed to parse header for '{}'", filename),
                     0, 0, "imfinfo", "", "numkit:imfinfo:read");
     }
 
@@ -224,10 +224,10 @@ Value imfinfoFromBytes(const std::string &bytes, const std::string &filename,
     return s;
 }
 
-Value imfinfo(const std::string &path, keel::Allocator *mr) {
-    std::ifstream f(path, std::ios::binary);
+Value imfinfo(keel::StringRef path, keel::Allocator *mr) {
+    std::ifstream f(std::string(path.data(), path.size()), std::ios::binary);
     if (!f) {
-        throw Error("imfinfo: failed to read '" + path + "' - can't open",
+        throw Error(keel::format("imfinfo: failed to read '{}' - can't open", path),
                     0, 0, "imfinfo", "", "numkit:imfinfo:read");
     }
     std::string bytes((std::istreambuf_iterator<char>(f)),

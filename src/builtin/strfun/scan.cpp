@@ -39,7 +39,7 @@ namespace {
 
 // Does the format contain any non-text conversion? Controls output
 // type. Text-only → char array; anything else → double column.
-bool formatHasNumeric(const std::string &fmt)
+bool formatHasNumeric(keel::StringRef fmt)
 {
     for (keel::usize i = 0; i < fmt.size(); ++i) {
         if (fmt[i] != '%') continue;
@@ -57,7 +57,7 @@ bool formatHasNumeric(const std::string &fmt)
     return false;
 }
 
-ScanfOut scanfCycle(const std::string &input, const std::string &fmt, keel::usize limit,
+ScanfOut scanfCycle(const std::string &input, keel::StringRef fmt, keel::usize limit,
                      keel::Array<double> &out)
 {
     keel::usize inPos = 0;
@@ -311,14 +311,15 @@ Value shapeScanfOutput(const double *vals, keel::usize n,
 // numkit::builtin::detail by ordinary unqualified lookup.
 namespace detail {
 
-void scanfEmit(const std::string &input, const std::string &fmt,
+void scanfEmit(keel::StringRef input, keel::StringRef fmt,
                const numkit::ops::SizeSpec &sz,
                keel::usize nargout, keel::MutArrayRef<Value> outs, ScanfOut &r,
                keel::Allocator *mr)
 {
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     keel::Array<double> values(scratch.allocator());
-    r = scanfCycle(input, fmt, sz.limit, values);
+    const std::string inputStr(input.data(), input.size());
+    r = scanfCycle(inputStr, fmt, sz.limit, values);
     const bool hasNum = formatHasNumeric(fmt);
     // Matrix-shape dispatch: numeric format → double matrix,
     // pure-text format → char matrix. Flat size keeps the
@@ -369,7 +370,7 @@ void sscanf(keel::ArrayRef<Value> args, keel::usize nargout, keel::MutArrayRef<V
     if (args.size() >= 3)
         sz = numkit::ops::parseReadSize(args[2], "sscanf");
 
-    std::string fmt = args[1].toString();
+    auto fmt = args[1].toString();
     ScanfOut r{0, 0};
     scanfEmit(args[0].toString(), fmt, sz, nargout, outs, r, mr);
 

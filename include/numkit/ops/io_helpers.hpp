@@ -8,6 +8,8 @@
 
 #include <keel/core.h>
 #include <keel/memory.h>
+#include <keel/ref.h>
+#include <keel/format.h>
 #include <numkit/value/value.hpp>
 
 #include <algorithm>
@@ -87,9 +89,9 @@ inline Value shapeFreadOutput(const keel::f64 *values, keel::usize n,
 
 // ── Precision + endian parsing (fread / fwrite) ──────────────────────
 // kind: 0 = unsigned, 1 = signed, 2 = float. byteSize in bytes.
-inline std::optional<std::pair<int, keel::usize>> parsePrecision(const std::string &raw)
+inline std::optional<std::pair<int, keel::usize>> parsePrecision(keel::StringRef raw)
 {
-    std::string p = raw;
+    std::string p(raw.data(), raw.size());
     auto arrow = p.find("=>");
     if (arrow != std::string::npos) p = p.substr(0, arrow);
     while (!p.empty() && std::isspace(static_cast<unsigned char>(p.front()))) p.erase(0, 1);
@@ -123,7 +125,7 @@ inline std::optional<std::pair<int, keel::usize>> parsePrecision(const std::stri
 
 // Returns true for big-endian, false for little-endian. 'native' → LE
 // because every target we support (x86_64, ARM64, WASM) is LE.
-inline bool parseEndian(const std::string &raw, const char *fn)
+inline bool parseEndian(keel::StringRef raw, const char *fn)
 {
     std::string lo;
     lo.reserve(raw.size());
@@ -132,7 +134,7 @@ inline bool parseEndian(const std::string &raw, const char *fn)
     if (lo == "l" || lo == "ieee-le" || lo == "ieee-le.l64"
         || lo == "n" || lo == "native")
         return false;
-    throw Error(std::string(fn) + ": unsupported machine format '" + raw + "'");
+    throw Error(keel::format("{}: unsupported machine format '{}'", fn, raw));
 }
 
 inline void byteSwap(char *p, keel::usize n)

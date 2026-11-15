@@ -44,7 +44,7 @@ Value num2str(const Value &x, int N, keel::Allocator *mr = nullptr);
 /// @param mr Memory resource.
 /// @return Character vector representation.
 /// @see int2str, mat2str, str2num
-Value num2str(const Value &x, const std::string &fmt, keel::Allocator *mr = nullptr);
+Value num2str(const Value &x, keel::StringRef fmt, keel::Allocator *mr = nullptr);
 
 /// @brief Formats integer into character vector (`int2str(x)`).
 /// @param x Input integer or numeric value.
@@ -230,7 +230,7 @@ Value strcat(keel::ArrayRef<Value> args, keel::Allocator *mr = nullptr);
 /// @param mr Memory resource.
 /// @return Joined character vector.
 /// @see strsplit, strcat
-Value strjoin(const Value &c, const std::string &delim = " ", keel::Allocator *mr = nullptr);
+Value strjoin(const Value &c, keel::StringRef delim = " ", keel::Allocator *mr = nullptr);
 
 /// @brief Joins string array with Value delimiter (`strjoin(arr, delim)`).
 /// @param arr String array or cell array.
@@ -259,7 +259,7 @@ Value append(keel::ArrayRef<Value> parts, keel::Allocator *mr = nullptr);
 /// @param mr Memory resource.
 /// @return Cell array of split substrings.
 /// @see strjoin, splitlines, split
-Value strsplit(const Value &s, const std::string &delim, keel::Allocator *mr = nullptr);
+Value strsplit(const Value &s, keel::StringRef delim, keel::Allocator *mr = nullptr);
 
 /// @brief Splits string by Value delimiter (`strsplit(s, delim)`).
 /// @param s Input string.
@@ -450,7 +450,7 @@ Value pad(const Value &s, keel::usize n, const Value &side = Value(), const Valu
 /// @param side Justification side (`"left"`, `"right"`, `"center"`).
 /// @param mr Memory resource.
 /// @return Justified character matrix.
-Value strjust(const Value &M, const std::string &side = "left", keel::Allocator *mr = nullptr);
+Value strjust(const Value &M, keel::StringRef side = "left", keel::Allocator *mr = nullptr);
 
 // ── Classification & Validation ─────────────────────────────────────────────
 
@@ -480,7 +480,7 @@ Value isspaceFn(const Value &s, keel::Allocator *mr = nullptr);
 /// @param mr Memory resource.
 /// @return Logical array.
 /// @see isletter, isspace
-Value isstrprop(const Value &s, const std::string &category, keel::Allocator *mr = nullptr);
+Value isstrprop(const Value &s, keel::StringRef category, keel::Allocator *mr = nullptr);
 
 /// @brief Tests if characters have specified string property via Value category (`isstrprop(s, category)`).
 /// @param s Input text.
@@ -610,7 +610,7 @@ Value rats(const Value &x, int len = 13, keel::Allocator *mr = nullptr);
 /// @param delim Delimiter characters (default: `" \t\n\r"`).
 /// @param mr Memory resource.
 /// @return Pair of `{token, remainder}` character vectors.
-std::pair<Value, Value> strtok(const Value &str, const std::string &delim = " \t\n\r", keel::Allocator *mr = nullptr);
+std::pair<Value, Value> strtok(const Value &str, keel::StringRef delim = " \t\n\r", keel::Allocator *mr = nullptr);
 
 // ── Regular Expressions ─────────────────────────────────────────────────────
 
@@ -637,7 +637,7 @@ Value regexpi(const Value &str, const Value &pat, keel::Allocator *mr = nullptr)
 /// @param ignoreCase Case-insensitive match flag.
 /// @param mr Memory resource.
 /// @return Match results Value.
-Value regexpFind(const Value &s, const Value &pat, const std::string &option, bool ignoreCase, keel::Allocator *mr = nullptr);
+Value regexpFind(const Value &s, const Value &pat, keel::StringRef option, bool ignoreCase, keel::Allocator *mr = nullptr);
 
 /// @brief Regular expression search once helper.
 /// @param s Input text.
@@ -646,7 +646,7 @@ Value regexpFind(const Value &s, const Value &pat, const std::string &option, bo
 /// @param ignoreCase Case-insensitive match flag.
 /// @param mr Memory resource.
 /// @return First match result Value.
-Value regexpFindOnce(const Value &s, const Value &pat, const std::string &option, bool ignoreCase, keel::Allocator *mr = nullptr);
+Value regexpFindOnce(const Value &s, const Value &pat, keel::StringRef option, bool ignoreCase, keel::Allocator *mr = nullptr);
 
 /// @brief Regular expression replacement (`regexprep(str, pat, rep, ignoreCase, once)`).
 /// @param str Original text.
@@ -665,14 +665,14 @@ Value regexprep(const Value &str, const Value &pat, const Value &rep, bool ignor
 /// @param mr Memory resource.
 /// @return Regex pattern string.
 /// @see regexp
-Value regexptranslate(const std::string &type, const std::string &str, keel::Allocator *mr = nullptr);
+Value regexptranslate(keel::StringRef type, keel::StringRef str, keel::Allocator *mr = nullptr);
 
 /// @brief Translates wildcard Value to regular expression (`regexptranslate(type, str)`).
 /// @param type Translation type (`"wildcard"` or `"escape"`).
 /// @param str Input string value.
 /// @param mr Memory resource.
 /// @return Regex pattern Value.
-Value regexptranslate(const std::string &type, const Value &str, keel::Allocator *mr = nullptr);
+Value regexptranslate(keel::StringRef type, const Value &str, keel::Allocator *mr = nullptr);
 
 /// @brief Formats data into string array (`compose(fmt, x)`).
 /// @param fmt Format string.
@@ -687,7 +687,7 @@ Value compose(const Value &fmt, const Value &x, keel::Allocator *mr = nullptr);
 /// @param argStart Starting index in args.
 /// @param literalWhenShort Format literal string flag when short.
 /// @return Formatted string.
-std::string formatOnce(const std::string &fmt, keel::ArrayRef<Value> args, keel::usize argStart = 0, bool literalWhenShort = false);
+std::string formatOnce(keel::StringRef fmt, keel::ArrayRef<Value> args, keel::usize argStart = 0, bool literalWhenShort = false);
 
 /// @brief Formats cyclic repetition of format specification across array elements.
 /// @param fmt Format string.
@@ -695,12 +695,12 @@ std::string formatOnce(const std::string &fmt, keel::ArrayRef<Value> args, keel:
 /// @param argStart Starting index in args.
 /// @param mr Memory resource.
 /// @return Formatted string.
-std::string formatCyclic(const std::string &fmt, keel::ArrayRef<Value> args, keel::usize argStart = 0, keel::Allocator *mr = nullptr);
+std::string formatCyclic(keel::StringRef fmt, keel::ArrayRef<Value> args, keel::usize argStart = 0, keel::Allocator *mr = nullptr);
 
 /// @brief Counts number of conversion specifiers in format string.
 /// @param fmt Format string.
 /// @return Count of `%` conversion specifiers.
-keel::usize countFormatSpecs(const std::string &fmt);
+keel::usize countFormatSpecs(keel::StringRef fmt);
 
 /// @brief Formats Value for terminal display via `disp`.
 /// @param a Input value.

@@ -1,4 +1,4 @@
-﻿/// @file ordqz.hpp
+/// @file ordqz.hpp
 /// @ingroup group_matfun
 // toolboxes/linalg/include/numkit/linalg/ordqz.hpp
 //
@@ -7,7 +7,7 @@
 #pragma once
 
 #include <keel/memory.h>
-#include <string>
+#include <keel/ref.h>
 #include <tuple>
 #include <numkit/value/value.hpp>
 
@@ -26,7 +26,7 @@ std::tuple<Value, Value, Value, Value> ordqz(const Value &AA, const Value &BB,
 /// @brief Reorder Generalized Schur decomposition using domain keyword ('lhp', 'rhp', 'uip', 'uop').
 std::tuple<Value, Value, Value, Value> ordqz(const Value &AA, const Value &BB,
                                               const Value &Q, const Value &Z,
-                                              const std::string &domain,
+                                              keel::StringRef domain,
                                               keel::Allocator *mr = nullptr);
 
 

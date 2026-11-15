@@ -6,6 +6,7 @@
 // the compiler auto-vectorises in the inner copy loops.
 
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
 #include <keel/arena.h>
@@ -193,8 +194,8 @@ Value repmatND(const Value &x, keel::ArrayRef<keel::usize> tiles, keel::Allocato
         computeStridesColMajor(inDims, srcStrides);
         for (int i = inDims.ndim(); i < outNdim; ++i) srcStrides[i] = 0;
 
-        const std::vector<std::string> structFieldsOrder =
-            (t == ValueType::STRUCT) ? x.fieldNamesInOrder() : std::vector<std::string>{};
+        const keel::Array<keel::String> structFieldsOrder =
+            (t == ValueType::STRUCT) ? x.fieldNamesInOrder() : keel::Array<keel::String>(mr);
 
         const keel::usize total = r.numel();
         for (keel::usize outIdx = 0; outIdx < total; ++outIdx) {
@@ -214,9 +215,9 @@ Value repmatND(const Value &x, keel::ArrayRef<keel::usize> tiles, keel::Allocato
             } else {
                 const auto &srcFields = x.isStructArray() ? x.structArrayElem(srcIdx) : x.structFields();
                 for (const auto &fname : structFieldsOrder) {
-                    auto it = srcFields.find(fname);
-                    if (it != srcFields.end())
-                        r.setField(outIdx, fname, it->second);
+                    const Value *val = srcFields.get(fname);
+                    if (val)
+                        r.setField(outIdx, fname, *val);
                 }
             }
         }
@@ -894,7 +895,7 @@ Value repelem(const Value &x, const Value &rCounts, const Value &cCounts,
 // inputs only — the pad cell is `0` (matches MATLAB R2024 default).
 
 
-Value paddata(const Value &v, keel::usize n, int dim, const std::string &side, double fillValue, keel::Allocator *mr)
+Value paddata(const Value &v, keel::usize n, int dim, keel::StringRef side, double fillValue, keel::Allocator *mr)
 {
     if (!v.isEmpty() && v.type() != ValueType::DOUBLE)
         throw Error("paddata: only DOUBLE inputs supported",
@@ -904,7 +905,7 @@ Value paddata(const Value &v, keel::usize n, int dim, const std::string &side, d
         throw Error("paddata: only 1-D or 2-D inputs supported",
                      0, 0, "paddata", "", "numkit:paddata:rank");
 
-    std::string sd = side;
+    std::string sd(side.data(), side.size());
     for (char &c : sd) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
     if (sd != "right" && sd != "trailing" && sd != "left" && sd != "leading" && sd != "both")
         throw Error("paddata: side must be 'trailing', 'leading', or 'both'",
@@ -959,12 +960,12 @@ Value paddata(const Value &v, keel::usize n, keel::Allocator *mr)
     return paddata(v, n, 0, "trailing", 0.0, mr);
 }
 
-Value paddata(const Value &x, keel::usize len, int dim, const std::string &side, keel::Allocator *mr)
+Value paddata(const Value &x, keel::usize len, int dim, keel::StringRef side, keel::Allocator *mr)
 {
     return paddata(x, len, dim, side, 0.0, mr);
 }
 
-Value trimdata(const Value &v, keel::usize n, int dim, const std::string &side, keel::Allocator *mr)
+Value trimdata(const Value &v, keel::usize n, int dim, keel::StringRef side, keel::Allocator *mr)
 {
     if (!v.isEmpty() && v.type() != ValueType::DOUBLE)
         throw Error("trimdata: only DOUBLE inputs supported",
@@ -974,7 +975,7 @@ Value trimdata(const Value &v, keel::usize n, int dim, const std::string &side, 
         throw Error("trimdata: only 1-D or 2-D inputs supported",
                      0, 0, "trimdata", "", "numkit:trimdata:rank");
 
-    std::string sd = side;
+    std::string sd(side.data(), side.size());
     for (char &c : sd) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
     if (sd != "right" && sd != "trailing" && sd != "left" && sd != "leading" && sd != "both")
         throw Error("trimdata: side must be 'trailing', 'leading', or 'both'",
@@ -1023,7 +1024,7 @@ Value trimdata(const Value &v, keel::usize n, keel::Allocator *mr)
     return trimdata(v, n, 0, "trailing", mr);
 }
 
-Value resize(const Value &v, keel::usize n, int dim, const std::string &side, double fillValue, keel::Allocator *mr)
+Value resize(const Value &v, keel::usize n, int dim, keel::StringRef side, double fillValue, keel::Allocator *mr)
 {
     const auto &d = v.dims();
     int opDim = dim;
@@ -1085,7 +1086,7 @@ Value tail(const Value &x, keel::usize k, keel::Allocator *mr)
     return out;
 }
 
-Value bsxfun(const std::string &op, const Value &a, const Value &b, keel::Allocator *mr)
+Value bsxfun(keel::StringRef op, const Value &a, const Value &b, keel::Allocator *mr)
 {
     if (op == "plus" || op == "@plus") return plus(a, b, mr);
     if (op == "minus" || op == "@minus") return minus(a, b, mr);
@@ -1101,7 +1102,7 @@ Value bsxfun(const std::string &op, const Value &a, const Value &b, keel::Alloca
     if (op == "ge" || op == "@ge") return ge(a, b, mr);
     if (op == "and" || op == "@and") return logical_and(a, b, mr);
     if (op == "or" || op == "@or") return logical_or(a, b, mr);
-    throw Error("bsxfun: unsupported function '" + op + "'", 0, 0, "bsxfun", "", "numkit:bsxfun:unsupported");
+    throw Error(keel::format("bsxfun: unsupported function '{}'", op), 0, 0, "bsxfun", "", "numkit:bsxfun:unsupported");
 }
 
 // ── sub2ind / ind2sub (see manip.hpp) ─────────────────────────────────

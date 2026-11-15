@@ -29,7 +29,7 @@ namespace numkit::builtin {
 
 
 // ── interp1 ───────────────────────────────────────────────────────────
-Value interp1(const Value &x, const Value &y, const Value &xq, const std::string &method, keel::Allocator *mr)
+Value interp1(const Value &x, const Value &y, const Value &xq, keel::StringRef method, keel::Allocator *mr)
 {
     // Public typed entry point: MATLAB's default extrapolation policy
     // (NaN out-of-range except for spline/pchip/makima).
@@ -39,7 +39,7 @@ Value interp1(const Value &x, const Value &y, const Value &xq, const std::string
 
 // ── interp2 ───────────────────────────────────────────────────────────
 
-Value interp2(const Value &V, const Value &Xq, const Value &Yq, const std::string &method, keel::Allocator *mr)
+Value interp2(const Value &V, const Value &Xq, const Value &Yq, keel::StringRef method, keel::Allocator *mr)
 {
     if (V.dims().is3D() || V.dims().ndim() > 2)
         throw Error("interp2: V must be a 2D matrix",
@@ -54,7 +54,7 @@ Value interp2(const Value &V, const Value &Xq, const Value &Yq, const std::strin
     return interp2Impl(V, xGrid.data(), xGrid.size(), yGrid.data(), yGrid.size(), Xq, Yq, method, mr);
 }
 
-Value interp2(const Value &X, const Value &Y, const Value &V, const Value &Xq, const Value &Yq, const std::string &method, keel::Allocator *mr)
+Value interp2(const Value &X, const Value &Y, const Value &V, const Value &Xq, const Value &Yq, keel::StringRef method, keel::Allocator *mr)
 {
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     keel::Array<double> xGrid(scratch.allocator()), yGrid(scratch.allocator());
@@ -65,7 +65,7 @@ Value interp2(const Value &X, const Value &Y, const Value &V, const Value &Xq, c
 
 // ── interp3 ───────────────────────────────────────────────────────────
 
-Value interp3(const Value &V, const Value &Xq, const Value &Yq, const Value &Zq, const std::string &method, keel::Allocator *mr)
+Value interp3(const Value &V, const Value &Xq, const Value &Yq, const Value &Zq, keel::StringRef method, keel::Allocator *mr)
 {
     if (!V.dims().is3D())
         throw Error("interp3: V must be a 3D array",
@@ -83,7 +83,7 @@ Value interp3(const Value &V, const Value &Xq, const Value &Yq, const Value &Zq,
     return interp3Impl(V, xGrid.data(), xGrid.size(), yGrid.data(), yGrid.size(), zGrid.data(), zGrid.size(), Xq, Yq, Zq, method, mr);
 }
 
-Value interp3(const Value &X, const Value &Y, const Value &Z, const Value &V, const Value &Xq, const Value &Yq, const Value &Zq, const std::string &method, keel::Allocator *mr)
+Value interp3(const Value &X, const Value &Y, const Value &Z, const Value &V, const Value &Xq, const Value &Yq, const Value &Zq, keel::StringRef method, keel::Allocator *mr)
 {
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     keel::Array<double> xGrid(scratch.allocator()), yGrid(scratch.allocator()),

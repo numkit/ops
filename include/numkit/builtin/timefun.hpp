@@ -135,7 +135,7 @@ Value weeknum(keel::ArrayRef<Value> args, keel::Allocator *mr = nullptr);
 /// @param unit Time unit string (`'day'`, `'month'`, `'year'`, `'hour'`, `'minute'`, `'second'`, `'millisecond'`).
 /// @param mr Memory resource.
 /// @return Shifted serial date number.
-Value addtodate(const Value &d, keel::f64 quantity, const std::string &unit, keel::Allocator *mr = nullptr);
+Value addtodate(const Value &d, keel::f64 quantity, keel::StringRef unit, keel::Allocator *mr = nullptr);
 
 /// @brief Formats date number as ISO integer `YYYYMMDD` (`yyyymmdd(...)`).
 /// @param args Span of arguments.
