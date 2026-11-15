@@ -9,6 +9,7 @@
 // (x-c)*(1/d) would round 1/d first and diverge from (x-c)/d. NaN/Inf flow
 // through the plain IEEE ops exactly as per-op (no fmin/fmax involved).
 
+#include <keel/core.h>
 #include <numkit/ops/fused/fused_kernels.hpp>
 #include <numkit/ops/parallel_for.hpp>
 
@@ -26,22 +27,22 @@ namespace HWY_NAMESPACE {
 namespace hn = hwy::HWY_NAMESPACE;
 
 void ShiftScaleMulImpl(const double *x, double sub, double mul,
-                       double *out, std::size_t n) {
+                       double *out, keel::usize n) {
     const hn::ScalableTag<double> d;
-    const std::size_t L = hn::Lanes(d);
+    const keel::usize L = hn::Lanes(d);
     const auto vsub = hn::Set(d, sub), vmul = hn::Set(d, mul);
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i + L <= n; i += L)
         hn::StoreU(hn::Mul(hn::Sub(hn::LoadU(d, x + i), vsub), vmul), d, out + i);
     for (; i < n; ++i) out[i] = (x[i] - sub) * mul;
 }
 
 void ShiftScaleDivImpl(const double *x, double sub, double div,
-                       double *out, std::size_t n) {
+                       double *out, keel::usize n) {
     const hn::ScalableTag<double> d;
-    const std::size_t L = hn::Lanes(d);
+    const keel::usize L = hn::Lanes(d);
     const auto vsub = hn::Set(d, sub), vdiv = hn::Set(d, div);
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i + L <= n; i += L)
         hn::StoreU(hn::Div(hn::Sub(hn::LoadU(d, x + i), vsub), vdiv), d, out + i);
     for (; i < n; ++i) out[i] = (x[i] - sub) / div;
@@ -58,17 +59,17 @@ HWY_EXPORT(ShiftScaleMulImpl);
 HWY_EXPORT(ShiftScaleDivImpl);
 
 void fusedShiftScaleMul(const double *x, double sub, double mul,
-                        double *out, std::size_t n) {
+                        double *out, keel::usize n) {
     if (n == 0) return;
-    detail::parallel_for(n, std::size_t{1} << 16, [&](std::size_t s, std::size_t e) {
+    detail::parallel_for(n, keel::usize{1} << 16, [&](keel::usize s, keel::usize e) {
         HWY_DYNAMIC_DISPATCH(ShiftScaleMulImpl)(x + s, sub, mul, out + s, e - s);
     });
 }
 
 void fusedShiftScaleDiv(const double *x, double sub, double div,
-                        double *out, std::size_t n) {
+                        double *out, keel::usize n) {
     if (n == 0) return;
-    detail::parallel_for(n, std::size_t{1} << 16, [&](std::size_t s, std::size_t e) {
+    detail::parallel_for(n, keel::usize{1} << 16, [&](keel::usize s, keel::usize e) {
         HWY_DYNAMIC_DISPATCH(ShiftScaleDivImpl)(x + s, sub, div, out + s, e - s);
     });
 }

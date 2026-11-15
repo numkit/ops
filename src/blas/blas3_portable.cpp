@@ -1,9 +1,11 @@
+#include <keel/core.h>
+#include <keel/complex.h>
+#include <keel/math.h>
 #include <numkit/ops/blas3.hpp>
 #include <numkit/ops/blas.hpp>
 #include <numkit/ops/parallel_for.hpp>
 #include <numkit/ops/thread_pool.hpp>
 #include <vector>
-#include <complex>
 #include <algorithm>
 
 namespace numkit::ops {
@@ -11,26 +13,26 @@ namespace numkit::ops {
 template <typename T>
 static constexpr bool is_complex_type_v = false;
 template <>
-constexpr bool is_complex_type_v<std::complex<double>> = true;
+constexpr bool is_complex_type_v<keel::c64> = true;
 
 // Basic portable GEMM implementation with optional threading
 template <typename T>
 void gemm_portable(MatrixTranspose transa, MatrixTranspose transb,
-                   std::size_t m, std::size_t n, std::size_t k,
-                   T alpha, const T *A, std::size_t lda,
-                   const T *B, std::size_t ldb,
-                   T beta, T *C, std::size_t ldc)
+                   keel::usize m, keel::usize n, keel::usize k,
+                   T alpha, const T *A, keel::usize lda,
+                   const T *B, keel::usize ldb,
+                   T beta, T *C, keel::usize ldc)
 {
     if (m == 0 || n == 0) return;
 
     if (k == 0 || alpha == T(0)) {
         if (beta == T(0)) {
-            for (std::size_t j = 0; j < n; ++j) {
-                for (std::size_t i = 0; i < m; ++i) C[i + j * ldc] = T(0);
+            for (keel::usize j = 0; j < n; ++j) {
+                for (keel::usize i = 0; i < m; ++i) C[i + j * ldc] = T(0);
             }
         } else if (beta != T(1)) {
-            for (std::size_t j = 0; j < n; ++j) {
-                for (std::size_t i = 0; i < m; ++i) C[i + j * ldc] *= beta;
+            for (keel::usize j = 0; j < n; ++j) {
+                for (keel::usize i = 0; i < m; ++i) C[i + j * ldc] *= beta;
             }
         }
         return;
@@ -41,32 +43,32 @@ void gemm_portable(MatrixTranspose transa, MatrixTranspose transb,
     const bool conj_a   = (transa == MatrixTranspose::ConjTrans);
     const bool conj_b   = (transb == MatrixTranspose::ConjTrans);
 
-    constexpr std::size_t kParallelThreshold = 256;
-    numkit::detail::parallel_for(n, kParallelThreshold, [=](std::size_t j_start, std::size_t j_end) {
-        for (std::size_t j = j_start; j < j_end; ++j) {
-            for (std::size_t i = 0; i < m; ++i) {
+    constexpr keel::usize kParallelThreshold = 256;
+    numkit::detail::parallel_for(n, kParallelThreshold, [=](keel::usize j_start, keel::usize j_end) {
+        for (keel::usize j = j_start; j < j_end; ++j) {
+            for (keel::usize i = 0; i < m; ++i) {
                 T sum = T(0);
                 if (notransa && notransb) {
-                    for (std::size_t p = 0; p < k; ++p) sum += A[i + p * lda] * B[p + j * ldb];
+                    for (keel::usize p = 0; p < k; ++p) sum += A[i + p * lda] * B[p + j * ldb];
                 } else if (!notransa && notransb) {
-                    for (std::size_t p = 0; p < k; ++p) {
+                    for (keel::usize p = 0; p < k; ++p) {
                         T a_val = A[p + i * lda];
-                        if constexpr (is_complex_type_v<T>) { if (conj_a) a_val = std::conj(a_val); }
+                        if constexpr (is_complex_type_v<T>) { if (conj_a) a_val = keel::conj(a_val); }
                         sum += a_val * B[p + j * ldb];
                     }
                 } else if (notransa && !notransb) {
-                    for (std::size_t p = 0; p < k; ++p) {
+                    for (keel::usize p = 0; p < k; ++p) {
                         T b_val = B[j + p * ldb];
-                        if constexpr (is_complex_type_v<T>) { if (conj_b) b_val = std::conj(b_val); }
+                        if constexpr (is_complex_type_v<T>) { if (conj_b) b_val = keel::conj(b_val); }
                         sum += A[i + p * lda] * b_val;
                     }
                 } else {
-                    for (std::size_t p = 0; p < k; ++p) {
+                    for (keel::usize p = 0; p < k; ++p) {
                         T a_val = A[p + i * lda];
                         T b_val = B[j + p * ldb];
                         if constexpr (is_complex_type_v<T>) {
-                            if (conj_a) a_val = std::conj(a_val);
-                            if (conj_b) b_val = std::conj(b_val);
+                            if (conj_a) a_val = keel::conj(a_val);
+                            if (conj_b) b_val = keel::conj(b_val);
                         }
                         sum += a_val * b_val;
                     }
@@ -85,23 +87,23 @@ void gemm_portable(MatrixTranspose transa, MatrixTranspose transb,
 }
 
 template <typename T>
-void gemm_dispatch(std::size_t m, std::size_t n, std::size_t k,
-                   T alpha, const T *A, std::size_t lda,
-                   const T *B, std::size_t ldb,
-                   T beta, T *C, std::size_t ldc)
+void gemm_dispatch(keel::usize m, keel::usize n, keel::usize k,
+                   T alpha, const T *A, keel::usize lda,
+                   const T *B, keel::usize ldb,
+                   T beta, T *C, keel::usize ldc)
 {
     gemm_portable(MatrixTranspose::NoTrans, MatrixTranspose::NoTrans, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc);
 }
 
 template <typename T>
 void trsm_base(MatrixSide side, MatrixUplo uplo, MatrixTranspose trans, MatrixDiag diag,
-               std::size_t m, std::size_t n,
-               T alpha, const T *A, std::size_t lda,
-               T *B, std::size_t ldb)
+               keel::usize m, keel::usize n,
+               T alpha, const T *A, keel::usize lda,
+               T *B, keel::usize ldb)
 {
     if (alpha != T(1)) {
-        for (std::size_t j = 0; j < n; ++j) {
-            for (std::size_t i = 0; i < m; ++i) B[i + j * ldb] *= alpha;
+        for (keel::usize j = 0; j < n; ++j) {
+            for (keel::usize i = 0; i < m; ++i) B[i + j * ldb] *= alpha;
         }
     }
     const bool no_trans = (trans == MatrixTranspose::NoTrans);
@@ -110,51 +112,51 @@ void trsm_base(MatrixSide side, MatrixUplo uplo, MatrixTranspose trans, MatrixDi
     if (side == MatrixSide::Left) {
         if (no_trans) {
             if (uplo == MatrixUplo::Lower) {
-                for (std::size_t j = 0; j < n; ++j) {
-                    for (std::size_t i = 0; i < m; ++i) {
+                for (keel::usize j = 0; j < n; ++j) {
+                    for (keel::usize i = 0; i < m; ++i) {
                         if (B[i + j * ldb] != T(0)) {
                             if (diag == MatrixDiag::NonUnit) B[i + j * ldb] /= A[i + i * lda];
-                            for (std::size_t k = i + 1; k < m; ++k) B[k + j * ldb] -= B[i + j * ldb] * A[k + i * lda];
+                            for (keel::usize k = i + 1; k < m; ++k) B[k + j * ldb] -= B[i + j * ldb] * A[k + i * lda];
                         }
                     }
                 }
             } else {
-                for (std::size_t j = 0; j < n; ++j) {
-                    for (std::size_t i = m; i-- > 0;) {
+                for (keel::usize j = 0; j < n; ++j) {
+                    for (keel::usize i = m; i-- > 0;) {
                         if (B[i + j * ldb] != T(0)) {
                             if (diag == MatrixDiag::NonUnit) B[i + j * ldb] /= A[i + i * lda];
-                            for (std::size_t k = 0; k < i; ++k) B[k + j * ldb] -= B[i + j * ldb] * A[k + i * lda];
+                            for (keel::usize k = 0; k < i; ++k) B[k + j * ldb] -= B[i + j * ldb] * A[k + i * lda];
                         }
                     }
                 }
             }
         } else {
             if (uplo == MatrixUplo::Lower) {
-                for (std::size_t j = 0; j < n; ++j) {
-                    for (std::size_t i = m; i-- > 0;) {
+                for (keel::usize j = 0; j < n; ++j) {
+                    for (keel::usize i = m; i-- > 0;) {
                         T temp = B[i + j * ldb];
-                        for (std::size_t k = i + 1; k < m; ++k) {
+                        for (keel::usize k = i + 1; k < m; ++k) {
                             T a_val = A[k + i * lda];
-                            if constexpr (is_complex_type_v<T>) { if (is_conj) a_val = std::conj(a_val); }
+                            if constexpr (is_complex_type_v<T>) { if (is_conj) a_val = keel::conj(a_val); }
                             temp -= a_val * B[k + j * ldb];
                         }
                         T diag_val = A[i + i * lda];
-                        if constexpr (is_complex_type_v<T>) { if (is_conj) diag_val = std::conj(diag_val); }
+                        if constexpr (is_complex_type_v<T>) { if (is_conj) diag_val = keel::conj(diag_val); }
                         if (diag == MatrixDiag::NonUnit) temp /= diag_val;
                         B[i + j * ldb] = temp;
                     }
                 }
             } else {
-                for (std::size_t j = 0; j < n; ++j) {
-                    for (std::size_t i = 0; i < m; ++i) {
+                for (keel::usize j = 0; j < n; ++j) {
+                    for (keel::usize i = 0; i < m; ++i) {
                         T temp = B[i + j * ldb];
-                        for (std::size_t k = 0; k < i; ++k) {
+                        for (keel::usize k = 0; k < i; ++k) {
                             T a_val = A[k + i * lda];
-                            if constexpr (is_complex_type_v<T>) { if (is_conj) a_val = std::conj(a_val); }
+                            if constexpr (is_complex_type_v<T>) { if (is_conj) a_val = keel::conj(a_val); }
                             temp -= a_val * B[k + j * ldb];
                         }
                         T diag_val = A[i + i * lda];
-                        if constexpr (is_complex_type_v<T>) { if (is_conj) diag_val = std::conj(diag_val); }
+                        if constexpr (is_complex_type_v<T>) { if (is_conj) diag_val = keel::conj(diag_val); }
                         if (diag == MatrixDiag::NonUnit) temp /= diag_val;
                         B[i + j * ldb] = temp;
                     }
@@ -164,57 +166,57 @@ void trsm_base(MatrixSide side, MatrixUplo uplo, MatrixTranspose trans, MatrixDi
     } else {
         if (no_trans) {
             if (uplo == MatrixUplo::Lower) {
-                for (std::size_t j = n; j-- > 0;) {
+                for (keel::usize j = n; j-- > 0;) {
                     if (diag == MatrixDiag::NonUnit) {
-                        for (std::size_t i = 0; i < m; ++i) B[i + j * ldb] /= A[j + j * lda];
+                        for (keel::usize i = 0; i < m; ++i) B[i + j * ldb] /= A[j + j * lda];
                     }
-                    for (std::size_t k = 0; k < j; ++k) {
+                    for (keel::usize k = 0; k < j; ++k) {
                         if (A[j + k * lda] != T(0)) {
-                            for (std::size_t i = 0; i < m; ++i) B[i + k * ldb] -= A[j + k * lda] * B[i + j * ldb];
+                            for (keel::usize i = 0; i < m; ++i) B[i + k * ldb] -= A[j + k * lda] * B[i + j * ldb];
                         }
                     }
                 }
             } else {
-                for (std::size_t j = 0; j < n; ++j) {
+                for (keel::usize j = 0; j < n; ++j) {
                     if (diag == MatrixDiag::NonUnit) {
-                        for (std::size_t i = 0; i < m; ++i) B[i + j * ldb] /= A[j + j * lda];
+                        for (keel::usize i = 0; i < m; ++i) B[i + j * ldb] /= A[j + j * lda];
                     }
-                    for (std::size_t k = j + 1; k < n; ++k) {
+                    for (keel::usize k = j + 1; k < n; ++k) {
                         if (A[j + k * lda] != T(0)) {
-                            for (std::size_t i = 0; i < m; ++i) B[i + k * ldb] -= A[j + k * lda] * B[i + j * ldb];
+                            for (keel::usize i = 0; i < m; ++i) B[i + k * ldb] -= A[j + k * lda] * B[i + j * ldb];
                         }
                     }
                 }
             }
         } else {
             if (uplo == MatrixUplo::Lower) {
-                for (std::size_t k = 0; k < n; ++k) {
-                    for (std::size_t j = 0; j < k; ++j) {
+                for (keel::usize k = 0; k < n; ++k) {
+                    for (keel::usize j = 0; j < k; ++j) {
                         T a_val = A[k + j * lda];
-                        if constexpr (is_complex_type_v<T>) { if (is_conj) a_val = std::conj(a_val); }
+                        if constexpr (is_complex_type_v<T>) { if (is_conj) a_val = keel::conj(a_val); }
                         if (a_val != T(0)) {
-                            for (std::size_t i = 0; i < m; ++i) B[i + k * ldb] -= a_val * B[i + j * ldb];
+                            for (keel::usize i = 0; i < m; ++i) B[i + k * ldb] -= a_val * B[i + j * ldb];
                         }
                     }
                     if (diag == MatrixDiag::NonUnit) {
                         T diag_val = A[k + k * lda];
-                        if constexpr (is_complex_type_v<T>) { if (is_conj) diag_val = std::conj(diag_val); }
-                        for (std::size_t i = 0; i < m; ++i) B[i + k * ldb] /= diag_val;
+                        if constexpr (is_complex_type_v<T>) { if (is_conj) diag_val = keel::conj(diag_val); }
+                        for (keel::usize i = 0; i < m; ++i) B[i + k * ldb] /= diag_val;
                     }
                 }
             } else {
-                for (std::size_t k = n; k-- > 0;) {
-                    for (std::size_t j = k + 1; j < n; ++j) {
+                for (keel::usize k = n; k-- > 0;) {
+                    for (keel::usize j = k + 1; j < n; ++j) {
                         T a_val = A[k + j * lda];
-                        if constexpr (is_complex_type_v<T>) { if (is_conj) a_val = std::conj(a_val); }
+                        if constexpr (is_complex_type_v<T>) { if (is_conj) a_val = keel::conj(a_val); }
                         if (a_val != T(0)) {
-                            for (std::size_t i = 0; i < m; ++i) B[i + k * ldb] -= a_val * B[i + j * ldb];
+                            for (keel::usize i = 0; i < m; ++i) B[i + k * ldb] -= a_val * B[i + j * ldb];
                         }
                     }
                     if (diag == MatrixDiag::NonUnit) {
                         T diag_val = A[k + k * lda];
-                        if constexpr (is_complex_type_v<T>) { if (is_conj) diag_val = std::conj(diag_val); }
-                        for (std::size_t i = 0; i < m; ++i) B[i + k * ldb] /= diag_val;
+                        if constexpr (is_complex_type_v<T>) { if (is_conj) diag_val = keel::conj(diag_val); }
+                        for (keel::usize i = 0; i < m; ++i) B[i + k * ldb] /= diag_val;
                     }
                 }
             }
@@ -224,9 +226,9 @@ void trsm_base(MatrixSide side, MatrixUplo uplo, MatrixTranspose trans, MatrixDi
 
 template <typename T>
 void trsm_generic(MatrixSide side, MatrixUplo uplo, MatrixTranspose trans, MatrixDiag diag,
-                  std::size_t m, std::size_t n,
-                  T alpha, const T *A, std::size_t lda,
-                  T *B, std::size_t ldb)
+                  keel::usize m, keel::usize n,
+                  T alpha, const T *A, keel::usize lda,
+                  T *B, keel::usize ldb)
 {
     if (m == 0 || n == 0) return;
     
@@ -237,12 +239,12 @@ void trsm_generic(MatrixSide side, MatrixUplo uplo, MatrixTranspose trans, Matri
             return;
         }
         if (alpha != T(1)) {
-            for (std::size_t j = 0; j < n; ++j) {
-                for (std::size_t i = 0; i < m; ++i) B[i + j * ldb] *= alpha;
+            for (keel::usize j = 0; j < n; ++j) {
+                for (keel::usize i = 0; i < m; ++i) B[i + j * ldb] *= alpha;
             }
         }
-        std::size_t m1 = m / 2;
-        std::size_t m2 = m - m1;
+        keel::usize m1 = m / 2;
+        keel::usize m2 = m - m1;
         
         if (uplo == MatrixUplo::Lower && trans == MatrixTranspose::NoTrans) {
             trsm_generic(side, uplo, trans, diag, m1, n, T(1), A, lda, B, ldb);
@@ -255,11 +257,11 @@ void trsm_generic(MatrixSide side, MatrixUplo uplo, MatrixTranspose trans, Matri
         } else if (uplo == MatrixUplo::Upper && trans != MatrixTranspose::NoTrans) {
             trsm_generic(side, uplo, trans, diag, m1, n, T(1), A, lda, B, ldb);
             std::vector<T> U01_T(m2 * m1);
-            for(std::size_t c=0; c<m2; ++c) {
-                for(std::size_t r=0; r<m1; ++r) {
+            for(keel::usize c=0; c<m2; ++c) {
+                for(keel::usize r=0; r<m1; ++r) {
                     T val = A[r + (m1 + c)*lda];
                     if constexpr (is_complex_type_v<T>) {
-                        if (trans == MatrixTranspose::ConjTrans) val = std::conj(val);
+                        if (trans == MatrixTranspose::ConjTrans) val = keel::conj(val);
                     }
                     U01_T[c + r*m2] = val; 
                 }
@@ -269,11 +271,11 @@ void trsm_generic(MatrixSide side, MatrixUplo uplo, MatrixTranspose trans, Matri
         } else if (uplo == MatrixUplo::Lower && trans != MatrixTranspose::NoTrans) {
             trsm_generic(side, uplo, trans, diag, m2, n, T(1), A + m1 + m1 * lda, lda, B + m1, ldb);
             std::vector<T> L10_T(m1 * m2);
-            for(std::size_t c=0; c<m1; ++c) {
-                for(std::size_t r=0; r<m2; ++r) {
+            for(keel::usize c=0; c<m1; ++c) {
+                for(keel::usize r=0; r<m2; ++r) {
                     T val = A[(m1 + r) + c*lda];
                     if constexpr (is_complex_type_v<T>) {
-                        if (trans == MatrixTranspose::ConjTrans) val = std::conj(val);
+                        if (trans == MatrixTranspose::ConjTrans) val = keel::conj(val);
                     }
                     L10_T[c + r*m1] = val;
                 }
@@ -287,12 +289,12 @@ void trsm_generic(MatrixSide side, MatrixUplo uplo, MatrixTranspose trans, Matri
             return;
         }
         if (alpha != T(1)) {
-            for (std::size_t j = 0; j < n; ++j) {
-                for (std::size_t i = 0; i < m; ++i) B[i + j * ldb] *= alpha;
+            for (keel::usize j = 0; j < n; ++j) {
+                for (keel::usize i = 0; i < m; ++i) B[i + j * ldb] *= alpha;
             }
         }
-        std::size_t n1 = n / 2;
-        std::size_t n2 = n - n1;
+        keel::usize n1 = n / 2;
+        keel::usize n2 = n - n1;
 
         if (uplo == MatrixUplo::Lower && trans == MatrixTranspose::NoTrans) {
             trsm_generic(side, uplo, trans, diag, m, n2, T(1), A + n1 + n1 * lda, lda, B + n1 * ldb, ldb);
@@ -305,11 +307,11 @@ void trsm_generic(MatrixSide side, MatrixUplo uplo, MatrixTranspose trans, Matri
         } else if (uplo == MatrixUplo::Upper && trans != MatrixTranspose::NoTrans) {
             trsm_generic(side, uplo, trans, diag, m, n2, T(1), A + n1 + n1 * lda, lda, B + n1 * ldb, ldb);
             std::vector<T> U01_T(n2 * n1);
-            for(std::size_t c=0; c<n2; ++c) {
-                for(std::size_t r=0; r<n1; ++r) {
+            for(keel::usize c=0; c<n2; ++c) {
+                for(keel::usize r=0; r<n1; ++r) {
                     T val = A[r + (n1 + c)*lda];
                     if constexpr (is_complex_type_v<T>) {
-                        if (trans == MatrixTranspose::ConjTrans) val = std::conj(val);
+                        if (trans == MatrixTranspose::ConjTrans) val = keel::conj(val);
                     }
                     U01_T[c + r*n2] = val; 
                 }
@@ -319,11 +321,11 @@ void trsm_generic(MatrixSide side, MatrixUplo uplo, MatrixTranspose trans, Matri
         } else if (uplo == MatrixUplo::Lower && trans != MatrixTranspose::NoTrans) {
             trsm_generic(side, uplo, trans, diag, m, n1, T(1), A, lda, B, ldb);
             std::vector<T> L10_T(n1 * n2);
-            for(std::size_t c=0; c<n1; ++c) {
-                for(std::size_t r=0; r<n2; ++r) {
+            for(keel::usize c=0; c<n1; ++c) {
+                for(keel::usize r=0; r<n2; ++r) {
                     T val = A[(n1 + r) + c*lda];
                     if constexpr (is_complex_type_v<T>) {
-                        if (trans == MatrixTranspose::ConjTrans) val = std::conj(val);
+                        if (trans == MatrixTranspose::ConjTrans) val = keel::conj(val);
                     }
                     L10_T[c + r*n1] = val;
                 }
@@ -336,17 +338,17 @@ void trsm_generic(MatrixSide side, MatrixUplo uplo, MatrixTranspose trans, Matri
 
 template <typename T>
 void syrk_recursive(MatrixUplo uplo, MatrixTranspose trans,
-                    std::size_t n, std::size_t k,
-                    T alpha, const T *V_T, std::size_t ld_v_t, const T *V, std::size_t ld_v,
-                    T *C, std::size_t ldc)
+                    keel::usize n, keel::usize k,
+                    T alpha, const T *V_T, keel::usize ld_v_t, const T *V, keel::usize ld_v,
+                    T *C, keel::usize ldc)
 {
     if (n <= 8) {
-        for (std::size_t j = 0; j < n; ++j) {
-            std::size_t i_start = (uplo == MatrixUplo::Lower) ? j : 0;
-            std::size_t i_end   = (uplo == MatrixUplo::Lower) ? n : j + 1;
-            for (std::size_t i = i_start; i < i_end; ++i) {
+        for (keel::usize j = 0; j < n; ++j) {
+            keel::usize i_start = (uplo == MatrixUplo::Lower) ? j : 0;
+            keel::usize i_end   = (uplo == MatrixUplo::Lower) ? n : j + 1;
+            for (keel::usize i = i_start; i < i_end; ++i) {
                 T sum = 0;
-                for (std::size_t l = 0; l < k; ++l) {
+                for (keel::usize l = 0; l < k; ++l) {
                     sum += V_T[i + l * ld_v_t] * V[l + j * ld_v];
                 }
                 C[i + j * ldc] += alpha * sum;
@@ -355,8 +357,8 @@ void syrk_recursive(MatrixUplo uplo, MatrixTranspose trans,
         return;
     }
 
-    std::size_t n1 = n / 2;
-    std::size_t n2 = n - n1;
+    keel::usize n1 = n / 2;
+    keel::usize n2 = n - n1;
 
     if (uplo == MatrixUplo::Upper) {
         syrk_recursive(uplo, trans, n1, k, alpha, V_T, ld_v_t, V, ld_v, C, ldc);
@@ -371,20 +373,20 @@ void syrk_recursive(MatrixUplo uplo, MatrixTranspose trans,
 
 template <typename T>
 void syrk_generic(MatrixUplo uplo, MatrixTranspose trans,
-                  std::size_t n, std::size_t k,
-                  T alpha, const T *A, std::size_t lda,
-                  T beta, T *C, std::size_t ldc)
+                  keel::usize n, keel::usize k,
+                  T alpha, const T *A, keel::usize lda,
+                  T beta, T *C, keel::usize ldc)
 {
     if (n == 0) return;
 
     if (beta != T(1)) {
-        for (std::size_t j = 0; j < n; ++j) {
-            std::size_t i_start = (uplo == MatrixUplo::Lower) ? j : 0;
-            std::size_t i_end   = (uplo == MatrixUplo::Lower) ? n : j + 1;
+        for (keel::usize j = 0; j < n; ++j) {
+            keel::usize i_start = (uplo == MatrixUplo::Lower) ? j : 0;
+            keel::usize i_end   = (uplo == MatrixUplo::Lower) ? n : j + 1;
             if (beta == T(0)) {
-                for (std::size_t i = i_start; i < i_end; ++i) C[i + j * ldc] = T(0);
+                for (keel::usize i = i_start; i < i_end; ++i) C[i + j * ldc] = T(0);
             } else {
-                for (std::size_t i = i_start; i < i_end; ++i) C[i + j * ldc] *= beta;
+                for (keel::usize i = i_start; i < i_end; ++i) C[i + j * ldc] *= beta;
             }
         }
     }
@@ -398,23 +400,23 @@ void syrk_generic(MatrixUplo uplo, MatrixTranspose trans,
     std::vector<T> V(k * n);
     
     if (!is_trans) {
-        for (std::size_t col = 0; col < k; ++col) {
-            for (std::size_t row = 0; row < n; ++row) {
+        for (keel::usize col = 0; col < k; ++col) {
+            for (keel::usize row = 0; row < n; ++row) {
                 V_T[row + col * n] = A[row + col * lda];
                 T val = A[row + col * lda];
                 if constexpr (is_complex_type_v<T>) {
-                    if (is_conj) val = std::conj(val);
+                    if (is_conj) val = keel::conj(val);
                 }
                 V[col + row * k] = val;
             }
         }
     } else {
-        for (std::size_t col = 0; col < n; ++col) {
-            for (std::size_t row = 0; row < k; ++row) {
+        for (keel::usize col = 0; col < n; ++col) {
+            for (keel::usize row = 0; row < k; ++row) {
                 V[row + col * k] = A[row + col * lda];
                 T val = A[row + col * lda];
                 if constexpr (is_complex_type_v<T>) {
-                    if (is_conj) val = std::conj(val);
+                    if (is_conj) val = keel::conj(val);
                 }
                 V_T[col + row * n] = val;
             }
@@ -424,87 +426,86 @@ void syrk_generic(MatrixUplo uplo, MatrixTranspose trans,
     syrk_recursive(uplo, trans, n, k, alpha, V_T.data(), n, V.data(), k, C, ldc);
 }
 
-void gemm(MatrixTranspose transa, MatrixTranspose transb, std::size_t m, std::size_t n, std::size_t k,
-          double alpha, const double *A, std::size_t lda,
-          const double *B, std::size_t ldb,
-          double beta, double *C, std::size_t ldc)
+void gemm(MatrixTranspose transa, MatrixTranspose transb, keel::usize m, keel::usize n, keel::usize k,
+          double alpha, const double *A, keel::usize lda,
+          const double *B, keel::usize ldb,
+          double beta, double *C, keel::usize ldc)
 {
     gemm_portable(transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc);
 }
 
-void gemm(MatrixTranspose transa, MatrixTranspose transb, std::size_t m, std::size_t n, std::size_t k,
-          std::complex<double> alpha, const std::complex<double> *A, std::size_t lda,
-          const std::complex<double> *B, std::size_t ldb,
-          std::complex<double> beta, std::complex<double> *C, std::size_t ldc)
+void gemm(MatrixTranspose transa, MatrixTranspose transb, keel::usize m, keel::usize n, keel::usize k,
+          keel::c64 alpha, const keel::c64 *A, keel::usize lda,
+          const keel::c64 *B, keel::usize ldb,
+          keel::c64 beta, keel::c64 *C, keel::usize ldc)
 {
     gemm_portable(transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc);
 }
 
 void trsm(MatrixSide side, MatrixUplo uplo, MatrixTranspose trans, MatrixDiag diag,
-          std::size_t m, std::size_t n,
-          double alpha, const double *A, std::size_t lda,
-          double *B, std::size_t ldb)
+          keel::usize m, keel::usize n,
+          double alpha, const double *A, keel::usize lda,
+          double *B, keel::usize ldb)
 {
     trsm_generic(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb);
 }
 
 void trsm(MatrixSide side, MatrixUplo uplo, MatrixTranspose trans, MatrixDiag diag,
-          std::size_t m, std::size_t n,
-          std::complex<double> alpha, const std::complex<double> *A, std::size_t lda,
-          std::complex<double> *B, std::size_t ldb)
+          keel::usize m, keel::usize n,
+          keel::c64 alpha, const keel::c64 *A, keel::usize lda,
+          keel::c64 *B, keel::usize ldb)
 {
     trsm_generic(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb);
 }
 
 void syrk(MatrixUplo uplo, MatrixTranspose trans,
-          std::size_t n, std::size_t k,
-          double alpha, const double *A, std::size_t lda,
-          double beta, double *C, std::size_t ldc)
+          keel::usize n, keel::usize k,
+          double alpha, const double *A, keel::usize lda,
+          double beta, double *C, keel::usize ldc)
 {
     syrk_generic(uplo, trans, n, k, alpha, A, lda, beta, C, ldc);
 }
 
 void syrk(MatrixUplo uplo, MatrixTranspose trans,
-          std::size_t n, std::size_t k,
-          std::complex<double> alpha, const std::complex<double> *A, std::size_t lda,
-          std::complex<double> beta, std::complex<double> *C, std::size_t ldc)
+          keel::usize n, keel::usize k,
+          keel::c64 alpha, const keel::c64 *A, keel::usize lda,
+          keel::c64 beta, keel::c64 *C, keel::usize ldc)
 {
     syrk_generic(uplo, trans, n, k, alpha, A, lda, beta, C, ldc);
 }
 
-bool lu_panel(std::complex<double> *A, std::size_t lda, std::int32_t *piv, std::size_t m, std::size_t n, std::size_t offset_row)
+bool lu_panel(keel::c64 *A, keel::usize lda, keel::i32 *piv, keel::usize m, keel::usize n, keel::usize offset_row)
 {
-    using Complex = std::complex<double>;
-    for (std::size_t j = 0; j < n; ++j) {
-        std::size_t pivot = j;
-        double pmax = std::norm(A[j + j * lda]);
+for (keel::usize j = 0; j < n; ++j) {
+        keel::usize pivot = j;
+        double pmax = keel::norm(A[j + j * lda]);
         
-        for (std::size_t i = j + 1; i < m; ++i) {
-            double v = std::norm(A[i + j * lda]);
+        for (keel::usize i = j + 1; i < m; ++i) {
+            double v = keel::norm(A[i + j * lda]);
             if (v > pmax) { pmax = v; pivot = i; }
         }
 
         if (pmax == 0.0) return false;
-        piv[j] = static_cast<std::int32_t>(pivot + offset_row);
+        piv[j] = static_cast<keel::i32>(pivot + offset_row);
         if (pivot != j) {
-            for (std::size_t col = 0; col < n; ++col) {
+            for (keel::usize col = 0; col < n; ++col) {
                 std::swap(A[j + col * lda], A[pivot + col * lda]);
             }
         }
         
-        const Complex inv_pivot = Complex(1.0, 0.0) / A[j + j * lda];
-        for (std::size_t i = j + 1; i < m; ++i) {
+        const keel::c64 inv_pivot = keel::c64(1.0, 0.0) / A[j + j * lda];
+        for (keel::usize i = j + 1; i < m; ++i) {
             A[i + j * lda] *= inv_pivot;
         }
 
-        for (std::size_t col = j + 1; col < n; ++col) {
-            const Complex f = A[j + col * lda];
-            if (f == Complex(0.0, 0.0)) continue;
+        for (keel::usize col = j + 1; col < n; ++col) {
+            const keel::c64 f = A[j + col * lda];
+            if (f == keel::c64(0.0, 0.0)) continue;
             
-            Complex *col_ptr = A + col * lda;
-            const Complex *l_col = A + j * lda;
+            keel::c64 *col_ptr = A + col * lda;
+            const keel::c64 *l_col = A + j * lda;
             
-            std::size_t i = j + 1;
+            keel::usize i = j + 1;
             for (; i + 4 <= m; i += 4) {
                 col_ptr[i+0] -= l_col[i+0] * f;
                 col_ptr[i+1] -= l_col[i+1] * f;
@@ -519,14 +520,14 @@ bool lu_panel(std::complex<double> *A, std::size_t lda, std::int32_t *piv, std::
     return true;
 }
 
-bool lu_panel(double *A, std::size_t lda, std::int32_t *piv, std::size_t m, std::size_t n, std::size_t offset_row)
+bool lu_panel(double *A, keel::usize lda, keel::i32 *piv, keel::usize m, keel::usize n, keel::usize offset_row)
 {
-    for (std::size_t j = 0; j < n; ++j) {
-        std::size_t pivot = j;
-        double pmax = std::abs(A[j + j * lda]);
+    for (keel::usize j = 0; j < n; ++j) {
+        keel::usize pivot = j;
+        double pmax = keel::abs(A[j + j * lda]);
         
-        for (std::size_t i = j + 1; i < m; ++i) {
-            double v = std::abs(A[i + j * lda]);
+        for (keel::usize i = j + 1; i < m; ++i) {
+            double v = keel::abs(A[i + j * lda]);
             if (v > pmax) {
                 pmax = v;
                 pivot = i;
@@ -535,19 +536,19 @@ bool lu_panel(double *A, std::size_t lda, std::int32_t *piv, std::size_t m, std:
         
         if (pmax == 0.0) return false;
         
-        piv[j] = static_cast<std::int32_t>(pivot + offset_row);
+        piv[j] = static_cast<keel::i32>(pivot + offset_row);
         
         if (pivot != j) {
-            for (std::size_t col = 0; col < n; ++col) {
+            for (keel::usize col = 0; col < n; ++col) {
                 std::swap(A[j + col * lda], A[pivot + col * lda]);
             }
         }
         
         double inv_pivot = 1.0 / A[j + j * lda];
-        for (std::size_t i = j + 1; i < m; ++i) {
+        for (keel::usize i = j + 1; i < m; ++i) {
             A[i + j * lda] *= inv_pivot;
             double f = A[i + j * lda];
-            for (std::size_t col = j + 1; col < n; ++col) {
+            for (keel::usize col = j + 1; col < n; ++col) {
                 A[i + col * lda] -= f * A[j + col * lda];
             }
         }

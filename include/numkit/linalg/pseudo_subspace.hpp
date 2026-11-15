@@ -8,7 +8,8 @@
 
 #pragma once
 
-#include <memory_resource>
+#include <keel/core.h>
+#include <keel/memory.h>
 #include <numkit/value/value.hpp>
 
 namespace numkit::linalg {
@@ -21,23 +22,23 @@ namespace numkit::linalg {
 ///
 /// Via SVD: `pinv(A) = V Â· Sâº Â· U'` where `Sâº` inverts non-zero
 /// singular values above `tol`.
-Value pinv(const Value &A, double tol = -1.0, std::pmr::memory_resource *mr = nullptr);
+Value pinv(const Value &A, keel::f64 tol = -1.0, keel::Allocator *mr = nullptr);
 
 /// @brief Orthonormal basis for range(A) (`Q = orth(A, tol)`).
 ///
 /// Columns of `U` from SVD whose corresponding sigma exceeds `tol`.
-Value orth(const Value &A, double tol = -1.0, std::pmr::memory_resource *mr = nullptr);
+Value orth(const Value &A, keel::f64 tol = -1.0, keel::Allocator *mr = nullptr);
 
 /// @brief Orthonormal basis for null(A) (`N = null(A, tol)`).
 ///
 /// Columns of `V` from SVD whose corresponding sigma is below `tol`.
-Value null_basis(const Value &A, double tol = -1.0, std::pmr::memory_resource *mr = nullptr);
+Value null_basis(const Value &A, keel::f64 tol = -1.0, keel::Allocator *mr = nullptr);
 
 /// @brief Subspace angle (`theta = subspace(A, B)`).
 ///
 /// `theta = acos(min(svd(orth(A)' Â· orth(B))))`. Returns radians in
 /// `[0, Ï€/2]`.
-Value subspace(const Value &A, const Value &B, std::pmr::memory_resource *mr = nullptr);
+Value subspace(const Value &A, const Value &B, keel::Allocator *mr = nullptr);
 
 
 /// @}

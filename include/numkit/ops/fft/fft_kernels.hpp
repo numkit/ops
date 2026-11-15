@@ -9,6 +9,8 @@
 
 #pragma once
 
+#include <keel/core.h>
+#include <keel/complex.h>
 #include <numkit/value/value.hpp>   // Complex (numkit::Complex)   // Complex
 
 #include <cstddef>
@@ -22,7 +24,7 @@ namespace numkit::ops::detail {
 // The portable backend forwards to the inline scalar reference.
 // The SIMD backend converts to SoA (split real/imag) internally,
 // runs vectorised butterflies via Highway, and converts back.
-void fftRadix2Impl(Complex *buf, std::size_t N, const Complex *W);
+void fftRadix2Impl(keel::c64 *buf, keel::usize N, const keel::c64 *W);
 
 // Stockham auto-sort radix-2 dispatcher (SIMD backend only). Same
 // contract as fftRadix2Impl but uses an internal thread-local
@@ -30,19 +32,19 @@ void fftRadix2Impl(Complex *buf, std::size_t N, const Complex *W);
 // bit-reversal pre-pass at the cost of 2× memory for the working
 // state. Exposed for benchmarking from fft_bench; the public
 // fftRadix2Impl chooses whether to route here based on N.
-void fftStockhamDispatch(Complex *buf, std::size_t N, const Complex *W);
+void fftStockhamDispatch(keel::c64 *buf, keel::usize N, const keel::c64 *W);
 
 // SoA radix-2 dispatcher: same in-place semantics as fftRadix2Impl,
 // but the kernel converts buf → split real/imag arrays internally to
 // avoid the AVX2 LoadInterleaved2/StoreInterleaved2 permute cost,
 // then converts back. Per-thread re/im scratch grows monotonically.
-void fftRadix2SoaDispatch(Complex *buf, std::size_t N, const Complex *W);
+void fftRadix2SoaDispatch(keel::c64 *buf, keel::usize N, const keel::c64 *W);
 
 // SoA radix-4 dispatcher: same algorithm as the AoS r4 path, but
 // using split real/imag layout to skip the AVX2 LoadInterleaved2 ×4
 // + StoreInterleaved2 ×4 permute cost per inner iteration. N must
 // be a power of 4. Per-thread re/im scratch grows monotonically.
-void fftRadix4Pow4SoaDispatch(Complex *buf, std::size_t N, const Complex *W);
+void fftRadix4Pow4SoaDispatch(keel::c64 *buf, keel::usize N, const keel::c64 *W);
 
 // SoA-native FFT stages: caller provides split-real/imag scratch
 // already populated with the input. Runs bit-reverse + butterfly
@@ -55,6 +57,6 @@ void fftRadix4Pow4SoaDispatch(Complex *buf, std::size_t N, const Complex *W);
 // the wrapper since SoA doesn't help SIMD128. This entry point still
 // works (it just routes to the AoS path with internal conversion);
 // the wrapper checks the platform and decides.
-void fftSoaStagesDispatch(double *re, double *im, std::size_t N, const Complex *W);
+void fftSoaStagesDispatch(keel::f64 *re, keel::f64 *im, keel::usize N, const keel::c64 *W);
 
 } // namespace numkit::ops::detail

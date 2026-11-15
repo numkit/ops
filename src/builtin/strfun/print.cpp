@@ -1,5 +1,6 @@
 // toolboxes/builtin/src/datatypes/strings/print.cpp
 
+#include <keel/core.h>
 #include <numkit/builtin/strfun.hpp>
 #include <numkit/builtin/strfun.hpp>
 
@@ -27,7 +28,7 @@ std::string dispFormat(const Value &a)
         if (d.rows() <= 1) {
             os << a.toString();
         } else {
-            for (size_t r = 0; r < d.rows(); ++r) {
+            for (keel::usize r = 0; r < d.rows(); ++r) {
                 if (r > 0) os << "\n";
                 os << a.charRow(r);
             }
@@ -41,7 +42,7 @@ std::string dispFormat(const Value &a)
             auto d = a.dims();
             if (d.rows() == 1) {
                 os << "[";
-                for (size_t c = 0; c < d.cols(); ++c) {
+                for (keel::usize c = 0; c < d.cols(); ++c) {
                     if (c > 0) os << " ";
                     double v = a(0, c);
                     if (v == std::floor(v) && std::isfinite(v))
@@ -51,7 +52,7 @@ std::string dispFormat(const Value &a)
                 }
                 os << "]";
             } else if (d.cols() == 1) {
-                for (size_t r = 0; r < d.rows(); ++r) {
+                for (keel::usize r = 0; r < d.rows(); ++r) {
                     if (r > 0) os << "\n";
                     double v = a(r, 0);
                     if (v == std::floor(v) && std::isfinite(v))
@@ -60,10 +61,10 @@ std::string dispFormat(const Value &a)
                         os << "   " << v;
                 }
             } else {
-                const size_t R = d.rows(), C = d.cols();
+                const keel::usize R = d.rows(), C = d.cols();
                 const int nd = d.ndim();
                 const double *base0 = a.doubleData();
-                forEachOuterPage(d, [&](size_t plin, const size_t *outerCoords) {
+                forEachOuterPage(d, [&](keel::usize plin, const keel::usize *outerCoords) {
                     if (nd >= 3) {
                         os << "(:,:";
                         for (int i = 2; i < nd; ++i)
@@ -71,10 +72,10 @@ std::string dispFormat(const Value &a)
                         os << ") =\n";
                     }
                     const double *page = base0 + plin * R * C;
-                    for (size_t r = 0; r < R; ++r) {
+                    for (keel::usize r = 0; r < R; ++r) {
                         if (r > 0) os << "\n";
                         os << "   ";
-                        for (size_t c = 0; c < C; ++c) {
+                        for (keel::usize c = 0; c < C; ++c) {
                             double v = page[c * R + r];
                             if (v == std::floor(v) && std::isfinite(v))
                                 os << " " << static_cast<long long>(v);
@@ -90,11 +91,11 @@ std::string dispFormat(const Value &a)
             os << (a.toBool() ? "1" : "0");
         } else {
             auto d = a.dims();
-            const uint8_t *ld = a.logicalData();
-            for (size_t r = 0; r < d.rows(); ++r) {
+            const keel::u8 *ld = a.logicalData();
+            for (keel::usize r = 0; r < d.rows(); ++r) {
                 if (r > 0) os << "\n";
                 os << "   ";
-                for (size_t c = 0; c < d.cols(); ++c)
+                for (keel::usize c = 0; c < d.cols(); ++c)
                     os << " " << (ld[d.sub2ind(r, c)] ? "1" : "0");
             }
         }

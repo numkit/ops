@@ -2,6 +2,12 @@
 //
 // eigs & svds: Subset of eigenvalues / singular values.
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/arena.h>
+#include <keel/array.h>
+#include <keel/complex.h>
+#include <keel/math.h>
 #include <numkit/linalg/eigs.hpp>
 #include <numkit/linalg/eig.hpp>
 #include <numkit/linalg/decompositions.hpp>
@@ -9,11 +15,9 @@
 
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
-#include <numkit/value/scratch.hpp>
 
 #include <algorithm>
 #include <cmath>
-#include <complex>
 #include <numeric>
 #include <vector>
 
@@ -21,22 +25,20 @@ namespace numkit::linalg {
 
 namespace {
 
-using Complex = std::complex<double>;
-
 struct EigenPair {
-    Complex val;
-    std::size_t original_index;
+    keel::c64 val;
+    keel::usize original_index;
 };
 
-bool isFiniteComplex(const Complex &c) {
+bool isFiniteComplex(const keel::c64 &c) {
     return std::isfinite(c.real()) && std::isfinite(c.imag());
 }
 
-void sortEigenPairsBySigma(ScratchVec<EigenPair> &pairs, std::size_t k, const Value &sigma)
+void sortEigenPairsBySigma(keel::Array<EigenPair> &pairs, keel::usize k, const Value &sigma)
 {
     enum class Mode { LargestAbs, SmallestAbs, LargestReal, SmallestReal, BothEndsReal, Shift };
     Mode mode = Mode::LargestAbs;
-    Complex shiftVal(0.0, 0.0);
+    keel::c64 shiftVal(0.0, 0.0);
 
     if (!sigma.isEmpty()) {
         if (sigma.isChar() || sigma.isString()) {
@@ -53,7 +55,7 @@ void sortEigenPairsBySigma(ScratchVec<EigenPair> &pairs, std::size_t k, const Va
                             0, 0, "eigs", "", "numkit:eigs:badSigma");
         } else if (sigma.isNumeric() && sigma.isScalar()) {
             mode = Mode::Shift;
-            shiftVal = sigma.isComplex() ? sigma.complexData()[0] : Complex(sigma.toScalar(), 0.0);
+            shiftVal = sigma.isComplex() ? sigma.complexData()[0] : keel::c64(sigma.toScalar(), 0.0);
         }
     }
 
@@ -64,74 +66,74 @@ void sortEigenPairsBySigma(ScratchVec<EigenPair> &pairs, std::size_t k, const Va
         if (!fa) return false;
         switch (mode) {
         case Mode::LargestAbs:
-            return std::abs(a.val) > std::abs(b.val);
+            return keel::abs(a.val) > keel::abs(b.val);
         case Mode::SmallestAbs:
-            return std::abs(a.val) < std::abs(b.val);
+            return keel::abs(a.val) < keel::abs(b.val);
         case Mode::LargestReal:
         case Mode::BothEndsReal:
             return a.val.real() > b.val.real();
         case Mode::SmallestReal:
             return a.val.real() < b.val.real();
         case Mode::Shift:
-            return std::abs(a.val - shiftVal) < std::abs(b.val - shiftVal);
+            return keel::abs(a.val - shiftVal) < keel::abs(b.val - shiftVal);
         }
-        return std::abs(a.val) > std::abs(b.val);
+        return keel::abs(a.val) > keel::abs(b.val);
     });
 
     if (mode == Mode::BothEndsReal && k > 1 && pairs.size() > 1) {
-        std::size_t numFinite = 0;
+        keel::usize numFinite = 0;
         while (numFinite < pairs.size() && isFiniteComplex(pairs[numFinite].val))
             ++numFinite;
         if (numFinite > 1) {
             std::vector<EigenPair> reordered;
             reordered.reserve(pairs.size());
-            std::size_t lo = 0, hi = numFinite - 1;
+            keel::usize lo = 0, hi = numFinite - 1;
             while (lo <= hi && reordered.size() < k) {
                 reordered.push_back(pairs[lo++]);
                 if (lo <= hi && reordered.size() < k)
                     reordered.push_back(pairs[hi--]);
             }
-            for (std::size_t i = 0; i < reordered.size(); ++i)
+            for (keel::usize i = 0; i < reordered.size(); ++i)
                 pairs[i] = reordered[i];
         }
     }
 }
 
-std::tuple<Value, Value> eig_auto(const Value &A, std::pmr::memory_resource *mr) {
+std::tuple<Value, Value> eig_auto(const Value &A, keel::Allocator *mr) {
     if (!A.isComplex() && isSymmetricApprox(A, 1e-10)) {
         return eig_symmetric(A, mr);
     }
     return eig_general_VD(A, mr);
 }
 
-std::tuple<Value, Value> eigs_from_VD(const Value &V, const Value &D, std::size_t n,
-                                      std::size_t k, const Value &sigma, bool wantSingle,
-                                      std::pmr::memory_resource *mr)
+std::tuple<Value, Value> eigs_from_VD(const Value &V, const Value &D, keel::usize n,
+                                      keel::usize k, const Value &sigma, bool wantSingle,
+                                      keel::Allocator *mr)
 {
-    ScratchArena scratch(mr);
-    ScratchVec<EigenPair> pairs(n, &scratch);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<EigenPair> pairs(n, scratch.allocator());
 
-    for (std::size_t i = 0; i < n; ++i) {
+    for (keel::usize i = 0; i < n; ++i) {
         pairs[i].original_index = i;
         pairs[i].val = D.isComplex() ? D.complexData()[i + i * n]
-                                     : Complex(D.elemAsDouble(i + i * n), 0.0);
+                                     : keel::c64(D.elemAsDouble(i + i * n), 0.0);
     }
 
     sortEigenPairsBySigma(pairs, k, sigma);
 
     auto Vk = Value::complexMatrix(n, k, mr);
     auto Dk = Value::complexMatrix(k, k, mr);
-    Complex *vkd = Vk.complexDataMut();
-    Complex *dkd = Dk.complexDataMut();
-    std::fill(dkd, dkd + k * k, Complex(0.0, 0.0));
+    keel::c64 *vkd = Vk.complexDataMut();
+    keel::c64 *dkd = Dk.complexDataMut();
+    std::fill(dkd, dkd + k * k, keel::c64(0.0, 0.0));
 
-    for (std::size_t col = 0; col < k; ++col) {
-        std::size_t orig_col = pairs[col].original_index;
+    for (keel::usize col = 0; col < k; ++col) {
+        keel::usize orig_col = pairs[col].original_index;
         dkd[col + col * k] = pairs[col].val;
-        for (std::size_t row = 0; row < n; ++row) {
+        for (keel::usize row = 0; row < n; ++row) {
             vkd[row + col * n] = V.isComplex()
                 ? V.complexData()[row + orig_col * n]
-                : Complex(V.elemAsDouble(row + orig_col * n), 0.0);
+                : keel::c64(V.elemAsDouble(row + orig_col * n), 0.0);
         }
     }
 
@@ -141,13 +143,13 @@ std::tuple<Value, Value> eigs_from_VD(const Value &V, const Value &D, std::size_
 
 } // anonymous namespace
 
-Value eigs_values(const Value &A, std::size_t k, const Value &sigma, std::pmr::memory_resource *mr)
+Value eigs_values(const Value &A, keel::usize k, const Value &sigma, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "eigs");
     if (A.dims().ndim() != 2)
         throw Error("eigs: input must be a 2D matrix", 0, 0, "eigs", "", "numkit:eigs:notMatrix");
-    const std::size_t n = static_cast<std::size_t>(A.dims().dim(0));
-    if (n != static_cast<std::size_t>(A.dims().dim(1)))
+    const keel::usize n = static_cast<keel::usize>(A.dims().dim(0));
+    if (n != static_cast<keel::usize>(A.dims().dim(1)))
         throw Error("eigs: matrix must be square", 0, 0, "eigs", "", "numkit:eigs:notSquare");
 
     const bool wantSingle = A.type() == ValueType::SINGLE;
@@ -159,37 +161,37 @@ Value eigs_values(const Value &A, std::size_t k, const Value &sigma, std::pmr::m
     Value ev = (Aw.isComplex() || !isSymmetricApprox(Aw, 1e-10))
                    ? eig_general_values(Aw, mr)
                    : eig_values(Aw, mr);
-    const std::size_t num_eig = ev.numel();
+    const keel::usize num_eig = ev.numel();
 
-    ScratchArena scratch(mr);
-    ScratchVec<EigenPair> pairs(num_eig, &scratch);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<EigenPair> pairs(num_eig, scratch.allocator());
 
-    for (std::size_t i = 0; i < num_eig; ++i) {
+    for (keel::usize i = 0; i < num_eig; ++i) {
         pairs[i].original_index = i;
-        pairs[i].val = ev.isComplex() ? ev.complexData()[i] : Complex(ev.doubleData()[i], 0.0);
+        pairs[i].val = ev.isComplex() ? ev.complexData()[i] : keel::c64(ev.doubleData()[i], 0.0);
     }
 
     sortEigenPairsBySigma(pairs, k, sigma);
 
     Value out = Value::complexMatrix(k, 1, mr);
-    Complex *od = out.complexDataMut();
-    for (std::size_t i = 0; i < k; ++i) od[i] = pairs[i].val;
+    keel::c64 *od = out.complexDataMut();
+    for (keel::usize i = 0; i < k; ++i) od[i] = pairs[i].val;
 
     return detail::narrowDoubleToSingleIf(detail::narrow_if_real(out, mr), wantSingle, mr);
 }
 
-Value eigs_values(const Value &A, std::size_t k, std::pmr::memory_resource *mr)
+Value eigs_values(const Value &A, keel::usize k, keel::Allocator *mr)
 {
     return eigs_values(A, k, Value(), mr);
 }
 
-std::tuple<Value, Value> eigs(const Value &A, std::size_t k, const Value &sigma, std::pmr::memory_resource *mr)
+std::tuple<Value, Value> eigs(const Value &A, keel::usize k, const Value &sigma, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "eigs");
     if (A.dims().ndim() != 2)
         throw Error("eigs: input must be a 2D matrix", 0, 0, "eigs", "", "numkit:eigs:notMatrix");
-    const std::size_t n = static_cast<std::size_t>(A.dims().dim(0));
-    if (n != static_cast<std::size_t>(A.dims().dim(1)))
+    const keel::usize n = static_cast<keel::usize>(A.dims().dim(0));
+    if (n != static_cast<keel::usize>(A.dims().dim(1)))
         throw Error("eigs: matrix must be square", 0, 0, "eigs", "", "numkit:eigs:notSquare");
 
     const bool wantSingle = A.type() == ValueType::SINGLE;
@@ -205,22 +207,22 @@ std::tuple<Value, Value> eigs(const Value &A, std::size_t k, const Value &sigma,
     return eigs_from_VD(V, D, n, k, sigma, wantSingle, mr);
 }
 
-std::tuple<Value, Value> eigs(const Value &A, std::size_t k, std::pmr::memory_resource *mr)
+std::tuple<Value, Value> eigs(const Value &A, keel::usize k, keel::Allocator *mr)
 {
     return eigs(A, k, Value(), mr);
 }
 
-std::tuple<Value, Value> eigs_generalized(const Value &A, const Value &B, std::size_t k,
-                                          const Value &sigma, std::pmr::memory_resource *mr)
+std::tuple<Value, Value> eigs_generalized(const Value &A, const Value &B, keel::usize k,
+                                          const Value &sigma, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "eigs");
     detail::requireDoubleInput(B, "eigs", "B");
     if (A.dims().ndim() != 2 || B.dims().ndim() != 2)
         throw Error("eigs: inputs must be 2D matrices", 0, 0, "eigs", "", "numkit:eigs:notMatrix");
-    const std::size_t n = static_cast<std::size_t>(A.dims().dim(0));
-    if (n != static_cast<std::size_t>(A.dims().dim(1)) ||
-        n != static_cast<std::size_t>(B.dims().dim(0)) ||
-        n != static_cast<std::size_t>(B.dims().dim(1)))
+    const keel::usize n = static_cast<keel::usize>(A.dims().dim(0));
+    if (n != static_cast<keel::usize>(A.dims().dim(1)) ||
+        n != static_cast<keel::usize>(B.dims().dim(0)) ||
+        n != static_cast<keel::usize>(B.dims().dim(1)))
         throw Error("eigs: A and B must be square matrices of the same size",
                     0, 0, "eigs", "", "numkit:eigs:notSquare");
 
@@ -248,34 +250,34 @@ std::tuple<Value, Value> eigs_generalized(const Value &A, const Value &B, std::s
     return eigs_from_VD(V, D, n, k, sigma, wantSingle, mr);
 }
 
-Value eigs_generalized_values(const Value &A, const Value &B, std::size_t k,
-                              const Value &sigma, std::pmr::memory_resource *mr)
+Value eigs_generalized_values(const Value &A, const Value &B, keel::usize k,
+                              const Value &sigma, keel::Allocator *mr)
 {
     auto [V, D] = eigs_generalized(A, B, k, sigma, mr);
     (void)V;
-    const std::size_t m = static_cast<std::size_t>(D.dims().dim(0));
+    const keel::usize m = static_cast<keel::usize>(D.dims().dim(0));
     if (D.isComplex()) {
         auto out = Value::complexMatrix(m, 1, mr);
-        const Complex *dd = D.complexData();
-        Complex *od = out.complexDataMut();
-        for (std::size_t i = 0; i < m; ++i) od[i] = dd[i + i * m];
+        const keel::c64 *dd = D.complexData();
+        keel::c64 *od = out.complexDataMut();
+        for (keel::usize i = 0; i < m; ++i) od[i] = dd[i + i * m];
         return out;
     }
     const bool wantSingle = (D.type() == ValueType::SINGLE);
     auto out = Value::matrix(m, 1, ValueType::DOUBLE, mr);
-    for (std::size_t i = 0; i < m; ++i)
+    for (keel::usize i = 0; i < m; ++i)
         out.doubleDataMut()[i] = D.elemAsDouble(i + i * m);
     return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
 
-Value svds_values(const Value &A, std::size_t k, std::pmr::memory_resource *mr)
+Value svds_values(const Value &A, keel::usize k, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "svds");
     if (A.dims().ndim() != 2)
         throw Error("svds: input must be a 2D matrix", 0, 0, "svds", "", "numkit:svds:notMatrix");
-    const std::size_t m = static_cast<std::size_t>(A.dims().dim(0));
-    const std::size_t n = static_cast<std::size_t>(A.dims().dim(1));
-    const std::size_t min_mn = std::min(m, n);
+    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
+    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
+    const keel::usize min_mn = std::min(m, n);
 
     const bool wantSingle = A.type() == ValueType::SINGLE;
     if (min_mn == 0 || k == 0)
@@ -290,14 +292,14 @@ Value svds_values(const Value &A, std::size_t k, std::pmr::memory_resource *mr)
     return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
 
-std::tuple<Value, Value, Value> svds(const Value &A, std::size_t k, std::pmr::memory_resource *mr)
+std::tuple<Value, Value, Value> svds(const Value &A, keel::usize k, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "svds");
     if (A.dims().ndim() != 2)
         throw Error("svds: input must be a 2D matrix", 0, 0, "svds", "", "numkit:svds:notMatrix");
-    const std::size_t m = static_cast<std::size_t>(A.dims().dim(0));
-    const std::size_t n = static_cast<std::size_t>(A.dims().dim(1));
-    const std::size_t min_mn = std::min(m, n);
+    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
+    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
+    const keel::usize min_mn = std::min(m, n);
 
     const bool wantSingle = A.type() == ValueType::SINGLE;
     const ValueType rtype = wantSingle ? ValueType::SINGLE : ValueType::DOUBLE;
@@ -316,42 +318,42 @@ std::tuple<Value, Value, Value> svds(const Value &A, std::size_t k, std::pmr::me
     auto Vk = Value::matrix(n, k, V.type(), mr);
 
     if (U.isComplex()) {
-        const Complex *ud = U.complexData();
-        Complex *ukd = Uk.complexDataMut();
-        for (std::size_t j = 0; j < k; ++j) {
-            for (std::size_t i = 0; i < m; ++i) ukd[i + j * m] = ud[i + j * m];
+        const keel::c64 *ud = U.complexData();
+        keel::c64 *ukd = Uk.complexDataMut();
+        for (keel::usize j = 0; j < k; ++j) {
+            for (keel::usize i = 0; i < m; ++i) ukd[i + j * m] = ud[i + j * m];
         }
     } else {
         const double *ud = U.doubleData();
         double *ukd = Uk.doubleDataMut();
-        for (std::size_t j = 0; j < k; ++j) {
-            for (std::size_t i = 0; i < m; ++i) ukd[i + j * m] = ud[i + j * m];
+        for (keel::usize j = 0; j < k; ++j) {
+            for (keel::usize i = 0; i < m; ++i) ukd[i + j * m] = ud[i + j * m];
         }
     }
 
     if (S.isComplex()) {
-        const Complex *sd = S.complexData();
-        Complex *skd = Sk.complexDataMut();
-        std::fill(skd, skd + k * k, Complex(0.0, 0.0));
-        for (std::size_t i = 0; i < k; ++i) skd[i + i * k] = sd[i + i * m];
+        const keel::c64 *sd = S.complexData();
+        keel::c64 *skd = Sk.complexDataMut();
+        std::fill(skd, skd + k * k, keel::c64(0.0, 0.0));
+        for (keel::usize i = 0; i < k; ++i) skd[i + i * k] = sd[i + i * m];
     } else {
         const double *sd = S.doubleData();
         double *skd = Sk.doubleDataMut();
         std::fill(skd, skd + k * k, 0.0);
-        for (std::size_t i = 0; i < k; ++i) skd[i + i * k] = sd[i + i * m];
+        for (keel::usize i = 0; i < k; ++i) skd[i + i * k] = sd[i + i * m];
     }
 
     if (V.isComplex()) {
-        const Complex *vd = V.complexData();
-        Complex *vkd = Vk.complexDataMut();
-        for (std::size_t j = 0; j < k; ++j) {
-            for (std::size_t i = 0; i < n; ++i) vkd[i + j * n] = vd[i + j * n];
+        const keel::c64 *vd = V.complexData();
+        keel::c64 *vkd = Vk.complexDataMut();
+        for (keel::usize j = 0; j < k; ++j) {
+            for (keel::usize i = 0; i < n; ++i) vkd[i + j * n] = vd[i + j * n];
         }
     } else {
         const double *vd = V.doubleData();
         double *vkd = Vk.doubleDataMut();
-        for (std::size_t j = 0; j < k; ++j) {
-            for (std::size_t i = 0; i < n; ++i) vkd[i + j * n] = vd[i + j * n];
+        for (keel::usize j = 0; j < k; ++j) {
+            for (keel::usize i = 0; i < n; ++i) vkd[i + j * n] = vd[i + j * n];
         }
     }
 

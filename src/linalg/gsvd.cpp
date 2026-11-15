@@ -2,6 +2,10 @@
 //
 // gsvd â€” Generalized Singular Value Decomposition.
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/complex.h>
+#include <keel/math.h>
 #include <numkit/linalg/gsvd.hpp>
 #include <numkit/linalg/decompositions.hpp>
 #include <numkit/linalg/pseudo_subspace.hpp>
@@ -10,22 +14,18 @@
 
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
-#include <numkit/value/scratch.hpp>
 
 #include <algorithm>
 #include <cmath>
-#include <complex>
 #include <vector>
 
 namespace numkit::linalg {
 
 namespace {
 
-using Complex = std::complex<double>;
-
 } // anonymous namespace
 
-Value gsvd_values(const Value &A, const Value &B, std::pmr::memory_resource *mr)
+Value gsvd_values(const Value &A, const Value &B, keel::Allocator *mr)
 {
     // The reference solves LOGICAL operands by coercion (mixed
     // logical/double pairs answer a double result) but rejects integer
@@ -39,10 +39,10 @@ Value gsvd_values(const Value &A, const Value &B, std::pmr::memory_resource *mr)
     detail::requireDoubleInput(Bc, "gsvd", "B", 2);
     if (Ac.dims().ndim() != 2 || Bc.dims().ndim() != 2)
         throw Error("gsvd: A and B must be 2D matrices", 0, 0, "gsvd", "", "numkit:gsvd:notMatrix");
-    const std::size_t m = static_cast<std::size_t>(Ac.dims().dim(0));
-    const std::size_t n = static_cast<std::size_t>(Ac.dims().dim(1));
-    const std::size_t p = static_cast<std::size_t>(Bc.dims().dim(0));
-    if (static_cast<std::size_t>(Bc.dims().dim(1)) != n)
+    const keel::usize m = static_cast<keel::usize>(Ac.dims().dim(0));
+    const keel::usize n = static_cast<keel::usize>(Ac.dims().dim(1));
+    const keel::usize p = static_cast<keel::usize>(Bc.dims().dim(0));
+    if (static_cast<keel::usize>(Bc.dims().dim(1)) != n)
         throw Error("gsvd: A and B must have the same number of columns", 0, 0, "gsvd", "", "numkit:gsvd:badDims");
 
     const bool wantSingle = Ac.type() == ValueType::SINGLE || Bc.type() == ValueType::SINGLE;
@@ -55,24 +55,24 @@ Value gsvd_values(const Value &A, const Value &B, std::pmr::memory_resource *mr)
     // Step 1: Stack K = [A; B] ((m+p) x n)
     auto K = Value::matrix(m + p, n, (Ac.isComplex() || Bc.isComplex()) ? ValueType::COMPLEX : ValueType::DOUBLE, mr);
     if (K.isComplex()) {
-        Complex *kd = K.complexDataMut();
-        for (std::size_t j = 0; j < n; ++j) {
-            for (std::size_t i = 0; i < m; ++i) {
-                kd[i + j * (m + p)] = Ac.isComplex() ? Ac.complexData()[i + j * m] : Complex(Ac.doubleData()[i + j * m], 0.0);
+        keel::c64 *kd = K.complexDataMut();
+        for (keel::usize j = 0; j < n; ++j) {
+            for (keel::usize i = 0; i < m; ++i) {
+                kd[i + j * (m + p)] = Ac.isComplex() ? Ac.complexData()[i + j * m] : keel::c64(Ac.doubleData()[i + j * m], 0.0);
             }
-            for (std::size_t i = 0; i < p; ++i) {
-                kd[m + i + j * (m + p)] = Bc.isComplex() ? Bc.complexData()[i + j * p] : Complex(Bc.doubleData()[i + j * p], 0.0);
+            for (keel::usize i = 0; i < p; ++i) {
+                kd[m + i + j * (m + p)] = Bc.isComplex() ? Bc.complexData()[i + j * p] : keel::c64(Bc.doubleData()[i + j * p], 0.0);
             }
         }
     } else {
         double *kd = K.doubleDataMut();
         const double *ad = Ac.doubleData();
         const double *bd = Bc.doubleData();
-        for (std::size_t j = 0; j < n; ++j) {
-            for (std::size_t i = 0; i < m; ++i) {
+        for (keel::usize j = 0; j < n; ++j) {
+            for (keel::usize i = 0; i < m; ++i) {
                 kd[i + j * (m + p)] = ad[i + j * m];
             }
-            for (std::size_t i = 0; i < p; ++i) {
+            for (keel::usize i = 0; i < p; ++i) {
                 kd[m + i + j * (m + p)] = bd[i + j * p];
             }
         }
@@ -84,18 +84,18 @@ Value gsvd_values(const Value &A, const Value &B, std::pmr::memory_resource *mr)
     // Q1 is top m x n of Qk
     auto Q1 = Value::matrix(m, n, Qk.type(), mr);
     if (Qk.isComplex()) {
-        const Complex *qd = Qk.complexData();
-        Complex *q1d = Q1.complexDataMut();
-        for (std::size_t j = 0; j < n; ++j) {
-            for (std::size_t i = 0; i < m; ++i) {
+        const keel::c64 *qd = Qk.complexData();
+        keel::c64 *q1d = Q1.complexDataMut();
+        for (keel::usize j = 0; j < n; ++j) {
+            for (keel::usize i = 0; i < m; ++i) {
                 q1d[i + j * m] = qd[i + j * (m + p)];
             }
         }
     } else {
         const double *qd = Qk.doubleData();
         double *q1d = Q1.doubleDataMut();
-        for (std::size_t j = 0; j < n; ++j) {
-            for (std::size_t i = 0; i < m; ++i) {
+        for (keel::usize j = 0; j < n; ++j) {
+            for (keel::usize i = 0; i < m; ++i) {
                 q1d[i + j * m] = qd[i + j * (m + p)];
             }
         }
@@ -103,12 +103,12 @@ Value gsvd_values(const Value &A, const Value &B, std::pmr::memory_resource *mr)
 
     // Singular values of Q1
     Value C_vals = svd_values(Q1, mr);
-    const std::size_t num_vals = C_vals.numel();
+    const keel::usize num_vals = C_vals.numel();
 
     Value sigmas = Value::matrix(num_vals, 1, ValueType::DOUBLE, mr);
     double *sd = sigmas.doubleDataMut();
 
-    for (std::size_t i = 0; i < num_vals; ++i) {
+    for (keel::usize i = 0; i < num_vals; ++i) {
         double c = C_vals.doubleData()[i];
         if (c > 1.0) c = 1.0;
         if (c < 0.0) c = 0.0;
@@ -125,7 +125,7 @@ Value gsvd_values(const Value &A, const Value &B, std::pmr::memory_resource *mr)
 }
 
 std::tuple<Value, Value, Value, Value, Value> gsvd(const Value &A, const Value &B,
-                                                   std::pmr::memory_resource *mr)
+                                                   keel::Allocator *mr)
 {
     Value Ac = (A.type() == ValueType::LOGICAL)
                    ? detail::coerceToDoubleMatrix(A, mr) : A;
@@ -135,10 +135,10 @@ std::tuple<Value, Value, Value, Value, Value> gsvd(const Value &A, const Value &
     detail::requireDoubleInput(Bc, "gsvd", "B", 2);
     if (Ac.dims().ndim() != 2 || Bc.dims().ndim() != 2)
         throw Error("gsvd: A and B must be 2D matrices", 0, 0, "gsvd", "", "numkit:gsvd:notMatrix");
-    const std::size_t m = static_cast<std::size_t>(Ac.dims().dim(0));
-    const std::size_t n = static_cast<std::size_t>(Ac.dims().dim(1));
-    const std::size_t p = static_cast<std::size_t>(Bc.dims().dim(0));
-    if (static_cast<std::size_t>(Bc.dims().dim(1)) != n)
+    const keel::usize m = static_cast<keel::usize>(Ac.dims().dim(0));
+    const keel::usize n = static_cast<keel::usize>(Ac.dims().dim(1));
+    const keel::usize p = static_cast<keel::usize>(Bc.dims().dim(0));
+    if (static_cast<keel::usize>(Bc.dims().dim(1)) != n)
         throw Error("gsvd: A and B must have the same number of columns", 0, 0, "gsvd", "", "numkit:gsvd:badDims");
 
     const bool wantSingle = Ac.type() == ValueType::SINGLE || Bc.type() == ValueType::SINGLE;
@@ -157,24 +157,24 @@ std::tuple<Value, Value, Value, Value, Value> gsvd(const Value &A, const Value &
     // Step 1: Stack K = [A; B] ((m+p) x n)
     auto K = Value::matrix(m + p, n, (Ac.isComplex() || Bc.isComplex()) ? ValueType::COMPLEX : ValueType::DOUBLE, mr);
     if (K.isComplex()) {
-        Complex *kd = K.complexDataMut();
-        for (std::size_t j = 0; j < n; ++j) {
-            for (std::size_t i = 0; i < m; ++i) {
-                kd[i + j * (m + p)] = Ac.isComplex() ? Ac.complexData()[i + j * m] : Complex(Ac.doubleData()[i + j * m], 0.0);
+        keel::c64 *kd = K.complexDataMut();
+        for (keel::usize j = 0; j < n; ++j) {
+            for (keel::usize i = 0; i < m; ++i) {
+                kd[i + j * (m + p)] = Ac.isComplex() ? Ac.complexData()[i + j * m] : keel::c64(Ac.doubleData()[i + j * m], 0.0);
             }
-            for (std::size_t i = 0; i < p; ++i) {
-                kd[m + i + j * (m + p)] = Bc.isComplex() ? Bc.complexData()[i + j * p] : Complex(Bc.doubleData()[i + j * p], 0.0);
+            for (keel::usize i = 0; i < p; ++i) {
+                kd[m + i + j * (m + p)] = Bc.isComplex() ? Bc.complexData()[i + j * p] : keel::c64(Bc.doubleData()[i + j * p], 0.0);
             }
         }
     } else {
         double *kd = K.doubleDataMut();
         const double *ad = Ac.doubleData();
         const double *bd = Bc.doubleData();
-        for (std::size_t j = 0; j < n; ++j) {
-            for (std::size_t i = 0; i < m; ++i) {
+        for (keel::usize j = 0; j < n; ++j) {
+            for (keel::usize i = 0; i < m; ++i) {
                 kd[i + j * (m + p)] = ad[i + j * m];
             }
-            for (std::size_t i = 0; i < p; ++i) {
+            for (keel::usize i = 0; i < p; ++i) {
                 kd[m + i + j * (m + p)] = bd[i + j * p];
             }
         }
@@ -186,18 +186,18 @@ std::tuple<Value, Value, Value, Value, Value> gsvd(const Value &A, const Value &
     // Extract top n x n from Rk_full as Rk
     auto Rk = Value::matrix(n, n, Rk_full.type(), mr);
     if (Rk_full.isComplex()) {
-        const Complex *rfd = Rk_full.complexData();
-        Complex *rd = Rk.complexDataMut();
-        for (std::size_t j = 0; j < n; ++j) {
-            for (std::size_t i = 0; i < n; ++i) {
+        const keel::c64 *rfd = Rk_full.complexData();
+        keel::c64 *rd = Rk.complexDataMut();
+        for (keel::usize j = 0; j < n; ++j) {
+            for (keel::usize i = 0; i < n; ++i) {
                 rd[i + j * n] = rfd[i + j * (m + p)];
             }
         }
     } else {
         const double *rfd = Rk_full.doubleData();
         double *rd = Rk.doubleDataMut();
-        for (std::size_t j = 0; j < n; ++j) {
-            for (std::size_t i = 0; i < n; ++i) {
+        for (keel::usize j = 0; j < n; ++j) {
+            for (keel::usize i = 0; i < n; ++i) {
                 rd[i + j * n] = rfd[i + j * (m + p)];
             }
         }
@@ -207,14 +207,14 @@ std::tuple<Value, Value, Value, Value, Value> gsvd(const Value &A, const Value &
     auto Q1 = Value::matrix(m, n, Qk.type(), mr);
     auto Q2 = Value::matrix(p, n, Qk.type(), mr);
     if (Qk.isComplex()) {
-        const Complex *qd = Qk.complexData();
-        Complex *q1d = Q1.complexDataMut();
-        Complex *q2d = Q2.complexDataMut();
-        for (std::size_t j = 0; j < n; ++j) {
-            for (std::size_t i = 0; i < m; ++i) {
+        const keel::c64 *qd = Qk.complexData();
+        keel::c64 *q1d = Q1.complexDataMut();
+        keel::c64 *q2d = Q2.complexDataMut();
+        for (keel::usize j = 0; j < n; ++j) {
+            for (keel::usize i = 0; i < m; ++i) {
                 q1d[i + j * m] = qd[i + j * (m + p)];
             }
-            for (std::size_t i = 0; i < p; ++i) {
+            for (keel::usize i = 0; i < p; ++i) {
                 q2d[i + j * p] = qd[m + i + j * (m + p)];
             }
         }
@@ -222,11 +222,11 @@ std::tuple<Value, Value, Value, Value, Value> gsvd(const Value &A, const Value &
         const double *qd = Qk.doubleData();
         double *q1d = Q1.doubleDataMut();
         double *q2d = Q2.doubleDataMut();
-        for (std::size_t j = 0; j < n; ++j) {
-            for (std::size_t i = 0; i < m; ++i) {
+        for (keel::usize j = 0; j < n; ++j) {
+            for (keel::usize i = 0; i < m; ++i) {
                 q1d[i + j * m] = qd[i + j * (m + p)];
             }
-            for (std::size_t i = 0; i < p; ++i) {
+            for (keel::usize i = 0; i < p; ++i) {
                 q2d[i + j * p] = qd[m + i + j * (m + p)];
             }
         }
@@ -239,13 +239,13 @@ std::tuple<Value, Value, Value, Value, Value> gsvd(const Value &A, const Value &
     // First compute Q2_W = Q2 * W
     auto Q2_W = Value::matrix(p, n, (Q2.isComplex() || W.isComplex()) ? ValueType::COMPLEX : ValueType::DOUBLE, mr);
     if (Q2_W.isComplex()) {
-        Complex *q2wd = Q2_W.complexDataMut();
-        for (std::size_t i = 0; i < p; ++i) {
-            for (std::size_t j = 0; j < n; ++j) {
-                Complex s(0.0, 0.0);
-                for (std::size_t k = 0; k < n; ++k) {
-                    Complex q2val = Q2.isComplex() ? Q2.complexData()[i + k * p] : Complex(Q2.doubleData()[i + k * p], 0.0);
-                    Complex wval  = W.isComplex()  ? W.complexData()[k + j * n]  : Complex(W.doubleData()[k + j * n], 0.0);
+        keel::c64 *q2wd = Q2_W.complexDataMut();
+        for (keel::usize i = 0; i < p; ++i) {
+            for (keel::usize j = 0; j < n; ++j) {
+                keel::c64 s(0.0, 0.0);
+                for (keel::usize k = 0; k < n; ++k) {
+                    keel::c64 q2val = Q2.isComplex() ? Q2.complexData()[i + k * p] : keel::c64(Q2.doubleData()[i + k * p], 0.0);
+                    keel::c64 wval  = W.isComplex()  ? W.complexData()[k + j * n]  : keel::c64(W.doubleData()[k + j * n], 0.0);
                     s += q2val * wval;
                 }
                 q2wd[i + j * p] = s;
@@ -255,10 +255,10 @@ std::tuple<Value, Value, Value, Value, Value> gsvd(const Value &A, const Value &
         double *q2wd = Q2_W.doubleDataMut();
         const double *q2d = Q2.doubleData();
         const double *wd  = W.doubleData();
-        for (std::size_t i = 0; i < p; ++i) {
-            for (std::size_t j = 0; j < n; ++j) {
+        for (keel::usize i = 0; i < p; ++i) {
+            for (keel::usize j = 0; j < n; ++j) {
                 double s = 0.0;
-                for (std::size_t k = 0; k < n; ++k) {
+                for (keel::usize k = 0; k < n; ++k) {
                     s += q2d[i + k * p] * wd[k + j * n];
                 }
                 q2wd[i + j * p] = s;
@@ -270,35 +270,35 @@ std::tuple<Value, Value, Value, Value, Value> gsvd(const Value &A, const Value &
     auto S_out = Value::matrix(p, n, Q2_W.type(), mr);
     {
         const bool C_is_cx = C.isComplex();
-        const Complex *C_cx = C_is_cx ? C.complexData() : nullptr;
+        const keel::c64 *C_cx = C_is_cx ? C.complexData() : nullptr;
         const double *C_re = C_is_cx ? nullptr : C.doubleData();
-        const std::size_t minCS = std::min(m, n);
+        const keel::usize minCS = std::min(m, n);
         if (V.isComplex()) {
-            const Complex *qw = Q2_W.complexData();
-            Complex *vd = V.complexDataMut();
-            Complex *sd = S_out.complexDataMut();
-            for (std::size_t j = 0; j < n; ++j) {
+            const keel::c64 *qw = Q2_W.complexData();
+            keel::c64 *vd = V.complexDataMut();
+            keel::c64 *sd = S_out.complexDataMut();
+            for (keel::usize j = 0; j < n; ++j) {
                 const double cj = (j < minCS)
-                    ? std::abs(C_cx ? C_cx[j + j * m] : Complex(C_re[j + j * m], 0.0))
+                    ? keel::abs(C_cx ? C_cx[j + j * m] : keel::c64(C_re[j + j * m], 0.0))
                     : 0.0;
                 const double sj = std::sqrt(std::max(0.0, 1.0 - cj * cj));
                 if (j < std::min(p, n))
-                    sd[j + j * p] = Complex(sj, 0.0);
-                for (std::size_t i = 0; i < p; ++i) {
-                    const Complex q = qw[i + j * p];
-                    vd[i + j * p] = (sj > 1e-15) ? q / sj : Complex(0.0, 0.0);
+                    sd[j + j * p] = keel::c64(sj, 0.0);
+                for (keel::usize i = 0; i < p; ++i) {
+                    const keel::c64 q = qw[i + j * p];
+                    vd[i + j * p] = (sj > 1e-15) ? q / sj : keel::c64(0.0, 0.0);
                 }
             }
         } else {
             const double *qw = Q2_W.doubleData();
             double *vd = V.doubleDataMut();
             double *sd = S_out.doubleDataMut();
-            for (std::size_t j = 0; j < n; ++j) {
-                const double cj = (j < minCS) ? std::abs(C_re[j + j * m]) : 0.0;
+            for (keel::usize j = 0; j < n; ++j) {
+                const double cj = (j < minCS) ? keel::abs(C_re[j + j * m]) : 0.0;
                 const double sj = std::sqrt(std::max(0.0, 1.0 - cj * cj));
                 if (j < std::min(p, n))
                     sd[j + j * p] = sj;
-                for (std::size_t i = 0; i < p; ++i) {
+                for (keel::usize i = 0; i < p; ++i) {
                     const double q = qw[i + j * p];
                     vd[i + j * p] = (sj > 1e-15) ? q / sj : 0.0;
                 }
@@ -309,13 +309,13 @@ std::tuple<Value, Value, Value, Value, Value> gsvd(const Value &A, const Value &
     // Step 5: X = Rk^H * W (shared W — see Step 4 note).
     auto X = Value::matrix(n, n, (Rk.isComplex() || W.isComplex()) ? ValueType::COMPLEX : ValueType::DOUBLE, mr);
     if (X.isComplex()) {
-        Complex *xd = X.complexDataMut();
-        for (std::size_t i = 0; i < n; ++i) {
-            for (std::size_t j = 0; j < n; ++j) {
-                Complex s(0.0, 0.0);
-                for (std::size_t k = 0; k < n; ++k) {
-                    Complex rkval = Rk.isComplex()  ? std::conj(Rk.complexData()[k + i * n])  : Complex(Rk.doubleData()[k + i * n], 0.0);
-                    Complex wval  = W.isComplex()   ? W.complexData()[k + j * n]             : Complex(W.doubleData()[k + j * n], 0.0);
+        keel::c64 *xd = X.complexDataMut();
+        for (keel::usize i = 0; i < n; ++i) {
+            for (keel::usize j = 0; j < n; ++j) {
+                keel::c64 s(0.0, 0.0);
+                for (keel::usize k = 0; k < n; ++k) {
+                    keel::c64 rkval = Rk.isComplex()  ? keel::conj(Rk.complexData()[k + i * n])  : keel::c64(Rk.doubleData()[k + i * n], 0.0);
+                    keel::c64 wval  = W.isComplex()   ? W.complexData()[k + j * n]             : keel::c64(W.doubleData()[k + j * n], 0.0);
                     s += rkval * wval;
                 }
                 xd[i + j * n] = s;
@@ -325,10 +325,10 @@ std::tuple<Value, Value, Value, Value, Value> gsvd(const Value &A, const Value &
         double *xd = X.doubleDataMut();
         const double *rkd = Rk.doubleData();
         const double *wd = W.doubleData();
-        for (std::size_t i = 0; i < n; ++i) {
-            for (std::size_t j = 0; j < n; ++j) {
+        for (keel::usize i = 0; i < n; ++i) {
+            for (keel::usize j = 0; j < n; ++j) {
                 double s = 0.0;
-                for (std::size_t k = 0; k < n; ++k)
+                for (keel::usize k = 0; k < n; ++k)
                     s += rkd[k + i * n] * wd[k + j * n]; // Rk^H is transposed
                 xd[i + j * n] = s;
             }

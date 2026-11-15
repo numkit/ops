@@ -4,6 +4,10 @@
 // MStdAbs_*.cpp (SIMD-backed) and only its declaration is in
 // math/elementary/rounding.hpp.
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/complex.h>
+#include <keel/math.h>
 #include <numkit/builtin/elfun.hpp>
 
 #include <numkit/value/value.hpp>
@@ -16,42 +20,41 @@
 #include "rounding_detail.hpp"
 
 #include <cmath>
-#include <complex>
 
 namespace numkit::builtin {
 
 // Public 2-arg wrapper — delegates to the 3-arg overload in the SIMD
 // backends with no buffer hint.
-Value abs(const Value &x, std::pmr::memory_resource *mr) { return abs(x, nullptr, mr); }
+Value abs(const Value &x, keel::Allocator *mr) { return abs(x, nullptr, mr); }
 
 
 
-Value floor(const Value &x, std::pmr::memory_resource *mr)
+Value floor(const Value &x, keel::Allocator *mr)
 {
     return roundLikeDispatch(x, [](double v) { return std::floor(v); }, ::numkit::builtin::detail::doubleFloorLoop, mr);
 }
 
-Value ceil(const Value &x, std::pmr::memory_resource *mr)
+Value ceil(const Value &x, keel::Allocator *mr)
 {
     return roundLikeDispatch(x, [](double v) { return std::ceil(v); }, ::numkit::builtin::detail::doubleCeilLoop, mr);
 }
 
-Value round(const Value &x, std::pmr::memory_resource *mr)
+Value round(const Value &x, keel::Allocator *mr)
 {
     return roundLikeDispatch(x, [](double v) { return std::round(v); }, ::numkit::builtin::detail::doubleRoundLoop, mr);
 }
 
-Value roundN(const Value &x, int n, bool significant, std::pmr::memory_resource *mr)
+Value roundN(const Value &x, int n, bool significant, keel::Allocator *mr)
 {
     return unaryDouble(x, [n, significant](double v) { return roundNScalar(v, n, significant); }, mr);
 }
 
-Value fix(const Value &x, std::pmr::memory_resource *mr)
+Value fix(const Value &x, keel::Allocator *mr)
 {
     return roundLikeDispatch(x, [](double v) { return std::trunc(v); }, ::numkit::builtin::detail::doubleFixLoop, mr);
 }
 
-Value sign(const Value &x, std::pmr::memory_resource *mr)
+Value sign(const Value &x, keel::Allocator *mr)
 {
     auto signOp = [](double v) {
         return std::isnan(v) ? v : (v > 0) ? 1.0 : (v < 0 ? -1.0 : 0.0);
@@ -59,16 +62,16 @@ Value sign(const Value &x, std::pmr::memory_resource *mr)
     // Complex: sign(z) = z/|z| for z != 0, else 0 (MATLAB R2025b);
     // sign(3-4i) = 0.6-0.8i. The double path below can't take complex.
     if (x.isComplex()) {
-        auto unit = [](Complex z) -> Complex {
-            const double m = std::abs(z);
-            return m == 0.0 ? Complex(0.0, 0.0) : z / m;
+        auto unit = [](keel::c64 z) -> keel::c64 {
+            const double m = keel::abs(z);
+            return m == 0.0 ? keel::c64(0.0, 0.0) : z / m;
         };
         if (x.isScalar())
             return Value::complexScalar(unit(x.toComplex()), mr);
         Value out = createLike(x, ValueType::COMPLEX, mr);
-        const Complex *src = x.complexData();
-        Complex *dst = out.complexDataMut();
-        for (std::size_t i = 0; i < x.numel(); ++i) dst[i] = unit(src[i]);
+        const keel::c64 *src = x.complexData();
+        keel::c64 *dst = out.complexDataMut();
+        for (keel::usize i = 0; i < x.numel(); ++i) dst[i] = unit(src[i]);
         return out;
     }
     // Integer types keep their class (sign(int8(-5))=-1 int8). Promote to
@@ -81,7 +84,7 @@ Value sign(const Value &x, std::pmr::memory_resource *mr)
     return unaryDouble(x, signOp, mr);
 }
 
-Value subplus(const Value &x, std::pmr::memory_resource *mr)
+Value subplus(const Value &x, keel::Allocator *mr)
 {
     return unaryDouble(x,
                        [](double v) {
@@ -93,7 +96,7 @@ Value subplus(const Value &x, std::pmr::memory_resource *mr)
 namespace {
 template <typename Op>
 Value modRemImpl(const Value &a, const Value &b, Op op,
-                 std::pmr::memory_resource *mr)
+                 keel::Allocator *mr)
 {
     const bool ai = isIntegerType(a.type());
     const bool bi = isIntegerType(b.type());
@@ -106,7 +109,7 @@ Value modRemImpl(const Value &a, const Value &b, Op op,
 }
 } // namespace
 
-Value mod(const Value &a, const Value &b, std::pmr::memory_resource *mr)
+Value mod(const Value &a, const Value &b, keel::Allocator *mr)
 {
     if (a.type() == ValueType::DOUBLE && b.type() == ValueType::DOUBLE
         && !a.isEmpty() && !b.isEmpty()) {
@@ -135,7 +138,7 @@ Value mod(const Value &a, const Value &b, std::pmr::memory_resource *mr)
                       mr);
 }
 
-Value rem(const Value &a, const Value &b, std::pmr::memory_resource *mr)
+Value rem(const Value &a, const Value &b, keel::Allocator *mr)
 {
     return modRemImpl(a, b,
                       [](double aa, double bb) { return std::fmod(aa, bb); }, mr);

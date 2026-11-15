@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include <keel/core.h>
+#include <keel/complex.h>
 #include <numkit/ops/blas1.hpp>
 #include <numkit/ops/blas2.hpp>
 #include <numkit/ops/blas3.hpp>
@@ -13,14 +15,14 @@
 namespace numkit::ops {
 
 /// @brief Native Highway SIMD LU panel factorization kernel.
-bool lu_panel(double *A, std::size_t lda, std::int32_t *piv, std::size_t m, std::size_t n, std::size_t offset_row);
+bool lu_panel(keel::f64 *A, keel::usize lda, keel::i32 *piv, keel::usize m, keel::usize n, keel::usize offset_row);
 
 /// @brief Native Highway SIMD LU panel factorization kernel for complex.
-bool lu_panel(std::complex<double> *A, std::size_t lda, std::int32_t *piv, std::size_t m, std::size_t n, std::size_t offset_row);
+bool lu_panel(keel::c64 *A, keel::usize lda, keel::i32 *piv, keel::usize m, keel::usize n, keel::usize offset_row);
 
 /// @brief Returns the number of threads used in the most recent gemm call.
-inline std::atomic<std::size_t> g_last_gemm_threads_used{0};
-inline std::size_t get_last_gemm_threads_used() {
+inline std::atomic<keel::usize> g_last_gemm_threads_used{0};
+inline keel::usize get_last_gemm_threads_used() {
     return g_last_gemm_threads_used.load();
 }
 

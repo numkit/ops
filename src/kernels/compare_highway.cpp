@@ -14,6 +14,7 @@
 // complex, broadcast across mismatched non-scalar shapes) falls through
 // to the generic scalar `compareImpl` in binary_ops.cpp.
 
+#include <keel/core.h>
 #include <numkit/ops/compare.hpp>
 #include <numkit/ops/value_factory.hpp>
 
@@ -52,55 +53,55 @@ namespace hn = hwy::HWY_NAMESPACE;
 // `NUMKIT_IEEE_NE(d, va, vb)` to preserve IEEE NaN semantics.
 #define NUMKIT_CMP_LOOP(NAME, CMP_EXPR, SCALAR_OP)                                      \
     void NAME##VV(const double *HWY_RESTRICT a, const double *HWY_RESTRICT b,           \
-                  uint8_t *HWY_RESTRICT out, std::size_t n)                             \
+                  keel::u8 *HWY_RESTRICT out, keel::usize n)                             \
     {                                                                                   \
         const hn::ScalableTag<double> d;                                                \
-        const std::size_t N = hn::Lanes(d);                                             \
-        std::size_t i = 0;                                                              \
+        const keel::usize N = hn::Lanes(d);                                             \
+        keel::usize i = 0;                                                              \
         for (; i + N <= n; i += N) {                                                    \
             const auto va = hn::LoadU(d, a + i);                                        \
             const auto vb = hn::LoadU(d, b + i);                                        \
             const auto m = CMP_EXPR(d, va, vb);                                         \
-            uint8_t bits[8] = {};                                                       \
+            keel::u8 bits[8] = {};                                                       \
             hn::StoreMaskBits(d, m, bits);                                              \
-            for (std::size_t k = 0; k < N; ++k)                                         \
-                out[i + k] = static_cast<uint8_t>((bits[0] >> k) & 1);                  \
+            for (keel::usize k = 0; k < N; ++k)                                         \
+                out[i + k] = static_cast<keel::u8>((bits[0] >> k) & 1);                  \
         }                                                                               \
         for (; i < n; ++i)                                                              \
             out[i] = (a[i] SCALAR_OP b[i]) ? 1 : 0;                                     \
     }                                                                                   \
     void NAME##VS(const double *HWY_RESTRICT a, double s,                               \
-                  uint8_t *HWY_RESTRICT out, std::size_t n)                             \
+                  keel::u8 *HWY_RESTRICT out, keel::usize n)                             \
     {                                                                                   \
         const hn::ScalableTag<double> d;                                                \
-        const std::size_t N = hn::Lanes(d);                                             \
+        const keel::usize N = hn::Lanes(d);                                             \
         const auto sv = hn::Set(d, s);                                                  \
-        std::size_t i = 0;                                                              \
+        keel::usize i = 0;                                                              \
         for (; i + N <= n; i += N) {                                                    \
             const auto va = hn::LoadU(d, a + i);                                        \
             const auto m = CMP_EXPR(d, va, sv);                                         \
-            uint8_t bits[8] = {};                                                       \
+            keel::u8 bits[8] = {};                                                       \
             hn::StoreMaskBits(d, m, bits);                                              \
-            for (std::size_t k = 0; k < N; ++k)                                         \
-                out[i + k] = static_cast<uint8_t>((bits[0] >> k) & 1);                  \
+            for (keel::usize k = 0; k < N; ++k)                                         \
+                out[i + k] = static_cast<keel::u8>((bits[0] >> k) & 1);                  \
         }                                                                               \
         for (; i < n; ++i)                                                              \
             out[i] = (a[i] SCALAR_OP s) ? 1 : 0;                                        \
     }                                                                                   \
     void NAME##SV(double s, const double *HWY_RESTRICT b,                               \
-                  uint8_t *HWY_RESTRICT out, std::size_t n)                             \
+                  keel::u8 *HWY_RESTRICT out, keel::usize n)                             \
     {                                                                                   \
         const hn::ScalableTag<double> d;                                                \
-        const std::size_t N = hn::Lanes(d);                                             \
+        const keel::usize N = hn::Lanes(d);                                             \
         const auto sv = hn::Set(d, s);                                                  \
-        std::size_t i = 0;                                                              \
+        keel::usize i = 0;                                                              \
         for (; i + N <= n; i += N) {                                                    \
             const auto vb = hn::LoadU(d, b + i);                                        \
             const auto m = CMP_EXPR(d, sv, vb);                                         \
-            uint8_t bits[8] = {};                                                       \
+            keel::u8 bits[8] = {};                                                       \
             hn::StoreMaskBits(d, m, bits);                                              \
-            for (std::size_t k = 0; k < N; ++k)                                         \
-                out[i + k] = static_cast<uint8_t>((bits[0] >> k) & 1);                  \
+            for (keel::usize k = 0; k < N; ++k)                                         \
+                out[i + k] = static_cast<keel::u8>((bits[0] >> k) & 1);                  \
         }                                                                               \
         for (; i < n; ++i)                                                              \
             out[i] = (s SCALAR_OP b[i]) ? 1 : 0;                                        \

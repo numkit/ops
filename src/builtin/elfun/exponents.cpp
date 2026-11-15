@@ -2,21 +2,22 @@
 //
 // Scalar exponentials, power scaling, and roots for numkit::builtin.
 
+#include <keel/memory.h>
+#include <keel/complex.h>
 #include <numkit/builtin/elfun.hpp>
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
 #include <numkit/ops/helpers.hpp>
 
 #include <cmath>
-#include <complex>
 #include "_unary_hint.hpp"
 
 namespace numkit::builtin {
 
-Value exp(const Value &x, std::pmr::memory_resource *mr) { return exp(x, nullptr, mr); }
-Value log(const Value &x, std::pmr::memory_resource *mr) { return log(x, nullptr, mr); }
+Value exp(const Value &x, keel::Allocator *mr) { return exp(x, nullptr, mr); }
+Value log(const Value &x, keel::Allocator *mr) { return log(x, nullptr, mr); }
 
-Value pow2(const Value &f, const Value &e, std::pmr::memory_resource *mr)
+Value pow2(const Value &f, const Value &e, keel::Allocator *mr)
 {
     return elementwiseDouble(f, e,
         [](double ff, double ee) {
@@ -24,7 +25,7 @@ Value pow2(const Value &f, const Value &e, std::pmr::memory_resource *mr)
         }, mr);
 }
 
-Value nextpow2(const Value &n, std::pmr::memory_resource *mr)
+Value nextpow2(const Value &n, keel::Allocator *mr)
 {
     auto nextPow2Scalar = [](double v) -> double {
         if (std::isnan(v)) return v;
@@ -38,14 +39,14 @@ Value nextpow2(const Value &n, std::pmr::memory_resource *mr)
     return unaryDouble(n, nextPow2Scalar, mr);
 }
 
-Value cbrt(const Value &x, std::pmr::memory_resource *mr)
+Value cbrt(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
-        return unaryComplex(x, [](const Complex &c) { return std::pow(c, 1.0 / 3.0); }, mr);
+        return unaryComplex(x, [](const keel::c64 &c) { return keel::pow(c, 1.0 / 3.0); }, mr);
     return unaryDouble(x, [](double v) { return std::cbrt(v); }, mr);
 }
 
-Value nthroot(const Value &x, const Value &n, std::pmr::memory_resource *mr)
+Value nthroot(const Value &x, const Value &n, keel::Allocator *mr)
 {
     return elementwiseDouble(x, n, [](double xv, double nv) {
         if (nv == 0.0) return std::nan("");
@@ -58,12 +59,12 @@ Value nthroot(const Value &x, const Value &n, std::pmr::memory_resource *mr)
     }, mr);
 }
 
-Value pow(const Value &x, const Value &y, std::pmr::memory_resource *mr)
+Value pow(const Value &x, const Value &y, keel::Allocator *mr)
 {
     return elementwiseDouble(x, y, [](double xx, double yy) { return std::pow(xx, yy); }, mr);
 }
 
-Value realpow(const Value &x, const Value &y, std::pmr::memory_resource *mr)
+Value realpow(const Value &x, const Value &y, keel::Allocator *mr)
 {
     auto checkPair = [](double xx, double yy) {
         if (xx < 0.0 && yy != std::floor(yy)) {

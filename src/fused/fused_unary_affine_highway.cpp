@@ -8,6 +8,7 @@
 // bit-for-bit no matter where the array is split. The affine is Mul-then-Add
 // (two roundings, NOT FMA) to match the affine fallback.
 
+#include <keel/core.h>
 #include <numkit/ops/fused/fused_kernels.hpp>
 #include <numkit/ops/parallel_for.hpp>
 
@@ -31,11 +32,11 @@ namespace hn = hwy::HWY_NAMESPACE;
 // tail double → double (the matching libm unary).
 template <class VecOp, class ScalarOp>
 void unaryInnerLoop(const double *x, double p0, double p1, bool divide,
-                    double *out, std::size_t n, VecOp vop, ScalarOp sop) {
+                    double *out, keel::usize n, VecOp vop, ScalarOp sop) {
     const hn::ScalableTag<double> d;
-    const std::size_t L = hn::Lanes(d);
+    const keel::usize L = hn::Lanes(d);
     const auto vp0 = hn::Set(d, p0), vp1 = hn::Set(d, p1);
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i + L <= n; i += L) {
         const auto v = hn::LoadU(d, x + i);
         const auto inner = divide ? hn::Div(hn::Sub(v, vp0), vp1)
@@ -47,7 +48,7 @@ void unaryInnerLoop(const double *x, double p0, double p1, bool divide,
 }
 
 void UnaryAffineImpl(const double *x, double p0, double p1, bool divide,
-                     UnaryAffineFn fn, double *out, std::size_t n) {
+                     UnaryAffineFn fn, double *out, keel::usize n) {
     switch (fn) {
         case UnaryAffineFn::Sqrt:
             unaryInnerLoop(x, p0, p1, divide, out, n,
@@ -92,18 +93,18 @@ namespace numkit::ops {
 HWY_EXPORT(UnaryAffineImpl);
 
 void fusedUnaryAffine(const double *x, double scale, double offset,
-                      UnaryAffineFn fn, double *out, std::size_t n) {
+                      UnaryAffineFn fn, double *out, keel::usize n) {
     if (n == 0) return;
-    detail::parallel_for(n, std::size_t{1} << 16, [&](std::size_t s, std::size_t e) {
+    detail::parallel_for(n, keel::usize{1} << 16, [&](keel::usize s, keel::usize e) {
         HWY_DYNAMIC_DISPATCH(UnaryAffineImpl)(x + s, scale, offset, /*divide=*/false,
                                               fn, out + s, e - s);
     });
 }
 
 void fusedUnaryShiftDiv(const double *x, double sub, double div,
-                        UnaryAffineFn fn, double *out, std::size_t n) {
+                        UnaryAffineFn fn, double *out, keel::usize n) {
     if (n == 0) return;
-    detail::parallel_for(n, std::size_t{1} << 16, [&](std::size_t s, std::size_t e) {
+    detail::parallel_for(n, keel::usize{1} << 16, [&](keel::usize s, keel::usize e) {
         HWY_DYNAMIC_DISPATCH(UnaryAffineImpl)(x + s, sub, div, /*divide=*/true,
                                               fn, out + s, e - s);
     });

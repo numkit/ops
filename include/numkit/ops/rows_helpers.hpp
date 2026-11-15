@@ -6,7 +6,8 @@
 
 #pragma once
 
-#include <memory_resource>
+#include <keel/core.h>
+#include <keel/memory.h>
 #include <numkit/value/value.hpp>
 
 #include <cmath>
@@ -18,12 +19,12 @@ namespace numkit::ops {
 // Returns -1 / 0 / +1 in standard cmp convention. NaN is treated as
 // strictly greater than any non-NaN (push to end on ascending sort) —
 // matches MATLAB sort/sortrows ordering for finite vs NaN entries.
-inline int rowLexCmp(const double *p, std::size_t cols, std::size_t rows,
-                     std::size_t a, std::size_t b)
+inline int rowLexCmp(const keel::f64 *p, keel::usize cols, keel::usize rows,
+                     keel::usize a, keel::usize b)
 {
-    for (std::size_t c = 0; c < cols; ++c) {
-        const double av = p[c * rows + a];
-        const double bv = p[c * rows + b];
+    for (keel::usize c = 0; c < cols; ++c) {
+        const keel::f64 av = p[c * rows + a];
+        const keel::f64 bv = p[c * rows + b];
         const bool aNan = std::isnan(av);
         const bool bNan = std::isnan(bv);
         if (aNan && bNan) continue;
@@ -41,17 +42,17 @@ inline int rowLexCmp(const double *p, std::size_t cols, std::size_t rows,
 // entries throw via the caller's pre-validation (this function trusts
 // the caller). Pointer + size so the same helper composes with
 // std::vector / std::pmr::vector / arrays.
-inline int rowLexCmpByCols(const double *p, std::size_t totalCols,
-                           std::size_t rows, std::size_t a, std::size_t b,
-                           const int *cols1based, std::size_t nCols)
+inline int rowLexCmpByCols(const keel::f64 *p, keel::usize totalCols,
+                           keel::usize rows, keel::usize a, keel::usize b,
+                           const int *cols1based, keel::usize nCols)
 {
-    for (std::size_t k = 0; k < nCols; ++k) {
+    for (keel::usize k = 0; k < nCols; ++k) {
         const int rawCol = cols1based[k];
         const bool desc = rawCol < 0;
-        const std::size_t cIdx = static_cast<std::size_t>(desc ? -rawCol : rawCol) - 1;
+        const keel::usize cIdx = static_cast<keel::usize>(desc ? -rawCol : rawCol) - 1;
         (void) totalCols;  // caller validated rawCol in range
-        const double av = p[cIdx * rows + a];
-        const double bv = p[cIdx * rows + b];
+        const keel::f64 av = p[cIdx * rows + a];
+        const keel::f64 bv = p[cIdx * rows + b];
         const bool aNan = std::isnan(av);
         const bool bNan = std::isnan(bv);
         if (aNan && bNan) continue;
@@ -69,17 +70,17 @@ inline int rowLexCmpByCols(const double *p, std::size_t totalCols,
 // `x` must be a 2D DOUBLE matrix. Pointer + size so any contiguous
 // row-index container (std::vector / pmr::vector / array) works.
 inline Value collectRowsByIndex(const Value &x,
-                                 const std::size_t *origRows, std::size_t nRows,
-                                 std::pmr::memory_resource *mr = nullptr)
+                                 const keel::usize *origRows, keel::usize nRows,
+                                 keel::Allocator *mr = nullptr)
 {
-    const std::size_t rows = x.dims().rows();
-    const std::size_t cols = x.dims().cols();
+    const keel::usize rows = x.dims().rows();
+    const keel::usize cols = x.dims().cols();
     auto r = Value::matrix(nRows, cols, ValueType::DOUBLE, mr);
-    const double *src = x.doubleData();
-    double *dst = r.doubleDataMut();
-    for (std::size_t newRow = 0; newRow < nRows; ++newRow) {
-        const std::size_t srcRow = origRows[newRow];
-        for (std::size_t c = 0; c < cols; ++c)
+    const keel::f64 *src = x.doubleData();
+    keel::f64 *dst = r.doubleDataMut();
+    for (keel::usize newRow = 0; newRow < nRows; ++newRow) {
+        const keel::usize srcRow = origRows[newRow];
+        for (keel::usize c = 0; c < cols; ++c)
             dst[c * nRows + newRow] = src[c * rows + srcRow];
     }
     return r;

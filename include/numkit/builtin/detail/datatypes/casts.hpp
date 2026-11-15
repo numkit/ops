@@ -8,18 +8,19 @@
 
 #pragma once
 
+#include <keel/core.h>
 #include <cstddef>
 #include <cstdint>
 
 namespace numkit::builtin::detail {
 
-void doubleToInt8 (const double *in, int8_t   *out, std::size_t n);
-void doubleToInt16(const double *in, int16_t  *out, std::size_t n);
-void doubleToInt32(const double *in, int32_t  *out, std::size_t n);
-void doubleToInt64(const double *in, int64_t  *out, std::size_t n);
-void doubleToUInt8 (const double *in, uint8_t  *out, std::size_t n);
-void doubleToUInt16(const double *in, uint16_t *out, std::size_t n);
-void doubleToUInt32(const double *in, uint32_t *out, std::size_t n);
-void doubleToUInt64(const double *in, uint64_t *out, std::size_t n);
+void doubleToInt8 (const double *in, keel::i8   *out, keel::usize n);
+void doubleToInt16(const double *in, keel::i16  *out, keel::usize n);
+void doubleToInt32(const double *in, keel::i32  *out, keel::usize n);
+void doubleToInt64(const double *in, keel::i64  *out, keel::usize n);
+void doubleToUInt8 (const double *in, keel::u8  *out, keel::usize n);
+void doubleToUInt16(const double *in, keel::u16 *out, keel::usize n);
+void doubleToUInt32(const double *in, keel::u32 *out, keel::usize n);
+void doubleToUInt64(const double *in, keel::u64 *out, keel::usize n);
 
 } // namespace numkit::builtin::detail

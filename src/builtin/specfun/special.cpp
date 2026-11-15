@@ -2,6 +2,10 @@
 //
 // Special functions — gamma / gammaln / erf / erfc / erfinv.
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/complex.h>
+#include <keel/math.h>
 #include <numkit/builtin/specfun.hpp>
 
 #include <numkit/value/value.hpp>
@@ -20,7 +24,7 @@
 
 namespace numkit::builtin {
 
-Value gammaFn(const Value &x, std::pmr::memory_resource *mr) { return gamma(x, mr); }
+Value gammaFn(const Value &x, keel::Allocator *mr) { return gamma(x, mr); }
 
 
 // Emscripten / libc++ shim for the C++17 special-math Bessel family.
@@ -57,7 +61,7 @@ inline double bessel_I_series(int n, double x) {
     for (int m = 1; m < 200; ++m) {
         term *= half_sq / (m * (m + n));
         sum += term;
-        if (std::abs(term) < 1e-18 * std::abs(sum)) break;
+        if (keel::abs(term) < 1e-18 * keel::abs(sum)) break;
     }
     return sum;
 }
@@ -71,7 +75,7 @@ inline double bessel_I_asymp(int n, double x) {
         const double odd = 2.0 * k - 1.0;
         term *= -(mu - odd * odd) / (k * 8.0 * x);
         sum += term;
-        if (std::abs(term) < 1e-18 * std::abs(sum)) break;
+        if (keel::abs(term) < 1e-18 * keel::abs(sum)) break;
     }
     return std::exp(x) / std::sqrt(2.0 * M_PI * x) * sum;
 }
@@ -107,7 +111,7 @@ inline double bessel_K0_series(double x) {
     for (int m = 1; m < 200; ++m) {
         t_I *= half_sq / (m * m);
         I0  += t_I;
-        if (std::abs(t_I) < 1e-18 * std::abs(I0)) break;
+        if (keel::abs(t_I) < 1e-18 * keel::abs(I0)) break;
     }
     // Harmonic series: Σ_{k=1} H_k / (k!)² · (x/2)^(2k).
     double harm = 0.0;
@@ -118,7 +122,7 @@ inline double bessel_K0_series(double x) {
         H   += 1.0 / k;
         const double inc = H * t_h;
         harm += inc;
-        if (std::abs(inc) < 1e-18 * std::abs(harm) && k > 5) break;
+        if (keel::abs(inc) < 1e-18 * keel::abs(harm) && k > 5) break;
     }
     return -(std::log(half) + EULER) * I0 + harm;
 }
@@ -133,7 +137,7 @@ inline double bessel_K_asymp(int n, double x) {
         const double odd = 2.0 * k - 1.0;
         term *= (mu - odd * odd) / (k * 8.0 * x);
         sum += term;
-        if (std::abs(term) < 1e-18 * std::abs(sum)) break;
+        if (keel::abs(term) < 1e-18 * keel::abs(sum)) break;
     }
     return std::sqrt(M_PI / (2.0 * x)) * std::exp(-x) * sum;
 }
@@ -170,11 +174,11 @@ inline double bessel_K_int(int n, double x) {
 // Is `nu` a non-negative integer? (Accepts tiny round-off so a
 // caller passing 3.0000000001 still matches n=3.)
 inline bool isNonNegInt(double nu) {
-    return nu >= 0.0 && std::abs(nu - std::round(nu)) < 1e-12;
+    return nu >= 0.0 && keel::abs(nu - std::round(nu)) < 1e-12;
 }
 // Is `nu` an integer (positive, negative, or zero)?
 inline bool isInteger(double nu) {
-    return std::abs(nu - std::round(nu)) < 1e-12;
+    return keel::abs(nu - std::round(nu)) < 1e-12;
 }
 
 // ── Fractional-order paths (any real ν, x > 0) ───────────────────────
@@ -197,14 +201,14 @@ inline double bessel_J_series_real(double nu, double x) {
         return (nu > 0.0) ? 0.0
                : std::numeric_limits<double>::infinity();
     }
-    const double half    = 0.5 * std::abs(x);
+    const double half    = 0.5 * keel::abs(x);
     const double half_sq = half * half;
     double term = std::pow(half, nu) / std::tgamma(nu + 1.0);
     double sum  = term;
     for (int m = 1; m < 300; ++m) {
         term *= -half_sq / (m * (nu + m));
         sum  += term;
-        if (std::abs(term) < 1e-18 * std::abs(sum)) break;
+        if (keel::abs(term) < 1e-18 * keel::abs(sum)) break;
     }
     // J_ν(-x) = (-1)^ν J_ν(x); for non-integer ν, MATLAB returns
     // complex. Here we mirror the desktop std::cyl_bessel_j domain
@@ -220,14 +224,14 @@ inline double bessel_I_series_real(double nu, double x) {
         return (nu > 0.0) ? 0.0
                : std::numeric_limits<double>::infinity();
     }
-    const double half    = 0.5 * std::abs(x);
+    const double half    = 0.5 * keel::abs(x);
     const double half_sq = half * half;
     double term = std::pow(half, nu) / std::tgamma(nu + 1.0);
     double sum  = term;
     for (int m = 1; m < 300; ++m) {
         term *= half_sq / (m * (nu + m));
         sum  += term;
-        if (std::abs(term) < 1e-18 * std::abs(sum)) break;
+        if (keel::abs(term) < 1e-18 * keel::abs(sum)) break;
     }
     return sum;
 }
@@ -237,7 +241,7 @@ inline double bessel_I_series_real(double nu, double x) {
 //   Y_ν(x) = [J_ν(x)·cos(νπ) − J_{−ν}(x)] / sin(νπ)
 inline double bessel_Y_frac(double nu, double x) {
     const double s = std::sin(nu * M_PI);
-    if (std::abs(s) < 1e-300)
+    if (keel::abs(s) < 1e-300)
         return std::numeric_limits<double>::quiet_NaN();
     const double Jp = bessel_J_series_real( nu, x);
     const double Jm = bessel_J_series_real(-nu, x);
@@ -248,7 +252,7 @@ inline double bessel_Y_frac(double nu, double x) {
 //   K_ν(x) = π / (2 sin(νπ)) · [I_{−ν}(x) − I_ν(x)]
 inline double bessel_K_frac(double nu, double x) {
     const double s = std::sin(nu * M_PI);
-    if (std::abs(s) < 1e-300)
+    if (keel::abs(s) < 1e-300)
         return std::numeric_limits<double>::quiet_NaN();
     const double Im = bessel_I_series_real(-nu, x);
     const double Ip = bessel_I_series_real( nu, x);
@@ -270,7 +274,7 @@ extern "C" double yn(int, double);
 
 inline double cyl_bessel_j(double nu, double x) {
     if (bessel_portable::isInteger(nu)) {
-        const int n = static_cast<int>(std::round(std::abs(nu)));
+        const int n = static_cast<int>(std::round(keel::abs(nu)));
         const double v = ::jn(n, x);
         return (nu < 0.0 && (n & 1)) ? -v : v;
     }
@@ -278,7 +282,7 @@ inline double cyl_bessel_j(double nu, double x) {
 }
 inline double cyl_neumann(double nu, double x) {
     if (bessel_portable::isInteger(nu)) {
-        const int n = static_cast<int>(std::round(std::abs(nu)));
+        const int n = static_cast<int>(std::round(keel::abs(nu)));
         const double v = ::yn(n, x);
         return (nu < 0.0 && (n & 1)) ? -v : v;
     }
@@ -286,14 +290,14 @@ inline double cyl_neumann(double nu, double x) {
 }
 inline double cyl_bessel_i(double nu, double x) {
     if (bessel_portable::isInteger(nu)) {
-        const int n = static_cast<int>(std::round(std::abs(nu)));
+        const int n = static_cast<int>(std::round(keel::abs(nu)));
         return bessel_portable::bessel_I_int(n, x);
     }
     return bessel_portable::bessel_I_series_real(nu, x);
 }
 inline double cyl_bessel_k(double nu, double x) {
     if (bessel_portable::isInteger(nu)) {
-        const int n = static_cast<int>(std::round(std::abs(nu)));
+        const int n = static_cast<int>(std::round(keel::abs(nu)));
         return bessel_portable::bessel_K_int(n, x);
     }
     return bessel_portable::bessel_K_frac(nu, x);
@@ -324,7 +328,7 @@ double erfinvScalar(double y)
     constexpr double kA  = 0.147;            // Winitzki constant
     constexpr double k2P = 2.0 / 3.14159265358979323846;
     const double s   = (y < 0) ? -1.0 : 1.0;
-    const double ay  = std::abs(y);
+    const double ay  = keel::abs(y);
     const double L   = std::log(1.0 - ay * ay);
     const double t   = k2P / kA + 0.5 * L;
     double z = s * std::sqrt(std::sqrt(t * t - L / kA) - t);
@@ -340,7 +344,7 @@ double erfinvScalar(double y)
 
 } // namespace
 
-Value gamma(const Value &x, std::pmr::memory_resource *mr)
+Value gamma(const Value &x, keel::Allocator *mr)
 {
     return unaryDouble(x, [](double v) {
         // Gamma has poles at every non-positive integer; MATLAB returns +Inf
@@ -354,7 +358,7 @@ Value gamma(const Value &x, std::pmr::memory_resource *mr)
     }, mr);
 }
 
-Value gammaln(const Value &x, std::pmr::memory_resource *mr)
+Value gammaln(const Value &x, keel::Allocator *mr)
 {
     return unaryDouble(x, [](double v) { return std::lgamma(v); }, mr);
 }
@@ -362,17 +366,17 @@ Value gammaln(const Value &x, std::pmr::memory_resource *mr)
 // erf is backend-split (SLEEF-ported Highway dd kernel) and lives in
 // special_highway.cpp + special_portable.cpp, like exp / log.
 
-Value erfc(const Value &x, std::pmr::memory_resource *mr)
+Value erfc(const Value &x, keel::Allocator *mr)
 {
     return unaryDouble(x, [](double v) { return std::erfc(v); }, mr);
 }
 
-Value erfinv(const Value &x, std::pmr::memory_resource *mr)
+Value erfinv(const Value &x, keel::Allocator *mr)
 {
     return unaryDouble(x, [](double v) { return erfinvScalar(v); }, mr);
 }
 
-Value erfcinv(const Value &x, std::pmr::memory_resource *mr)
+Value erfcinv(const Value &x, keel::Allocator *mr)
 {
     return unaryDouble(x, [](double v) {
         // Domain check: (0, 2). y = 0 → +Inf, y = 2 → -Inf.
@@ -382,7 +386,7 @@ Value erfcinv(const Value &x, std::pmr::memory_resource *mr)
     }, mr);
 }
 
-Value erfcx(const Value &x, std::pmr::memory_resource *mr)
+Value erfcx(const Value &x, keel::Allocator *mr)
 {
     return unaryDouble(x, [](double v) {
         // erfcx(x) = exp(x²) · erfc(x). Direct formula loses precision
@@ -408,7 +412,7 @@ Value erfcx(const Value &x, std::pmr::memory_resource *mr)
 
 // ── Pack 19: beta / betaln / expint / psi ────────────────────────────
 
-Value beta(const Value &z, const Value &w, std::pmr::memory_resource *mr)
+Value beta(const Value &z, const Value &w, keel::Allocator *mr)
 {
     return elementwiseDouble(z, w, [](double zz, double ww) {
         // Use the lgamma-then-exp form to avoid overflow at moderate
@@ -421,7 +425,7 @@ Value beta(const Value &z, const Value &w, std::pmr::memory_resource *mr)
     }, mr);
 }
 
-Value betaln(const Value &z, const Value &w, std::pmr::memory_resource *mr)
+Value betaln(const Value &z, const Value &w, keel::Allocator *mr)
 {
     return elementwiseDouble(z, w, [](double zz, double ww) {
         return std::lgamma(zz) + std::lgamma(ww) - std::lgamma(zz + ww);
@@ -447,7 +451,7 @@ double expintScalar(double x)
             term *= -x / static_cast<double>(n);
             const double add = -term / static_cast<double>(n);
             sum += add;
-            if (std::abs(add) < std::abs(sum) * 1e-16) break;
+            if (keel::abs(add) < keel::abs(sum) * 1e-16) break;
         }
         return -EUL - std::log(x) + sum;
     }
@@ -464,7 +468,7 @@ double expintScalar(double x)
         c = b + a / c;
         const double del = c * d;
         h *= del;
-        if (std::abs(del - 1.0) < 1e-16) break;
+        if (keel::abs(del - 1.0) < 1e-16) break;
     }
     return h * std::exp(-x);
 }
@@ -506,12 +510,12 @@ double psiScalar(double x)
 }
 } // anon
 
-Value expint(const Value &x, std::pmr::memory_resource *mr)
+Value expint(const Value &x, keel::Allocator *mr)
 {
     return unaryDouble(x, [](double v) { return expintScalar(v); }, mr);
 }
 
-Value psi(const Value &x, std::pmr::memory_resource *mr)
+Value psi(const Value &x, keel::Allocator *mr)
 {
     return unaryDouble(x, [](double v) { return psiScalar(v); }, mr);
 }
@@ -534,7 +538,7 @@ double gserScalar(double a, double x)
         ap += 1.0;
         del *= x / ap;
         summ += del;
-        if (std::abs(del) < std::abs(summ) * kEps) break;
+        if (keel::abs(del) < keel::abs(summ) * kEps) break;
     }
     return summ * std::exp(-x + a * std::log(x) - std::lgamma(a));
 }
@@ -552,13 +556,13 @@ double gcfScalar(double a, double x)
         const double an = -i * (i - a);
         b += 2.0;
         d = an * d + b;
-        if (std::abs(d) < kFpMin) d = kFpMin;
+        if (keel::abs(d) < kFpMin) d = kFpMin;
         c = b + an / c;
-        if (std::abs(c) < kFpMin) c = kFpMin;
+        if (keel::abs(c) < kFpMin) c = kFpMin;
         d = 1.0 / d;
         const double del = d * c;
         h *= del;
-        if (std::abs(del - 1.0) < kEps) break;
+        if (keel::abs(del - 1.0) < kEps) break;
     }
     const double Q = std::exp(-x + a * std::log(x) - std::lgamma(a)) * h;
     return 1.0 - Q;
@@ -583,27 +587,27 @@ double betacfScalar(double a, double b, double x)
     const double qab = a + b, qap = a + 1.0, qam = a - 1.0;
     double c = 1.0;
     double d = 1.0 - qab * x / qap;
-    if (std::abs(d) < kFpMin) d = kFpMin;
+    if (keel::abs(d) < kFpMin) d = kFpMin;
     d = 1.0 / d;
     double h = d;
     for (int m = 1; m <= kMaxIter; ++m) {
         const int m2 = 2 * m;
         double aa = m * (b - m) * x / ((qam + m2) * (a + m2));
         d = 1.0 + aa * d;
-        if (std::abs(d) < kFpMin) d = kFpMin;
+        if (keel::abs(d) < kFpMin) d = kFpMin;
         c = 1.0 + aa / c;
-        if (std::abs(c) < kFpMin) c = kFpMin;
+        if (keel::abs(c) < kFpMin) c = kFpMin;
         d = 1.0 / d;
         h *= d * c;
         aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2));
         d = 1.0 + aa * d;
-        if (std::abs(d) < kFpMin) d = kFpMin;
+        if (keel::abs(d) < kFpMin) d = kFpMin;
         c = 1.0 + aa / c;
-        if (std::abs(c) < kFpMin) c = kFpMin;
+        if (keel::abs(c) < kFpMin) c = kFpMin;
         d = 1.0 / d;
         const double del = d * c;
         h *= del;
-        if (std::abs(del - 1.0) < kEps) break;
+        if (keel::abs(del - 1.0) < kEps) break;
     }
     return h;
 }
@@ -624,13 +628,13 @@ double betaincScalar(double x, double a, double b)
 }
 } // anon
 
-Value gammainc(const Value &x, const Value &a, std::pmr::memory_resource *mr)
+Value gammainc(const Value &x, const Value &a, keel::Allocator *mr)
 {
     return elementwiseDouble(x, a,
         [](double xx, double aa) { return gammaincScalar(xx, aa); }, mr);
 }
 
-Value betainc(const Value &x, const Value &a, const Value &b, std::pmr::memory_resource *mr)
+Value betainc(const Value &x, const Value &a, const Value &b, keel::Allocator *mr)
 {
     // Compose two element-wise binaries: first build a tmp matrix of
     // (a, b) → fold with x as outer. Easier: walk arrays in parallel
@@ -641,15 +645,15 @@ Value betainc(const Value &x, const Value &a, const Value &b, std::pmr::memory_r
     }
     // For non-scalar inputs, require matching shape (no broadcast for
     // 3-arg). MATLAB allows broadcasting too; covered by repeated unary.
-    const size_t nx = x.numel(), na = a.numel(), nb = b.numel();
-    const size_t n = std::max({nx, na, nb});
+    const keel::usize nx = x.numel(), na = a.numel(), nb = b.numel();
+    const keel::usize n = std::max({nx, na, nb});
     auto pickShape = [&]() -> const Value & {
         if (nx == n) return x;
         if (na == n) return a;
         return b;
     };
     auto r = createLike(pickShape(), ValueType::DOUBLE, mr);
-    for (size_t i = 0; i < n; ++i) {
+    for (keel::usize i = 0; i < n; ++i) {
         const double xi = (nx == 1) ? x.toScalar() : x.doubleData()[i];
         const double ai = (na == 1) ? a.toScalar() : a.doubleData()[i];
         const double bi = (nb == 1) ? b.toScalar() : b.doubleData()[i];
@@ -658,16 +662,16 @@ Value betainc(const Value &x, const Value &a, const Value &b, std::pmr::memory_r
     return r;
 }
 
-Value legendre(int n, const Value &x, std::pmr::memory_resource *mr)
+Value legendre(int n, const Value &x, keel::Allocator *mr)
 {
     if (n < 0)
         throw Error("legendre: n must be >= 0", 0, 0, "legendre", "",
                      "numkit:legendre:badN");
-    const size_t L = x.numel();
-    auto r = Value::matrix(static_cast<size_t>(n + 1), L, ValueType::DOUBLE, mr);
+    const keel::usize L = x.numel();
+    auto r = Value::matrix(static_cast<keel::usize>(n + 1), L, ValueType::DOUBLE, mr);
     double *dst = r.doubleDataMut();
     // Build P_n^m(x) for m = 0..n at each x_k.
-    for (size_t k = 0; k < L; ++k) {
+    for (keel::usize k = 0; k < L; ++k) {
         const double xk = x.elemAsDouble(k);
         // P_0^0 = 1.
         std::vector<double> P(n + 1, 0.0);
@@ -704,25 +708,25 @@ Value legendre(int n, const Value &x, std::pmr::memory_resource *mr)
 
 // ── Pack 27: Bessel (C++17 std::cyl_* special math) ──────────────────
 
-Value besselj(const Value &nu, const Value &x, std::pmr::memory_resource *mr)
+Value besselj(const Value &nu, const Value &x, keel::Allocator *mr)
 {
     return elementwiseDouble(nu, x,
         [](double n, double xx) { return special_compat::cyl_bessel_j(n, xx); }, mr);
 }
 
-Value bessely(const Value &nu, const Value &x, std::pmr::memory_resource *mr)
+Value bessely(const Value &nu, const Value &x, keel::Allocator *mr)
 {
     return elementwiseDouble(nu, x,
         [](double n, double xx) { return special_compat::cyl_neumann(n, xx); }, mr);
 }
 
-Value besseli(const Value &nu, const Value &x, std::pmr::memory_resource *mr)
+Value besseli(const Value &nu, const Value &x, keel::Allocator *mr)
 {
     return elementwiseDouble(nu, x,
         [](double n, double xx) { return special_compat::cyl_bessel_i(n, xx); }, mr);
 }
 
-Value besselk(const Value &nu, const Value &x, std::pmr::memory_resource *mr)
+Value besselk(const Value &nu, const Value &x, keel::Allocator *mr)
 {
     return elementwiseDouble(nu, x,
         [](double n, double xx) { return special_compat::cyl_bessel_k(n, xx); }, mr);
@@ -730,7 +734,7 @@ Value besselk(const Value &nu, const Value &x, std::pmr::memory_resource *mr)
 
 // ── Pack 28: Hankel + complete elliptic integrals ────────────────────
 
-Value besselh(const Value &nu, int k, const Value &x, std::pmr::memory_resource *mr)
+Value besselh(const Value &nu, int k, const Value &x, keel::Allocator *mr)
 {
     if (k != 1 && k != 2)
         throw Error("besselh: k must be 1 or 2",
@@ -744,20 +748,20 @@ Value besselh(const Value &nu, int k, const Value &x, std::pmr::memory_resource 
         const double j = special_compat::cyl_bessel_j(n, xx);
         const double y = special_compat::cyl_neumann(n, xx);
         const double sign = (k == 1) ? 1.0 : -1.0;
-        return Value::complexScalar(Complex(j, sign * y), mr);
+        return Value::complexScalar(keel::c64(j, sign * y), mr);
     }
     // Use the reference operand for shape (whichever is non-scalar).
     const Value &shape = !nu.isScalar() ? nu : x;
     auto r = createLike(shape, ValueType::COMPLEX, mr);
-    Complex *dst = r.complexDataMut();
-    const size_t N = shape.numel();
+    keel::c64 *dst = r.complexDataMut();
+    const keel::usize N = shape.numel();
     const double sign = (k == 1) ? 1.0 : -1.0;
-    for (size_t i = 0; i < N; ++i) {
+    for (keel::usize i = 0; i < N; ++i) {
         const double n  = nu.isScalar() ? nu.toScalar()
                                          : nu.doubleData()[i];
         const double xx = x.isScalar() ? x.toScalar()
                                        : x.doubleData()[i];
-        dst[i] = Complex(special_compat::cyl_bessel_j(n, xx),
+        dst[i] = keel::c64(special_compat::cyl_bessel_j(n, xx),
                          sign * special_compat::cyl_neumann(n, xx));
     }
     return r;
@@ -793,7 +797,7 @@ std::pair<double, double> ellipKEScalar(double m)
     constexpr int kMaxIter = 64;
     for (int i = 0; i < kMaxIter; ++i) {
         const double diff = a - g;
-        if (std::abs(diff) < 1e-17 * a) break;
+        if (keel::abs(diff) < 1e-17 * a) break;
         sum += scale * diff * diff;
         const double aNew = 0.5 * (a + g);
         const double gNew = std::sqrt(a * g);
@@ -806,7 +810,7 @@ std::pair<double, double> ellipKEScalar(double m)
 }
 } // anon
 
-EllipKE ellipke(const Value &m, std::pmr::memory_resource *mr)
+EllipKE ellipke(const Value &m, keel::Allocator *mr)
 {
     auto K = createLike(m, ValueType::DOUBLE, mr);
     auto E = createLike(m, ValueType::DOUBLE, mr);
@@ -814,8 +818,8 @@ EllipKE ellipke(const Value &m, std::pmr::memory_resource *mr)
         const auto [k, e] = ellipKEScalar(m.toScalar());
         return { Value::scalar(k, mr), Value::scalar(e, mr) };
     }
-    const size_t n = m.numel();
-    for (size_t i = 0; i < n; ++i) {
+    const keel::usize n = m.numel();
+    for (keel::usize i = 0; i < n; ++i) {
         const auto [k, e] = ellipKEScalar(m.doubleData()[i]);
         K.doubleDataMut()[i] = k;
         E.doubleDataMut()[i] = e;
@@ -899,7 +903,7 @@ double airyScalar(int k, double x)
 
 } // namespace
 
-Value airy(int k, const Value &x, std::pmr::memory_resource *mr)
+Value airy(int k, const Value &x, keel::Allocator *mr)
 {
     if (k < 0 || k > 3)
         throw Error("airy: kind k must be 0..3 (got " + std::to_string(k) + ")",
@@ -933,7 +937,7 @@ double gammaincinvScalar(double P, double a)
     const double lgA = std::lgamma(a);
     for (int it = 0; it < 60; ++it) {
         const double f = gammaincScalar(x, a) - P;
-        if (std::abs(f) < 1e-15) break;
+        if (keel::abs(f) < 1e-15) break;
         const double logf = (a - 1.0) * std::log(x) - x - lgA;
         const double df   = std::exp(logf);
         if (df < 1e-300) break;
@@ -942,7 +946,7 @@ double gammaincinvScalar(double P, double a)
         if (dx >= x) dx = 0.5 * x;
         x -= dx;
         if (x <= 0.0) x = 1e-300;
-        if (std::abs(dx) < 1e-13 * (std::abs(x) + 1.0)) break;
+        if (keel::abs(dx) < 1e-13 * (keel::abs(x) + 1.0)) break;
     }
     return x;
 }
@@ -968,7 +972,7 @@ double betaincinvScalar(double P, double a, double b)
 
     for (int it = 0; it < 80; ++it) {
         const double f = betaincScalar(x, a, b) - P;
-        if (std::abs(f) < 1e-15) break;
+        if (keel::abs(f) < 1e-15) break;
 
         // Update bracket.
         if (f > 0) hi = x;
@@ -989,7 +993,7 @@ double betaincinvScalar(double P, double a, double b)
         if (!(xNew > lo && xNew < hi))
             xNew = 0.5 * (lo + hi);
 
-        if (std::abs(xNew - x) < 1e-14 * (std::abs(x) + 1.0)) {
+        if (keel::abs(xNew - x) < 1e-14 * (keel::abs(x) + 1.0)) {
             x = xNew;
             break;
         }
@@ -1030,7 +1034,7 @@ void ellipjScalar(double u, double m, double &sn, double &cn, double &dn)
         c[i] = cn_;
         b    = bn;
         n    = i;
-        if (std::abs(cn_) < 1e-15 * std::abs(an)) break;
+        if (keel::abs(cn_) < 1e-15 * keel::abs(an)) break;
     }
     // Compute φ_n = 2^n * a_n * u, then unwind via
     //   φ_{i-1} = (1/2) (φ_i + asin((c_i / a_i) * sin(φ_i)))
@@ -1045,27 +1049,27 @@ void ellipjScalar(double u, double m, double &sn, double &cn, double &dn)
 
 } // namespace
 
-Value gammaincinv(const Value &P, const Value &a, std::pmr::memory_resource *mr)
+Value gammaincinv(const Value &P, const Value &a, keel::Allocator *mr)
 {
     return elementwiseDouble(P, a,
         [](double pp, double aa) { return gammaincinvScalar(pp, aa); }, mr);
 }
 
-Value betaincinv(const Value &P, const Value &a, const Value &b, std::pmr::memory_resource *mr)
+Value betaincinv(const Value &P, const Value &a, const Value &b, keel::Allocator *mr)
 {
     if (P.isScalar() && a.isScalar() && b.isScalar()) {
         return Value::scalar(
             betaincinvScalar(P.toScalar(), a.toScalar(), b.toScalar()), mr);
     }
-    const size_t np = P.numel(), na = a.numel(), nb = b.numel();
-    const size_t n = std::max({np, na, nb});
+    const keel::usize np = P.numel(), na = a.numel(), nb = b.numel();
+    const keel::usize n = std::max({np, na, nb});
     auto pickShape = [&]() -> const Value & {
         if (np == n) return P;
         if (na == n) return a;
         return b;
     };
     auto r = createLike(pickShape(), ValueType::DOUBLE, mr);
-    for (size_t i = 0; i < n; ++i) {
+    for (keel::usize i = 0; i < n; ++i) {
         const double pi = (np == 1) ? P.toScalar() : P.doubleData()[i];
         const double ai = (na == 1) ? a.toScalar() : a.doubleData()[i];
         const double bi = (nb == 1) ? b.toScalar() : b.doubleData()[i];
@@ -1074,20 +1078,20 @@ Value betaincinv(const Value &P, const Value &a, const Value &b, std::pmr::memor
     return r;
 }
 
-EllipJ ellipj(const Value &u, const Value &m, std::pmr::memory_resource *mr)
+EllipJ ellipj(const Value &u, const Value &m, keel::Allocator *mr)
 {
     if (u.isScalar() && m.isScalar()) {
         double sn, cn, dn;
         ellipjScalar(u.toScalar(), m.toScalar(), sn, cn, dn);
         return { Value::scalar(sn, mr), Value::scalar(cn, mr), Value::scalar(dn, mr) };
     }
-    const size_t nu = u.numel(), nm = m.numel();
-    const size_t n  = std::max(nu, nm);
+    const keel::usize nu = u.numel(), nm = m.numel();
+    const keel::usize n  = std::max(nu, nm);
     const Value &shape = (nu == n) ? u : m;
     auto sn = createLike(shape, ValueType::DOUBLE, mr);
     auto cn = createLike(shape, ValueType::DOUBLE, mr);
     auto dn = createLike(shape, ValueType::DOUBLE, mr);
-    for (size_t i = 0; i < n; ++i) {
+    for (keel::usize i = 0; i < n; ++i) {
         const double ui = (nu == 1) ? u.toScalar() : u.doubleData()[i];
         const double mi = (nm == 1) ? m.toScalar() : m.doubleData()[i];
         double s, c, d;
@@ -1100,15 +1104,15 @@ EllipJ ellipj(const Value &u, const Value &m, std::pmr::memory_resource *mr)
 }
 
 Value marcumq(const Value &a_v, const Value &b_v, int m,
-              std::pmr::memory_resource *mr)
+              keel::Allocator *mr)
 {
     if (m < 1) m = 1;
-    const size_t Na = a_v.numel(), Nb = b_v.numel();
-    const size_t N = std::max(Na, Nb);
+    const keel::usize Na = a_v.numel(), Nb = b_v.numel();
+    const keel::usize N = std::max(Na, Nb);
     Value out = Value::matrix((Na > Nb) ? Na : Nb, 1, ValueType::DOUBLE, mr);
     if (N == 0) return out;
     double *od = out.doubleDataMut();
-    for (size_t i = 0; i < N; ++i) {
+    for (keel::usize i = 0; i < N; ++i) {
         const double a = a_v.elemAsDouble(Na > 1 ? i : 0);
         const double b = b_v.elemAsDouble(Nb > 1 ? i : 0);
         if (b <= 0.0)         { od[i] = 1.0; continue; }

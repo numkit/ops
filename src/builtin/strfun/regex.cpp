@@ -2,10 +2,13 @@
 //
 // regexp / regexpi / regexprep — ECMAScript regex via std::regex.
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/arena.h>
+#include <keel/array.h>
 #include <numkit/builtin/strfun.hpp>
 
 #include <numkit/value/value.hpp>
-#include <numkit/value/scratch.hpp>
 #include <numkit/value/error.hpp>
 
 #include <cctype>
@@ -19,7 +22,7 @@
 namespace numkit::builtin {
 
 
-Value regexpFind(const Value &s, const Value &pat, const std::string &option, bool ignoreCase, std::pmr::memory_resource *mr)
+Value regexpFind(const Value &s, const Value &pat, const std::string &option, bool ignoreCase, keel::Allocator *mr)
 {
     if ((!s.isChar() && !s.isString()) || (!pat.isChar() && !pat.isString()))
         throw Error("regexp: s and pat must be strings",
@@ -34,11 +37,11 @@ Value regexpFind(const Value &s, const Value &pat, const std::string &option, bo
     for (auto &c : opt)
         c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
 
-    ScratchArena scratch(mr);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
 
     if (opt == "names") {
         // Count matches first to choose scalar struct (1) vs struct array.
-        std::size_t count = 0;
+        keel::usize count = 0;
         for (auto it = std::sregex_iterator(text.begin(), text.end(), re),
                   end = std::sregex_iterator(); it != end; ++it)
             ++count;
@@ -58,7 +61,7 @@ Value regexpFind(const Value &s, const Value &pat, const std::string &option, bo
             return out;
         }
         Value out = Value::structArray(1, count, mr);
-        std::size_t i = 0;
+        keel::usize i = 0;
         for (auto it = std::sregex_iterator(text.begin(), text.end(), re),
                   end = std::sregex_iterator(); it != end; ++it, ++i) {
             const auto &m = *it;
@@ -69,10 +72,10 @@ Value regexpFind(const Value &s, const Value &pat, const std::string &option, bo
     }
 
     if (opt == "split") {
-        ScratchVec<std::string> parts(&scratch);
+        keel::Array<std::string> parts(scratch.allocator());
         auto begin = std::sregex_iterator(text.begin(), text.end(), re);
         auto end   = std::sregex_iterator();
-        std::size_t prev = 0;
+        keel::usize prev = 0;
         for (auto it = begin; it != end; ++it) {
             const auto &m = *it;
             parts.emplace_back(text.substr(prev, m.position() - prev));
@@ -83,7 +86,7 @@ Value regexpFind(const Value &s, const Value &pat, const std::string &option, bo
     }
 
     if (opt == "match") {
-        ScratchVec<std::string> matches(&scratch);
+        keel::Array<std::string> matches(scratch.allocator());
         for (auto it = std::sregex_iterator(text.begin(), text.end(), re),
                   end = std::sregex_iterator(); it != end; ++it)
             matches.emplace_back(it->str());
@@ -94,23 +97,23 @@ Value regexpFind(const Value &s, const Value &pat, const std::string &option, bo
         // 1×N cell, each entry is a 1×k cell of capture group strings.
         // Outer + inner both ScratchVec — uses-allocator construction
         // propagates the arena to the inner pmr-vectors automatically.
-        ScratchVec<ScratchVec<std::string>> all(&scratch);
+        keel::Array<keel::Array<std::string>> all(scratch.allocator());
         for (auto it = std::sregex_iterator(text.begin(), text.end(), re),
                   end = std::sregex_iterator(); it != end; ++it) {
-            ScratchVec<std::string> grp(&scratch);
-            for (std::size_t g = 1; g < it->size(); ++g)
+            keel::Array<std::string> grp(scratch.allocator());
+            for (keel::usize g = 1; g < it->size(); ++g)
                 grp.emplace_back(it->str(g));
             all.push_back(std::move(grp));
         }
         auto out = Value::cell(1, all.size());
-        for (std::size_t i = 0; i < all.size(); ++i)
+        for (keel::usize i = 0; i < all.size(); ++i)
             out.cellAt(i) = rowCellOfStrings(all[i].data(), all[i].size(), mr);
         return out;
     }
 
     if (opt == "end") {
         // 1-based end index of each match (= position + length).
-        ScratchVec<double> idx(&scratch);
+        keel::Array<double> idx(scratch.allocator());
         for (auto it = std::sregex_iterator(text.begin(), text.end(), re),
                   e = std::sregex_iterator(); it != e; ++it)
             idx.push_back(static_cast<double>(it->position() + it->length()));
@@ -121,19 +124,19 @@ Value regexpFind(const Value &s, const Value &pat, const std::string &option, bo
         // 1×N cell; each entry is a k×2 matrix of [startCol endCol] (1-based)
         // for the capture groups. With no capture groups, the whole match is
         // the single token.
-        ScratchVec<std::sregex_iterator::value_type> matches(&scratch);
+        keel::Array<std::sregex_iterator::value_type> matches(scratch.allocator());
         for (auto it = std::sregex_iterator(text.begin(), text.end(), re),
                   e = std::sregex_iterator(); it != e; ++it)
             matches.push_back(*it);
         auto out = Value::cell(1, matches.size());
-        for (std::size_t i = 0; i < matches.size(); ++i) {
+        for (keel::usize i = 0; i < matches.size(); ++i) {
             const auto &m = matches[i];
-            const std::size_t ng2 = (m.size() > 1) ? m.size() - 1 : 1;
+            const keel::usize ng2 = (m.size() > 1) ? m.size() - 1 : 1;
             auto te = Value::matrix(ng2, 2, ValueType::DOUBLE, mr);
             double *td = te.doubleDataMut();
-            for (std::size_t g = 0; g < ng2; ++g) {
+            for (keel::usize g = 0; g < ng2; ++g) {
                 const auto &sub = (m.size() > 1) ? m[g + 1] : m[0];
-                const std::ptrdiff_t st = sub.first - text.begin();
+                const keel::isize st = sub.first - text.begin();
                 td[0 * ng2 + g] = static_cast<double>(st + 1);
                 td[1 * ng2 + g] = static_cast<double>(st + sub.length());
             }
@@ -149,7 +152,7 @@ Value regexpFind(const Value &s, const Value &pat, const std::string &option, bo
                      0, 0, "regexp", "", "numkit:regexp:badOption");
 
     // Default ('start'): 1-based start indices.
-    ScratchVec<double> idx(&scratch);
+    keel::Array<double> idx(scratch.allocator());
     for (auto it = std::sregex_iterator(text.begin(), text.end(), re),
               end = std::sregex_iterator(); it != end; ++it)
         idx.push_back(static_cast<double>(it->position() + 1));
@@ -167,7 +170,7 @@ Value regexpFind(const Value &s, const Value &pat, const std::string &option, bo
 // Kept separate from regexpFind so the all-matches paths stay byte-for-byte
 // unchanged.
 Value regexpFindOnce(const Value &s, const Value &pat, const std::string &option,
-                     bool ignoreCase, std::pmr::memory_resource *mr)
+                     bool ignoreCase, keel::Allocator *mr)
 {
     if ((!s.isChar() && !s.isString()) || (!pat.isChar() && !pat.isString()))
         throw Error("regexp: s and pat must be strings",
@@ -190,15 +193,15 @@ Value regexpFindOnce(const Value &s, const Value &pat, const std::string &option
     if (opt == "tokens") {
         if (!has) return Value::cell(0, 0, mr);
         const auto &m = *it;
-        ScratchArena scratch(mr);
-        ScratchVec<std::string> grp(&scratch);
-        for (std::size_t g = 1; g < m.size(); ++g) grp.emplace_back(m.str(g));
+        keel::ArenaTemp scratch = keel::get_scratch(mr);
+        keel::Array<std::string> grp(scratch.allocator());
+        for (keel::usize g = 1; g < m.size(); ++g) grp.emplace_back(m.str(g));
         return rowCellOfStrings(grp.data(), grp.size(), mr);
     }
 
     if (opt == "split") {
-        ScratchArena scratch(mr);
-        ScratchVec<std::string> parts(&scratch);
+        keel::ArenaTemp scratch = keel::get_scratch(mr);
+        keel::Array<std::string> parts(scratch.allocator());
         if (!has) {
             parts.emplace_back(text);
         } else {
@@ -225,12 +228,12 @@ Value regexpFindOnce(const Value &s, const Value &pat, const std::string &option
     if (opt == "tokenextents") {
         if (!has) return Value::matrix(0, 0, ValueType::DOUBLE, mr);
         const auto &m = *it;
-        const std::size_t ng2 = (m.size() > 1) ? m.size() - 1 : 1;
+        const keel::usize ng2 = (m.size() > 1) ? m.size() - 1 : 1;
         auto te = Value::matrix(ng2, 2, ValueType::DOUBLE, mr);
         double *td = te.doubleDataMut();
-        for (std::size_t g = 0; g < ng2; ++g) {
+        for (keel::usize g = 0; g < ng2; ++g) {
             const auto &sub = (m.size() > 1) ? m[g + 1] : m[0];
-            const std::ptrdiff_t st = sub.first - text.begin();
+            const keel::isize st = sub.first - text.begin();
             td[0 * ng2 + g] = static_cast<double>(st + 1);
             td[1 * ng2 + g] = static_cast<double>(st + sub.length());
         }
@@ -269,29 +272,29 @@ static std::string regexrepOne(const std::string &text, const std::string &pat,
 // result of one into the next). A single replacement is recycled for every
 // pattern; otherwise the replacement count must equal the pattern count.
 static std::string regexrepSeq(const std::string &text0,
-                               const ScratchVec<std::string> &pats,
-                               const ScratchVec<std::string> &reps,
+                               const keel::Array<std::string> &pats,
+                               const keel::Array<std::string> &reps,
                                bool ignoreCase, bool once)
 {
     std::string text = text0;
-    for (std::size_t i = 0; i < pats.size(); ++i)
+    for (keel::usize i = 0; i < pats.size(); ++i)
         text = regexrepOne(text, pats[i], reps.size() == 1 ? reps[0] : reps[i], ignoreCase, once);
     return text;
 }
 
-Value regexprep(const Value &s, const Value &pat, const Value &rep, bool ignoreCase, bool once, std::pmr::memory_resource *mr)
+Value regexprep(const Value &s, const Value &pat, const Value &rep, bool ignoreCase, bool once, keel::Allocator *mr)
 {
     auto isStrLike = [](const Value &v) { return v.isChar() || v.isString() || v.isCell(); };
     if (!isStrLike(s) || !isStrLike(pat) || !isStrLike(rep))
         throw Error("regexprep: s, pat, rep must be strings or cell arrays of strings",
                      0, 0, "regexprep", "", "numkit:regexprep:badArg");
 
-    ScratchArena scratch(mr);
-    ScratchVec<std::string> pats(&scratch), reps(&scratch);
-    auto collect = [](const Value &v, ScratchVec<std::string> &out) {
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<std::string> pats(scratch.allocator()), reps(scratch.allocator());
+    auto collect = [](const Value &v, keel::Array<std::string> &out) {
         if (v.isCell()) {
-            const std::size_t n = v.numel();
-            for (std::size_t i = 0; i < n; ++i) out.push_back(v.cellAt(i).toString());
+            const keel::usize n = v.numel();
+            for (keel::usize i = 0; i < n; ++i) out.push_back(v.cellAt(i).toString());
         } else {
             out.push_back(v.toString());
         }
@@ -307,11 +310,11 @@ Value regexprep(const Value &s, const Value &pat, const Value &rep, bool ignoreC
     // same shape; a char/string scalar processes to a single char row (the
     // pre-existing scalar return type is preserved exactly).
     if (s.isCell()) {
-        const std::size_t r = static_cast<std::size_t>(s.dims().rows());
-        const std::size_t c = static_cast<std::size_t>(s.dims().cols());
+        const keel::usize r = static_cast<keel::usize>(s.dims().rows());
+        const keel::usize c = static_cast<keel::usize>(s.dims().cols());
         auto out = Value::cell(r, c, mr);
-        const std::size_t n = s.numel();
-        for (std::size_t i = 0; i < n; ++i)
+        const keel::usize n = s.numel();
+        for (keel::usize i = 0; i < n; ++i)
             out.cellAt(i) = Value::fromString(
                 regexrepSeq(s.cellAt(i).toString(), pats, reps, ignoreCase, once), mr);
         return out;
@@ -320,7 +323,7 @@ Value regexprep(const Value &s, const Value &pat, const Value &rep, bool ignoreC
 }
 
 // ── Pack 36: regexptranslate ─────────────────────────────────────────
-Value regexptranslate(const std::string &op, const std::string &s, std::pmr::memory_resource *mr)
+Value regexptranslate(const std::string &op, const std::string &s, keel::Allocator *mr)
 {
     // Characters that carry special meaning in ECMAScript regex syntax —
     // matches the set MATLAB's regexptranslate('escape', …) prepends `\`

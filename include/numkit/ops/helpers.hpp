@@ -3,17 +3,19 @@
 // NOTE: helpers.hpp is engine-free — it uses only the Value substrate + ops
 // factories, never Engine/CallContext. Keeping it off <nk/core/engine.hpp>
 // is what lets toolbox compute files include it without dragging in the engine.
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/ref.h>
+#include <keel/array.h>
+#include <keel/complex.h>
 #include <numkit/value/value.hpp>
 #include <numkit/value/argcheck.hpp>    // numkit::argcheck (size-input validation)
 #include <numkit/ops/value_factory.hpp>   // DimsArg/createMatrix/createForDims/createLike (now in numkit::ops)
-#include <numkit/value/scratch.hpp>
 #include <numkit/value/shape_ops.hpp>
 
 #include <algorithm>
 #include <cmath>
-#include <complex>
 #include <limits>
-#include <memory_resource>
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
@@ -23,7 +25,7 @@ namespace numkit {
 // ============================================================
 // Helper: promote pair to complex if needed
 // ============================================================
-inline std::pair<Value, Value> promoteToComplex(const Value &a, const Value &b, std::pmr::memory_resource *mr = nullptr)
+inline std::pair<Value, Value> promoteToComplex(const Value &a, const Value &b, keel::Allocator *mr = nullptr)
 {
     Value ca = a, cb = b;
     if (a.isComplex() && !b.isComplex())
@@ -38,8 +40,8 @@ inline std::pair<Value, Value> promoteToComplex(const Value &a, const Value &b, 
 // Returns true if dims are compatible, sets outR/outC to result size.
 // Rule: each dim must match or one of them must be 1.
 // ============================================================
-inline bool broadcastDims(size_t ar, size_t ac, size_t br, size_t bc,
-                          size_t &outR, size_t &outC)
+inline bool broadcastDims(keel::usize ar, keel::usize ac, keel::usize br, keel::usize bc,
+                          keel::usize &outR, keel::usize &outC)
 {
     if (ar != br && ar != 1 && br != 1) return false;
     if (ac != bc && ac != 1 && bc != 1) return false;
@@ -50,9 +52,9 @@ inline bool broadcastDims(size_t ar, size_t ac, size_t br, size_t bc,
 
 // 3D variant — each axis must match or be 1. A 2D operand is treated as
 // having pages = 1 (caller passes ap = 1 for 2D inputs).
-inline bool broadcastDims3D(size_t ar, size_t ac, size_t ap,
-                            size_t br, size_t bc, size_t bp,
-                            size_t &outR, size_t &outC, size_t &outP)
+inline bool broadcastDims3D(keel::usize ar, keel::usize ac, keel::usize ap,
+                            keel::usize br, keel::usize bc, keel::usize bp,
+                            keel::usize &outR, keel::usize &outC, keel::usize &outP)
 {
     if (ar != br && ar != 1 && br != 1) return false;
     if (ac != bc && ac != 1 && bc != 1) return false;
@@ -66,12 +68,12 @@ inline bool broadcastDims3D(size_t ar, size_t ac, size_t ap,
 // Linearise (r, c, p) into a column-major + page-stride buffer offset,
 // applying broadcast (an axis of 1 collapses its index to 0). Used by
 // the 3D broadcast loops in elementwise{Double,Complex} and compareImpl.
-inline size_t broadcastOffset3D(size_t r, size_t c, size_t p,
-                                size_t aR, size_t aC, size_t aP)
+inline keel::usize broadcastOffset3D(keel::usize r, keel::usize c, keel::usize p,
+                                keel::usize aR, keel::usize aC, keel::usize aP)
 {
-    const size_t rr = (aR == 1) ? 0 : r;
-    const size_t cc = (aC == 1) ? 0 : c;
-    const size_t pp = (aP == 1) ? 0 : p;
+    const keel::usize rr = (aR == 1) ? 0 : r;
+    const keel::usize cc = (aC == 1) ? 0 : c;
+    const keel::usize pp = (aP == 1) ? 0 : p;
     (void)aP; // strides are R*C per page regardless
     return pp * aR * aC + cc * aR + rr;
 }
@@ -98,16 +100,16 @@ using ops::createLike;
 // types are returned unchanged. Reading via elemAsDouble + clamp to the
 // type range handles every signed/unsigned width uniformly (|intmin| would
 // overflow the type, the clamp catches it). Caller guards isIntegerType().
-inline Value absIntegerSaturate(const Value &x, std::pmr::memory_resource *mr = nullptr)
+inline Value absIntegerSaturate(const Value &x, keel::Allocator *mr = nullptr)
 {
     Value r = createLike(x, x.type(), mr);
-    const size_t n = x.numel();
+    const keel::usize n = x.numel();
     auto fill = [&](auto *dst) {
         using T = std::remove_pointer_t<std::decay_t<decltype(dst)>>;
-        const double lo = static_cast<double>(std::numeric_limits<T>::min());
-        const double hi = static_cast<double>(std::numeric_limits<T>::max());
-        for (size_t i = 0; i < n; ++i) {
-            double v = std::fabs(x.elemAsDouble(i));
+        const keel::f64 lo = static_cast<keel::f64>(std::numeric_limits<T>::min());
+        const keel::f64 hi = static_cast<keel::f64>(std::numeric_limits<T>::max());
+        for (keel::usize i = 0; i < n; ++i) {
+            keel::f64 v = std::fabs(x.elemAsDouble(i));
             if (v < lo) v = lo;
             else if (v > hi) v = hi;
             dst[i] = static_cast<T>(v);
@@ -134,16 +136,16 @@ inline Value absIntegerSaturate(const Value &x, std::pmr::memory_resource *mr = 
 // elemAsDouble so a scalar-stored result is handled too. `vt` must be an
 // integer ValueType.
 inline Value doubleToIntegerExact(const Value &d, ValueType vt,
-                                  std::pmr::memory_resource *mr = nullptr)
+                                  keel::Allocator *mr = nullptr)
 {
     Value r = createForDims(d.dims(), vt, mr);
-    const size_t n = d.numel();
+    const keel::usize n = d.numel();
     auto fill = [&](auto *dst) {
         using T = std::remove_pointer_t<std::decay_t<decltype(dst)>>;
-        const double lo = static_cast<double>(std::numeric_limits<T>::min());
-        const double hi = static_cast<double>(std::numeric_limits<T>::max());
-        for (size_t i = 0; i < n; ++i) {
-            double v = d.elemAsDouble(i);
+        const keel::f64 lo = static_cast<keel::f64>(std::numeric_limits<T>::min());
+        const keel::f64 hi = static_cast<keel::f64>(std::numeric_limits<T>::max());
+        for (keel::usize i = 0; i < n; ++i) {
+            keel::f64 v = d.elemAsDouble(i);
             if (v < lo) v = lo;
             else if (v > hi) v = hi;
             dst[i] = static_cast<T>(v);
@@ -167,13 +169,13 @@ inline Value doubleToIntegerExact(const Value &d, ValueType vt,
 // so integer arrays — which lack a doubleData() buffer — are handled). A
 // DOUBLE input is returned as-is (shares storage). Used to route integer
 // operands through double-only elementwise helpers, then cast the result back.
-inline Value toDoubleValue(const Value &x, std::pmr::memory_resource *mr = nullptr)
+inline Value toDoubleValue(const Value &x, keel::Allocator *mr = nullptr)
 {
     if (x.type() == ValueType::DOUBLE) return x;
     Value r = createForDims(x.dims(), ValueType::DOUBLE, mr);
-    double *dst = r.doubleDataMut();
-    const size_t n = x.numel();
-    for (size_t i = 0; i < n; ++i) dst[i] = x.elemAsDouble(i);
+    keel::f64 *dst = r.doubleDataMut();
+    const keel::usize n = x.numel();
+    for (keel::usize i = 0; i < n; ++i) dst[i] = x.elemAsDouble(i);
     return r;
 }
 
@@ -181,10 +183,10 @@ inline Value toDoubleValue(const Value &x, std::pmr::memory_resource *mr = nullp
 // values above 2^53 are preserved). Used for operations that are the
 // IDENTITY on integers but keep the class (floor/ceil/round/fix in MATLAB).
 // Caller guards isIntegerType().
-inline Value copyIntegerSameClass(const Value &x, std::pmr::memory_resource *mr = nullptr)
+inline Value copyIntegerSameClass(const Value &x, keel::Allocator *mr = nullptr)
 {
     Value r = createLike(x, x.type(), mr);
-    const size_t n = x.numel();
+    const keel::usize n = x.numel();
     switch (x.type()) {
     case ValueType::INT8:   std::copy(x.int8Data(),   x.int8Data()   + n, r.int8DataMut());   break;
     case ValueType::INT16:  std::copy(x.int16Data(),  x.int16Data()  + n, r.int16DataMut());  break;
@@ -204,7 +206,7 @@ inline Value copyIntegerSameClass(const Value &x, std::pmr::memory_resource *mr 
 // shape; if both are non-scalar the dims must match, otherwise throw.
 // `outType` is chosen by the caller based on its promotion rules.
 inline Value emptyResultForBinary(const Value &a, const Value &b,
-                                   ValueType outType, std::pmr::memory_resource *mr = nullptr)
+                                   ValueType outType, keel::Allocator *mr = nullptr)
 {
     const bool aShaper = !a.isScalar();
     const bool bShaper = !b.isScalar();
@@ -228,7 +230,7 @@ inline ValueType arithOutType(const Value &a, const Value &b)
 
 // Convenience wrapper: shape-preserving empty arithmetic result with
 // type chosen by arithOutType().
-inline Value emptyArithResult(const Value &a, const Value &b, std::pmr::memory_resource *mr = nullptr)
+inline Value emptyArithResult(const Value &a, const Value &b, keel::Allocator *mr = nullptr)
 {
     Value r = emptyResultForBinary(a, b, arithOutType(a, b), mr);
     if (r.isComplex() && (a.isSingleComplex() || a.type() == ValueType::SINGLE ||
@@ -238,18 +240,18 @@ inline Value emptyArithResult(const Value &a, const Value &b, std::pmr::memory_r
 }
 
 template <typename T, typename Op>
-Value elementwiseTyped(const Value &a, const Value &b, ValueType targetType, Op op, std::pmr::memory_resource *mr = nullptr);
+Value elementwiseTyped(const Value &a, const Value &b, ValueType targetType, Op op, keel::Allocator *mr = nullptr);
 
 // ============================================================
 // Elementwise binary op on double arrays (with implicit expansion)
 // ============================================================
 template<typename Op>
-Value elementwiseDouble(const Value &a, const Value &b, Op op, std::pmr::memory_resource *mr = nullptr)
+Value elementwiseDouble(const Value &a, const Value &b, Op op, keel::Allocator *mr = nullptr)
 {
     if (a.type() == ValueType::SINGLE || b.type() == ValueType::SINGLE) {
-        return elementwiseTyped<float>(a, b, ValueType::SINGLE,
-            [op](float x, float y) -> float {
-                return static_cast<float>(op(static_cast<double>(x), static_cast<double>(y)));
+        return elementwiseTyped<keel::f32>(a, b, ValueType::SINGLE,
+            [op](keel::f32 x, keel::f32 y) -> keel::f32 {
+                return static_cast<keel::f32>(op(static_cast<keel::f64>(x), static_cast<keel::f64>(y)));
             }, mr);
     }
     if (a.isEmpty() || b.isEmpty())
@@ -257,7 +259,7 @@ Value elementwiseDouble(const Value &a, const Value &b, Op op, std::pmr::memory_
     if (a.isScalar() && b.isScalar())
         return Value::scalar(op(a.toScalar(), b.toScalar()), mr);
     if (a.type() != ValueType::DOUBLE || b.type() != ValueType::DOUBLE)
-        return elementwiseTyped<double>(a, b, ValueType::DOUBLE, op, mr);
+        return elementwiseTyped<keel::f64>(a, b, ValueType::DOUBLE, op, mr);
 
     // ND fallback — at least one operand has rank ≥ 4, or NumPy-style
     // broadcasting needed past 3D. Handles same-shape (fast path) and
@@ -265,18 +267,18 @@ Value elementwiseDouble(const Value &a, const Value &b, Op op, std::pmr::memory_
     if (a.dims().ndim() >= 4 || b.dims().ndim() >= 4) {
         if (a.isScalar()) {
             auto r = createLike(b, ValueType::DOUBLE, mr);
-            const double s = a.toScalar();
-            const double *db = b.doubleData();
-            double *dst = r.doubleDataMut();
-            for (size_t i = 0; i < b.numel(); ++i) dst[i] = op(s, db[i]);
+            const keel::f64 s = a.toScalar();
+            const keel::f64 *db = b.doubleData();
+            keel::f64 *dst = r.doubleDataMut();
+            for (keel::usize i = 0; i < b.numel(); ++i) dst[i] = op(s, db[i]);
             return r;
         }
         if (b.isScalar()) {
             auto r = createLike(a, ValueType::DOUBLE, mr);
-            const double s = b.toScalar();
-            const double *da = a.doubleData();
-            double *dst = r.doubleDataMut();
-            for (size_t i = 0; i < a.numel(); ++i) dst[i] = op(da[i], s);
+            const keel::f64 s = b.toScalar();
+            const keel::f64 *da = a.doubleData();
+            keel::f64 *dst = r.doubleDataMut();
+            for (keel::usize i = 0; i < a.numel(); ++i) dst[i] = op(da[i], s);
             return r;
         }
         // ND broadcast (NumPy: align right, dims match or 1)
@@ -284,10 +286,10 @@ Value elementwiseDouble(const Value &a, const Value &b, Op op, std::pmr::memory_
         if (!broadcastDimsND(a.dims(), b.dims(), outD))
             throw std::runtime_error("ND dimensions must broadcast: each axis must match or be 1");
         auto r = createForDims(outD, ValueType::DOUBLE, mr);
-        const double *da = a.doubleData(), *db = b.doubleData();
-        double *dst = r.doubleDataMut();
+        const keel::f64 *da = a.doubleData(), *db = b.doubleData();
+        keel::f64 *dst = r.doubleDataMut();
         forEachNDPair(a.dims(), b.dims(), outD,
-            [&](size_t outIdx, size_t aOff, size_t bOff) {
+            [&](keel::usize outIdx, keel::usize aOff, keel::usize bOff) {
                 dst[outIdx] = op(da[aOff], db[bOff]);
             });
         return r;
@@ -298,23 +300,23 @@ Value elementwiseDouble(const Value &a, const Value &b, Op op, std::pmr::memory_
     if (a.dims().is3D() || b.dims().is3D()) {
         if (a.isScalar()) {
             auto r = createLike(b, ValueType::DOUBLE, mr);
-            double s = a.toScalar();
-            for (size_t i = 0; i < b.numel(); ++i)
+            keel::f64 s = a.toScalar();
+            for (keel::usize i = 0; i < b.numel(); ++i)
                 r.doubleDataMut()[i] = op(s, b.doubleData()[i]);
             return r;
         }
         if (b.isScalar()) {
             auto r = createLike(a, ValueType::DOUBLE, mr);
-            double s = b.toScalar();
-            for (size_t i = 0; i < a.numel(); ++i)
+            keel::f64 s = b.toScalar();
+            for (keel::usize i = 0; i < a.numel(); ++i)
                 r.doubleDataMut()[i] = op(a.doubleData()[i], s);
             return r;
         }
-        const size_t aR = a.dims().rows(), aC = a.dims().cols();
-        const size_t aP = a.dims().is3D() ? a.dims().pages() : 1;
-        const size_t bR = b.dims().rows(), bC = b.dims().cols();
-        const size_t bP = b.dims().is3D() ? b.dims().pages() : 1;
-        size_t outR, outC, outP;
+        const keel::usize aR = a.dims().rows(), aC = a.dims().cols();
+        const keel::usize aP = a.dims().is3D() ? a.dims().pages() : 1;
+        const keel::usize bR = b.dims().rows(), bC = b.dims().cols();
+        const keel::usize bP = b.dims().is3D() ? b.dims().pages() : 1;
+        keel::usize outR, outC, outP;
         if (!broadcastDims3D(aR, aC, aP, bR, bC, bP, outR, outC, outP))
             throw std::runtime_error(
                 "3D dimensions must broadcast: each axis must match or be 1");
@@ -323,48 +325,48 @@ Value elementwiseDouble(const Value &a, const Value &b, Op op, std::pmr::memory_
         if (aR == bR && aC == bC && aP == bP) {
             auto r = (outP > 1) ? Value::matrix3d(outR, outC, outP, ValueType::DOUBLE, mr)
                                 : Value::matrix(outR, outC, ValueType::DOUBLE, mr);
-            for (size_t i = 0; i < a.numel(); ++i)
+            for (keel::usize i = 0; i < a.numel(); ++i)
                 r.doubleDataMut()[i] = op(a.doubleData()[i], b.doubleData()[i]);
             return r;
         }
         auto r = (outP > 1) ? Value::matrix3d(outR, outC, outP, ValueType::DOUBLE, mr)
                             : Value::matrix(outR, outC, ValueType::DOUBLE, mr);
-        double *dst = r.doubleDataMut();
-        const double *da = a.doubleData(), *db = b.doubleData();
-        for (size_t pp = 0; pp < outP; ++pp)
-            for (size_t cc = 0; cc < outC; ++cc)
-                for (size_t rr = 0; rr < outR; ++rr) {
-                    const size_t aOff = broadcastOffset3D(rr, cc, pp, aR, aC, aP);
-                    const size_t bOff = broadcastOffset3D(rr, cc, pp, bR, bC, bP);
+        keel::f64 *dst = r.doubleDataMut();
+        const keel::f64 *da = a.doubleData(), *db = b.doubleData();
+        for (keel::usize pp = 0; pp < outP; ++pp)
+            for (keel::usize cc = 0; cc < outC; ++cc)
+                for (keel::usize rr = 0; rr < outR; ++rr) {
+                    const keel::usize aOff = broadcastOffset3D(rr, cc, pp, aR, aC, aP);
+                    const keel::usize bOff = broadcastOffset3D(rr, cc, pp, bR, bC, bP);
                     dst[pp * outR * outC + cc * outR + rr] = op(da[aOff], db[bOff]);
                 }
         return r;
     }
 
-    size_t ar = a.dims().rows(), ac = a.dims().cols();
-    size_t br = b.dims().rows(), bc = b.dims().cols();
-    size_t outR, outC;
+    keel::usize ar = a.dims().rows(), ac = a.dims().cols();
+    keel::usize br = b.dims().rows(), bc = b.dims().cols();
+    keel::usize outR, outC;
     if (!broadcastDims(ar, ac, br, bc, outR, outC))
         throw std::runtime_error("Matrix dimensions must agree. a=[" + std::to_string(ar) + "x" + std::to_string(ac) + "], b=[" + std::to_string(br) + "x" + std::to_string(bc) + "] (line 332)");
 
     // Fast path: same dimensions, no broadcasting needed
     if (ar == br && ac == bc) {
         auto r = Value::matrix(outR, outC, ValueType::DOUBLE, mr);
-        for (size_t i = 0; i < a.numel(); ++i)
+        for (keel::usize i = 0; i < a.numel(); ++i)
             r.doubleDataMut()[i] = op(a.doubleData()[i], b.doubleData()[i]);
         return r;
     }
 
     // General broadcasting: column-major indexing
     auto r = Value::matrix(outR, outC, ValueType::DOUBLE, mr);
-    double *dst = r.doubleDataMut();
-    const double *da = a.doubleData(), *db = b.doubleData();
-    for (size_t c = 0; c < outC; ++c) {
-        size_t ca = (ac == 1) ? 0 : c;
-        size_t cb = (bc == 1) ? 0 : c;
-        for (size_t row = 0; row < outR; ++row) {
-            size_t ra = (ar == 1) ? 0 : row;
-            size_t rb = (br == 1) ? 0 : row;
+    keel::f64 *dst = r.doubleDataMut();
+    const keel::f64 *da = a.doubleData(), *db = b.doubleData();
+    for (keel::usize c = 0; c < outC; ++c) {
+        keel::usize ca = (ac == 1) ? 0 : c;
+        keel::usize cb = (bc == 1) ? 0 : c;
+        for (keel::usize row = 0; row < outR; ++row) {
+            keel::usize ra = (ar == 1) ? 0 : row;
+            keel::usize rb = (br == 1) ? 0 : row;
             dst[c * outR + row] = op(da[ca * ar + ra], db[cb * br + rb]);
         }
     }
@@ -380,7 +382,7 @@ Value elementwiseDouble(const Value &a, const Value &b, Op op, std::pmr::memory_
 // *Impl below does the raw complex computation.
 // ============================================================
 template<typename Op>
-Value elementwiseComplexImpl(const Value &a, const Value &b, Op op, std::pmr::memory_resource *mr = nullptr)
+Value elementwiseComplexImpl(const Value &a, const Value &b, Op op, keel::Allocator *mr = nullptr)
 {
     const bool outSingle = a.isSingleComplex() || a.type() == ValueType::SINGLE ||
                            b.isSingleComplex() || b.type() == ValueType::SINGLE;
@@ -398,28 +400,28 @@ Value elementwiseComplexImpl(const Value &a, const Value &b, Op op, std::pmr::me
     if (ca.dims().ndim() >= 4 || cb.dims().ndim() >= 4) {
         if (ca.isScalar()) {
             auto r = createLike(cb, ValueType::COMPLEX, mr);
-            Complex s = ca.toComplex();
-            const Complex *db = cb.complexData();
-            Complex *dst = r.complexDataMut();
-            for (size_t i = 0; i < cb.numel(); ++i) dst[i] = op(s, db[i]);
+            keel::c64 s = ca.toComplex();
+            const keel::c64 *db = cb.complexData();
+            keel::c64 *dst = r.complexDataMut();
+            for (keel::usize i = 0; i < cb.numel(); ++i) dst[i] = op(s, db[i]);
             return finalize(std::move(r));
         }
         if (cb.isScalar()) {
             auto r = createLike(ca, ValueType::COMPLEX, mr);
-            Complex s = cb.toComplex();
-            const Complex *da = ca.complexData();
-            Complex *dst = r.complexDataMut();
-            for (size_t i = 0; i < ca.numel(); ++i) dst[i] = op(da[i], s);
+            keel::c64 s = cb.toComplex();
+            const keel::c64 *da = ca.complexData();
+            keel::c64 *dst = r.complexDataMut();
+            for (keel::usize i = 0; i < ca.numel(); ++i) dst[i] = op(da[i], s);
             return finalize(std::move(r));
         }
         Dims outD;
         if (!broadcastDimsND(ca.dims(), cb.dims(), outD))
             throw std::runtime_error("ND dimensions must broadcast: each axis must match or be 1");
         auto r = createForDims(outD, ValueType::COMPLEX, mr);
-        const Complex *da = ca.complexData(), *db = cb.complexData();
-        Complex *dst = r.complexDataMut();
+        const keel::c64 *da = ca.complexData(), *db = cb.complexData();
+        keel::c64 *dst = r.complexDataMut();
         forEachNDPair(ca.dims(), cb.dims(), outD,
-            [&](size_t outIdx, size_t aOff, size_t bOff) {
+            [&](keel::usize outIdx, keel::usize aOff, keel::usize bOff) {
                 dst[outIdx] = op(da[aOff], db[bOff]);
             });
         return finalize(std::move(r));
@@ -428,69 +430,69 @@ Value elementwiseComplexImpl(const Value &a, const Value &b, Op op, std::pmr::me
     if (ca.dims().is3D() || cb.dims().is3D()) {
         if (ca.isScalar()) {
             auto r = createLike(cb, ValueType::COMPLEX, mr);
-            Complex s = ca.toComplex();
-            for (size_t i = 0; i < cb.numel(); ++i)
+            keel::c64 s = ca.toComplex();
+            for (keel::usize i = 0; i < cb.numel(); ++i)
                 r.complexDataMut()[i] = op(s, cb.complexData()[i]);
             return finalize(std::move(r));
         }
         if (cb.isScalar()) {
             auto r = createLike(ca, ValueType::COMPLEX, mr);
-            Complex s = cb.toComplex();
-            for (size_t i = 0; i < ca.numel(); ++i)
+            keel::c64 s = cb.toComplex();
+            for (keel::usize i = 0; i < ca.numel(); ++i)
                 r.complexDataMut()[i] = op(ca.complexData()[i], s);
             return finalize(std::move(r));
         }
-        const size_t aR = ca.dims().rows(), aC = ca.dims().cols();
-        const size_t aP = ca.dims().is3D() ? ca.dims().pages() : 1;
-        const size_t bR = cb.dims().rows(), bC = cb.dims().cols();
-        const size_t bP = cb.dims().is3D() ? cb.dims().pages() : 1;
-        size_t outR, outC, outP;
+        const keel::usize aR = ca.dims().rows(), aC = ca.dims().cols();
+        const keel::usize aP = ca.dims().is3D() ? ca.dims().pages() : 1;
+        const keel::usize bR = cb.dims().rows(), bC = cb.dims().cols();
+        const keel::usize bP = cb.dims().is3D() ? cb.dims().pages() : 1;
+        keel::usize outR, outC, outP;
         if (!broadcastDims3D(aR, aC, aP, bR, bC, bP, outR, outC, outP))
             throw std::runtime_error(
                 "3D dimensions must broadcast: each axis must match or be 1");
 
         if (aR == bR && aC == bC && aP == bP) {
             auto r = createLike(ca, ValueType::COMPLEX, mr);
-            for (size_t i = 0; i < ca.numel(); ++i)
+            for (keel::usize i = 0; i < ca.numel(); ++i)
                 r.complexDataMut()[i] = op(ca.complexData()[i], cb.complexData()[i]);
             return finalize(std::move(r));
         }
         auto r = (outP > 1) ? Value::matrix3d(outR, outC, outP, ValueType::COMPLEX, mr)
                             : Value::matrix(outR, outC, ValueType::COMPLEX, mr);
-        Complex *dst = r.complexDataMut();
-        const Complex *da = ca.complexData(), *db = cb.complexData();
-        for (size_t pp = 0; pp < outP; ++pp)
-            for (size_t cc = 0; cc < outC; ++cc)
-                for (size_t rr = 0; rr < outR; ++rr) {
-                    const size_t aOff = broadcastOffset3D(rr, cc, pp, aR, aC, aP);
-                    const size_t bOff = broadcastOffset3D(rr, cc, pp, bR, bC, bP);
+        keel::c64 *dst = r.complexDataMut();
+        const keel::c64 *da = ca.complexData(), *db = cb.complexData();
+        for (keel::usize pp = 0; pp < outP; ++pp)
+            for (keel::usize cc = 0; cc < outC; ++cc)
+                for (keel::usize rr = 0; rr < outR; ++rr) {
+                    const keel::usize aOff = broadcastOffset3D(rr, cc, pp, aR, aC, aP);
+                    const keel::usize bOff = broadcastOffset3D(rr, cc, pp, bR, bC, bP);
                     dst[pp * outR * outC + cc * outR + rr] = op(da[aOff], db[bOff]);
                 }
         return finalize(std::move(r));
     }
 
-    size_t ar = ca.dims().rows(), ac = ca.dims().cols();
-    size_t br = cb.dims().rows(), bc = cb.dims().cols();
-    size_t outR, outC;
+    keel::usize ar = ca.dims().rows(), ac = ca.dims().cols();
+    keel::usize br = cb.dims().rows(), bc = cb.dims().cols();
+    keel::usize outR, outC;
     if (!broadcastDims(ar, ac, br, bc, outR, outC))
         throw std::runtime_error("Matrix dimensions must agree. a=[" + std::to_string(ar) + "x" + std::to_string(ac) + "], b=[" + std::to_string(br) + "x" + std::to_string(bc) + "] (line 454)");
 
     if (ar == br && ac == bc) {
         auto r = Value::complexMatrix(outR, outC, mr);
-        for (size_t i = 0; i < ca.numel(); ++i)
+        for (keel::usize i = 0; i < ca.numel(); ++i)
             r.complexDataMut()[i] = op(ca.complexData()[i], cb.complexData()[i]);
         return finalize(std::move(r));
     }
 
     auto r = Value::complexMatrix(outR, outC, mr);
-    Complex *dst = r.complexDataMut();
-    const Complex *da = ca.complexData(), *db = cb.complexData();
-    for (size_t c = 0; c < outC; ++c) {
-        size_t cca = (ac == 1) ? 0 : c;
-        size_t ccb = (bc == 1) ? 0 : c;
-        for (size_t row = 0; row < outR; ++row) {
-            size_t ra = (ar == 1) ? 0 : row;
-            size_t rb = (br == 1) ? 0 : row;
+    keel::c64 *dst = r.complexDataMut();
+    const keel::c64 *da = ca.complexData(), *db = cb.complexData();
+    for (keel::usize c = 0; c < outC; ++c) {
+        keel::usize cca = (ac == 1) ? 0 : c;
+        keel::usize ccb = (bc == 1) ? 0 : c;
+        for (keel::usize row = 0; row < outR; ++row) {
+            keel::usize ra = (ar == 1) ? 0 : row;
+            keel::usize rb = (br == 1) ? 0 : row;
             dst[c * outR + row] = op(da[cca * ar + ra], db[ccb * br + rb]);
         }
     }
@@ -500,7 +502,7 @@ Value elementwiseComplexImpl(const Value &a, const Value &b, Op op, std::pmr::me
 // Public entry: raw complex elementwise op, then narrow an all-real result to
 // real (MATLAB). All callers (binary +,-,.*,./,.^, max/min) want this.
 template<typename Op>
-Value elementwiseComplex(const Value &a, const Value &b, Op op, std::pmr::memory_resource *mr = nullptr)
+Value elementwiseComplex(const Value &a, const Value &b, Op op, keel::Allocator *mr = nullptr)
 {
     return narrowComplex(elementwiseComplexImpl(a, b, std::move(op), mr), mr);
 }
@@ -509,27 +511,27 @@ Value elementwiseComplex(const Value &a, const Value &b, Op op, std::pmr::memory
 // Elementwise unary on double
 // ============================================================
 template<typename Op>
-Value unaryDouble(const Value &a, Op op, std::pmr::memory_resource *mr = nullptr)
+Value unaryDouble(const Value &a, Op op, keel::Allocator *mr = nullptr)
 {
     if (a.type() == ValueType::SINGLE) {
         auto r = createLike(a, ValueType::SINGLE, mr);
-        const float *src = static_cast<const float *>(a.rawData());
-        float *dst = static_cast<float *>(r.rawDataMut());
-        for (size_t i = 0; i < a.numel(); ++i)
-            dst[i] = static_cast<float>(op(static_cast<double>(src[i])));
+        const keel::f32 *src = static_cast<const keel::f32 *>(a.rawData());
+        keel::f32 *dst = static_cast<keel::f32 *>(r.rawDataMut());
+        for (keel::usize i = 0; i < a.numel(); ++i)
+            dst[i] = static_cast<keel::f32>(op(static_cast<keel::f64>(src[i])));
         return r;
     }
     if (a.isScalar())
         return Value::scalar(op(a.toScalar()), mr);
     auto r = createLike(a, ValueType::DOUBLE, mr);
     if (a.type() == ValueType::DOUBLE) {
-        const double *src = a.doubleData();
-        double *dst = r.doubleDataMut();
-        for (size_t i = 0; i < a.numel(); ++i)
+        const keel::f64 *src = a.doubleData();
+        keel::f64 *dst = r.doubleDataMut();
+        for (keel::usize i = 0; i < a.numel(); ++i)
             dst[i] = op(src[i]);
     } else {
-        double *dst = r.doubleDataMut();
-        for (size_t i = 0; i < a.numel(); ++i)
+        keel::f64 *dst = r.doubleDataMut();
+        for (keel::usize i = 0; i < a.numel(); ++i)
             dst[i] = op(a.elemAsDouble(i));
     }
     return r;
@@ -540,7 +542,7 @@ Value unaryDouble(const Value &a, Op op, std::pmr::memory_resource *mr = nullptr
 // (MATLAB: uminus/uplus/conj and unary math of an all-real complex give real).
 // ============================================================
 template<typename Op>
-Value unaryComplexImpl(const Value &a, Op op, std::pmr::memory_resource *mr = nullptr)
+Value unaryComplexImpl(const Value &a, Op op, keel::Allocator *mr = nullptr)
 {
     if (a.isScalar()) {
         auto r = Value::complexScalar(op(a.toComplex()), mr);
@@ -549,12 +551,12 @@ Value unaryComplexImpl(const Value &a, Op op, std::pmr::memory_resource *mr = nu
     }
     auto r = createLike(a, ValueType::COMPLEX, mr);
     if (a.isSingleComplex()) r.setSingleComplex(true);
-    for (size_t i = 0; i < a.numel(); ++i)
+    for (keel::usize i = 0; i < a.numel(); ++i)
         r.complexDataMut()[i] = op(a.complexData()[i]);
     return r;
 }
 template<typename Op>
-Value unaryComplex(const Value &a, Op op, std::pmr::memory_resource *mr = nullptr)
+Value unaryComplex(const Value &a, Op op, keel::Allocator *mr = nullptr)
 {
     return narrowComplex(unaryComplexImpl(a, std::move(op), mr), mr);
 }
@@ -569,7 +571,7 @@ Value unaryComplex(const Value &a, Op op, std::pmr::memory_resource *mr = nullpt
 // reference engine. `fn` names the calling builtin for error
 // attribution.
 // ============================================================
-inline DimsArg parseDimsArgs(Span<const Value> args, std::string_view fn)
+inline DimsArg parseDimsArgs(keel::ArrayRef<Value> args, std::string_view fn)
 {
     if (args.empty())
         return {1, 1, 0};
@@ -578,26 +580,26 @@ inline DimsArg parseDimsArgs(Span<const Value> args, std::string_view fn)
     // legal size vector (int8/single/logical); complex is not.
     if (args.size() == 1 && !args[0].isScalar() && args[0].numel() >= 2) {
         argcheck::arrayDimReal(args[0], fn);
-        size_t n = args[0].numel();
-        size_t r = argcheck::arrayDim(args[0].elemAsDouble(0), fn);
-        size_t c = argcheck::arrayDim(args[0].elemAsDouble(1), fn);
-        size_t p = (n >= 3) ? argcheck::arrayDim(args[0].elemAsDouble(2), fn) : 0;
+        keel::usize n = args[0].numel();
+        keel::usize r = argcheck::arrayDim(args[0].elemAsDouble(0), fn);
+        keel::usize c = argcheck::arrayDim(args[0].elemAsDouble(1), fn);
+        keel::usize p = (n >= 3) ? argcheck::arrayDim(args[0].elemAsDouble(2), fn) : 0;
         return {r, c, p};
     }
 
     // Single scalar: f(n) → n×n
     if (args.size() == 1) {
-        const size_t n = argcheck::arrayDim(args[0], fn);
+        const keel::usize n = argcheck::arrayDim(args[0], fn);
         return {n, n, 0};
     }
 
     // Two scalars: f(m, n)
-    size_t r = argcheck::arrayDim(args[0], fn);
-    size_t c = argcheck::arrayDim(args[1], fn);
+    keel::usize r = argcheck::arrayDim(args[0], fn);
+    keel::usize c = argcheck::arrayDim(args[1], fn);
 
     // Three scalars: f(m, n, p)
     if (args.size() >= 3) {
-        size_t p = argcheck::arrayDim(args[2], fn);
+        keel::usize p = argcheck::arrayDim(args[2], fn);
         return {r, c, p};
     }
 
@@ -614,28 +616,30 @@ inline DimsArg parseDimsArgs(Span<const Value> args, std::string_view fn)
 //
 // The returned vector is backed by `mr` — typical use is a per-call
 // ScratchArena for the array-creation builtin (zeros/ones/rand/...).
-inline ScratchVec<size_t> parseDimsArgsND(Span<const Value> args,
+inline keel::Array<keel::usize> parseDimsArgsND(keel::ArrayRef<Value> args,
                                           std::string_view fn,
-                                          std::pmr::memory_resource *mr = nullptr)
+                                          keel::Allocator *mr = nullptr)
 {
-    ScratchVec<size_t> out(mr);
+    keel::Array<keel::usize> out(mr);
     if (args.empty()) {
-        out.assign({1, 1});
+        out.push_back(1);
+        out.push_back(1);
         return out;
     }
     // Vector form: f([m n p ...]) — any numeric class, never complex.
     if (args.size() == 1 && !args[0].isScalar() && args[0].numel() >= 2) {
         argcheck::arrayDimReal(args[0], fn);
-        const size_t n = args[0].numel();
+        const keel::usize n = args[0].numel();
         out.reserve(n);
-        for (size_t i = 0; i < n; ++i)
+        for (keel::usize i = 0; i < n; ++i)
             out.push_back(argcheck::arrayDim(args[0].elemAsDouble(i), fn));
         return out;
     }
     // Single scalar: f(n) → n×n
     if (args.size() == 1) {
-        const size_t n = argcheck::arrayDim(args[0], fn);
-        out.assign({n, n});
+        const keel::usize n = argcheck::arrayDim(args[0], fn);
+        out.push_back(n);
+        out.push_back(n);
         return out;
     }
     // Multiple scalars: f(m, n, p, ...)
@@ -648,7 +652,7 @@ inline ScratchVec<size_t> parseDimsArgsND(Span<const Value> args,
 // Strip trailing 1s past the 2nd dim (MATLAB convention: ones(3,4,1)
 // returns a 2D matrix, not 3D). Keeps at least 2 dims so a vector stays
 // {1, n} rather than collapsing to scalar shape.
-inline void stripTrailingOnes(ScratchVec<size_t> &dims)
+inline void stripTrailingOnes(keel::Array<keel::usize> &dims)
 {
     while (dims.size() > 2 && dims.back() == 1)
         dims.pop_back();
@@ -681,8 +685,8 @@ inline bool valueTypeFromName(std::string_view name, ValueType &out)
 // pulls the type from X.
 //
 // Sets `outType` and modifies `args` (Span is value-copied at callsite).
-inline Span<const Value>
-extractTypeArg(Span<const Value> args, ValueType &outType)
+inline keel::ArrayRef<Value>
+extractTypeArg(keel::ArrayRef<Value> args, ValueType &outType)
 {
     outType = ValueType::DOUBLE;
     if (args.empty()) return args;
@@ -693,7 +697,7 @@ extractTypeArg(Span<const Value> args, ValueType &outType)
         if ((maybeLike.isChar() || maybeLike.isString())
             && maybeLike.toString() == "like") {
             outType = args[args.size() - 1].type();
-            return Span<const Value>(args.data(), args.size() - 2);
+            return keel::ArrayRef<Value>(args.data(), args.size() - 2);
         }
     }
 
@@ -703,7 +707,7 @@ extractTypeArg(Span<const Value> args, ValueType &outType)
         ValueType t;
         if (valueTypeFromName(last.toString(), t)) {
             outType = t;
-            return Span<const Value>(args.data(), args.size() - 1);
+            return keel::ArrayRef<Value>(args.data(), args.size() - 1);
         }
     }
     return args;
@@ -713,8 +717,8 @@ extractTypeArg(Span<const Value> args, ValueType &outType)
 // matrix3d / matrixND constructor that matches the rank. Pointer + size
 // so the same helper composes with std::vector, std::pmr::vector, raw
 // arrays, etc.
-inline Value createMatrixND(const size_t *dims, std::size_t nDims,
-                             ValueType type, std::pmr::memory_resource *mr = nullptr)
+inline Value createMatrixND(const keel::usize *dims, keel::usize nDims,
+                             ValueType type, keel::Allocator *mr = nullptr)
 {
     const int nd = static_cast<int>(nDims);
     if (nd <= 1) return Value::matrix(nd == 1 ? dims[0] : 0, 1, type, mr);
@@ -736,7 +740,7 @@ inline T saturateAdd(T a, T b)
         T r = a + b;
         return (r < a) ? std::numeric_limits<T>::max() : r;
     } else {
-        using W = int64_t;
+        using W = keel::i64;
         W r = static_cast<W>(a) + static_cast<W>(b);
         if (r > std::numeric_limits<T>::max()) return std::numeric_limits<T>::max();
         if (r < std::numeric_limits<T>::min()) return std::numeric_limits<T>::min();
@@ -752,7 +756,7 @@ inline T saturateSub(T a, T b)
     } else if constexpr (std::is_unsigned_v<T>) {
         return (b > a) ? T(0) : a - b;
     } else {
-        using W = int64_t;
+        using W = keel::i64;
         W r = static_cast<W>(a) - static_cast<W>(b);
         if (r > std::numeric_limits<T>::max()) return std::numeric_limits<T>::max();
         if (r < std::numeric_limits<T>::min()) return std::numeric_limits<T>::min();
@@ -765,13 +769,13 @@ inline T saturateMul(T a, T b)
 {
     if constexpr (std::is_floating_point_v<T>) {
         return a * b;
-    } else if constexpr (std::is_same_v<T, int64_t> || std::is_same_v<T, uint64_t>) {
-        double r = static_cast<double>(a) * static_cast<double>(b);
-        if (r > static_cast<double>(std::numeric_limits<T>::max())) return std::numeric_limits<T>::max();
-        if (r < static_cast<double>(std::numeric_limits<T>::min())) return std::numeric_limits<T>::min();
+    } else if constexpr (std::is_same_v<T, keel::i64> || std::is_same_v<T, keel::u64>) {
+        keel::f64 r = static_cast<keel::f64>(a) * static_cast<keel::f64>(b);
+        if (r > static_cast<keel::f64>(std::numeric_limits<T>::max())) return std::numeric_limits<T>::max();
+        if (r < static_cast<keel::f64>(std::numeric_limits<T>::min())) return std::numeric_limits<T>::min();
         return a * b;
     } else {
-        using W = int64_t;
+        using W = keel::i64;
         W r = static_cast<W>(a) * static_cast<W>(b);
         if (r > std::numeric_limits<T>::max()) return std::numeric_limits<T>::max();
         if (r < std::numeric_limits<T>::min()) return std::numeric_limits<T>::min();
@@ -798,10 +802,10 @@ inline T saturateDiv(T a, T b)
                 return std::numeric_limits<T>::max();
         }
         // MATLAB integer division: round result
-        double r = static_cast<double>(a) / static_cast<double>(b);
+        keel::f64 r = static_cast<keel::f64>(a) / static_cast<keel::f64>(b);
         r = std::round(r);
-        if (r > static_cast<double>(std::numeric_limits<T>::max())) return std::numeric_limits<T>::max();
-        if (r < static_cast<double>(std::numeric_limits<T>::min())) return std::numeric_limits<T>::min();
+        if (r > static_cast<keel::f64>(std::numeric_limits<T>::max())) return std::numeric_limits<T>::max();
+        if (r < static_cast<keel::f64>(std::numeric_limits<T>::min())) return std::numeric_limits<T>::min();
         return static_cast<T>(r);
     }
 }
@@ -824,30 +828,30 @@ inline T saturateNeg(T a)
 // ============================================================
 
 template <typename T, typename Op>
-Value elementwiseTyped(const Value &a, const Value &b, ValueType targetType, Op op, std::pmr::memory_resource *mr)
+Value elementwiseTyped(const Value &a, const Value &b, ValueType targetType, Op op, keel::Allocator *mr)
 {
     if (a.isEmpty() || b.isEmpty())
         return emptyResultForBinary(a, b, targetType, mr);
 
     // Read element from source, converting to target type
-    auto readAt = [](const Value &v, ValueType tgt, size_t r, size_t c) -> T {
-        size_t idx = c * v.dims().rows() + r; // column-major
+    auto readAt = [](const Value &v, ValueType tgt, keel::usize r, keel::usize c) -> T {
+        keel::usize idx = c * v.dims().rows() + r; // column-major
         if (v.type() == tgt) return static_cast<const T *>(v.rawData())[idx];
-        double d = v.elemAsDouble(idx);
+        keel::f64 d = v.elemAsDouble(idx);
         if constexpr (std::is_integral_v<T>)
             return static_cast<T>(std::clamp(std::round(d),
-                static_cast<double>(std::numeric_limits<T>::min()),
-                static_cast<double>(std::numeric_limits<T>::max())));
+                static_cast<keel::f64>(std::numeric_limits<T>::min()),
+                static_cast<keel::f64>(std::numeric_limits<T>::max())));
         else
             return static_cast<T>(d);
     };
-    auto readLinearTyped = [](const Value &v, ValueType tgt, size_t i) -> T {
+    auto readLinearTyped = [](const Value &v, ValueType tgt, keel::usize i) -> T {
         if (v.type() == tgt) return static_cast<const T *>(v.rawData())[i];
-        double d = v.elemAsDouble(i);
+        keel::f64 d = v.elemAsDouble(i);
         if constexpr (std::is_integral_v<T>)
             return static_cast<T>(std::clamp(std::round(d),
-                static_cast<double>(std::numeric_limits<T>::min()),
-                static_cast<double>(std::numeric_limits<T>::max())));
+                static_cast<keel::f64>(std::numeric_limits<T>::min()),
+                static_cast<keel::f64>(std::numeric_limits<T>::max())));
         else
             return static_cast<T>(d);
     };
@@ -858,7 +862,7 @@ Value elementwiseTyped(const Value &a, const Value &b, ValueType targetType, Op 
             auto r = createLike(b, targetType, mr);
             T *dst = static_cast<T *>(r.rawDataMut());
             T sa = readLinearTyped(a, targetType, 0);
-            for (size_t i = 0; i < b.numel(); ++i)
+            for (keel::usize i = 0; i < b.numel(); ++i)
                 dst[i] = op(sa, readLinearTyped(b, targetType, i));
             return r;
         }
@@ -866,7 +870,7 @@ Value elementwiseTyped(const Value &a, const Value &b, ValueType targetType, Op 
             auto r = createLike(a, targetType, mr);
             T *dst = static_cast<T *>(r.rawDataMut());
             T sb = readLinearTyped(b, targetType, 0);
-            for (size_t i = 0; i < a.numel(); ++i)
+            for (keel::usize i = 0; i < a.numel(); ++i)
                 dst[i] = op(readLinearTyped(a, targetType, i), sb);
             return r;
         }
@@ -876,7 +880,7 @@ Value elementwiseTyped(const Value &a, const Value &b, ValueType targetType, Op 
         auto r = createForDims(outD, targetType, mr);
         T *dst = static_cast<T *>(r.rawDataMut());
         forEachNDPair(a.dims(), b.dims(), outD,
-            [&](size_t outIdx, size_t aOff, size_t bOff) {
+            [&](keel::usize outIdx, keel::usize aOff, keel::usize bOff) {
                 dst[outIdx] = op(readLinearTyped(a, targetType, aOff),
                                  readLinearTyped(b, targetType, bOff));
             });
@@ -891,7 +895,7 @@ Value elementwiseTyped(const Value &a, const Value &b, ValueType targetType, Op 
             auto r = createLike(b, targetType, mr);
             T *dst = static_cast<T *>(r.rawDataMut());
             T sa = readLinearTyped(a, targetType, 0);
-            for (size_t i = 0; i < b.numel(); ++i)
+            for (keel::usize i = 0; i < b.numel(); ++i)
                 dst[i] = op(sa, readLinearTyped(b, targetType, i));
             return r;
         }
@@ -899,15 +903,15 @@ Value elementwiseTyped(const Value &a, const Value &b, ValueType targetType, Op 
             auto r = createLike(a, targetType, mr);
             T *dst = static_cast<T *>(r.rawDataMut());
             T sb = readLinearTyped(b, targetType, 0);
-            for (size_t i = 0; i < a.numel(); ++i)
+            for (keel::usize i = 0; i < a.numel(); ++i)
                 dst[i] = op(readLinearTyped(a, targetType, i), sb);
             return r;
         }
-        const size_t aR = a.dims().rows(), aC = a.dims().cols();
-        const size_t aP = a.dims().is3D() ? a.dims().pages() : 1;
-        const size_t bR = b.dims().rows(), bC = b.dims().cols();
-        const size_t bP = b.dims().is3D() ? b.dims().pages() : 1;
-        size_t outR, outC, outP;
+        const keel::usize aR = a.dims().rows(), aC = a.dims().cols();
+        const keel::usize aP = a.dims().is3D() ? a.dims().pages() : 1;
+        const keel::usize bR = b.dims().rows(), bC = b.dims().cols();
+        const keel::usize bP = b.dims().is3D() ? b.dims().pages() : 1;
+        keel::usize outR, outC, outP;
         if (!broadcastDims3D(aR, aC, aP, bR, bC, bP, outR, outC, outP))
             throw std::runtime_error(
                 "3D dimensions must broadcast: each axis must match or be 1");
@@ -915,7 +919,7 @@ Value elementwiseTyped(const Value &a, const Value &b, ValueType targetType, Op 
         if (aR == bR && aC == bC && aP == bP) {
             auto r = createLike(a, targetType, mr);
             T *dst = static_cast<T *>(r.rawDataMut());
-            for (size_t i = 0; i < a.numel(); ++i)
+            for (keel::usize i = 0; i < a.numel(); ++i)
                 dst[i] = op(readLinearTyped(a, targetType, i),
                             readLinearTyped(b, targetType, i));
             return r;
@@ -923,11 +927,11 @@ Value elementwiseTyped(const Value &a, const Value &b, ValueType targetType, Op 
         auto r = (outP > 1) ? Value::matrix3d(outR, outC, outP, targetType, mr)
                             : Value::matrix(outR, outC, targetType, mr);
         T *dst = static_cast<T *>(r.rawDataMut());
-        for (size_t pp = 0; pp < outP; ++pp)
-            for (size_t cc = 0; cc < outC; ++cc)
-                for (size_t rr = 0; rr < outR; ++rr) {
-                    const size_t aOff = broadcastOffset3D(rr, cc, pp, aR, aC, aP);
-                    const size_t bOff = broadcastOffset3D(rr, cc, pp, bR, bC, bP);
+        for (keel::usize pp = 0; pp < outP; ++pp)
+            for (keel::usize cc = 0; cc < outC; ++cc)
+                for (keel::usize rr = 0; rr < outR; ++rr) {
+                    const keel::usize aOff = broadcastOffset3D(rr, cc, pp, aR, aC, aP);
+                    const keel::usize bOff = broadcastOffset3D(rr, cc, pp, bR, bC, bP);
                     dst[pp * outR * outC + cc * outR + rr] =
                         op(readLinearTyped(a, targetType, aOff),
                            readLinearTyped(b, targetType, bOff));
@@ -935,20 +939,20 @@ Value elementwiseTyped(const Value &a, const Value &b, ValueType targetType, Op 
         return r;
     }
 
-    size_t ar = a.dims().rows(), ac = a.dims().cols();
-    size_t br = b.dims().rows(), bc = b.dims().cols();
-    size_t outR, outC;
+    keel::usize ar = a.dims().rows(), ac = a.dims().cols();
+    keel::usize br = b.dims().rows(), bc = b.dims().cols();
+    keel::usize outR, outC;
     if (!broadcastDims(ar, ac, br, bc, outR, outC))
         throw std::runtime_error("Matrix dimensions must agree. a=[" + std::to_string(ar) + "x" + std::to_string(ac) + "], b=[" + std::to_string(br) + "x" + std::to_string(bc) + "] (line 913)");
 
     auto r = Value::matrix(outR, outC, targetType, mr);
     T *dst = static_cast<T *>(r.rawDataMut());
-    for (size_t c = 0; c < outC; ++c) {
-        size_t ca = (ac == 1) ? 0 : c;
-        size_t cb = (bc == 1) ? 0 : c;
-        for (size_t row = 0; row < outR; ++row) {
-            size_t ra = (ar == 1) ? 0 : row;
-            size_t rb = (br == 1) ? 0 : row;
+    for (keel::usize c = 0; c < outC; ++c) {
+        keel::usize ca = (ac == 1) ? 0 : c;
+        keel::usize cb = (bc == 1) ? 0 : c;
+        for (keel::usize row = 0; row < outR; ++row) {
+            keel::usize ra = (ar == 1) ? 0 : row;
+            keel::usize rb = (br == 1) ? 0 : row;
             dst[c * outR + row] = op(readAt(a, targetType, ra, ca),
                                      readAt(b, targetType, rb, cb));
         }
@@ -981,21 +985,21 @@ inline ValueType resolveIntegerPairType(const Value &a, const Value &b)
 }
 
 template <typename Op>
-Value dispatchIntegerBinaryOp(const Value &a, const Value &b, Op op, std::pmr::memory_resource *mr = nullptr)
+Value dispatchIntegerBinaryOp(const Value &a, const Value &b, Op op, keel::Allocator *mr = nullptr)
 {
     ValueType target = resolveIntegerPairType(a, b);
     if (target == ValueType::EMPTY) return Value(); // signal: not handled
 
     switch (target) {
-    case ValueType::INT8:   return elementwiseTyped<int8_t>(a, b, target, [&](int8_t x, int8_t y) { return op(x, y); }, mr);
-    case ValueType::INT16:  return elementwiseTyped<int16_t>(a, b, target, [&](int16_t x, int16_t y) { return op(x, y); }, mr);
-    case ValueType::INT32:  return elementwiseTyped<int32_t>(a, b, target, [&](int32_t x, int32_t y) { return op(x, y); }, mr);
-    case ValueType::INT64:  return elementwiseTyped<int64_t>(a, b, target, [&](int64_t x, int64_t y) { return op(x, y); }, mr);
-    case ValueType::UINT8:  return elementwiseTyped<uint8_t>(a, b, target, [&](uint8_t x, uint8_t y) { return op(x, y); }, mr);
-    case ValueType::UINT16: return elementwiseTyped<uint16_t>(a, b, target, [&](uint16_t x, uint16_t y) { return op(x, y); }, mr);
-    case ValueType::UINT32: return elementwiseTyped<uint32_t>(a, b, target, [&](uint32_t x, uint32_t y) { return op(x, y); }, mr);
-    case ValueType::UINT64: return elementwiseTyped<uint64_t>(a, b, target, [&](uint64_t x, uint64_t y) { return op(x, y); }, mr);
-    case ValueType::SINGLE: return elementwiseTyped<float>(a, b, target, [&](float x, float y) { return op(x, y); }, mr);
+    case ValueType::INT8:   return elementwiseTyped<keel::i8>(a, b, target, [&](keel::i8 x, keel::i8 y) { return op(x, y); }, mr);
+    case ValueType::INT16:  return elementwiseTyped<keel::i16>(a, b, target, [&](keel::i16 x, keel::i16 y) { return op(x, y); }, mr);
+    case ValueType::INT32:  return elementwiseTyped<keel::i32>(a, b, target, [&](keel::i32 x, keel::i32 y) { return op(x, y); }, mr);
+    case ValueType::INT64:  return elementwiseTyped<keel::i64>(a, b, target, [&](keel::i64 x, keel::i64 y) { return op(x, y); }, mr);
+    case ValueType::UINT8:  return elementwiseTyped<keel::u8>(a, b, target, [&](keel::u8 x, keel::u8 y) { return op(x, y); }, mr);
+    case ValueType::UINT16: return elementwiseTyped<keel::u16>(a, b, target, [&](keel::u16 x, keel::u16 y) { return op(x, y); }, mr);
+    case ValueType::UINT32: return elementwiseTyped<keel::u32>(a, b, target, [&](keel::u32 x, keel::u32 y) { return op(x, y); }, mr);
+    case ValueType::UINT64: return elementwiseTyped<keel::u64>(a, b, target, [&](keel::u64 x, keel::u64 y) { return op(x, y); }, mr);
+    case ValueType::SINGLE: return elementwiseTyped<keel::f32>(a, b, target, [&](keel::f32 x, keel::f32 y) { return op(x, y); }, mr);
     default: return Value();
     }
 }
@@ -1005,12 +1009,12 @@ Value dispatchIntegerBinaryOp(const Value &a, const Value &b, Op op, std::pmr::m
 // ============================================================
 
 template <typename T, typename Op>
-Value unaryTyped(const Value &a, ValueType targetType, Op op, std::pmr::memory_resource *mr = nullptr)
+Value unaryTyped(const Value &a, ValueType targetType, Op op, keel::Allocator *mr = nullptr)
 {
     auto r = createLike(a, targetType, mr);
     const T *src = static_cast<const T *>(a.rawData());
     T *dst = static_cast<T *>(r.rawDataMut());
-    for (size_t i = 0; i < a.numel(); ++i)
+    for (keel::usize i = 0; i < a.numel(); ++i)
         dst[i] = op(src[i]);
     return r;
 }

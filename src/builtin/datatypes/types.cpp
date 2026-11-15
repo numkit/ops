@@ -1,3 +1,7 @@
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/complex.h>
+#include <keel/math.h>
 #include <numkit/builtin/datatypes.hpp>
 #include <numkit/builtin/strfun.hpp>
 
@@ -19,22 +23,22 @@
 #include "types_detail.hpp"
 
 namespace numkit::builtin::detail {
-void doubleToInt8 (const double *in, int8_t   *out, std::size_t n);
-void doubleToInt16(const double *in, int16_t  *out, std::size_t n);
-void doubleToInt32(const double *in, int32_t  *out, std::size_t n);
-void doubleToInt64(const double *in, int64_t  *out, std::size_t n);
-void doubleToUInt8 (const double *in, uint8_t  *out, std::size_t n);
-void doubleToUInt16(const double *in, uint16_t *out, std::size_t n);
-void doubleToUInt32(const double *in, uint32_t *out, std::size_t n);
-void doubleToUInt64(const double *in, uint64_t *out, std::size_t n);
+void doubleToInt8 (const double *in, keel::i8   *out, keel::usize n);
+void doubleToInt16(const double *in, keel::i16  *out, keel::usize n);
+void doubleToInt32(const double *in, keel::i32  *out, keel::usize n);
+void doubleToInt64(const double *in, keel::i64  *out, keel::usize n);
+void doubleToUInt8 (const double *in, keel::u8  *out, keel::usize n);
+void doubleToUInt16(const double *in, keel::u16 *out, keel::usize n);
+void doubleToUInt32(const double *in, keel::u32 *out, keel::usize n);
+void doubleToUInt64(const double *in, keel::u64 *out, keel::usize n);
 } // namespace numkit::builtin::detail
 
 // Forward-declare the isnan/isinf/isfinite backend (defined in
 // math/arithmetic/isfinite_{highway,portable}.cpp — numkit::builtin::detail after C4).
 namespace numkit::builtin::detail {
-void doubleIsNaNLoop(const double *in, uint8_t *out, std::size_t n);
-void doubleIsInfLoop(const double *in, uint8_t *out, std::size_t n);
-void doubleIsFiniteLoop(const double *in, uint8_t *out, std::size_t n);
+void doubleIsNaNLoop(const double *in, keel::u8 *out, keel::usize n);
+void doubleIsInfLoop(const double *in, keel::u8 *out, keel::usize n);
+void doubleIsFiniteLoop(const double *in, keel::u8 *out, keel::usize n);
 } // namespace numkit::builtin::detail
 
 namespace numkit::builtin {
@@ -48,34 +52,34 @@ namespace numkit::builtin {
 // Public API — numeric constructors
 // ════════════════════════════════════════════════════════════════════════
 
-Value toDouble(const Value &x, std::pmr::memory_resource *mr)
+Value toDouble(const Value &x, keel::Allocator *mr)
 {
     return numericConstructor<double>(ValueType::DOUBLE, x, mr);
 }
 
-Value single(const Value &x, std::pmr::memory_resource *mr)
+Value single(const Value &x, keel::Allocator *mr)
 {
     return numericConstructor<float>(ValueType::SINGLE, x, mr);
 }
 
-Value int8(const Value &x, std::pmr::memory_resource *mr)   { return numericConstructor<int8_t>(ValueType::INT8, x, mr); }
-Value int16(const Value &x, std::pmr::memory_resource *mr)  { return numericConstructor<int16_t>(ValueType::INT16, x, mr); }
-Value int32(const Value &x, std::pmr::memory_resource *mr)  { return numericConstructor<int32_t>(ValueType::INT32, x, mr); }
-Value int64(const Value &x, std::pmr::memory_resource *mr)  { return numericConstructor<int64_t>(ValueType::INT64, x, mr); }
-Value uint8(const Value &x, std::pmr::memory_resource *mr)  { return numericConstructor<uint8_t>(ValueType::UINT8, x, mr); }
-Value uint16(const Value &x, std::pmr::memory_resource *mr) { return numericConstructor<uint16_t>(ValueType::UINT16, x, mr); }
-Value uint32(const Value &x, std::pmr::memory_resource *mr) { return numericConstructor<uint32_t>(ValueType::UINT32, x, mr); }
-Value uint64(const Value &x, std::pmr::memory_resource *mr) { return numericConstructor<uint64_t>(ValueType::UINT64, x, mr); }
+Value int8(const Value &x, keel::Allocator *mr)   { return numericConstructor<keel::i8>(ValueType::INT8, x, mr); }
+Value int16(const Value &x, keel::Allocator *mr)  { return numericConstructor<keel::i16>(ValueType::INT16, x, mr); }
+Value int32(const Value &x, keel::Allocator *mr)  { return numericConstructor<keel::i32>(ValueType::INT32, x, mr); }
+Value int64(const Value &x, keel::Allocator *mr)  { return numericConstructor<keel::i64>(ValueType::INT64, x, mr); }
+Value uint8(const Value &x, keel::Allocator *mr)  { return numericConstructor<keel::u8>(ValueType::UINT8, x, mr); }
+Value uint16(const Value &x, keel::Allocator *mr) { return numericConstructor<keel::u16>(ValueType::UINT16, x, mr); }
+Value uint32(const Value &x, keel::Allocator *mr) { return numericConstructor<keel::u32>(ValueType::UINT32, x, mr); }
+Value uint64(const Value &x, keel::Allocator *mr) { return numericConstructor<keel::u64>(ValueType::UINT64, x, mr); }
 
-Value logical(const Value &x, std::pmr::memory_resource *mr)
+Value logical(const Value &x, keel::Allocator *mr)
 {
-    std::pmr::memory_resource *p = mr;
+    keel::Allocator *p = mr;
     if (x.isLogical())
         return x;
     if (x.isScalar())
         return Value::logicalScalar(x.toScalar() != 0, p);
     Value r = createLike(x, ValueType::LOGICAL, p);
-    for (size_t i = 0; i < x.numel(); ++i)
+    for (keel::usize i = 0; i < x.numel(); ++i)
         r.logicalDataMut()[i] = x.elemAsDouble(i) != 0 ? 1 : 0;
     return r;
 }
@@ -84,30 +88,30 @@ Value logical(const Value &x, std::pmr::memory_resource *mr)
 // Public API — type predicates
 // ════════════════════════════════════════════════════════════════════════
 
-Value isnumeric(const Value &x, std::pmr::memory_resource *mr) { return Value::logicalScalar(x.isNumeric(), mr); }
-Value islogical(const Value &x, std::pmr::memory_resource *mr) { return Value::logicalScalar(x.isLogical(), mr); }
-Value ischar(const Value &x, std::pmr::memory_resource *mr)    { return Value::logicalScalar(x.isChar(), mr); }
-Value isstring(const Value &x, std::pmr::memory_resource *mr)  { return Value::logicalScalar(x.isString(), mr); }
-Value iscell(const Value &x, std::pmr::memory_resource *mr)    { return Value::logicalScalar(x.isCell(), mr); }
-Value isstruct(const Value &x, std::pmr::memory_resource *mr)  { return Value::logicalScalar(x.isStruct(), mr); }
-Value isempty(const Value &x, std::pmr::memory_resource *mr)   { return Value::logicalScalar(x.isEmpty(), mr); }
-Value isscalar(const Value &x, std::pmr::memory_resource *mr)  { return Value::logicalScalar(x.isScalar(), mr); }
-Value isinteger(const Value &x, std::pmr::memory_resource *mr) { return Value::logicalScalar(isIntegerType(x.type()), mr); }
-Value isfloat(const Value &x, std::pmr::memory_resource *mr)   { return Value::logicalScalar(isFloatType(x.type()), mr); }
-Value issingle(const Value &x, std::pmr::memory_resource *mr)  { return Value::logicalScalar(x.type() == ValueType::SINGLE || x.isSingleComplex(), mr); }
+Value isnumeric(const Value &x, keel::Allocator *mr) { return Value::logicalScalar(x.isNumeric(), mr); }
+Value islogical(const Value &x, keel::Allocator *mr) { return Value::logicalScalar(x.isLogical(), mr); }
+Value ischar(const Value &x, keel::Allocator *mr)    { return Value::logicalScalar(x.isChar(), mr); }
+Value isstring(const Value &x, keel::Allocator *mr)  { return Value::logicalScalar(x.isString(), mr); }
+Value iscell(const Value &x, keel::Allocator *mr)    { return Value::logicalScalar(x.isCell(), mr); }
+Value isstruct(const Value &x, keel::Allocator *mr)  { return Value::logicalScalar(x.isStruct(), mr); }
+Value isempty(const Value &x, keel::Allocator *mr)   { return Value::logicalScalar(x.isEmpty(), mr); }
+Value isscalar(const Value &x, keel::Allocator *mr)  { return Value::logicalScalar(x.isScalar(), mr); }
+Value isinteger(const Value &x, keel::Allocator *mr) { return Value::logicalScalar(isIntegerType(x.type()), mr); }
+Value isfloat(const Value &x, keel::Allocator *mr)   { return Value::logicalScalar(isFloatType(x.type()), mr); }
+Value issingle(const Value &x, keel::Allocator *mr)  { return Value::logicalScalar(x.type() == ValueType::SINGLE || x.isSingleComplex(), mr); }
 // nk has no sparse-matrix storage class -- issparse always returns
 // false for any input. Matches MATLAB on dense inputs (which is all
 // nk can produce). Covers the FAIL row in PROGRESS for issparse.
-Value issparse(const Value & /*x*/, std::pmr::memory_resource *mr) { return Value::logicalScalar(false, mr); }
+Value issparse(const Value & /*x*/, keel::Allocator *mr) { return Value::logicalScalar(false, mr); }
 
-Value isnan(const Value &x, std::pmr::memory_resource *mr)
+Value isnan(const Value &x, keel::Allocator *mr)
 {
-    std::pmr::memory_resource *p = mr;
+    keel::Allocator *p = mr;
     if (x.isComplex()) {
         auto r = createLike(x, ValueType::LOGICAL, p);
         const auto *cd = x.complexData();
-        uint8_t *ld = r.logicalDataMut();
-        for (size_t i = 0; i < x.numel(); ++i)
+        keel::u8 *ld = r.logicalDataMut();
+        for (keel::usize i = 0; i < x.numel(); ++i)
             ld[i] = (std::isnan(cd[i].real()) || std::isnan(cd[i].imag())) ? 1 : 0;
         return r;
     }
@@ -119,8 +123,8 @@ Value isnan(const Value &x, std::pmr::memory_resource *mr)
         ::numkit::builtin::detail::doubleIsNaNLoop(x.doubleData(), r.logicalDataMut(), x.numel());
     } else if (x.type() == ValueType::SINGLE) {
         const float *sd = x.singleData();
-        uint8_t *ld = r.logicalDataMut();
-        for (size_t i = 0; i < x.numel(); ++i)
+        keel::u8 *ld = r.logicalDataMut();
+        for (keel::usize i = 0; i < x.numel(); ++i)
             ld[i] = std::isnan(sd[i]) ? 1 : 0;
     } else {
         std::memset(r.logicalDataMut(), 0, x.numel());
@@ -128,14 +132,14 @@ Value isnan(const Value &x, std::pmr::memory_resource *mr)
     return r;
 }
 
-Value isinf(const Value &x, std::pmr::memory_resource *mr)
+Value isinf(const Value &x, keel::Allocator *mr)
 {
-    std::pmr::memory_resource *p = mr;
+    keel::Allocator *p = mr;
     if (x.isComplex()) {
         auto r = createLike(x, ValueType::LOGICAL, p);
         const auto *cd = x.complexData();
-        uint8_t *ld = r.logicalDataMut();
-        for (size_t i = 0; i < x.numel(); ++i)
+        keel::u8 *ld = r.logicalDataMut();
+        for (keel::usize i = 0; i < x.numel(); ++i)
             ld[i] = (std::isinf(cd[i].real()) || std::isinf(cd[i].imag())) ? 1 : 0;
         return r;
     }
@@ -147,8 +151,8 @@ Value isinf(const Value &x, std::pmr::memory_resource *mr)
         ::numkit::builtin::detail::doubleIsInfLoop(x.doubleData(), r.logicalDataMut(), x.numel());
     } else if (x.type() == ValueType::SINGLE) {
         const float *sd = x.singleData();
-        uint8_t *ld = r.logicalDataMut();
-        for (size_t i = 0; i < x.numel(); ++i)
+        keel::u8 *ld = r.logicalDataMut();
+        for (keel::usize i = 0; i < x.numel(); ++i)
             ld[i] = std::isinf(sd[i]) ? 1 : 0;
     } else {
         std::memset(r.logicalDataMut(), 0, x.numel());
@@ -156,14 +160,14 @@ Value isinf(const Value &x, std::pmr::memory_resource *mr)
     return r;
 }
 
-Value isfinite(const Value &x, std::pmr::memory_resource *mr)
+Value isfinite(const Value &x, keel::Allocator *mr)
 {
-    std::pmr::memory_resource *p = mr;
+    keel::Allocator *p = mr;
     if (x.isComplex()) {
         auto r = createLike(x, ValueType::LOGICAL, p);
         const auto *cd = x.complexData();
-        uint8_t *ld = r.logicalDataMut();
-        for (size_t i = 0; i < x.numel(); ++i)
+        keel::u8 *ld = r.logicalDataMut();
+        for (keel::usize i = 0; i < x.numel(); ++i)
             ld[i] = (std::isfinite(cd[i].real()) && std::isfinite(cd[i].imag())) ? 1 : 0;
         return r;
     }
@@ -175,8 +179,8 @@ Value isfinite(const Value &x, std::pmr::memory_resource *mr)
         ::numkit::builtin::detail::doubleIsFiniteLoop(x.doubleData(), r.logicalDataMut(), x.numel());
     } else if (x.type() == ValueType::SINGLE) {
         const float *sd = x.singleData();
-        uint8_t *ld = r.logicalDataMut();
-        for (size_t i = 0; i < x.numel(); ++i)
+        keel::u8 *ld = r.logicalDataMut();
+        for (keel::usize i = 0; i < x.numel(); ++i)
             ld[i] = std::isfinite(sd[i]) ? 1 : 0;
     } else {
         std::memset(r.logicalDataMut(), 1, x.numel());
@@ -188,21 +192,21 @@ Value isfinite(const Value &x, std::pmr::memory_resource *mr)
 
 
 Value ismissing(const Value &x, const Value &indicator,
-                std::pmr::memory_resource *mr)
+                keel::Allocator *mr)
 {
-    std::pmr::memory_resource *p = mr;
+    keel::Allocator *p = mr;
     auto r = createLike(x, ValueType::LOGICAL, p);
-    const std::size_t n = x.numel();
+    const keel::usize n = x.numel();
     if (n == 0) return r;
 
-    std::uint8_t *out = r.logicalDataMut();
+    keel::u8 *out = r.logicalDataMut();
 
     // Build the indicator value list (empty → standard missing only).
     const bool have_ind = (!indicator.isEmpty());
     std::vector<double> ind_vals;
     if (have_ind) {
         ind_vals.reserve(indicator.numel());
-        for (std::size_t k = 0; k < indicator.numel(); ++k)
+        for (keel::usize k = 0; k < indicator.numel(); ++k)
             ind_vals.push_back(indicator.elemAsDouble(k));
     }
     const bool float_class = typeHasMissing(x.type());
@@ -214,11 +218,11 @@ Value ismissing(const Value &x, const Value &indicator,
                 ::numkit::builtin::detail::doubleIsNaNLoop(x.doubleData(), out, n);
             } else {  // SINGLE
                 const float *src = x.singleData();
-                for (std::size_t i = 0; i < n; ++i)
+                for (keel::usize i = 0; i < n; ++i)
                     out[i] = std::isnan(src[i]) ? 1u : 0u;
             }
         } else {
-            std::fill(out, out + n, std::uint8_t{0});
+            std::fill(out, out + n, keel::u8{0});
         }
         return r;
     }
@@ -227,7 +231,7 @@ Value ismissing(const Value &x, const Value &indicator,
     // (NaN is NOT auto-flagged when an indicator is given — MATLAB
     // behaviour, probed). NaN entries in the indicator itself match
     // NaN values in `x` (special-cased because NaN != NaN).
-    for (std::size_t i = 0; i < n; ++i) {
+    for (keel::usize i = 0; i < n; ++i) {
         const double xi = elemD(x, i);
         const bool xi_nan = std::isnan(xi);
         bool tf = false;
@@ -244,10 +248,10 @@ Value ismissing(const Value &x, const Value &indicator,
 }
 
 Value standardizeMissing(const Value &x, const Value &indicator,
-                         std::pmr::memory_resource *mr)
+                         keel::Allocator *mr)
 {
-    std::pmr::memory_resource *p = mr;
-    const std::size_t n = x.numel();
+    keel::Allocator *p = mr;
+    const keel::usize n = x.numel();
     const ValueType T = x.type();
 
     // Indicator-compatibility contract (probed R2025b,
@@ -301,7 +305,7 @@ Value standardizeMissing(const Value &x, const Value &indicator,
     std::vector<double> ind_vals;
     if (!indicator.isEmpty()) {
         ind_vals.reserve(indicator.numel());
-        for (std::size_t k = 0; k < indicator.numel(); ++k) {
+        for (keel::usize k = 0; k < indicator.numel(); ++k) {
             const double v = indicator.elemAsDouble(k);
             if (!std::isnan(v)) ind_vals.push_back(v);
         }
@@ -314,7 +318,7 @@ Value standardizeMissing(const Value &x, const Value &indicator,
         const double *src = x.doubleData();
         double *dst       = out.doubleDataMut();
         const double nan  = std::numeric_limits<double>::quiet_NaN();
-        for (std::size_t i = 0; i < n; ++i) {
+        for (keel::usize i = 0; i < n; ++i) {
             const double v = src[i];
             bool hit = false;
             for (double ind : ind_vals) {
@@ -326,7 +330,7 @@ Value standardizeMissing(const Value &x, const Value &indicator,
         const float *src = x.singleData();
         float *dst       = out.singleDataMut();
         const float nan  = std::numeric_limits<float>::quiet_NaN();
-        for (std::size_t i = 0; i < n; ++i) {
+        for (keel::usize i = 0; i < n; ++i) {
             const float v = src[i];
             bool hit = false;
             for (double ind : ind_vals) {
@@ -338,20 +342,20 @@ Value standardizeMissing(const Value &x, const Value &indicator,
     return out;
 }
 
-Value anymissing(const Value &x, std::pmr::memory_resource *mr)
+Value anymissing(const Value &x, keel::Allocator *mr)
 {
-    std::pmr::memory_resource *p = mr;
-    const std::size_t n = x.numel();
+    keel::Allocator *p = mr;
+    const keel::usize n = x.numel();
     if (n == 0) return Value::logicalScalar(false, p);
     if (!typeHasMissing(x.type()))
         return Value::logicalScalar(false, p);
     if (x.type() == ValueType::DOUBLE) {
         const double *src = x.doubleData();
-        for (std::size_t i = 0; i < n; ++i)
+        for (keel::usize i = 0; i < n; ++i)
             if (std::isnan(src[i])) return Value::logicalScalar(true, p);
     } else {
         const float *src = x.singleData();
-        for (std::size_t i = 0; i < n; ++i)
+        for (keel::usize i = 0; i < n; ++i)
             if (std::isnan(src[i])) return Value::logicalScalar(true, p);
     }
     return Value::logicalScalar(false, p);
@@ -359,28 +363,28 @@ Value anymissing(const Value &x, std::pmr::memory_resource *mr)
 
 // ── Shape predicates ─────────────────────────────────────────────────
 
-Value isvector(const Value &x, std::pmr::memory_resource *mr)
+Value isvector(const Value &x, keel::Allocator *mr)
 {
     const auto &d = x.dims();
     bool tf = d.ndim() <= 2 && (d.rows() == 1 || d.cols() == 1) && x.numel() > 0;
     return Value::logicalScalar(tf, mr);
 }
 
-Value isrow(const Value &x, std::pmr::memory_resource *mr)
+Value isrow(const Value &x, keel::Allocator *mr)
 {
     const auto &d = x.dims();
     bool tf = d.ndim() <= 2 && d.rows() == 1;
     return Value::logicalScalar(tf, mr);
 }
 
-Value iscolumn(const Value &x, std::pmr::memory_resource *mr)
+Value iscolumn(const Value &x, keel::Allocator *mr)
 {
     const auto &d = x.dims();
     bool tf = d.ndim() <= 2 && d.cols() == 1;
     return Value::logicalScalar(tf, mr);
 }
 
-Value ismatrix(const Value &x, std::pmr::memory_resource *mr)
+Value ismatrix(const Value &x, keel::Allocator *mr)
 {
     return Value::logicalScalar(x.dims().ndim() <= 2, mr);
 }
@@ -388,7 +392,7 @@ Value ismatrix(const Value &x, std::pmr::memory_resource *mr)
 // ── Order predicates ─────────────────────────────────────────────────
 
 
-Value issorted(const Value &x, const Value &mode, std::pmr::memory_resource *mr)
+Value issorted(const Value &x, const Value &mode, keel::Allocator *mr)
 {
     SortMode m = SortMode::Ascend;
     if (!readSortMode(mode, m))
@@ -402,28 +406,28 @@ Value issorted(const Value &x, const Value &mode, std::pmr::memory_resource *mr)
         return Value::logicalScalar(runSorted(p, x.numel(), m), mr);
     }
     // Matrix / 3-D / N-D: every column (along dim 1) must satisfy `mode`.
-    const size_t r = d.rows();
-    const size_t restCount = x.numel() / r;
-    for (size_t k = 0; k < restCount; ++k) {
+    const keel::usize r = d.rows();
+    const keel::usize restCount = x.numel() / r;
+    for (keel::usize k = 0; k < restCount; ++k) {
         if (!runSorted(p + k * r, r, m))
             return Value::logicalScalar(false, mr);
     }
     return Value::logicalScalar(true, mr);
 }
 
-Value issortedrows(const Value &x, std::pmr::memory_resource *mr)
+Value issortedrows(const Value &x, keel::Allocator *mr)
 {
     if (x.isEmpty() || x.isScalar())
         return Value::logicalScalar(true, mr);
     const auto &d = x.dims();
     if (d.ndim() > 2)
         throw std::runtime_error("issortedrows: input must be 2-D");
-    const size_t R = d.rows(), C = d.cols();
+    const keel::usize R = d.rows(), C = d.cols();
     if (R < 2) return Value::logicalScalar(true, mr);
     const double *p = x.doubleData();
-    auto getElem = [&](size_t row, size_t col) { return p[col * R + row]; };
-    for (size_t i = 1; i < R; ++i) {
-        for (size_t c = 0; c < C; ++c) {
+    auto getElem = [&](keel::usize row, keel::usize col) { return p[col * R + row]; };
+    for (keel::usize i = 1; i < R; ++i) {
+        for (keel::usize c = 0; c < C; ++c) {
             const double a = getElem(i - 1, c);
             const double b = getElem(i, c);
             if (std::isnan(a) || std::isnan(b))
@@ -437,28 +441,28 @@ Value issortedrows(const Value &x, std::pmr::memory_resource *mr)
     return Value::logicalScalar(true, mr);
 }
 
-Value isuniform(const Value &x, std::pmr::memory_resource *mr)
+Value isuniform(const Value &x, keel::Allocator *mr)
 {
     if (x.isEmpty()) return Value::logicalScalar(true, mr);
     if (x.isScalar()) return Value::logicalScalar(true, mr);
-    const size_t n = x.numel();
+    const keel::usize n = x.numel();
     const auto &d = x.dims();
     // Treat as 1-D: only meaningful for row/column vectors.
     if (d.ndim() > 2 || (d.rows() != 1 && d.cols() != 1))
         throw std::runtime_error("isuniform: input must be a vector");
     if (n < 2) return Value::logicalScalar(true, mr);
     const double *p = x.doubleData();
-    for (size_t i = 0; i < n; ++i)
+    for (keel::usize i = 0; i < n; ++i)
         if (!std::isfinite(p[i])) return Value::logicalScalar(false, mr);
     const double step = p[1] - p[0];
     // Tolerance: 4 * eps(max-magnitude in vector or step), follows MATLAB
     // isuniform's "approximately uniform" semantics.
-    double scale = std::abs(step);
-    for (size_t i = 0; i < n; ++i) scale = std::max(scale, std::abs(p[i]));
+    double scale = keel::abs(step);
+    for (keel::usize i = 0; i < n; ++i) scale = std::max(scale, keel::abs(p[i]));
     const double tol = 4 * std::numeric_limits<double>::epsilon() * scale;
-    for (size_t i = 1; i < n - 1; ++i) {
+    for (keel::usize i = 1; i < n - 1; ++i) {
         const double s = p[i + 1] - p[i];
-        if (std::abs(s - step) > tol)
+        if (keel::abs(s - step) > tol)
             return Value::logicalScalar(false, mr);
     }
     return Value::logicalScalar(true, mr);
@@ -467,7 +471,7 @@ Value isuniform(const Value &x, std::pmr::memory_resource *mr)
 // ── Numeric limits ───────────────────────────────────────────────────
 
 
-Value flintmax(const Value &t, std::pmr::memory_resource *mr)
+Value flintmax(const Value &t, keel::Allocator *mr)
 {
     auto name = readTypeName(t, "double");
     if (name == "single")
@@ -477,35 +481,35 @@ Value flintmax(const Value &t, std::pmr::memory_resource *mr)
     throw std::runtime_error("flintmax: type must be 'double' or 'single'");
 }
 
-Value intmax(const Value &t, std::pmr::memory_resource *mr)
+Value intmax(const Value &t, keel::Allocator *mr)
 {
     auto name = readTypeName(t, "int32");
-    if (name == "int8")   return typedScalar<int8_t>(ValueType::INT8, std::numeric_limits<int8_t>::max(), mr);
-    if (name == "int16")  return typedScalar<int16_t>(ValueType::INT16, std::numeric_limits<int16_t>::max(), mr);
-    if (name == "int32")  return typedScalar<int32_t>(ValueType::INT32, std::numeric_limits<int32_t>::max(), mr);
-    if (name == "int64")  return typedScalar<int64_t>(ValueType::INT64, std::numeric_limits<int64_t>::max(), mr);
-    if (name == "uint8")  return typedScalar<uint8_t>(ValueType::UINT8, std::numeric_limits<uint8_t>::max(), mr);
-    if (name == "uint16") return typedScalar<uint16_t>(ValueType::UINT16, std::numeric_limits<uint16_t>::max(), mr);
-    if (name == "uint32") return typedScalar<uint32_t>(ValueType::UINT32, std::numeric_limits<uint32_t>::max(), mr);
-    if (name == "uint64") return typedScalar<uint64_t>(ValueType::UINT64, std::numeric_limits<uint64_t>::max(), mr);
+    if (name == "int8")   return typedScalar<keel::i8>(ValueType::INT8, std::numeric_limits<keel::i8>::max(), mr);
+    if (name == "int16")  return typedScalar<keel::i16>(ValueType::INT16, std::numeric_limits<keel::i16>::max(), mr);
+    if (name == "int32")  return typedScalar<keel::i32>(ValueType::INT32, std::numeric_limits<keel::i32>::max(), mr);
+    if (name == "int64")  return typedScalar<keel::i64>(ValueType::INT64, std::numeric_limits<keel::i64>::max(), mr);
+    if (name == "uint8")  return typedScalar<keel::u8>(ValueType::UINT8, std::numeric_limits<keel::u8>::max(), mr);
+    if (name == "uint16") return typedScalar<keel::u16>(ValueType::UINT16, std::numeric_limits<keel::u16>::max(), mr);
+    if (name == "uint32") return typedScalar<keel::u32>(ValueType::UINT32, std::numeric_limits<keel::u32>::max(), mr);
+    if (name == "uint64") return typedScalar<keel::u64>(ValueType::UINT64, std::numeric_limits<keel::u64>::max(), mr);
     throw std::runtime_error("intmax: unsupported integer class");
 }
 
-Value intmin(const Value &t, std::pmr::memory_resource *mr)
+Value intmin(const Value &t, keel::Allocator *mr)
 {
     auto name = readTypeName(t, "int32");
-    if (name == "int8")   return typedScalar<int8_t>(ValueType::INT8, std::numeric_limits<int8_t>::min(), mr);
-    if (name == "int16")  return typedScalar<int16_t>(ValueType::INT16, std::numeric_limits<int16_t>::min(), mr);
-    if (name == "int32")  return typedScalar<int32_t>(ValueType::INT32, std::numeric_limits<int32_t>::min(), mr);
-    if (name == "int64")  return typedScalar<int64_t>(ValueType::INT64, std::numeric_limits<int64_t>::min(), mr);
-    if (name == "uint8")  return typedScalar<uint8_t>(ValueType::UINT8, static_cast<uint8_t>(0), mr);
-    if (name == "uint16") return typedScalar<uint16_t>(ValueType::UINT16, static_cast<uint16_t>(0), mr);
-    if (name == "uint32") return typedScalar<uint32_t>(ValueType::UINT32, static_cast<uint32_t>(0), mr);
-    if (name == "uint64") return typedScalar<uint64_t>(ValueType::UINT64, static_cast<uint64_t>(0), mr);
+    if (name == "int8")   return typedScalar<keel::i8>(ValueType::INT8, std::numeric_limits<keel::i8>::min(), mr);
+    if (name == "int16")  return typedScalar<keel::i16>(ValueType::INT16, std::numeric_limits<keel::i16>::min(), mr);
+    if (name == "int32")  return typedScalar<keel::i32>(ValueType::INT32, std::numeric_limits<keel::i32>::min(), mr);
+    if (name == "int64")  return typedScalar<keel::i64>(ValueType::INT64, std::numeric_limits<keel::i64>::min(), mr);
+    if (name == "uint8")  return typedScalar<keel::u8>(ValueType::UINT8, static_cast<keel::u8>(0), mr);
+    if (name == "uint16") return typedScalar<keel::u16>(ValueType::UINT16, static_cast<keel::u16>(0), mr);
+    if (name == "uint32") return typedScalar<keel::u32>(ValueType::UINT32, static_cast<keel::u32>(0), mr);
+    if (name == "uint64") return typedScalar<keel::u64>(ValueType::UINT64, static_cast<keel::u64>(0), mr);
     throw std::runtime_error("intmin: unsupported integer class");
 }
 
-Value realmax(const Value &t, std::pmr::memory_resource *mr)
+Value realmax(const Value &t, keel::Allocator *mr)
 {
     auto name = readTypeName(t, "double");
     if (name == "single")
@@ -515,7 +519,7 @@ Value realmax(const Value &t, std::pmr::memory_resource *mr)
     throw std::runtime_error("realmax: type must be 'double' or 'single'");
 }
 
-Value realmin(const Value &t, std::pmr::memory_resource *mr)
+Value realmin(const Value &t, keel::Allocator *mr)
 {
     auto name = readTypeName(t, "double");
     if (name == "single")
@@ -527,7 +531,7 @@ Value realmin(const Value &t, std::pmr::memory_resource *mr)
 
 // ── Whole-array float predicates ────────────────────────────────────
 
-Value allfinite(const Value &x, std::pmr::memory_resource *mr)
+Value allfinite(const Value &x, keel::Allocator *mr)
 {
     if (x.isEmpty()) return Value::logicalScalar(true, mr);
     if (!x.isNumeric()) return Value::logicalScalar(false, mr);
@@ -538,17 +542,17 @@ Value allfinite(const Value &x, std::pmr::memory_resource *mr)
         }
         return Value::logicalScalar(std::isfinite(x.toScalar()), mr);
     }
-    const size_t n = x.numel();
+    const keel::usize n = x.numel();
     if (x.isComplex()) {
-        const Complex *p = x.complexData();
-        for (size_t i = 0; i < n; ++i)
+        const keel::c64 *p = x.complexData();
+        for (keel::usize i = 0; i < n; ++i)
             if (!std::isfinite(p[i].real()) || !std::isfinite(p[i].imag()))
                 return Value::logicalScalar(false, mr);
         return Value::logicalScalar(true, mr);
     }
     if (isFloatType(x.type())) {
         const double *p = x.doubleData();
-        for (size_t i = 0; i < n; ++i)
+        for (keel::usize i = 0; i < n; ++i)
             if (!std::isfinite(p[i])) return Value::logicalScalar(false, mr);
         return Value::logicalScalar(true, mr);
     }
@@ -556,7 +560,7 @@ Value allfinite(const Value &x, std::pmr::memory_resource *mr)
     return Value::logicalScalar(true, mr);
 }
 
-Value anynan(const Value &x, std::pmr::memory_resource *mr)
+Value anynan(const Value &x, keel::Allocator *mr)
 {
     if (x.isEmpty()) return Value::logicalScalar(false, mr);
     if (!x.isNumeric()) return Value::logicalScalar(false, mr);
@@ -567,17 +571,17 @@ Value anynan(const Value &x, std::pmr::memory_resource *mr)
         }
         return Value::logicalScalar(std::isnan(x.toScalar()), mr);
     }
-    const size_t n = x.numel();
+    const keel::usize n = x.numel();
     if (x.isComplex()) {
-        const Complex *p = x.complexData();
-        for (size_t i = 0; i < n; ++i)
+        const keel::c64 *p = x.complexData();
+        for (keel::usize i = 0; i < n; ++i)
             if (std::isnan(p[i].real()) || std::isnan(p[i].imag()))
                 return Value::logicalScalar(true, mr);
         return Value::logicalScalar(false, mr);
     }
     if (isFloatType(x.type())) {
         const double *p = x.doubleData();
-        for (size_t i = 0; i < n; ++i)
+        for (keel::usize i = 0; i < n; ++i)
             if (std::isnan(p[i])) return Value::logicalScalar(true, mr);
         return Value::logicalScalar(false, mr);
     }
@@ -588,17 +592,17 @@ Value anynan(const Value &x, std::pmr::memory_resource *mr)
 // Public API — equality + introspection
 // ════════════════════════════════════════════════════════════════════════
 
-Value isequal(const Value &a, const Value &b, std::pmr::memory_resource *mr)
+Value isequal(const Value &a, const Value &b, keel::Allocator *mr)
 {
     return Value::logicalScalar(valuesEqual(a, b, false), mr);
 }
 
-Value isequaln(const Value &a, const Value &b, std::pmr::memory_resource *mr)
+Value isequaln(const Value &a, const Value &b, keel::Allocator *mr)
 {
     return Value::logicalScalar(valuesEqual(a, b, true), mr);
 }
 
-Value classOf(const Value &x, std::pmr::memory_resource *mr)
+Value classOf(const Value &x, keel::Allocator *mr)
 {
     // OBJECT instances report their registered class name, not "object".
     if (x.isObject())
@@ -609,7 +613,7 @@ Value classOf(const Value &x, std::pmr::memory_resource *mr)
 }
 
 // ── Pack 36: cast + swapbytes ────────────────────────────────────────
-Value cast(const Value &x, const std::string &classname, std::pmr::memory_resource *mr)
+Value cast(const Value &x, const std::string &classname, keel::Allocator *mr)
 {
     if (classname == "double")  return toDouble(x, mr);
     if (classname == "single")  return single(x, mr);
@@ -631,24 +635,24 @@ Value cast(const Value &x, const std::string &classname, std::pmr::memory_resour
 
 // Map a MATLAB classname string → (ValueType, element-size-in-bytes).
 
-Value typecast(const Value &x, const std::string &classname, std::pmr::memory_resource *mr)
+Value typecast(const Value &x, const std::string &classname, keel::Allocator *mr)
 {
     TypeInfo info = typeInfoFor(classname);
     if (info.elemSize == 0)
         throw Error("typecast: unsupported class '" + classname + "'",
                      0, 0, "typecast", "", "numkit:typecast:badClass");
 
-    const size_t srcElemSize = elemSizeOf(x.type());
+    const keel::usize srcElemSize = elemSizeOf(x.type());
     if (srcElemSize == 0)
         throw Error("typecast: input type does not have a contiguous byte buffer",
                      0, 0, "typecast", "", "numkit:typecast:badInputType");
 
-    const size_t totalBytes = x.numel() * srcElemSize;
+    const keel::usize totalBytes = x.numel() * srcElemSize;
     if (totalBytes % info.elemSize != 0)
         throw Error("typecast: input byte count must be a multiple of the "
                     "destination element size",
                      0, 0, "typecast", "", "numkit:typecast:badSize");
-    const size_t newCount = totalBytes / info.elemSize;
+    const keel::usize newCount = totalBytes / info.elemSize;
 
     // Output is always a row vector (matches MATLAB).
     Value out = Value::matrix(1, newCount, info.vt, mr);
@@ -657,18 +661,18 @@ Value typecast(const Value &x, const std::string &classname, std::pmr::memory_re
     return out;
 }
 
-Value swapbytes(const Value &x, std::pmr::memory_resource *mr)
+Value swapbytes(const Value &x, keel::Allocator *mr)
 {
     switch (x.type()) {
     case ValueType::INT8:    return int8(x, mr);     // copy through (1 byte = identity)
     case ValueType::UINT8:   return uint8(x, mr);
     case ValueType::LOGICAL: return logical(x, mr);
-    case ValueType::INT16:   return swapBytesArray<int16_t>(x, mr);
-    case ValueType::UINT16:  return swapBytesArray<uint16_t>(x, mr);
-    case ValueType::INT32:   return swapBytesArray<int32_t>(x, mr);
-    case ValueType::UINT32:  return swapBytesArray<uint32_t>(x, mr);
-    case ValueType::INT64:   return swapBytesArray<int64_t>(x, mr);
-    case ValueType::UINT64:  return swapBytesArray<uint64_t>(x, mr);
+    case ValueType::INT16:   return swapBytesArray<keel::i16>(x, mr);
+    case ValueType::UINT16:  return swapBytesArray<keel::u16>(x, mr);
+    case ValueType::INT32:   return swapBytesArray<keel::i32>(x, mr);
+    case ValueType::UINT32:  return swapBytesArray<keel::u32>(x, mr);
+    case ValueType::INT64:   return swapBytesArray<keel::i64>(x, mr);
+    case ValueType::UINT64:  return swapBytesArray<keel::u64>(x, mr);
     case ValueType::SINGLE:  return swapBytesArray<float>(x, mr);
     case ValueType::DOUBLE:  return swapBytesArray<double>(x, mr);
     default:

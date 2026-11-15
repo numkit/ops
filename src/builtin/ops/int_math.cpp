@@ -7,6 +7,8 @@
 // outside the [-2^53, 2^53] safe integer range degrade like MATLAB:
 // the round-trip through double rounds.
 
+#include <keel/core.h>
+#include <keel/memory.h>
 #include <numkit/builtin/ops.hpp>
 
 #include <numkit/builtin/datatypes.hpp>
@@ -28,23 +30,23 @@ namespace numkit::builtin {
 // gcd / lcm
 // ────────────────────────────────────────────────────────────────────
 
-Value gcd(const Value &a, const Value &b, std::pmr::memory_resource *mr)
+Value gcd(const Value &a, const Value &b, keel::Allocator *mr)
 {
     return elementwiseDouble(a, b, [](double xv, double yv) {
         return static_cast<double>(gcdInt(toInt64(xv), toInt64(yv)));
     }, mr);
 }
 
-Value lcm(const Value &a, const Value &b, std::pmr::memory_resource *mr)
+Value lcm(const Value &a, const Value &b, keel::Allocator *mr)
 {
     return elementwiseDouble(a, b, [](double xv, double yv) {
-        const int64_t x = toInt64(xv);
-        const int64_t y = toInt64(yv);
+        const keel::i64 x = toInt64(xv);
+        const keel::i64 y = toInt64(yv);
         if (x == 0 || y == 0) return 0.0;
-        const int64_t g = gcdInt(x, y);
+        const keel::i64 g = gcdInt(x, y);
         // |a*b| / g, computed as (|a|/g)*|b| to reduce overflow risk.
-        const int64_t ax = (x < 0) ? -x : x;
-        const int64_t ay = (y < 0) ? -y : y;
+        const keel::i64 ax = (x < 0) ? -x : x;
+        const keel::i64 ay = (y < 0) ? -y : y;
         return static_cast<double>((ax / g) * ay);
     }, mr);
 }
@@ -53,40 +55,40 @@ Value lcm(const Value &a, const Value &b, std::pmr::memory_resource *mr)
 // bitwise
 // ────────────────────────────────────────────────────────────────────
 
-Value bitand_(const Value &a, const Value &b, std::pmr::memory_resource *mr)
+Value bitand_(const Value &a, const Value &b, keel::Allocator *mr)
 {
     return elementwiseDouble(a, b, [](double xv, double yv) {
         return static_cast<double>(toInt64(xv) & toInt64(yv));
     }, mr);
 }
 
-Value bitor_(const Value &a, const Value &b, std::pmr::memory_resource *mr)
+Value bitor_(const Value &a, const Value &b, keel::Allocator *mr)
 {
     return elementwiseDouble(a, b, [](double xv, double yv) {
         return static_cast<double>(toInt64(xv) | toInt64(yv));
     }, mr);
 }
 
-Value bitxor_(const Value &a, const Value &b, std::pmr::memory_resource *mr)
+Value bitxor_(const Value &a, const Value &b, keel::Allocator *mr)
 {
     return elementwiseDouble(a, b, [](double xv, double yv) {
         return static_cast<double>(toInt64(xv) ^ toInt64(yv));
     }, mr);
 }
 
-Value bitshift(const Value &a, const Value &k, std::pmr::memory_resource *mr)
+Value bitshift(const Value &a, const Value &k, keel::Allocator *mr)
 {
     return elementwiseDouble(a, k, [](double xv, double kv) {
-        const int64_t x = toInt64(xv);
-        const int64_t shift = toInt64(kv);
+        const keel::i64 x = toInt64(xv);
+        const keel::i64 shift = toInt64(kv);
         if (shift > 0) {
             // Left shift. Cap at 63 to avoid undefined behavior.
             if (shift >= 64) return 0.0;
-            return static_cast<double>(static_cast<int64_t>(
-                static_cast<uint64_t>(x) << shift));
+            return static_cast<double>(static_cast<keel::i64>(
+                static_cast<keel::u64>(x) << shift));
         }
         if (shift < 0) {
-            const int64_t s = -shift;
+            const keel::i64 s = -shift;
             if (s >= 64) {
                 // Signed-shift far-right: 0 for non-negative, -1 for negative.
                 return (x < 0) ? -1.0 : 0.0;
@@ -94,23 +96,23 @@ Value bitshift(const Value &a, const Value &k, std::pmr::memory_resource *mr)
             // Arithmetic right shift: implementation-defined in C++ for
             // negative values pre-C++20. We do it explicitly to be safe.
             if (x >= 0) return static_cast<double>(x >> s);
-            const uint64_t ux = static_cast<uint64_t>(x);
-            const uint64_t mask = ~uint64_t{0} << (64 - s);
-            return static_cast<double>(static_cast<int64_t>((ux >> s) | mask));
+            const keel::u64 ux = static_cast<keel::u64>(x);
+            const keel::u64 mask = ~keel::u64{0} << (64 - s);
+            return static_cast<double>(static_cast<keel::i64>((ux >> s) | mask));
         }
         return static_cast<double>(x);
     }, mr);
 }
 
-Value bitcmp(const Value &a, int width, std::pmr::memory_resource *mr)
+Value bitcmp(const Value &a, int width, keel::Allocator *mr)
 {
     if (width != 8 && width != 16 && width != 32 && width != 64)
         throw Error("bitcmp: width must be 8, 16, 32, or 64",
                      0, 0, "bitcmp", "", "numkit:bitcmp:badWidth");
-    const uint64_t mask = (width == 64) ? ~uint64_t{0}
-                                        : ((uint64_t{1} << width) - 1);
+    const keel::u64 mask = (width == 64) ? ~keel::u64{0}
+                                        : ((keel::u64{1} << width) - 1);
     return unaryDouble(a, [mask](double xv) {
-        const uint64_t ux = static_cast<uint64_t>(toInt64(xv));
+        const keel::u64 ux = static_cast<keel::u64>(toInt64(xv));
         return static_cast<double>((~ux) & mask);
     }, mr);
 }
@@ -118,31 +120,31 @@ Value bitcmp(const Value &a, int width, std::pmr::memory_resource *mr)
 // bitset(A, n)        — set bit n (1-based) of each A_i to 1.
 // bitset(A, n, val)   — set bit n to `val` (0 or 1).
 // MATLAB convention: bit 1 is the LSB.
-Value bitset(const Value &a, const Value &n, const Value &val, std::pmr::memory_resource *mr)
+Value bitset(const Value &a, const Value &n, const Value &val, keel::Allocator *mr)
 {
     const int v = val.isEmpty() ? 1 : static_cast<int>(val.toScalar());
     if (v != 0 && v != 1)
         throw Error("bitset: third argument must be 0 or 1",
                      0, 0, "bitset", "", "numkit:bitset:badVal");
     return elementwiseDouble(a, n, [v](double xv, double nv) {
-        const int64_t x = toInt64(xv);
+        const keel::i64 x = toInt64(xv);
         const int bit = static_cast<int>(nv);
         if (bit < 1 || bit > 64) return xv;
-        const uint64_t mask = uint64_t{1} << (bit - 1);
-        const uint64_t ux = static_cast<uint64_t>(x);
-        const uint64_t r  = (v == 1) ? (ux | mask) : (ux & ~mask);
-        return static_cast<double>(static_cast<int64_t>(r));
+        const keel::u64 mask = keel::u64{1} << (bit - 1);
+        const keel::u64 ux = static_cast<keel::u64>(x);
+        const keel::u64 r  = (v == 1) ? (ux | mask) : (ux & ~mask);
+        return static_cast<double>(static_cast<keel::i64>(r));
     }, mr);
 }
 
 // bitget(A, n)        — return the n-th bit (0 or 1) of each A_i.
-Value bitget(const Value &a, const Value &n, std::pmr::memory_resource *mr)
+Value bitget(const Value &a, const Value &n, keel::Allocator *mr)
 {
     return elementwiseDouble(a, n, [](double xv, double nv) {
-        const int64_t x = toInt64(xv);
+        const keel::i64 x = toInt64(xv);
         const int bit = static_cast<int>(nv);
         if (bit < 1 || bit > 64) return 0.0;
-        const uint64_t ux = static_cast<uint64_t>(x);
+        const keel::u64 ux = static_cast<keel::u64>(x);
         return static_cast<double>((ux >> (bit - 1)) & 1u);
     }, mr);
 }

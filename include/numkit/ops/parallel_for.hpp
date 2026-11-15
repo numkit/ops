@@ -20,6 +20,7 @@
 
 #pragma once
 
+#include <keel/core.h>
 #include <cstddef>
 
 #if defined(NUMKIT_WITH_THREADS)
@@ -53,13 +54,13 @@ namespace numkit::detail {
 // `kTranscendentalThreshold` is much smaller because sin/cos/exp/log
 // have high arithmetic intensity per element (Highway's polynomial
 // approximations) — the kernel pays for the dispatch even on small N.
-inline constexpr std::size_t kElementwiseThreshold    =  16 * 1024;
+inline constexpr keel::usize kElementwiseThreshold    =  16 * 1024;
 #if defined(__EMSCRIPTEN__)
-inline constexpr std::size_t kCheapElementwiseThreshold = 4 * 1024 * 1024;
+inline constexpr keel::usize kCheapElementwiseThreshold = 4 * 1024 * 1024;
 #else
-inline constexpr std::size_t kCheapElementwiseThreshold =     256 * 1024;
+inline constexpr keel::usize kCheapElementwiseThreshold =     256 * 1024;
 #endif
-inline constexpr std::size_t kTranscendentalThreshold =   4 * 1024;
+inline constexpr keel::usize kTranscendentalThreshold =   4 * 1024;
 
 // Below this N the cheapest element-wise ops (+ - .* ./) skip the Highway
 // dynamic-dispatch path and run an inline scalar loop the compiler
@@ -70,9 +71,9 @@ inline constexpr std::size_t kTranscendentalThreshold =   4 * 1024;
 // static/inlinable and already wins on small inputs, so the gate is disabled
 // (0 → `n < 0` never trips). Set at the measured native break-even (~256K).
 #if defined(__EMSCRIPTEN__)
-inline constexpr std::size_t kSimdInlineThreshold = 0;
+inline constexpr keel::usize kSimdInlineThreshold = 0;
 #else
-inline constexpr std::size_t kSimdInlineThreshold = 256 * 1024;
+inline constexpr keel::usize kSimdInlineThreshold = 256 * 1024;
 #endif
 
 // Worker caps for memory-bandwidth-bound kernels. On dual-channel
@@ -83,7 +84,7 @@ inline constexpr std::size_t kSimdInlineThreshold = 256 * 1024;
 inline constexpr int         kElementwiseMaxWorkers   = 6;
 
 template <typename F>
-inline void parallel_for(std::size_t n, std::size_t threshold, F &&fn,
+inline void parallel_for(keel::usize n, keel::usize threshold, F &&fn,
                          int max_workers = 0)
 {
 #if defined(NUMKIT_WITH_THREADS)
@@ -97,7 +98,7 @@ inline void parallel_for(std::size_t n, std::size_t threshold, F &&fn,
     (void)max_workers;
 #endif
     if (n > 0)
-        fn(static_cast<std::size_t>(0), n);
+        fn(static_cast<keel::usize>(0), n);
 }
 
 } // namespace numkit::detail

@@ -3,11 +3,15 @@
 // Scan-family builtins (fscanf / sscanf / textscan). Shares SizeSpec /
 // parseReadSize / shapeFreadOutput with fileio.cpp via io_helpers.hpp.
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/ref.h>
+#include <keel/arena.h>
+#include <keel/array.h>
 #include <numkit/builtin/strfun.hpp>
 #include "scan_core.hpp"
 
 #include <numkit/value/value.hpp>
-#include <numkit/value/scratch.hpp>
 #include <numkit/value/error.hpp>
 
 #include <numkit/ops/io_helpers.hpp>
@@ -19,7 +23,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <limits>
-#include <memory_resource>
 #include <string>
 #include <utility>
 
@@ -38,7 +41,7 @@ namespace {
 // type. Text-only → char array; anything else → double column.
 bool formatHasNumeric(const std::string &fmt)
 {
-    for (size_t i = 0; i < fmt.size(); ++i) {
+    for (keel::usize i = 0; i < fmt.size(); ++i) {
         if (fmt[i] != '%') continue;
         ++i;
         if (i < fmt.size() && fmt[i] == '*') ++i;
@@ -54,16 +57,16 @@ bool formatHasNumeric(const std::string &fmt)
     return false;
 }
 
-ScanfOut scanfCycle(const std::string &input, const std::string &fmt, size_t limit,
-                     ScratchVec<double> &out)
+ScanfOut scanfCycle(const std::string &input, const std::string &fmt, keel::usize limit,
+                     keel::Array<double> &out)
 {
-    size_t inPos = 0;
-    size_t count = 0;
+    keel::usize inPos = 0;
+    keel::usize count = 0;
 
     while (count < limit && inPos < input.size()) {
-        size_t beforeIn = inPos;
-        size_t beforeCount = count;
-        size_t fmtPos = 0;
+        keel::usize beforeIn = inPos;
+        keel::usize beforeCount = count;
+        keel::usize fmtPos = 0;
         bool ok = true;
 
         while (fmtPos < fmt.size() && ok) {
@@ -127,10 +130,10 @@ ScanfOut scanfCycle(const std::string &input, const std::string &fmt, size_t lim
 
                 // %[set] does NOT skip leading whitespace (like %c).
                 if (inPos >= input.size()) { ok = false; break; }
-                size_t tokenStart = inPos;
-                size_t maxEnd = (width < 0)
+                keel::usize tokenStart = inPos;
+                keel::usize maxEnd = (width < 0)
                                     ? input.size()
-                                    : std::min(inPos + static_cast<size_t>(width),
+                                    : std::min(inPos + static_cast<keel::usize>(width),
                                                input.size());
                 while (inPos < maxEnd) {
                     bool m = member[static_cast<unsigned char>(input[inPos])];
@@ -139,7 +142,7 @@ ScanfOut scanfCycle(const std::string &input, const std::string &fmt, size_t lim
                 }
                 if (inPos == tokenStart) { ok = false; break; }
                 if (!suppress) {
-                    for (size_t p = tokenStart; p < inPos && count < limit; ++p) {
+                    for (keel::usize p = tokenStart; p < inPos && count < limit; ++p) {
                         out.push_back(static_cast<double>(
                             static_cast<unsigned char>(input[p])));
                         ++count;
@@ -160,17 +163,17 @@ ScanfOut scanfCycle(const std::string &input, const std::string &fmt, size_t lim
             if (inPos >= input.size()) { ok = false; break; }
 
             if (spec == 's') {
-                size_t tokenStart = inPos;
-                size_t maxEnd = (width < 0)
+                keel::usize tokenStart = inPos;
+                keel::usize maxEnd = (width < 0)
                                     ? input.size()
-                                    : std::min(inPos + static_cast<size_t>(width),
+                                    : std::min(inPos + static_cast<keel::usize>(width),
                                                input.size());
                 while (inPos < maxEnd &&
                        !std::isspace(static_cast<unsigned char>(input[inPos])))
                     ++inPos;
                 if (inPos == tokenStart) { ok = false; break; }
                 if (!suppress) {
-                    for (size_t p = tokenStart; p < inPos && count < limit; ++p) {
+                    for (keel::usize p = tokenStart; p < inPos && count < limit; ++p) {
                         out.push_back(static_cast<double>(
                             static_cast<unsigned char>(input[p])));
                         ++count;
@@ -180,10 +183,10 @@ ScanfOut scanfCycle(const std::string &input, const std::string &fmt, size_t lim
             }
 
             if (spec == 'c') {
-                size_t n = (width < 0) ? 1u : static_cast<size_t>(width);
+                keel::usize n = (width < 0) ? 1u : static_cast<keel::usize>(width);
                 if (inPos + n > input.size()) { ok = false; break; }
                 if (!suppress) {
-                    for (size_t p = 0; p < n && count < limit; ++p) {
+                    for (keel::usize p = 0; p < n && count < limit; ++p) {
                         out.push_back(static_cast<double>(
                             static_cast<unsigned char>(input[inPos + p])));
                         ++count;
@@ -233,7 +236,7 @@ ScanfOut scanfCycle(const std::string &input, const std::string &fmt, size_t lim
             }
             if (!ok) break;
 
-            inPos += static_cast<size_t>(endp - start);
+            inPos += static_cast<keel::usize>(endp - start);
             if (!suppress) {
                 out.push_back(v);
                 if (++count >= limit) break;
@@ -251,7 +254,7 @@ ScanfOut scanfCycle(const std::string &input, const std::string &fmt, size_t lim
     return ScanfOut{count, inPos};
 }
 
-Value makeColumn(const double *vals, size_t n, std::pmr::memory_resource *mr)
+Value makeColumn(const double *vals, keel::usize n, keel::Allocator *mr)
 {
     if (n == 0)
         return Value::matrix(0, 0, ValueType::DOUBLE, mr);
@@ -260,28 +263,28 @@ Value makeColumn(const double *vals, size_t n, std::pmr::memory_resource *mr)
     return M;
 }
 
-Value makeCharRow(const double *vals, size_t n, std::pmr::memory_resource *mr)
+Value makeCharRow(const double *vals, keel::usize n, keel::Allocator *mr)
 {
     std::string s;
     s.reserve(n);
-    for (size_t i = 0; i < n; ++i)
+    for (keel::usize i = 0; i < n; ++i)
         s.push_back(static_cast<char>(static_cast<int>(vals[i])));
     return Value::fromString(s, mr);
 }
 
 // Column-major char matrix from the flat `vals` buffer. Unfilled
 // cells stay zero (MATLAB's documented fill for partial char reads).
-Value makeCharMatrix(const double *vals, size_t n,
-                     numkit::ops::SizeSpec sz, std::pmr::memory_resource *mr)
+Value makeCharMatrix(const double *vals, keel::usize n,
+                     numkit::ops::SizeSpec sz, keel::Allocator *mr)
 {
-    size_t cols_out = (sz.cols == SIZE_MAX)
+    keel::usize cols_out = (sz.cols == SIZE_MAX)
                          ? (sz.rows == 0 ? 0 : (n + sz.rows - 1) / sz.rows)
                          : sz.cols;
     if (sz.rows == 0 || cols_out == 0)
         return Value::matrix(sz.rows, cols_out, ValueType::CHAR, mr);
     Value M = Value::matrix(sz.rows, cols_out, ValueType::CHAR, mr);
     char *data = M.charDataMut();
-    for (size_t i = 0; i < n; ++i)
+    for (keel::usize i = 0; i < n; ++i)
         data[i] = static_cast<char>(static_cast<int>(vals[i]));
     return M;
 }
@@ -290,8 +293,8 @@ Value makeCharMatrix(const double *vals, size_t n,
 // the format has only %s/%c conversions, column-of-doubles otherwise.
 // Takes a pre-computed `hasNumericConv` flag so the caller doesn't
 // need to re-walk the format string.
-Value shapeScanfOutput(const double *vals, size_t n,
-                       bool hasNumericConv, std::pmr::memory_resource *mr)
+Value shapeScanfOutput(const double *vals, keel::usize n,
+                       bool hasNumericConv, keel::Allocator *mr)
 {
     if (hasNumericConv)
         return makeColumn(vals, n, mr);
@@ -310,11 +313,11 @@ namespace detail {
 
 void scanfEmit(const std::string &input, const std::string &fmt,
                const numkit::ops::SizeSpec &sz,
-               size_t nargout, Span<Value> outs, ScanfOut &r,
-               std::pmr::memory_resource *mr)
+               keel::usize nargout, keel::MutArrayRef<Value> outs, ScanfOut &r,
+               keel::Allocator *mr)
 {
-    ScratchArena scratch(mr);
-    ScratchVec<double> values(&scratch);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<double> values(scratch.allocator());
     r = scanfCycle(input, fmt, sz.limit, values);
     const bool hasNum = formatHasNumeric(fmt);
     // Matrix-shape dispatch: numeric format → double matrix,
@@ -357,7 +360,7 @@ void scanfEmit(const std::string &input, const std::string &fmt,
 // ════════════════════════════════════════════════════════════════════════
 
 
-void sscanf(Span<const Value> args, size_t nargout, Span<Value> outs, std::pmr::memory_resource *mr)
+void sscanf(keel::ArrayRef<Value> args, keel::usize nargout, keel::MutArrayRef<Value> outs, keel::Allocator *mr)
 {
     if (args.size() < 2 || !args[0].isChar() || !args[1].isChar())
         throw Error("sscanf: requires (str, format [, size])");

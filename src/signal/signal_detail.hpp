@@ -9,11 +9,12 @@
 
 #pragma once
 
+#include <keel/core.h>
+#include <keel/memory.h>
 #include <numkit/value/error.hpp>
 #include <numkit/value/value.hpp>
 #include <numkit/value/value_type.hpp>   // mtypeName (argcheck got-clauses)
 
-#include <memory_resource>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -76,7 +77,7 @@ inline void requireFloatInput(const Value &v, std::string_view fn,
     throwInputType(v, fn, argName, argNum, "a double or single array");
 }
 
-inline Value widenSingleToDouble(const Value &v, std::pmr::memory_resource *mr)
+inline Value widenSingleToDouble(const Value &v, keel::Allocator *mr)
 {
     if (v.type() != ValueType::SINGLE) return v;
     const auto &d = v.dims();
@@ -86,19 +87,19 @@ inline Value widenSingleToDouble(const Value &v, std::pmr::memory_resource *mr)
     } else if (d.ndim() == 3) {
         out = Value::matrix3d(d.rows(), d.cols(), d.pages(), ValueType::DOUBLE, mr);
     } else {
-        std::vector<std::size_t> od(static_cast<std::size_t>(d.ndim()));
-        for (int k = 0; k < d.ndim(); ++k) od[static_cast<std::size_t>(k)] = d.dim(k);
+        std::vector<keel::usize> od(static_cast<keel::usize>(d.ndim()));
+        for (int k = 0; k < d.ndim(); ++k) od[static_cast<keel::usize>(k)] = d.dim(k);
         out = Value::matrixND(od.data(), d.ndim(), ValueType::DOUBLE, mr);
     }
     const float *src = v.singleData();
     double *dst = out.doubleDataMut();
-    const std::size_t n = v.numel();
-    for (std::size_t i = 0; i < n; ++i)
+    const keel::usize n = v.numel();
+    for (keel::usize i = 0; i < n; ++i)
         dst[i] = static_cast<double>(src[i]);
     return out;
 }
 
-inline Value narrowDoubleToSingle(const Value &v, std::pmr::memory_resource *mr)
+inline Value narrowDoubleToSingle(const Value &v, keel::Allocator *mr)
 {
     if (v.type() != ValueType::DOUBLE) return v;
     const auto &d = v.dims();
@@ -108,20 +109,20 @@ inline Value narrowDoubleToSingle(const Value &v, std::pmr::memory_resource *mr)
     } else if (d.ndim() == 3) {
         out = Value::matrix3d(d.rows(), d.cols(), d.pages(), ValueType::SINGLE, mr);
     } else {
-        std::vector<std::size_t> od(static_cast<std::size_t>(d.ndim()));
-        for (int k = 0; k < d.ndim(); ++k) od[static_cast<std::size_t>(k)] = d.dim(k);
+        std::vector<keel::usize> od(static_cast<keel::usize>(d.ndim()));
+        for (int k = 0; k < d.ndim(); ++k) od[static_cast<keel::usize>(k)] = d.dim(k);
         out = Value::matrixND(od.data(), d.ndim(), ValueType::SINGLE, mr);
     }
     const double *src = v.doubleData();
     float *dst = out.singleDataMut();
-    const std::size_t n = v.numel();
-    for (std::size_t i = 0; i < n; ++i)
+    const keel::usize n = v.numel();
+    for (keel::usize i = 0; i < n; ++i)
         dst[i] = static_cast<float>(src[i]);
     return out;
 }
 
 inline Value narrowDoubleToSingleIf(const Value &v, bool wantSingle,
-                                    std::pmr::memory_resource *mr)
+                                    keel::Allocator *mr)
 {
     return wantSingle ? narrowDoubleToSingle(v, mr) : v;
 }

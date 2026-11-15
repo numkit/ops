@@ -3,11 +3,12 @@
 // Pure C++ Formatted input/output and stream printing functions.
 #pragma once
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/ref.h>
 #include <iostream>
-#include <memory_resource>
 #include <string>
 #include <numkit/value/value.hpp>
-#include <numkit/value/span.hpp>
 
 namespace numkit::builtin {
 
@@ -28,7 +29,7 @@ namespace numkit::builtin {
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Formatted character array or string Value.
 /// @see fprintf, sscanf
-Value sprintf(const Value &fmt, Span<const Value> args, std::pmr::memory_resource *mr = nullptr);
+Value sprintf(const Value &fmt, keel::ArrayRef<Value> args, keel::Allocator *mr = nullptr);
 
 /// @brief Formats data into a C++ string according to format string `fmt`.
 /// @param fmt Format string.
@@ -36,7 +37,7 @@ Value sprintf(const Value &fmt, Span<const Value> args, std::pmr::memory_resourc
 /// @param mr Memory resource.
 /// @return Formatted std::string.
 /// @see fprintf, disp
-std::string sprintf(const std::string &fmt, Span<const Value> args, std::pmr::memory_resource *mr = nullptr);
+std::string sprintf(const std::string &fmt, keel::ArrayRef<Value> args, keel::Allocator *mr = nullptr);
 
 /// @brief Formats Value for terminal display via `disp`.
 /// @param a Input value to format.
@@ -55,7 +56,7 @@ void disp(const Value &v, std::ostream &os = std::cout);
 /// @param mr Memory resource.
 /// @return Number of characters written.
 /// @see sprintf, disp
-int fprintf(std::ostream &os, const std::string &fmt, Span<const Value> args, std::pmr::memory_resource *mr = nullptr);
+int fprintf(std::ostream &os, const std::string &fmt, keel::ArrayRef<Value> args, keel::Allocator *mr = nullptr);
 
 /// @brief Reads formatted data from a string according to format specifier `fmt` (`sscanf(str, fmt)`).
 /// @param str Source string to scan.
@@ -63,14 +64,14 @@ int fprintf(std::ostream &os, const std::string &fmt, Span<const Value> args, st
 /// @param mr Memory resource.
 /// @return Scanned values array.
 /// @see textscan, sprintf
-Value sscanf(const std::string &str, const std::string &fmt, std::pmr::memory_resource *mr = nullptr);
+Value sscanf(const std::string &str, const std::string &fmt, keel::Allocator *mr = nullptr);
 
 /// @brief Reads formatted data from a string with multi-output support (`[A, count, errmsg, nextindex] = sscanf(...)`).
 /// @param args Input arguments span `[str, fmt, size]`.
 /// @param nargout Number of requested outputs.
 /// @param outs Output spans to fill with results.
 /// @param mr Memory resource.
-void sscanf(Span<const Value> args, size_t nargout, Span<Value> outs, std::pmr::memory_resource *mr = nullptr);
+void sscanf(keel::ArrayRef<Value> args, keel::usize nargout, keel::MutArrayRef<Value> outs, keel::Allocator *mr = nullptr);
 
 
 /// @}

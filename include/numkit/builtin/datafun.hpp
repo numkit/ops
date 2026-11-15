@@ -3,7 +3,9 @@
 // Pure C++ Data analysis, reductions, random number generation, set operations.
 #pragma once
 
-#include <memory_resource>
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/ref.h>
 #include <string>
 #include <tuple>
 #include <numkit/value/value.hpp>
@@ -39,7 +41,7 @@ using ::numkit::ops::randperm;
 /// @param mr Memory resource for allocations.
 /// @return Sum array.
 /// @see prod, mean, cumsum
-Value sum(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value sum(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Sum of array elements along specified dimension (`sum(x, dim)`).
 /// @param x Input array.
@@ -47,14 +49,14 @@ Value sum(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource.
 /// @return Sum array.
 /// @see prod, mean, cumsum
-Value sum(const Value &x, int dim, std::pmr::memory_resource *mr = nullptr);
+Value sum(const Value &x, int dim, keel::Allocator *mr = nullptr);
 
 /// @brief Product of array elements along first non-singleton dimension (`prod(x)`).
 /// @param x Input array.
 /// @param mr Memory resource.
 /// @return Product array.
 /// @see sum, mean, cumprod
-Value prod(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value prod(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Product of array elements along specified dimension (`prod(x, dim)`).
 /// @param x Input array.
@@ -62,14 +64,14 @@ Value prod(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource.
 /// @return Product array.
 /// @see sum, mean, cumprod
-Value prod(const Value &x, int dim, std::pmr::memory_resource *mr = nullptr);
+Value prod(const Value &x, int dim, keel::Allocator *mr = nullptr);
 
 /// @brief Mean (arithmetic average) of array elements (`mean(x)`).
 /// @param x Input array.
 /// @param mr Memory resource.
 /// @return Mean array.
 /// @see sum, median
-Value mean(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value mean(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Mean (arithmetic average) of array elements along dimension (`mean(x, dim)`).
 /// @param x Input array.
@@ -77,139 +79,139 @@ Value mean(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource.
 /// @return Mean array.
 /// @see sum, median
-Value mean(const Value &x, int dim, std::pmr::memory_resource *mr = nullptr);
+Value mean(const Value &x, int dim, keel::Allocator *mr = nullptr);
 
 /// @brief Largest elements in array. Returns tuple `(values, indices)` (`[M, I] = max(x)`).
 /// @param x Input array.
 /// @param mr Memory resource.
 /// @return Tuple containing `{max_values, max_indices}`.
 /// @see min, maxOmitNan
-std::tuple<Value, Value> max(const Value &x, std::pmr::memory_resource *mr = nullptr);
+std::tuple<Value, Value> max(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Largest elements in array along specified dimension (`[M, I] = max(x, [], dim)`).
 /// @param x Input array.
 /// @param dim Operating dimension.
 /// @param mr Memory resource.
 /// @return Tuple containing `{max_values, max_indices}`.
-std::tuple<Value, Value> max(const Value &x, int dim, std::pmr::memory_resource *mr = nullptr);
+std::tuple<Value, Value> max(const Value &x, int dim, keel::Allocator *mr = nullptr);
 
 /// @brief Element-wise maximum of two arrays (`max(a, b)`).
 /// @param a First array.
 /// @param b Second array.
 /// @param mr Memory resource.
 /// @return Element-wise maximum array.
-Value max(const Value &a, const Value &b, std::pmr::memory_resource *mr = nullptr);
+Value max(const Value &a, const Value &b, keel::Allocator *mr = nullptr);
 
 /// @brief Largest elements in array along dimension omitting NaN values (`max(x, [], dim, 'omitnan')`).
 /// @param x Input array.
 /// @param dim Operating dimension.
 /// @param mr Memory resource.
 /// @return Tuple containing `{max_values, max_indices}`.
-std::tuple<Value, Value> maxOmitNan(const Value &x, int dim, std::pmr::memory_resource *mr = nullptr);
+std::tuple<Value, Value> maxOmitNan(const Value &x, int dim, keel::Allocator *mr = nullptr);
 
 /// @brief Element-wise maximum of two arrays omitting NaNs (`max(a, b, 'omitnan')`).
 /// @param a First array.
 /// @param b Second array.
 /// @param mr Memory resource.
 /// @return Element-wise maximum.
-Value maxOmitNanBinary(const Value &a, const Value &b, std::pmr::memory_resource *mr = nullptr);
+Value maxOmitNanBinary(const Value &a, const Value &b, keel::Allocator *mr = nullptr);
 
 /// @brief Smallest elements in array. Returns tuple `(values, indices)` (`[M, I] = min(x)`).
 /// @param x Input array.
 /// @param mr Memory resource.
 /// @return Tuple containing `{min_values, min_indices}`.
 /// @see max, minOmitNan
-std::tuple<Value, Value> min(const Value &x, std::pmr::memory_resource *mr = nullptr);
+std::tuple<Value, Value> min(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Smallest elements in array along dimension (`[M, I] = min(x, [], dim)`).
 /// @param x Input array.
 /// @param dim Operating dimension.
 /// @param mr Memory resource.
 /// @return Tuple containing `{min_values, min_indices}`.
-std::tuple<Value, Value> min(const Value &x, int dim, std::pmr::memory_resource *mr = nullptr);
+std::tuple<Value, Value> min(const Value &x, int dim, keel::Allocator *mr = nullptr);
 
 /// @brief Element-wise minimum of two arrays (`min(a, b)`).
 /// @param a First array.
 /// @param b Second array.
 /// @param mr Memory resource.
 /// @return Element-wise minimum.
-Value min(const Value &a, const Value &b, std::pmr::memory_resource *mr = nullptr);
+Value min(const Value &a, const Value &b, keel::Allocator *mr = nullptr);
 
 /// @brief Smallest elements in array along dimension omitting NaNs (`min(x, [], dim, 'omitnan')`).
 /// @param x Input array.
 /// @param dim Operating dimension.
 /// @param mr Memory resource.
 /// @return Tuple containing `{min_values, min_indices}`.
-std::tuple<Value, Value> minOmitNan(const Value &x, int dim, std::pmr::memory_resource *mr = nullptr);
+std::tuple<Value, Value> minOmitNan(const Value &x, int dim, keel::Allocator *mr = nullptr);
 
 /// @brief Element-wise minimum of two arrays omitting NaNs (`min(a, b, 'omitnan')`).
 /// @param a First array.
 /// @param b Second array.
 /// @param mr Memory resource.
 /// @return Element-wise minimum.
-Value minOmitNanBinary(const Value &a, const Value &b, std::pmr::memory_resource *mr = nullptr);
+Value minOmitNanBinary(const Value &a, const Value &b, keel::Allocator *mr = nullptr);
 
 /// @brief Cumulative sum of array elements (`cumsum(x)`).
 /// @param x Input array.
 /// @param mr Memory resource.
 /// @return Cumulative sum array.
 /// @see sum, cumprod
-Value cumsum(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value cumsum(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Cumulative sum of array elements along specified dimension (`cumsum(x, dim)`).
 /// @param x Input array.
 /// @param dim Operating dimension.
 /// @param mr Memory resource.
 /// @return Cumulative sum array.
-Value cumsum(const Value &x, int dim, std::pmr::memory_resource *mr = nullptr);
+Value cumsum(const Value &x, int dim, keel::Allocator *mr = nullptr);
 
 /// @brief Cumulative product of array elements (`cumprod(x)`).
 /// @param x Input array.
 /// @param mr Memory resource.
 /// @return Cumulative product array.
 /// @see prod, cumsum
-Value cumprod(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value cumprod(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Cumulative product of array elements along specified dimension (`cumprod(x, dim)`).
 /// @param x Input array.
 /// @param dim Operating dimension.
 /// @param mr Memory resource.
 /// @return Cumulative product array.
-Value cumprod(const Value &x, int dim, std::pmr::memory_resource *mr = nullptr);
+Value cumprod(const Value &x, int dim, keel::Allocator *mr = nullptr);
 
 /// @brief Cumulative maximum of array elements (`cummax(x)`).
 /// @param x Input array.
 /// @param mr Memory resource.
 /// @return Cumulative maximum array.
 /// @see max, cummin
-Value cummax(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value cummax(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Cumulative maximum of array elements along dimension (`cummax(x, dim)`).
 /// @param x Input array.
 /// @param dim Operating dimension.
 /// @param mr Memory resource.
 /// @return Cumulative maximum array.
-Value cummax(const Value &x, int dim, std::pmr::memory_resource *mr = nullptr);
+Value cummax(const Value &x, int dim, keel::Allocator *mr = nullptr);
 
 /// @brief Cumulative minimum of array elements (`cummin(x)`).
 /// @param x Input array.
 /// @param mr Memory resource.
 /// @return Cumulative minimum array.
 /// @see min, cummax
-Value cummin(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value cummin(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Cumulative minimum of array elements along dimension (`cummin(x, dim)`).
 /// @param x Input array.
 /// @param dim Operating dimension.
 /// @param mr Memory resource.
 /// @return Cumulative minimum array.
-Value cummin(const Value &x, int dim, std::pmr::memory_resource *mr = nullptr);
+Value cummin(const Value &x, int dim, keel::Allocator *mr = nullptr);
 
 /// @brief Differences between adjacent elements (`diff(x)`).
 /// @param x Input array.
 /// @param mr Memory resource.
 /// @return First-order differences array.
-Value diff(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value diff(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Nth-order differences between elements along dimension (`diff(x, n, dim)`).
 /// @param x Input array.
@@ -217,21 +219,21 @@ Value diff(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param dim Operating dimension (default 0 for first non-singleton).
 /// @param mr Memory resource.
 /// @return Nth-order difference array.
-Value diff(const Value &x, int n, int dim = 0, std::pmr::memory_resource *mr = nullptr);
+Value diff(const Value &x, int n, int dim = 0, keel::Allocator *mr = nullptr);
 
 /// @brief True if any element along dimension is nonzero (`any(x, dim)`).
 /// @param x Input array.
 /// @param dim Operating dimension (0 for first non-singleton).
 /// @param mr Memory resource.
 /// @return Logical array.
-Value anyOf(const Value &x, int dim = 0, std::pmr::memory_resource *mr = nullptr);
+Value anyOf(const Value &x, int dim = 0, keel::Allocator *mr = nullptr);
 
 /// @brief True if all elements along dimension are nonzero (`all(x, dim)`).
 /// @param x Input array.
 /// @param dim Operating dimension (0 for first non-singleton).
 /// @param mr Memory resource.
 /// @return Logical array.
-Value allOf(const Value &x, int dim = 0, std::pmr::memory_resource *mr = nullptr);
+Value allOf(const Value &x, int dim = 0, keel::Allocator *mr = nullptr);
 
 // ── Random Number Generation ────────────────────────────────────────────────
 // See RngContext-taking declarations re-exported at header top.
@@ -260,12 +262,12 @@ enum class HistNorm {
 struct HistBinSpec {
     HistBinMethod method = HistBinMethod::Auto;
     bool hasNumBins = false;
-    double numBins = 0.0;
+    keel::f64 numBins = 0.0;
     bool hasBinWidth = false;
-    double binWidth = 0.0;
+    keel::f64 binWidth = 0.0;
     bool hasBinLimits = false;
-    double limLo = 0.0;
-    double limHi = 0.0;
+    keel::f64 limLo = 0.0;
+    keel::f64 limHi = 0.0;
 };
 
 // ── Set Operations & Discrete Analysis ──────────────────────────────────────
@@ -276,14 +278,14 @@ struct HistBinSpec {
 /// @param mr Memory resource.
 /// @return Vector of unique values.
 /// @see ismember, setUnion
-Value unique(const Value &x, bool stable = false, std::pmr::memory_resource *mr = nullptr);
+Value unique(const Value &x, bool stable = false, keel::Allocator *mr = nullptr);
 
 /// @brief Unique rows of 2-D matrix (`unique(x, 'rows')`).
 /// @param x 2-D matrix.
 /// @param stable True to preserve order.
 /// @param mr Memory resource.
 /// @return Matrix containing unique rows.
-Value uniqueRows(const Value &x, bool stable = false, std::pmr::memory_resource *mr = nullptr);
+Value uniqueRows(const Value &x, bool stable = false, keel::Allocator *mr = nullptr);
 
 /// @brief Unique values with index mappings (`[C, ia, ic] = unique(x)`).
 /// @param x Input array.
@@ -291,7 +293,7 @@ Value uniqueRows(const Value &x, bool stable = false, std::pmr::memory_resource 
 /// @param last True to return last occurrence index instead of first.
 /// @param mr Memory resource.
 /// @return Tuple containing `{C, ia, ic}`.
-std::tuple<Value, Value, Value> uniqueWithIndices(const Value &x, bool stable = false, bool last = false, std::pmr::memory_resource *mr = nullptr);
+std::tuple<Value, Value, Value> uniqueWithIndices(const Value &x, bool stable = false, bool last = false, keel::Allocator *mr = nullptr);
 
 /// @brief Unique rows with index mappings (`[C, ia, ic] = unique(x, 'rows')`).
 /// @param x 2-D matrix.
@@ -299,7 +301,7 @@ std::tuple<Value, Value, Value> uniqueWithIndices(const Value &x, bool stable = 
 /// @param last True to return last occurrence index.
 /// @param mr Memory resource.
 /// @return Tuple containing `{C, ia, ic}`.
-std::tuple<Value, Value, Value> uniqueRowsWithIndices(const Value &x, bool stable = false, bool last = false, std::pmr::memory_resource *mr = nullptr);
+std::tuple<Value, Value, Value> uniqueRowsWithIndices(const Value &x, bool stable = false, bool last = false, keel::Allocator *mr = nullptr);
 
 /// @brief Tests if array elements are members of set (`ismember(a, b)`).
 /// @param a Query array.
@@ -307,7 +309,7 @@ std::tuple<Value, Value, Value> uniqueRowsWithIndices(const Value &x, bool stabl
 /// @param mr Memory resource.
 /// @return Logical array matching shape of `a`.
 /// @see unique, setIntersect
-Value ismember(const Value &a, const Value &b, std::pmr::memory_resource *mr = nullptr);
+Value ismember(const Value &a, const Value &b, keel::Allocator *mr = nullptr);
 
 /// @brief Tests membership for complex/general types with location indices (`[lia, loc] = ismember(...)`).
 /// @param a Query array.
@@ -315,7 +317,7 @@ Value ismember(const Value &a, const Value &b, std::pmr::memory_resource *mr = n
 /// @param wantLoc True to return matched index locations.
 /// @param mr Memory resource.
 /// @return Pair `{lia, loc}`.
-std::pair<Value, Value> ismemberComplex(const Value &a, const Value &b, bool wantLoc, std::pmr::memory_resource *mr = nullptr);
+std::pair<Value, Value> ismemberComplex(const Value &a, const Value &b, bool wantLoc, keel::Allocator *mr = nullptr);
 
 /// @brief Set union of two arrays (`union(a, b)`).
 /// @param a First set array.
@@ -324,7 +326,7 @@ std::pair<Value, Value> ismemberComplex(const Value &a, const Value &b, bool wan
 /// @param mr Memory resource.
 /// @return Combined unique values.
 /// @see setIntersect, setDiff
-Value setUnion(const Value &a, const Value &b, bool stable = false, std::pmr::memory_resource *mr = nullptr);
+Value setUnion(const Value &a, const Value &b, bool stable = false, keel::Allocator *mr = nullptr);
 
 /// @brief Set intersection of two arrays (`intersect(a, b)`).
 /// @param a First set array.
@@ -333,7 +335,7 @@ Value setUnion(const Value &a, const Value &b, bool stable = false, std::pmr::me
 /// @param mr Memory resource.
 /// @return Common unique values.
 /// @see setUnion, setDiff
-Value setIntersect(const Value &a, const Value &b, bool stable = false, std::pmr::memory_resource *mr = nullptr);
+Value setIntersect(const Value &a, const Value &b, bool stable = false, keel::Allocator *mr = nullptr);
 
 /// @brief Set difference (`setdiff(a, b)`).
 /// @param a First set array.
@@ -342,7 +344,7 @@ Value setIntersect(const Value &a, const Value &b, bool stable = false, std::pmr
 /// @param mr Memory resource.
 /// @return Elements in `a` not in `b`.
 /// @see setUnion, setxor
-Value setDiff(const Value &a, const Value &b, bool stable = false, std::pmr::memory_resource *mr = nullptr);
+Value setDiff(const Value &a, const Value &b, bool stable = false, keel::Allocator *mr = nullptr);
 
 /// @brief Set exclusive OR (`setxor(a, b)`).
 /// @param a First set array.
@@ -350,28 +352,28 @@ Value setDiff(const Value &a, const Value &b, bool stable = false, std::pmr::mem
 /// @param mr Memory resource.
 /// @return Elements in either `a` or `b` but not both.
 /// @see setUnion, setIntersect
-Value setxor(const Value &a, const Value &b, std::pmr::memory_resource *mr = nullptr);
+Value setxor(const Value &a, const Value &b, keel::Allocator *mr = nullptr);
 
 /// @brief Groups numeric data into bins (`discretize(x, edges)`).
 /// @param x Data array.
 /// @param edges Bin edges vector.
 /// @param mr Memory resource.
 /// @return Bin indices array.
-Value discretize(const Value &x, const Value &edges, std::pmr::memory_resource *mr = nullptr);
+Value discretize(const Value &x, const Value &edges, keel::Allocator *mr = nullptr);
 
 /// @brief Histogram count of data into bins (`histc(x, edges)`).
 /// @param x Data array.
 /// @param edges Bin edges vector.
 /// @param mr Memory resource.
 /// @return Bin counts array.
-Value histc(const Value &x, const Value &edges, std::pmr::memory_resource *mr = nullptr);
+Value histc(const Value &x, const Value &edges, keel::Allocator *mr = nullptr);
 
 /// @brief Computes histogram bin counts (`histcounts(x, edges)`).
 /// @param x Data array.
 /// @param edges Bin edges vector.
 /// @param mr Memory resource.
 /// @return Count of values in each bin.
-Value histcounts(const Value &x, const Value &edges, std::pmr::memory_resource *mr = nullptr);
+Value histcounts(const Value &x, const Value &edges, keel::Allocator *mr = nullptr);
 
 /// @brief Computes normalized histogram bin values (`histcounts(x, edges, norm)`).
 /// @param x Data array.
@@ -379,26 +381,26 @@ Value histcounts(const Value &x, const Value &edges, std::pmr::memory_resource *
 /// @param norm Normalization scheme (`Count`, `Probability`, `Pdf`, etc.).
 /// @param mr Memory resource.
 /// @return Normalized bin values.
-Value histcounts(const Value &x, const Value &edges, HistNorm norm, std::pmr::memory_resource *mr = nullptr);
+Value histcounts(const Value &x, const Value &edges, HistNorm norm, keel::Allocator *mr = nullptr);
 
 /// @brief Computes histogram with automatic bin edges selection (`histcounts(x, spec)`).
 /// @param x Data array.
 /// @param spec Bin specification struct.
 /// @param mr Memory resource.
 /// @return Bin counts array.
-Value histcountsAutoEdges(const Value &x, const HistBinSpec &spec, std::pmr::memory_resource *mr = nullptr);
+Value histcountsAutoEdges(const Value &x, const HistBinSpec &spec, keel::Allocator *mr = nullptr);
 
 /// @brief True if all elements in array are unique (`allunique(x)`).
 /// @param x Input array.
 /// @param mr Memory resource.
 /// @return Logical scalar.
-Value allunique(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value allunique(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Number of unique elements in array (`numunique(x)`).
 /// @param x Input array.
 /// @param mr Memory resource.
 /// @return Count of distinct values.
-Value numunique(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value numunique(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Membership test within numerical tolerance (`ismembertol(a, s, tol)`).
 /// @param a Query array.
@@ -406,14 +408,14 @@ Value numunique(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param tol Relative/absolute tolerance.
 /// @param mr Memory resource.
 /// @return Logical array.
-Value ismembertol(const Value &a, const Value &s, double tol = 1e-6, std::pmr::memory_resource *mr = nullptr);
+Value ismembertol(const Value &a, const Value &s, keel::f64 tol = 1e-6, keel::Allocator *mr = nullptr);
 
 /// @brief Unique elements within numerical tolerance (`uniquetol(x, tol)`).
 /// @param x Input array.
 /// @param tol Relative/absolute tolerance.
 /// @param mr Memory resource.
 /// @return Unique elements within tolerance.
-Value uniquetol(const Value &x, double tol = 1e-6, std::pmr::memory_resource *mr = nullptr);
+Value uniquetol(const Value &x, keel::f64 tol = 1e-6, keel::Allocator *mr = nullptr);
 
 // ── Grouping Operations ─────────────────────────────────────────────────────
 
@@ -434,7 +436,7 @@ struct FindgroupsResult {
 /// @param mr Memory resource.
 /// @return @ref FindgroupsResult `{ G, ID }`.
 /// @see groupcounts, groupsummary, grouptransform
-FindgroupsResult findgroups(const Value &g, std::pmr::memory_resource *mr = nullptr);
+FindgroupsResult findgroups(const Value &g, keel::Allocator *mr = nullptr);
 
 /// @brief Result of `groupcounts` — `[C, GR, P]`.
 struct GroupcountsResult {
@@ -453,7 +455,7 @@ struct GroupcountsResult {
 /// @param mr Memory resource.
 /// @return @ref GroupcountsResult `{ C, GR, P }`.
 /// @see findgroups, groupsummary
-GroupcountsResult groupcounts(const Value &g, std::pmr::memory_resource *mr = nullptr);
+GroupcountsResult groupcounts(const Value &g, keel::Allocator *mr = nullptr);
 
 /// @brief Result of the array form of `groupsummary` — `[B, BG, BC]`.
 struct GroupsummaryResult {
@@ -478,7 +480,7 @@ struct GroupsummaryResult {
 /// @see findgroups, groupcounts, grouptransform
 GroupsummaryResult groupsummary(const Value &A, const Value &G,
                                 const std::string &method,
-                                std::pmr::memory_resource *mr = nullptr);
+                                keel::Allocator *mr = nullptr);
 
 /// @brief Group transformation (`grouptransform(A, G, method)`).
 ///
@@ -493,7 +495,7 @@ GroupsummaryResult groupsummary(const Value &A, const Value &G,
 /// @see groupsummary, findgroups
 Value grouptransform(const Value &A, const Value &G,
                      const std::string &method,
-                     std::pmr::memory_resource *mr = nullptr);
+                     keel::Allocator *mr = nullptr);
 
 /// @brief Built-in reducers recognised by @ref accumarray.
 enum class AccumReducer {
@@ -520,9 +522,9 @@ enum class AccumReducer {
 /// @param fillVal   Default value for untouched cells (default 0).
 /// @param mr        Memory resource (nullptr -> process default).
 /// @return          Accumulated output array of shape `outShape`.
-Value accumarray(const Value &subs, const Value &vals, Span<const size_t> outShape,
-                 AccumReducer op = AccumReducer::Sum, double fillVal = 0.0,
-                 std::pmr::memory_resource *mr = nullptr);
+Value accumarray(const Value &subs, const Value &vals, keel::ArrayRef<keel::usize> outShape,
+                 AccumReducer op = AccumReducer::Sum, keel::f64 fillVal = 0.0,
+                 keel::Allocator *mr = nullptr);
 
 
 /// @}

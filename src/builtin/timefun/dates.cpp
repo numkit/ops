@@ -2,9 +2,11 @@
 //
 // Date conversions, calendar operations, and formatting for numkit::builtin.
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/ref.h>
 #include <numkit/builtin/timefun.hpp>
 #include <numkit/value/value.hpp>
-#include <numkit/value/span.hpp>
 
 #include <algorithm>
 #include <cctype>
@@ -24,27 +26,27 @@ namespace numkit::builtin {
 static inline double civilToSerial(double yd, double md, double dd, double hd, double mind, double sd) {
     double dInt;
     const double dFrac = std::modf(dd, &dInt);
-    int64_t y = static_cast<int64_t>(std::floor(yd));
-    int64_t m = static_cast<int64_t>(std::floor(md));
-    int64_t d = static_cast<int64_t>(dInt);
+    keel::i64 y = static_cast<keel::i64>(std::floor(yd));
+    keel::i64 m = static_cast<keel::i64>(std::floor(md));
+    keel::i64 d = static_cast<keel::i64>(dInt);
     if (m <= 2) y -= 1;
-    const int64_t era = (y < 0 ? y - 399 : y) / 400;
-    const int64_t yoe = y - era * 400;
-    const int64_t doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1;
-    const int64_t doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-    const int64_t days = era * 146097 + doe - 719468;
+    const keel::i64 era = (y < 0 ? y - 399 : y) / 400;
+    const keel::i64 yoe = y - era * 400;
+    const keel::i64 doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1;
+    const keel::i64 doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    const keel::i64 days = era * 146097 + doe - 719468;
     const double frac = (hd * 3600.0 + mind * 60.0 + sd) / 86400.0 + dFrac;
     return static_cast<double>(days) + 719529.0 + frac;
 }
 
-static inline void civilFromDays(int64_t z, int64_t &Y, int &M, int &D) {
+static inline void civilFromDays(keel::i64 z, keel::i64 &Y, int &M, int &D) {
     z += 719468;
-    const int64_t era = (z >= 0 ? z : z - 146096) / 146097;
-    const int64_t doe = z - era * 146097;
-    const int64_t yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
-    const int64_t y = yoe + era * 400;
-    const int64_t doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    const int64_t mp = (5 * doy + 2) / 153;
+    const keel::i64 era = (z >= 0 ? z : z - 146096) / 146097;
+    const keel::i64 doe = z - era * 146097;
+    const keel::i64 yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    const keel::i64 y = yoe + era * 400;
+    const keel::i64 doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    const keel::i64 mp = (5 * doy + 2) / 153;
     D = static_cast<int>(doy - (153 * mp + 2) / 5 + 1);
     M = static_cast<int>(mp < 10 ? mp + 3 : mp - 9);
     Y = y + (M <= 2 ? 1 : 0);
@@ -52,7 +54,7 @@ static inline void civilFromDays(int64_t z, int64_t &Y, int &M, int &D) {
 
 static inline void extractTime(double frac, int &H, int &MI, double &S) {
     const double total_ms = std::round(frac * 86400.0 * 1.0e3);
-    int64_t ms = static_cast<int64_t>(total_ms);
+    keel::i64 ms = static_cast<keel::i64>(total_ms);
     H  = static_cast<int>(ms / 3600000LL); ms %= 3600000LL;
     MI = static_cast<int>(ms / 60000LL);   ms %= 60000LL;
     S  = static_cast<double>(ms) / 1.0e3;
@@ -64,10 +66,10 @@ static inline void serialToCivil(double serial, double &yd, double &md, double &
         return;
     }
     const double floored = std::floor(serial);
-    const int64_t days = static_cast<int64_t>(floored);
+    const keel::i64 days = static_cast<keel::i64>(floored);
     const double frac = serial - floored;
-    const int64_t z = days - 719529;
-    int64_t Y; int M, D, H, MI; double S;
+    const keel::i64 z = days - 719529;
+    keel::i64 Y; int M, D, H, MI; double S;
     civilFromDays(z, Y, M, D);
     extractTime(frac, H, MI, S);
     if (S >= 60.0) { S -= 60.0; ++MI; }
@@ -84,24 +86,24 @@ static inline void serialToCivil(double serial, double &yd, double &md, double &
 static constexpr double kJDFromSerial  = 1721058.5;
 static constexpr double kMJDFromSerial = -678942.0;
 
-Value etime(const Value &t2, const Value &t1, std::pmr::memory_resource *mr) {
-    const size_t r2 = t2.dims().rows(), c2 = t2.dims().cols();
-    const size_t r1 = t1.dims().rows(), c1 = t1.dims().cols();
+Value etime(const Value &t2, const Value &t1, keel::Allocator *mr) {
+    const keel::usize r2 = t2.dims().rows(), c2 = t2.dims().cols();
+    const keel::usize r1 = t1.dims().rows(), c1 = t1.dims().cols();
     if (c2 != 6 || c1 != 6)
         throw std::runtime_error("etime: date vectors must have 6 columns [Y M D H MI S]");
     if (r1 != r2 && r1 != 1 && r2 != 1)
         throw std::runtime_error("etime: t2 and t1 must have the same number of rows (or one a single row)");
-    const size_t N = std::max(r1, r2);
+    const keel::usize N = std::max(r1, r2);
 
-    auto comp = [&](const Value &v, size_t nr, size_t row, size_t col) {
+    auto comp = [&](const Value &v, keel::usize nr, keel::usize row, keel::usize col) {
         return v.elemAsDouble(row + col * nr);
     };
 
     auto out = Value::matrix(N, 1, ValueType::DOUBLE, mr);
     double *o = out.doubleDataMut();
-    for (size_t k = 0; k < N; ++k) {
-        const size_t k2 = (r2 == 1 ? 0 : k);
-        const size_t k1 = (r1 == 1 ? 0 : k);
+    for (keel::usize k = 0; k < N; ++k) {
+        const keel::usize k2 = (r2 == 1 ? 0 : k);
+        const keel::usize k1 = (r1 == 1 ? 0 : k);
         const double dDay =
             civilToSerial(comp(t2, r2, k2, 0), comp(t2, r2, k2, 1), comp(t2, r2, k2, 2), 0, 0, 0)
           - civilToSerial(comp(t1, r1, k1, 0), comp(t1, r1, k1, 1), comp(t1, r1, k1, 2), 0, 0, 0);
@@ -113,7 +115,7 @@ Value etime(const Value &t2, const Value &t1, std::pmr::memory_resource *mr) {
     return out;
 }
 
-Value weeknum(Span<const Value> args, std::pmr::memory_resource *mr) {
+Value weeknum(keel::ArrayRef<Value> args, keel::Allocator *mr) {
     if (args.empty())
         throw std::runtime_error("weeknum: requires a date argument");
 
@@ -126,23 +128,23 @@ Value weeknum(Span<const Value> args, std::pmr::memory_resource *mr) {
     if (args.size() >= 3 && !args[2].isEmpty())
         european = args[2].toScalar() != 0.0;
 
-    auto civilToSerialSimple = [](int64_t y, int64_t m, int64_t d) {
+    auto civilToSerialSimple = [](keel::i64 y, keel::i64 m, keel::i64 d) {
         if (m <= 2) y -= 1;
-        const int64_t era = (y < 0 ? y - 399 : y) / 400;
-        const int64_t yoe = y - era * 400;
-        const int64_t doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1;
-        const int64_t doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+        const keel::i64 era = (y < 0 ? y - 399 : y) / 400;
+        const keel::i64 yoe = y - era * 400;
+        const keel::i64 doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1;
+        const keel::i64 doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
         return era * 146097 + doe - 719468 + 719529;
     };
     auto yearOf = [](double serial) {
-        int64_t z = static_cast<int64_t>(std::floor(serial)) - 719529 + 719468;
-        const int64_t era = (z >= 0 ? z : z - 146096) / 146097;
-        const int64_t doe = z - era * 146097;
-        const int64_t yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
-        int64_t y = yoe + era * 400;
-        const int64_t dy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-        const int64_t mp = (5 * dy + 2) / 153;
-        const int64_t m = mp < 10 ? mp + 3 : mp - 9;
+        keel::i64 z = static_cast<keel::i64>(std::floor(serial)) - 719529 + 719468;
+        const keel::i64 era = (z >= 0 ? z : z - 146096) / 146097;
+        const keel::i64 doe = z - era * 146097;
+        const keel::i64 yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+        keel::i64 y = yoe + era * 400;
+        const keel::i64 dy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+        const keel::i64 mp = (5 * dy + 2) / 153;
+        const keel::i64 m = mp < 10 ? mp + 3 : mp - 9;
         if (m <= 2) y += 1;
         return static_cast<int>(y);
     };
@@ -176,12 +178,12 @@ Value weeknum(Span<const Value> args, std::pmr::memory_resource *mr) {
     };
 
     const Value &D = args[0];
-    const size_t nr = D.dims().rows();
-    const size_t nc = D.dims().cols();
-    const size_t n = D.numel();
+    const keel::usize nr = D.dims().rows();
+    const keel::usize nc = D.dims().cols();
+    const keel::usize n = D.numel();
     auto out = Value::matrix(nr, nc, ValueType::DOUBLE, mr);
     double *o = out.doubleDataMut();
-    for (size_t i = 0; i < n; ++i) {
+    for (keel::usize i = 0; i < n; ++i) {
         const double serial = D.elemAsDouble(i);
         const int y = yearOf(serial);
         const int doy = static_cast<int>(std::floor(serial) - civilToSerialSimple(y, 1, 1)) + 1;
@@ -190,7 +192,7 @@ Value weeknum(Span<const Value> args, std::pmr::memory_resource *mr) {
     return out;
 }
 
-Value addtodate(const Value &d, double quantity, const std::string &unit, std::pmr::memory_resource *mr) {
+Value addtodate(const Value &d, double quantity, const std::string &unit, keel::Allocator *mr) {
     if (d.numel() != 1)
         throw std::runtime_error("addtodate: date number must be a real numeric scalar");
     const double serial = d.toScalar();
@@ -213,42 +215,42 @@ Value addtodate(const Value &d, double quantity, const std::string &unit, std::p
     else if (u == "month" || u == "year") {
         const double dayF = std::floor(serial);
         const double frac = serial - dayF;
-        const int64_t days = static_cast<int64_t>(dayF) - 719529;
-        int64_t z = days + 719468;
-        const int64_t era = (z >= 0 ? z : z - 146096) / 146097;
-        const int64_t doe = z - era * 146097;
-        const int64_t yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
-        int64_t Y = yoe + era * 400;
-        const int64_t doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-        const int64_t mp = (5 * doy + 2) / 153;
-        const int64_t D = doy - (153 * mp + 2) / 5 + 1;
-        int64_t M = mp < 10 ? mp + 3 : mp - 9;
+        const keel::i64 days = static_cast<keel::i64>(dayF) - 719529;
+        keel::i64 z = days + 719468;
+        const keel::i64 era = (z >= 0 ? z : z - 146096) / 146097;
+        const keel::i64 doe = z - era * 146097;
+        const keel::i64 yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+        keel::i64 Y = yoe + era * 400;
+        const keel::i64 doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+        const keel::i64 mp = (5 * doy + 2) / 153;
+        const keel::i64 D = doy - (153 * mp + 2) / 5 + 1;
+        keel::i64 M = mp < 10 ? mp + 3 : mp - 9;
         Y += (M <= 2);
 
-        int64_t nY = Y, nM = M;
+        keel::i64 nY = Y, nM = M;
         if (u == "month") {
-            int64_t tm = (M - 1) + static_cast<int64_t>(std::llround(q));
-            int64_t qd = tm / 12, rd = tm % 12;
+            keel::i64 tm = (M - 1) + static_cast<keel::i64>(std::llround(q));
+            keel::i64 qd = tm / 12, rd = tm % 12;
             if (rd < 0) { qd -= 1; rd += 12; }
             nY = Y + qd;
             nM = rd + 1;
         } else {
-            nY = Y + static_cast<int64_t>(std::llround(q));
+            nY = Y + static_cast<keel::i64>(std::llround(q));
         }
-        auto leap = [](int64_t y) {
+        auto leap = [](keel::i64 y) {
             return (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
         };
         static const int dim[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
-        int64_t maxD = dim[nM - 1];
+        keel::i64 maxD = dim[nM - 1];
         if (nM == 2 && leap(nY)) maxD = 29;
-        int64_t nD = D < maxD ? D : maxD;
-        int64_t y2 = nY;
+        keel::i64 nD = D < maxD ? D : maxD;
+        keel::i64 y2 = nY;
         if (nM <= 2) y2 -= 1;
-        const int64_t era2 = (y2 < 0 ? y2 - 399 : y2) / 400;
-        const int64_t yoe2 = y2 - era2 * 400;
-        const int64_t doy2 = (153 * (nM + (nM > 2 ? -3 : 9)) + 2) / 5 + nD - 1;
-        const int64_t doe2 = yoe2 * 365 + yoe2 / 4 - yoe2 / 100 + doy2;
-        const int64_t newDays = era2 * 146097 + doe2 - 719468 + 719529;
+        const keel::i64 era2 = (y2 < 0 ? y2 - 399 : y2) / 400;
+        const keel::i64 yoe2 = y2 - era2 * 400;
+        const keel::i64 doy2 = (153 * (nM + (nM > 2 ? -3 : 9)) + 2) / 5 + nD - 1;
+        const keel::i64 doe2 = yoe2 * 365 + yoe2 / 4 - yoe2 / 100 + doy2;
+        const keel::i64 newDays = era2 * 146097 + doe2 - 719468 + 719529;
         result = static_cast<double>(newDays) + frac;
     } else {
         throw std::runtime_error("addtodate: units must be one of 'year','month','day','hour','minute','second','millisecond'");
@@ -256,19 +258,19 @@ Value addtodate(const Value &d, double quantity, const std::string &unit, std::p
     return Value::scalar(result, mr);
 }
 
-Value datenum(Span<const Value> args, std::pmr::memory_resource *mr) {
+Value datenum(keel::ArrayRef<Value> args, keel::Allocator *mr) {
     if (args.empty())
         throw std::runtime_error("datenum requires at least one argument");
 
     if (args[0].isCell() || (args[0].isString() && args[0].numel() > 1)) {
-        const size_t n = args[0].numel();
+        const keel::usize n = args[0].numel();
         auto out = Value::matrix(n, 1, ValueType::DOUBLE, mr);
         double *o = out.doubleDataMut();
         std::vector<Value> subArgs(args.begin(), args.end());
-        for (size_t i = 0; i < n; ++i) {
+        for (keel::usize i = 0; i < n; ++i) {
             subArgs[0] = args[0].isCell() ? args[0].cellAt(i)
                                           : Value::fromString(args[0].stringElem(i), mr);
-            o[i] = datenum(Span<const Value>(subArgs.data(), subArgs.size()), mr).toScalar();
+            o[i] = datenum(keel::ArrayRef<Value>(subArgs.data(), subArgs.size()), mr).toScalar();
         }
         return out;
     }
@@ -280,7 +282,7 @@ Value datenum(Span<const Value> args, std::pmr::memory_resource *mr) {
             "jul","aug","sep","oct","nov","dec"};
         auto tryFmt = [&](const std::string &fmt, double &Y, double &Mo, double &D, double &H, double &MI, double &S) -> bool {
             Y = 0; Mo = 1; D = 1; H = 0; MI = 0; S = 0;
-            size_t si = 0, fi = 0;
+            keel::usize si = 0, fi = 0;
             auto readNum = [&](int maxD) -> long {
                 long v = 0; int n = 0;
                 while (si < s.size() && n < maxD && std::isdigit(static_cast<unsigned char>(s[si]))) {
@@ -303,7 +305,7 @@ Value datenum(Span<const Value> args, std::pmr::memory_resource *mr) {
                     long curCent = (1900 + tmNow.tm_year) / 100 * 100;
                     Y = curCent + v; fi += 2;
                 } else if (fmt.compare(fi, 4, "mmmm") == 0 || fmt.compare(fi, 3, "mmm") == 0) {
-                    size_t mlen = fmt.compare(fi, 4, "mmmm") == 0 ? 4 : 3;
+                    keel::usize mlen = fmt.compare(fi, 4, "mmmm") == 0 ? 4 : 3;
                     if (si + 3 > s.size()) return false;
                     std::string m3;
                     for (int i = 0; i < 3; ++i) m3 += static_cast<char>(std::tolower(static_cast<unsigned char>(s[si + i])));
@@ -359,11 +361,11 @@ Value datenum(Span<const Value> args, std::pmr::memory_resource *mr) {
 
     if (args.size() == 1) {
         const Value &A = args[0];
-        const size_t rows = A.dims().rows(), cols = A.dims().cols();
+        const keel::usize rows = A.dims().rows(), cols = A.dims().cols();
         if (cols == 6 || cols == 3) {
             auto out = Value::matrix(rows, 1, ValueType::DOUBLE, mr);
             double *o = out.doubleDataMut();
-            for (size_t r = 0; r < rows; ++r) {
+            for (keel::usize r = 0; r < rows; ++r) {
                 double Y  = A.elemAsDouble(r);
                 double Mo = A.elemAsDouble(r + rows);
                 double D  = A.elemAsDouble(r + 2 * rows);
@@ -383,7 +385,7 @@ Value datenum(Span<const Value> args, std::pmr::memory_resource *mr) {
     if (args.size() != 3 && args.size() != 6)
         throw std::runtime_error("datenum: expected 1, 3, or 6 arguments");
 
-    size_t N = 1;
+    keel::usize N = 1;
     for (const auto &a : args) {
         if (a.numel() > 1) {
             if (N > 1 && a.numel() != N)
@@ -391,7 +393,7 @@ Value datenum(Span<const Value> args, std::pmr::memory_resource *mr) {
             N = a.numel();
         }
     }
-    auto pick = [](const Value &a, size_t i) {
+    auto pick = [](const Value &a, keel::usize i) {
         return a.numel() == 1 ? a.toScalar() : a.elemAsDouble(i);
     };
     if (N == 1) {
@@ -402,7 +404,7 @@ Value datenum(Span<const Value> args, std::pmr::memory_resource *mr) {
     }
     auto out = Value::matrix(N, 1, ValueType::DOUBLE, mr);
     double *o = out.doubleDataMut();
-    for (size_t i = 0; i < N; ++i) {
+    for (keel::usize i = 0; i < N; ++i) {
         const double y = pick(args[0], i);
         const double m = pick(args[1], i);
         const double d = pick(args[2], i);
@@ -417,25 +419,25 @@ Value datenum(Span<const Value> args, std::pmr::memory_resource *mr) {
     return out;
 }
 
-Value weekday(const Value &d, std::pmr::memory_resource *mr) {
+Value weekday(const Value &d, keel::Allocator *mr) {
     auto dayIndex = [](double val) -> int {
-        int64_t f = static_cast<int64_t>(std::floor(val)) - 2;
-        int64_t r = f % 7;
+        keel::i64 f = static_cast<keel::i64>(std::floor(val)) - 2;
+        keel::i64 r = f % 7;
         if (r < 0) r += 7;
         return static_cast<int>(r) + 1;
     };
-    const size_t N = d.numel();
+    const keel::usize N = d.numel();
     if (N == 1) {
         return Value::scalar(static_cast<double>(dayIndex(d.toScalar())), mr);
     }
     auto out = Value::matrix(d.dims().rows(), d.dims().cols(), ValueType::DOUBLE, mr);
     double *o = out.doubleDataMut();
-    for (size_t i = 0; i < N; ++i)
+    for (keel::usize i = 0; i < N; ++i)
         o[i] = static_cast<double>(dayIndex(d.elemAsDouble(i)));
     return out;
 }
 
-Value juliandate(Span<const Value> args, std::pmr::memory_resource *mr) {
+Value juliandate(keel::ArrayRef<Value> args, keel::Allocator *mr) {
     if (args.empty())
         throw std::runtime_error("juliandate requires at least one argument");
     if (args.size() == 1) {
@@ -443,22 +445,22 @@ Value juliandate(Span<const Value> args, std::pmr::memory_resource *mr) {
         if (A.dims().cols() == 6 || A.dims().cols() == 3) {
             Value s = datenum(args, mr);
             double *p = s.doubleDataMut();
-            for (size_t i = 0; i < s.numel(); ++i) p[i] += kJDFromSerial;
+            for (keel::usize i = 0; i < s.numel(); ++i) p[i] += kJDFromSerial;
             return s;
         }
-        const size_t R = A.dims().rows(), C = A.dims().cols();
+        const keel::usize R = A.dims().rows(), C = A.dims().cols();
         auto out = Value::matrix(R, C, ValueType::DOUBLE, mr);
         double *o = out.doubleDataMut();
-        for (size_t i = 0; i < R * C; ++i) o[i] = A.elemAsDouble(i) + kJDFromSerial;
+        for (keel::usize i = 0; i < R * C; ++i) o[i] = A.elemAsDouble(i) + kJDFromSerial;
         return R == 1 && C == 1 ? Value::scalar(o[0], mr) : out;
     }
     Value s = datenum(args, mr);
     double *p = s.doubleDataMut();
-    for (size_t i = 0; i < s.numel(); ++i) p[i] += kJDFromSerial;
+    for (keel::usize i = 0; i < s.numel(); ++i) p[i] += kJDFromSerial;
     return s;
 }
 
-Value mjuliandate(Span<const Value> args, std::pmr::memory_resource *mr) {
+Value mjuliandate(keel::ArrayRef<Value> args, keel::Allocator *mr) {
     if (args.empty())
         throw std::runtime_error("mjuliandate requires at least one argument");
     if (args.size() == 1) {
@@ -466,44 +468,44 @@ Value mjuliandate(Span<const Value> args, std::pmr::memory_resource *mr) {
         if (A.dims().cols() == 6 || A.dims().cols() == 3) {
             Value s = datenum(args, mr);
             double *p = s.doubleDataMut();
-            for (size_t i = 0; i < s.numel(); ++i) p[i] += kMJDFromSerial;
+            for (keel::usize i = 0; i < s.numel(); ++i) p[i] += kMJDFromSerial;
             return s;
         }
-        const size_t R = A.dims().rows(), C = A.dims().cols();
+        const keel::usize R = A.dims().rows(), C = A.dims().cols();
         auto out = Value::matrix(R, C, ValueType::DOUBLE, mr);
         double *o = out.doubleDataMut();
-        for (size_t i = 0; i < R * C; ++i) o[i] = A.elemAsDouble(i) + kMJDFromSerial;
+        for (keel::usize i = 0; i < R * C; ++i) o[i] = A.elemAsDouble(i) + kMJDFromSerial;
         return R == 1 && C == 1 ? Value::scalar(o[0], mr) : out;
     }
     Value s = datenum(args, mr);
     double *p = s.doubleDataMut();
-    for (size_t i = 0; i < s.numel(); ++i) p[i] += kMJDFromSerial;
+    for (keel::usize i = 0; i < s.numel(); ++i) p[i] += kMJDFromSerial;
     return s;
 }
 
-Value eomday(const Value &y, const Value &m, std::pmr::memory_resource *mr) {
-    auto isLeap = [](int64_t yr) {
+Value eomday(const Value &y, const Value &m, keel::Allocator *mr) {
+    auto isLeap = [](keel::i64 yr) {
         return (yr % 4 == 0 && yr % 100 != 0) || yr % 400 == 0;
     };
     static const int dim[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
     auto eomOne = [&](double yr, double mo) -> double {
-        int64_t yi = static_cast<int64_t>(yr);
-        int64_t mi = static_cast<int64_t>(mo);
+        keel::i64 yi = static_cast<keel::i64>(yr);
+        keel::i64 mi = static_cast<keel::i64>(mo);
         if (mi < 1 || mi > 12)
             throw std::runtime_error("eomday: month must be in 1..12");
         return (mi == 2 && isLeap(yi)) ? 29.0 : static_cast<double>(dim[mi]);
     };
-    const size_t ny = y.numel(), nm = m.numel();
+    const keel::usize ny = y.numel(), nm = m.numel();
     if (ny == 1 && nm == 1)
         return Value::scalar(eomOne(y.toScalar(), m.toScalar()), mr);
     if (ny != nm && ny != 1 && nm != 1)
         throw std::runtime_error("eomday: input dimensions must agree");
-    const size_t N = std::max(ny, nm);
-    const size_t rows = ny > 1 ? y.dims().rows() : m.dims().rows();
-    const size_t cols = ny > 1 ? y.dims().cols() : m.dims().cols();
+    const keel::usize N = std::max(ny, nm);
+    const keel::usize rows = ny > 1 ? y.dims().rows() : m.dims().rows();
+    const keel::usize cols = ny > 1 ? y.dims().cols() : m.dims().cols();
     auto out = Value::matrix(rows, cols, ValueType::DOUBLE, mr);
     double *o = out.doubleDataMut();
-    for (size_t i = 0; i < N; ++i) {
+    for (keel::usize i = 0; i < N; ++i) {
         double yi = ny == 1 ? y.toScalar() : y.elemAsDouble(i);
         double mi = nm == 1 ? m.toScalar() : m.elemAsDouble(i);
         o[i] = eomOne(yi, mi);
@@ -511,7 +513,7 @@ Value eomday(const Value &y, const Value &m, std::pmr::memory_resource *mr) {
     return out;
 }
 
-Value calendar(Span<const Value> args, std::pmr::memory_resource *mr) {
+Value calendar(keel::ArrayRef<Value> args, keel::Allocator *mr) {
     double yr = 0, mo = 0;
     if (args.empty()) {
         auto now_tp = std::chrono::system_clock::now();
@@ -531,18 +533,18 @@ Value calendar(Span<const Value> args, std::pmr::memory_resource *mr) {
         yr = args[0].toScalar();
         mo = args[1].toScalar();
     }
-    int64_t yi = static_cast<int64_t>(yr);
-    int64_t mi = static_cast<int64_t>(mo);
+    keel::i64 yi = static_cast<keel::i64>(yr);
+    keel::i64 mi = static_cast<keel::i64>(mo);
     if (mi < 1 || mi > 12)
         throw std::runtime_error("calendar: month must be in 1..12");
-    auto isLeap = [](int64_t y) {
+    auto isLeap = [](keel::i64 y) {
         return (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
     };
     static const int dim[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
     int daysInMonth = (mi == 2 && isLeap(yi)) ? 29 : dim[mi];
     double s1 = civilToSerial(static_cast<double>(yi), static_cast<double>(mi), 1.0, 0, 0, 0);
-    int64_t f = static_cast<int64_t>(std::floor(s1)) - 2;
-    int64_t r = f % 7; if (r < 0) r += 7;
+    keel::i64 f = static_cast<keel::i64>(std::floor(s1)) - 2;
+    keel::i64 r = f % 7; if (r < 0) r += 7;
     int startCol = static_cast<int>(r);
 
     auto out = Value::matrix(6, 7, ValueType::DOUBLE, mr);
@@ -560,22 +562,22 @@ Value calendar(Span<const Value> args, std::pmr::memory_resource *mr) {
     return out;
 }
 
-Value datestr(Span<const Value> args, std::pmr::memory_resource *mr) {
+Value datestr(keel::ArrayRef<Value> args, keel::Allocator *mr) {
     if (args.empty()) {
         const double nowSerial = now();
         Value s = Value::scalar(nowSerial, mr);
-        return datestr(Span<const Value>(&s, 1), mr);
+        return datestr(keel::ArrayRef<Value>(&s, 1), mr);
     }
     const Value &din = args[0];
 
     struct Comp { int y, mo, d, h, mi, s; };
     auto serialToComp = [&](double dval) -> Comp {
         const double floored = std::floor(dval);
-        const int64_t z = static_cast<int64_t>(floored) - 719529;
+        const keel::i64 z = static_cast<keel::i64>(floored) - 719529;
         const double frac = dval - floored;
-        int64_t Y; int M, D;
+        keel::i64 Y; int M, D;
         civilFromDays(z, Y, M, D);
-        int64_t ms = static_cast<int64_t>(std::round(frac * 86400.0 * 1.0e3));
+        keel::i64 ms = static_cast<keel::i64>(std::round(frac * 86400.0 * 1.0e3));
         int H  = static_cast<int>(ms / 3600000LL); ms %= 3600000LL;
         int MI = static_cast<int>(ms / 60000LL);   ms %= 60000LL;
         double S = static_cast<double>(ms) / 1.0e3;
@@ -594,7 +596,7 @@ Value datestr(Span<const Value> args, std::pmr::memory_resource *mr) {
         auto tryFmt = [&](const char *fmt, Comp &c) -> bool {
             int Y = 0, Mo = 1, D = 1, H = 0, MI = 0, S = 0;
             const std::string F = fmt;
-            size_t si = 0, fi = 0;
+            keel::usize si = 0, fi = 0;
             auto readNum = [&](int maxD) -> long {
                 long v = 0; int n = 0;
                 while (si < s.size() && n < maxD && std::isdigit(static_cast<unsigned char>(s[si]))) {
@@ -632,11 +634,11 @@ Value datestr(Span<const Value> args, std::pmr::memory_resource *mr) {
                 "datestr: could not parse date string (supported: ISO yyyy-mm-dd and dd-mmm-yyyy forms)");
         dates.push_back(c);
     } else {
-        const size_t Rr = din.dims().rows();
-        const size_t Cc = din.dims().cols();
+        const keel::usize Rr = din.dims().rows();
+        const keel::usize Cc = din.dims().cols();
         if (Cc == 6 && !din.dims().is3D()) {
             dates.reserve(Rr);
-            for (size_t r = 0; r < Rr; ++r)
+            for (keel::usize r = 0; r < Rr; ++r)
                 dates.push_back(Comp{
                     static_cast<int>(din.elemAsDouble(0 * Rr + r)),
                     static_cast<int>(din.elemAsDouble(1 * Rr + r)),
@@ -645,9 +647,9 @@ Value datestr(Span<const Value> args, std::pmr::memory_resource *mr) {
                     static_cast<int>(din.elemAsDouble(4 * Rr + r)),
                     static_cast<int>(std::round(din.elemAsDouble(5 * Rr + r)))});
         } else {
-            const size_t n = din.numel();
+            const keel::usize n = din.numel();
             dates.reserve(n);
-            for (size_t k = 0; k < n; ++k)
+            for (keel::usize k = 0; k < n; ++k)
                 dates.push_back(serialToComp(din.elemAsDouble(k)));
         }
     }
@@ -720,7 +722,7 @@ Value datestr(Span<const Value> args, std::pmr::memory_resource *mr) {
         "Thursday","Friday","Saturday"};
     static const int dt[] = {0,3,2,5,0,3,5,1,4,6,2,4};
     bool hour12 = false;
-    for (size_t k = 0; k + 1 < fmt.size(); ++k) {
+    for (keel::usize k = 0; k + 1 < fmt.size(); ++k) {
         char a = (char)std::tolower((unsigned char)fmt[k]);
         char b = (char)std::tolower((unsigned char)fmt[k+1]);
         if ((a == 'a' || a == 'p') && b == 'm') { hour12 = true; break; }
@@ -734,8 +736,8 @@ Value datestr(Span<const Value> args, std::pmr::memory_resource *mr) {
         const int h12 = (hi % 12 == 0) ? 12 : (hi % 12);
         std::string out;
         char buf[16];
-        size_t i = 0;
-        auto at = [&](const char *t, size_t L) {
+        keel::usize i = 0;
+        auto at = [&](const char *t, keel::usize L) {
             return fmt.compare(i, L, t) == 0;
         };
         while (i < fmt.size()) {
@@ -773,22 +775,22 @@ Value datestr(Span<const Value> args, std::pmr::memory_resource *mr) {
     }
     std::vector<std::string> rowstr;
     rowstr.reserve(dates.size());
-    size_t maxW = 0;
+    keel::usize maxW = 0;
     for (const auto &c : dates) {
         rowstr.push_back(renderOne(c));
         if (rowstr.back().size() > maxW)
             maxW = rowstr.back().size();
     }
-    const size_t N = rowstr.size();
+    const keel::usize N = rowstr.size();
     Value Mc = Value::matrix(N, maxW, ValueType::CHAR, mr);
     char *dst = static_cast<char *>(Mc.rawDataMut());
-    for (size_t r = 0; r < N; ++r)
-        for (size_t c = 0; c < maxW; ++c)
+    for (keel::usize r = 0; r < N; ++r)
+        for (keel::usize c = 0; c < maxW; ++c)
             dst[c * N + r] = (c < rowstr[r].size()) ? rowstr[r][c] : ' ';
     return Mc;
 }
 
-Value datevec(Span<const Value> args, std::pmr::memory_resource *mr) {
+Value datevec(keel::ArrayRef<Value> args, keel::Allocator *mr) {
     if (args.empty())
         throw std::runtime_error("datevec requires at least one argument");
     if (args[0].isChar() || args[0].isString()) {
@@ -798,7 +800,7 @@ Value datevec(Span<const Value> args, std::pmr::memory_resource *mr) {
             "jul","aug","sep","oct","nov","dec"};
         auto tryFmt = [&](const std::string &fmt, double &Y, double &Mo, double &D, double &H, double &MI, double &S) -> bool {
             Y = 0; Mo = 1; D = 1; H = 0; MI = 0; S = 0;
-            size_t si = 0, fi = 0;
+            keel::usize si = 0, fi = 0;
             auto readNum = [&](int maxD) -> long {
                 long v = 0; int n = 0;
                 while (si < s.size() && n < maxD && std::isdigit(static_cast<unsigned char>(s[si]))) {
@@ -861,11 +863,11 @@ Value datevec(Span<const Value> args, std::pmr::memory_resource *mr) {
     }
 
     const Value &Din = args[0];
-    const size_t N = Din.numel();
+    const keel::usize N = Din.numel();
     auto out = Value::matrix(N, 6, ValueType::DOUBLE, mr);
     double *o = out.doubleDataMut();
     double tmp[6];
-    for (size_t i = 0; i < N; ++i) {
+    for (keel::usize i = 0; i < N; ++i) {
         serialToCivil(Din.elemAsDouble(i), tmp[0], tmp[1], tmp[2], tmp[3], tmp[4], tmp[5]);
         for (int c = 0; c < 6; ++c)
             o[i + c * N] = tmp[c];
@@ -873,7 +875,7 @@ Value datevec(Span<const Value> args, std::pmr::memory_resource *mr) {
     return out;
 }
 
-Value yyyymmdd(Span<const Value> args, std::pmr::memory_resource *mr) {
+Value yyyymmdd(keel::ArrayRef<Value> args, keel::Allocator *mr) {
     if (args.empty())
         throw std::runtime_error("yyyymmdd requires one argument");
     if (args[0].isChar() || args[0].isString())
@@ -881,21 +883,21 @@ Value yyyymmdd(Span<const Value> args, std::pmr::memory_resource *mr) {
 
     auto packOne = [&](double dval) {
         if (dval == 0.0) return 0.0;
-        const int64_t days = static_cast<int64_t>(std::floor(dval));
-        const int64_t z = days - 719529;
-        int64_t Y; int M, D;
+        const keel::i64 days = static_cast<keel::i64>(std::floor(dval));
+        const keel::i64 z = days - 719529;
+        keel::i64 Y; int M, D;
         civilFromDays(z, Y, M, D);
         return static_cast<double>(Y * 10000 + M * 100 + D);
     };
 
     const Value &Din = args[0];
-    const size_t N = Din.numel();
+    const keel::usize N = Din.numel();
     if (N == 1) {
         return Value::scalar(packOne(Din.toScalar()), mr);
     }
     auto out = Value::matrix(Din.dims().rows(), Din.dims().cols(), ValueType::DOUBLE, mr);
     double *o = out.doubleDataMut();
-    for (size_t i = 0; i < N; ++i)
+    for (keel::usize i = 0; i < N; ++i)
         o[i] = packOne(Din.elemAsDouble(i));
     return out;
 }

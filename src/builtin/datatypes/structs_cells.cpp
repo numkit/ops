@@ -1,11 +1,11 @@
+#include <keel/memory.h>
 #include <numkit/builtin/datatypes.hpp>
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
-#include <numkit/value/span.hpp>
 
 namespace numkit::builtin {
 
-Value isfield(const Value &s, const std::string &field, std::pmr::memory_resource *mr) {
+Value isfield(const Value &s, const std::string &field, keel::Allocator *mr) {
     if (!s.isStruct()) return Value::logicalScalar(false, mr);
     if (s.isStructArray()) {
         if (s.numel() == 0) return Value::logicalScalar(false, mr);
@@ -15,11 +15,11 @@ Value isfield(const Value &s, const std::string &field, std::pmr::memory_resourc
     return Value::logicalScalar(s.hasField(field), mr);
 }
 
-Value isfield(const Value &s, const Value &field, std::pmr::memory_resource *mr) {
+Value isfield(const Value &s, const Value &field, keel::Allocator *mr) {
     return isfield(s, field.toString(), mr);
 }
 
-Value getfield(const Value &s, const std::string &field, std::pmr::memory_resource *) {
+Value getfield(const Value &s, const std::string &field, keel::Allocator *) {
     if (!s.isStruct())
         throw Error("getfield requires a struct", 0, 0, "getfield", "", "numkit:getfield:notStruct");
     if (s.isStructArray()) {
@@ -36,11 +36,11 @@ Value getfield(const Value &s, const std::string &field, std::pmr::memory_resour
     return s.field(field);
 }
 
-Value getfield(const Value &s, const Value &field, std::pmr::memory_resource *mr) {
+Value getfield(const Value &s, const Value &field, keel::Allocator *mr) {
     return getfield(s, field.toString(), mr);
 }
 
-Value setfield(const Value &s, const std::string &field, const Value &val, std::pmr::memory_resource *mr) {
+Value setfield(const Value &s, const std::string &field, const Value &val, keel::Allocator *mr) {
     Value out;
     if (s.isStruct()) {
         out = s;
@@ -57,11 +57,11 @@ Value setfield(const Value &s, const std::string &field, const Value &val, std::
     return out;
 }
 
-Value setfield(const Value &s, const Value &field, const Value &val, std::pmr::memory_resource *mr) {
+Value setfield(const Value &s, const Value &field, const Value &val, keel::Allocator *mr) {
     return setfield(s, field.toString(), val, mr);
 }
 
-Value rmfield(const Value &s, const std::string &field, std::pmr::memory_resource *) {
+Value rmfield(const Value &s, const std::string &field, keel::Allocator *) {
     if (!s.isStruct())
         throw Error("rmfield requires a struct", 0, 0, "rmfield", "", "numkit:rmfield:notStruct");
     Value out = s;
@@ -69,7 +69,7 @@ Value rmfield(const Value &s, const std::string &field, std::pmr::memory_resourc
     return out;
 }
 
-Value rmfield(const Value &s, const Value &field, std::pmr::memory_resource *mr) {
+Value rmfield(const Value &s, const Value &field, keel::Allocator *mr) {
     return rmfield(s, field.toString(), mr);
 }
 

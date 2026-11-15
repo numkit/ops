@@ -6,6 +6,9 @@
 // HWY_ONCE pass at the bottom publishes the single external abs().
 // See abs_portable.cpp for the scalar reference.
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/math.h>
 #include <numkit/builtin/elfun.hpp>
 
 #include <numkit/value/value.hpp>
@@ -16,7 +19,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <complex>
 #include <cstddef>
 #include <cstdint>
 
@@ -42,22 +44,22 @@ namespace hn = hwy::HWY_NAMESPACE;
 // binary_ops_highway.cpp â€” see the comment block there for the
 // rationale. abs is also a write-once-discard-rest pattern at large N
 // so the cache-bypass payoff is similar.
-void AbsLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_t n)
+void AbsLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, keel::usize n)
 {
     const hn::ScalableTag<double> d;
-    const std::size_t N           = hn::Lanes(d);
-    const std::size_t align_bytes = N * sizeof(double);
+    const keel::usize N           = hn::Lanes(d);
+    const keel::usize align_bytes = N * sizeof(double);
 
-    std::size_t i = 0;
+    keel::usize i = 0;
     const auto addr = reinterpret_cast<std::uintptr_t>(out);
     const auto rem  = addr % align_bytes;
-    const std::size_t head = (rem == 0) ? 0
-                                        : std::min<std::size_t>((align_bytes - rem) / sizeof(double), n);
-    for (std::size_t k = 0; k < head; ++k, ++i)
+    const keel::usize head = (rem == 0) ? 0
+                                        : std::min<keel::usize>((align_bytes - rem) / sizeof(double), n);
+    for (keel::usize k = 0; k < head; ++k, ++i)
         out[i] = std::fabs(in[i]);
 
     // 4Ã— unrolled body â€” independent loads + ops + Stream stores.
-    const std::size_t step4 = 4 * N;
+    const keel::usize step4 = 4 * N;
     for (; i + step4 <= n; i += step4) {
         hn::Stream(hn::Abs(hn::LoadU(d, in + i + 0 * N)), d, out + i + 0 * N);
         hn::Stream(hn::Abs(hn::LoadU(d, in + i + 1 * N)), d, out + i + 1 * N);
@@ -82,7 +84,7 @@ namespace numkit::builtin {
 
 HWY_EXPORT(AbsLoop);
 
-Value abs(const Value &x, Value *hint, std::pmr::memory_resource *mr)
+Value abs(const Value &x, Value *hint, keel::Allocator *mr)
 {
     // Integer types keep their class and saturate (abs(int8(-128))=127 int8).
     if (isIntegerType(x.type()))
@@ -94,15 +96,15 @@ Value abs(const Value &x, Value *hint, std::pmr::memory_resource *mr)
         if (x.isSingleComplex()) {
             auto r = createLike(x, ValueType::SINGLE, mr);
             float *dst = r.singleDataMut();
-            for (std::size_t i = 0; i < x.numel(); ++i)
-                dst[i] = static_cast<float>(std::abs(x.complexData()[i]));
+            for (keel::usize i = 0; i < x.numel(); ++i)
+                dst[i] = static_cast<float>(keel::abs(x.complexData()[i]));
             return r;
         }
         if (x.isScalar())
-            return Value::scalar(std::abs(x.toComplex()), mr);
+            return Value::scalar(keel::abs(x.toComplex()), mr);
         auto r = createLike(x, ValueType::DOUBLE, mr);
-        for (std::size_t i = 0; i < x.numel(); ++i)
-            r.doubleDataMut()[i] = std::abs(x.complexData()[i]);
+        for (keel::usize i = 0; i < x.numel(); ++i)
+            r.doubleDataMut()[i] = keel::abs(x.complexData()[i]);
         return r;
     }
 
@@ -113,7 +115,7 @@ Value abs(const Value &x, Value *hint, std::pmr::memory_resource *mr)
         Value r = createLike(x, ValueType::SINGLE, mr);
         const float *in = x.singleData();
         float *out = r.singleDataMut();
-        for (std::size_t i = 0; i < x.numel(); ++i)
+        for (keel::usize i = 0; i < x.numel(); ++i)
             out[i] = std::fabs(in[i]);
         return r;
     }
@@ -123,11 +125,11 @@ Value abs(const Value &x, Value *hint, std::pmr::memory_resource *mr)
         double *out = r.doubleDataMut();
         if (x.type() == ValueType::LOGICAL) {
             const auto *in = x.logicalData();
-            for (std::size_t i = 0; i < x.numel(); ++i)
+            for (keel::usize i = 0; i < x.numel(); ++i)
                 out[i] = in[i] ? 1.0 : 0.0;
         } else {
             const auto *in = x.charData();
-            for (std::size_t i = 0; i < x.numel(); ++i)
+            for (keel::usize i = 0; i < x.numel(); ++i)
                 out[i] = static_cast<double>(
                     static_cast<unsigned char>(in[i]));
         }
@@ -151,7 +153,7 @@ Value abs(const Value &x, Value *hint, std::pmr::memory_resource *mr)
     const double *in  = x.doubleData();
     double       *out = r.doubleDataMut();
     numkit::detail::parallel_for(x.numel(), numkit::detail::kCheapElementwiseThreshold,
-        [=](std::size_t s, std::size_t e) {
+        [=](keel::usize s, keel::usize e) {
             HWY_DYNAMIC_DISPATCH(AbsLoop)(in + s, out + s, e - s);
         }, numkit::detail::kElementwiseMaxWorkers);
     hwy::FlushStream();   // single sfence after all NT-store chunks

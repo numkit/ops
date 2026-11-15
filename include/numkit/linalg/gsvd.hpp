@@ -6,7 +6,7 @@
 
 #pragma once
 
-#include <memory_resource>
+#include <keel/memory.h>
 #include <tuple>
 #include <numkit/value/value.hpp>
 
@@ -17,13 +17,13 @@ namespace numkit::linalg {
 
 
 /// @brief Compute generalized singular values of matrix pair (A, B) as a column vector (ascending order).
-Value gsvd_values(const Value &A, const Value &B, std::pmr::memory_resource *mr = nullptr);
+Value gsvd_values(const Value &A, const Value &B, keel::Allocator *mr = nullptr);
 
 /// @brief Full generalized SVD decomposition of matrix pair (A, B).
 /// Returns std::tuple<Value, Value, Value, Value, Value>{U, V, X, C, S}
 /// such that A = U * C * X^H and B = V * S * X^H.
 std::tuple<Value, Value, Value, Value, Value> gsvd(const Value &A, const Value &B,
-                                                   std::pmr::memory_resource *mr = nullptr);
+                                                   keel::Allocator *mr = nullptr);
 
 
 /// @}

@@ -6,6 +6,8 @@
 // variant lives in trig_recip_highway.cpp and matches this file
 // bit-for-bit on complex / scalar inputs (SIMD only helps real-vector).
 
+#include <keel/memory.h>
+#include <keel/complex.h>
 #include <numkit/builtin/elfun.hpp>
 
 #include <numkit/value/value.hpp>
@@ -14,7 +16,6 @@
 #include <numkit/ops/helpers.hpp>
 
 #include <cmath>
-#include <complex>
 
 namespace numkit::builtin {
 
@@ -45,176 +46,176 @@ inline double cosd_scalar(double x)
 
 // ── Forward reciprocal ─────────────────────────────────────────────
 
-Value sec(const Value &x, std::pmr::memory_resource *mr)
+Value sec(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
-        return unaryComplex(x, [](const Complex &c) { return Complex(1.0) / std::cos(c); }, mr);
+        return unaryComplex(x, [](const keel::c64 &c) { return keel::c64(1.0) / keel::cos(c); }, mr);
     return unaryDouble(x, [](double v) { return 1.0 / std::cos(v); }, mr);
 }
 
-Value csc(const Value &x, std::pmr::memory_resource *mr)
+Value csc(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
-        return unaryComplex(x, [](const Complex &c) { return Complex(1.0) / std::sin(c); }, mr);
+        return unaryComplex(x, [](const keel::c64 &c) { return keel::c64(1.0) / keel::sin(c); }, mr);
     return unaryDouble(x, [](double v) { return 1.0 / std::sin(v); }, mr);
 }
 
-Value cot(const Value &x, std::pmr::memory_resource *mr)
+Value cot(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
-        return unaryComplex(x, [](const Complex &c) { return std::cos(c) / std::sin(c); }, mr);
+        return unaryComplex(x, [](const keel::c64 &c) { return keel::cos(c) / keel::sin(c); }, mr);
     return unaryDouble(x, [](double v) { return std::cos(v) / std::sin(v); }, mr);
 }
 
 // ── Hyperbolic reciprocal ──────────────────────────────────────────
 
-Value sech(const Value &x, std::pmr::memory_resource *mr)
+Value sech(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
-        return unaryComplex(x, [](const Complex &c) { return Complex(1.0) / std::cosh(c); }, mr);
+        return unaryComplex(x, [](const keel::c64 &c) { return keel::c64(1.0) / keel::cosh(c); }, mr);
     return unaryDouble(x, [](double v) { return 1.0 / std::cosh(v); }, mr);
 }
 
-Value csch(const Value &x, std::pmr::memory_resource *mr)
+Value csch(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
-        return unaryComplex(x, [](const Complex &c) { return Complex(1.0) / std::sinh(c); }, mr);
+        return unaryComplex(x, [](const keel::c64 &c) { return keel::c64(1.0) / keel::sinh(c); }, mr);
     return unaryDouble(x, [](double v) { return 1.0 / std::sinh(v); }, mr);
 }
 
-Value coth(const Value &x, std::pmr::memory_resource *mr)
+Value coth(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
-        return unaryComplex(x, [](const Complex &c) { return std::cosh(c) / std::sinh(c); }, mr);
+        return unaryComplex(x, [](const keel::c64 &c) { return keel::cosh(c) / keel::sinh(c); }, mr);
     return unaryDouble(x, [](double v) { return std::cosh(v) / std::sinh(v); }, mr);
 }
 
 // ── Degree reciprocal ──────────────────────────────────────────────
 
-Value secd(const Value &x, std::pmr::memory_resource *mr)
+Value secd(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
-        return unaryComplex(x, [](const Complex &c) { return Complex(1.0) / std::cos(c * kDeg2Rad); }, mr);
+        return unaryComplex(x, [](const keel::c64 &c) { return keel::c64(1.0) / keel::cos(c * kDeg2Rad); }, mr);
     return unaryDouble(x, [](double v) { return 1.0 / cosd_scalar(v); }, mr);
 }
 
-Value cscd(const Value &x, std::pmr::memory_resource *mr)
+Value cscd(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
-        return unaryComplex(x, [](const Complex &c) { return Complex(1.0) / std::sin(c * kDeg2Rad); }, mr);
+        return unaryComplex(x, [](const keel::c64 &c) { return keel::c64(1.0) / keel::sin(c * kDeg2Rad); }, mr);
     return unaryDouble(x, [](double v) { return 1.0 / sind_scalar(v); }, mr);
 }
 
-Value cotd(const Value &x, std::pmr::memory_resource *mr)
+Value cotd(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
-        return unaryComplex(x, [](const Complex &c) {
-            return std::cos(c * kDeg2Rad) / std::sin(c * kDeg2Rad);
+        return unaryComplex(x, [](const keel::c64 &c) {
+            return keel::cos(c * kDeg2Rad) / keel::sin(c * kDeg2Rad);
         }, mr);
     return unaryDouble(x, [](double v) { return cosd_scalar(v) / sind_scalar(v); }, mr);
 }
 
 // ── Inverse reciprocal ─────────────────────────────────────────────
 
-Value asec(const Value &x, std::pmr::memory_resource *mr)
+Value asec(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
-        return unaryComplex(x, [](const Complex &c) { return std::acos(Complex(1.0) / c); }, mr);
+        return unaryComplex(x, [](const keel::c64 &c) { return keel::acos(keel::c64(1.0) / c); }, mr);
     if (x.isScalar()) {
         const double v = x.toScalar();
         if (v > -1.0 && v < 1.0)
-            return Value::complexScalar(std::acos(Complex(1.0 / v, 0.0)), mr);
+            return Value::complexScalar(keel::acos(keel::c64(1.0 / v, 0.0)), mr);
     }
     return unaryDouble(x, [](double v) { return std::acos(1.0 / v); }, mr);
 }
 
-Value acsc(const Value &x, std::pmr::memory_resource *mr)
+Value acsc(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
-        return unaryComplex(x, [](const Complex &c) { return std::asin(Complex(1.0) / c); }, mr);
+        return unaryComplex(x, [](const keel::c64 &c) { return keel::asin(keel::c64(1.0) / c); }, mr);
     if (x.isScalar()) {
         const double v = x.toScalar();
         if (v > -1.0 && v < 1.0 && v != 0.0)
-            return Value::complexScalar(std::asin(Complex(1.0 / v, 0.0)), mr);
+            return Value::complexScalar(keel::asin(keel::c64(1.0 / v, 0.0)), mr);
     }
     return unaryDouble(x, [](double v) { return std::asin(1.0 / v); }, mr);
 }
 
-Value acot(const Value &x, std::pmr::memory_resource *mr)
+Value acot(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
-        return unaryComplex(x, [](const Complex &c) { return std::atan(Complex(1.0) / c); }, mr);
+        return unaryComplex(x, [](const keel::c64 &c) { return keel::atan(keel::c64(1.0) / c); }, mr);
     return unaryDouble(x, [](double v) { return std::atan(1.0 / v); }, mr);
 }
 
 // ── Inverse hyperbolic reciprocal ──────────────────────────────────
 
-Value asech(const Value &x, std::pmr::memory_resource *mr)
+Value asech(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
-        return unaryComplex(x, [](const Complex &c) { return std::acosh(Complex(1.0) / c); }, mr);
+        return unaryComplex(x, [](const keel::c64 &c) { return keel::acosh(keel::c64(1.0) / c); }, mr);
     if (x.isScalar()) {
         const double v = x.toScalar();
         if (v <= 0.0 || v > 1.0)
-            return Value::complexScalar(std::acosh(Complex(1.0 / v, 0.0)), mr);
+            return Value::complexScalar(keel::acosh(keel::c64(1.0 / v, 0.0)), mr);
     }
     return unaryDouble(x, [](double v) { return std::acosh(1.0 / v); }, mr);
 }
 
-Value acsch(const Value &x, std::pmr::memory_resource *mr)
+Value acsch(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
-        return unaryComplex(x, [](const Complex &c) { return std::asinh(Complex(1.0) / c); }, mr);
+        return unaryComplex(x, [](const keel::c64 &c) { return keel::asinh(keel::c64(1.0) / c); }, mr);
     return unaryDouble(x, [](double v) { return std::asinh(1.0 / v); }, mr);
 }
 
-Value acoth(const Value &x, std::pmr::memory_resource *mr)
+Value acoth(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
-        return unaryComplex(x, [](const Complex &c) { return std::atanh(Complex(1.0) / c); }, mr);
+        return unaryComplex(x, [](const keel::c64 &c) { return keel::atanh(keel::c64(1.0) / c); }, mr);
     if (x.isScalar()) {
         const double v = x.toScalar();
         if (v >= -1.0 && v <= 1.0)
-            return Value::complexScalar(std::atanh(Complex(1.0 / v, 0.0)), mr);
+            return Value::complexScalar(keel::atanh(keel::c64(1.0 / v, 0.0)), mr);
     }
     return unaryDouble(x, [](double v) { return std::atanh(1.0 / v); }, mr);
 }
 
 // ── Inverse degree reciprocal ──────────────────────────────────────
 
-Value asecd(const Value &x, std::pmr::memory_resource *mr)
+Value asecd(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
-        return unaryComplex(x, [](const Complex &c) {
-            return std::acos(Complex(1.0) / c) * kRad2Deg;
+        return unaryComplex(x, [](const keel::c64 &c) {
+            return keel::acos(keel::c64(1.0) / c) * kRad2Deg;
         }, mr);
     if (x.isScalar()) {
         const double v = x.toScalar();
         if (v > -1.0 && v < 1.0)
-            return Value::complexScalar(std::acos(Complex(1.0 / v, 0.0)) * kRad2Deg, mr);
+            return Value::complexScalar(keel::acos(keel::c64(1.0 / v, 0.0)) * kRad2Deg, mr);
     }
     return unaryDouble(x, [](double v) { return std::acos(1.0 / v) * kRad2Deg; }, mr);
 }
 
-Value acscd(const Value &x, std::pmr::memory_resource *mr)
+Value acscd(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
-        return unaryComplex(x, [](const Complex &c) {
-            return std::asin(Complex(1.0) / c) * kRad2Deg;
+        return unaryComplex(x, [](const keel::c64 &c) {
+            return keel::asin(keel::c64(1.0) / c) * kRad2Deg;
         }, mr);
     if (x.isScalar()) {
         const double v = x.toScalar();
         if (v > -1.0 && v < 1.0 && v != 0.0)
-            return Value::complexScalar(std::asin(Complex(1.0 / v, 0.0)) * kRad2Deg, mr);
+            return Value::complexScalar(keel::asin(keel::c64(1.0 / v, 0.0)) * kRad2Deg, mr);
     }
     return unaryDouble(x, [](double v) { return std::asin(1.0 / v) * kRad2Deg; }, mr);
 }
 
-Value acotd(const Value &x, std::pmr::memory_resource *mr)
+Value acotd(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
-        return unaryComplex(x, [](const Complex &c) {
-            return std::atan(Complex(1.0) / c) * kRad2Deg;
+        return unaryComplex(x, [](const keel::c64 &c) {
+            return keel::atan(keel::c64(1.0) / c) * kRad2Deg;
         }, mr);
     return unaryDouble(x, [](double v) { return std::atan(1.0 / v) * kRad2Deg; }, mr);
 }

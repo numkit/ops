@@ -5,11 +5,11 @@
 // Pure C++ Polynomials, interpolation, integration, and piecewise polynomials.
 #pragma once
 
+#include <keel/core.h>
+#include <keel/memory.h>
 #include <functional>
-#include <memory_resource>
 #include <string>
 #include <numkit/value/value.hpp>
-#include <numkit/value/span.hpp>
 #include <numkit/value/fn_handle.hpp>
 
 namespace numkit::builtin {
@@ -25,14 +25,14 @@ using ::numkit::FnHandle;
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Column vector of complex/real roots (eigenvalues of companion matrix).
 /// @see poly, polyval
-Value roots(const Value &p, std::pmr::memory_resource *mr = nullptr);
+Value roots(const Value &p, keel::Allocator *mr = nullptr);
 
 /// @brief Polynomial with specified roots or characteristic polynomial of a matrix.
 /// @param r Vector of roots or square matrix.
 /// @param mr Memory resource.
 /// @return Row vector of polynomial coefficients in descending powers.
 /// @see roots, polyval
-Value poly(const Value &r, std::pmr::memory_resource *mr = nullptr);
+Value poly(const Value &r, keel::Allocator *mr = nullptr);
 
 /// @brief Evaluates polynomial `p` at points `x` via Horner's scheme.
 /// @param p Vector of polynomial coefficients.
@@ -40,21 +40,21 @@ Value poly(const Value &r, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource.
 /// @return Evaluated values with the same shape as @p x.
 /// @see roots, polyder, polyint
-Value polyval(const Value &p, const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value polyval(const Value &p, const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Computes polynomial derivative (`polyder(p)`).
 /// @param p Vector of polynomial coefficients.
 /// @param mr Memory resource.
 /// @return Derivative polynomial coefficients.
 /// @see polyint, polyval
-Value polyder(const Value &p, std::pmr::memory_resource *mr = nullptr);
+Value polyder(const Value &p, keel::Allocator *mr = nullptr);
 
 /// @brief Computes derivative of polynomial quotient `b / a` (`[q, d] = polyder(b, a)`).
 /// @param b Numerator polynomial coefficients.
 /// @param a Denominator polynomial coefficients.
 /// @param mr Memory resource.
 /// @return Tuple containing numerator and denominator polynomial coefficients `{q, d}`.
-std::tuple<Value, Value> polyder(const Value &b, const Value &a, std::pmr::memory_resource *mr = nullptr);
+std::tuple<Value, Value> polyder(const Value &b, const Value &a, keel::Allocator *mr = nullptr);
 
 /// @brief Computes polynomial integral (`polyint(p, k)`).
 /// @param p Vector of polynomial coefficients.
@@ -62,7 +62,7 @@ std::tuple<Value, Value> polyder(const Value &b, const Value &a, std::pmr::memor
 /// @param mr Memory resource.
 /// @return Integrated polynomial coefficients.
 /// @see polyder, polyval
-Value polyint(const Value &p, double k = 0.0, std::pmr::memory_resource *mr = nullptr);
+Value polyint(const Value &p, keel::f64 k = 0.0, keel::Allocator *mr = nullptr);
 
 /// @brief Polynomial least-squares curve fitting (`polyfit(x, y, n)`).
 /// @param x Independent variable vector.
@@ -70,7 +70,7 @@ Value polyint(const Value &p, double k = 0.0, std::pmr::memory_resource *mr = nu
 /// @param n Degree of the fitting polynomial.
 /// @param mr Memory resource.
 /// @return Fitted polynomial coefficients of length `n + 1`.
-Value polyfit(const Value &x, const Value &y, int n, std::pmr::memory_resource *mr = nullptr);
+Value polyfit(const Value &x, const Value &y, int n, keel::Allocator *mr = nullptr);
 
 #include <tuple>
 
@@ -96,7 +96,7 @@ struct PadeCoef {
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Square matrix result of polynomial evaluation.
 /// @see polyval, poly_of_matrix
-Value polyvalm(const Value &p, const Value &A, std::pmr::memory_resource *mr = nullptr);
+Value polyvalm(const Value &p, const Value &A, keel::Allocator *mr = nullptr);
 
 /// @brief Characteristic polynomial of square matrix (`poly_of_matrix(A)`).
 ///
@@ -106,7 +106,7 @@ Value polyvalm(const Value &p, const Value &A, std::pmr::memory_resource *mr = n
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Row vector containing characteristic polynomial coefficients.
 /// @see poly, roots, polyvalm
-Value poly_of_matrix(const Value &A, std::pmr::memory_resource *mr = nullptr);
+Value poly_of_matrix(const Value &A, keel::Allocator *mr = nullptr);
 
 /// @brief Padé approximation of time delay (`[num, den] = padecoef(T, N)`).
 ///
@@ -116,7 +116,7 @@ Value poly_of_matrix(const Value &A, std::pmr::memory_resource *mr = nullptr);
 /// @param N Approximation order.
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return PadeCoef containing numerator and denominator polynomials.
-PadeCoef padecoef(double T, int N, std::pmr::memory_resource *mr = nullptr);
+PadeCoef padecoef(keel::f64 T, int N, keel::Allocator *mr = nullptr);
 
 /// @brief Polynomial deconvolution and division (`[q, r] = polydiv(b, a)`).
 ///
@@ -125,7 +125,7 @@ PadeCoef padecoef(double T, int N, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return PolyDiv containing quotient `q` and remainder `r`.
 /// @see deconv, conv
-PolyDiv polydiv(const Value &b, const Value &a, std::pmr::memory_resource *mr = nullptr);
+PolyDiv polydiv(const Value &b, const Value &a, keel::Allocator *mr = nullptr);
 
 /// @brief Transfer function to zero-pole-gain conversion (`[z, p, k] = tf2zp(b, a)`).
 ///
@@ -134,7 +134,7 @@ PolyDiv polydiv(const Value &b, const Value &a, std::pmr::memory_resource *mr = 
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Tuple containing zeros `z`, poles `p`, and gain `k`.
 /// @see zp2tf, residue
-std::tuple<Value, Value, Value> tf2zp(const Value &b, const Value &a, std::pmr::memory_resource *mr = nullptr);
+std::tuple<Value, Value, Value> tf2zp(const Value &b, const Value &a, keel::Allocator *mr = nullptr);
 
 /// @brief Zero-pole-gain to transfer function conversion (`[b, a] = zp2tf(z, p, k)`).
 ///
@@ -144,7 +144,7 @@ std::tuple<Value, Value, Value> tf2zp(const Value &b, const Value &a, std::pmr::
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Tuple containing numerator `b` and denominator `a` polynomials.
 /// @see tf2zp, residue
-std::tuple<Value, Value> zp2tf(const Value &z, const Value &p, double k, std::pmr::memory_resource *mr = nullptr);
+std::tuple<Value, Value> zp2tf(const Value &z, const Value &p, keel::f64 k, keel::Allocator *mr = nullptr);
 
 /// @brief Result of partial fraction expansion (residues, poles, direct term).
 struct ResidueResult {
@@ -163,7 +163,7 @@ struct ResidueResult {
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return ResidueResult containing residues `r`, poles `p`, and direct terms `k`.
 /// @see residuez, poly, roots
-ResidueResult residue(const Value &b, const Value &a, std::pmr::memory_resource *mr = nullptr);
+ResidueResult residue(const Value &b, const Value &a, keel::Allocator *mr = nullptr);
 
 /// @brief Partial fraction expansion in Z-domain (`[r, p, k] = residuez(b, a)`).
 ///
@@ -175,7 +175,7 @@ ResidueResult residue(const Value &b, const Value &a, std::pmr::memory_resource 
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return ResidueResult containing residues `r`, poles `p`, and direct terms `k`.
 /// @see residue, poly, roots
-ResidueResult residuez(const Value &b, const Value &a, std::pmr::memory_resource *mr = nullptr);
+ResidueResult residuez(const Value &b, const Value &a, keel::Allocator *mr = nullptr);
 
 // ── Interpolation & Piecewise Polynomials ───────────────────────────────────
 
@@ -187,7 +187,7 @@ ResidueResult residuez(const Value &b, const Value &a, std::pmr::memory_resource
 /// @param mr Memory resource.
 /// @return Interpolated values at query points `xq`.
 /// @see interp2, spline, pchip
-Value interp1(const Value &x, const Value &v, const Value &xq, const std::string &method = "linear", std::pmr::memory_resource *mr = nullptr);
+Value interp1(const Value &x, const Value &v, const Value &xq, const std::string &method = "linear", keel::Allocator *mr = nullptr);
 
 /// @brief 2-D data interpolation on a grid (`interp2(x, y, v, xq, yq, method)`).
 /// @param x Grid coordinates along columns.
@@ -206,7 +206,7 @@ Value interp1(const Value &x, const Value &v, const Value &xq, const std::string
 /// @param method Interpolation method (`"linear"`, `"nearest"`, `"cubic"`, `"spline"`).
 /// @param mr Memory resource.
 /// @return Interpolated values.
-Value interp2(const Value &V, const Value &Xq, const Value &Yq, const std::string &method = "linear", std::pmr::memory_resource *mr = nullptr);
+Value interp2(const Value &V, const Value &Xq, const Value &Yq, const std::string &method = "linear", keel::Allocator *mr = nullptr);
 
 /// @brief 2-D data interpolation on a grid (`interp2(x, y, v, xq, yq, method)`).
 /// @param x Grid coordinates along columns.
@@ -218,7 +218,7 @@ Value interp2(const Value &V, const Value &Xq, const Value &Yq, const std::strin
 /// @param mr Memory resource.
 /// @return Interpolated values.
 /// @see interp1
-Value interp2(const Value &x, const Value &y, const Value &v, const Value &xq, const Value &yq, const std::string &method = "linear", std::pmr::memory_resource *mr = nullptr);
+Value interp2(const Value &x, const Value &y, const Value &v, const Value &xq, const Value &yq, const std::string &method = "linear", keel::Allocator *mr = nullptr);
 
 /// @brief 3-D data interpolation on a uniform grid (`interp3(V, Xq, Yq, Zq, method)`).
 /// @param V 3-D array of values.
@@ -228,7 +228,7 @@ Value interp2(const Value &x, const Value &y, const Value &v, const Value &xq, c
 /// @param method Interpolation method.
 /// @param mr Memory resource.
 /// @return Interpolated 3-D array.
-Value interp3(const Value &V, const Value &Xq, const Value &Yq, const Value &Zq, const std::string &method = "linear", std::pmr::memory_resource *mr = nullptr);
+Value interp3(const Value &V, const Value &Xq, const Value &Yq, const Value &Zq, const std::string &method = "linear", keel::Allocator *mr = nullptr);
 
 /// @brief 3-D data interpolation on a grid (`interp3(X, Y, Z, V, Xq, Yq, Zq, method)`).
 /// @param X Grid coordinates along X.
@@ -241,7 +241,7 @@ Value interp3(const Value &V, const Value &Xq, const Value &Yq, const Value &Zq,
 /// @param method Interpolation method.
 /// @param mr Memory resource.
 /// @return Interpolated 3-D array.
-Value interp3(const Value &X, const Value &Y, const Value &Z, const Value &V, const Value &Xq, const Value &Yq, const Value &Zq, const std::string &method = "linear", std::pmr::memory_resource *mr = nullptr);
+Value interp3(const Value &X, const Value &Y, const Value &Z, const Value &V, const Value &Xq, const Value &Yq, const Value &Zq, const std::string &method = "linear", keel::Allocator *mr = nullptr);
 
 /// @brief Cubic spline data interpolation (`spline(x, y, xq)`).
 /// @param x Sample grid points.
@@ -250,7 +250,7 @@ Value interp3(const Value &X, const Value &Y, const Value &Z, const Value &V, co
 /// @param mr Memory resource.
 /// @return Interpolated values or piecewise polynomial struct.
 /// @see pchip, makima, ppval
-Value spline(const Value &x, const Value &y, const Value &xq = Value(), std::pmr::memory_resource *mr = nullptr);
+Value spline(const Value &x, const Value &y, const Value &xq = Value(), keel::Allocator *mr = nullptr);
 
 /// @brief Piecewise Cubic Hermite Interpolating Polynomial (PCHIP) (`pchip(x, y, xq)`).
 /// @param x Sample grid points.
@@ -259,7 +259,7 @@ Value spline(const Value &x, const Value &y, const Value &xq = Value(), std::pmr
 /// @param mr Memory resource.
 /// @return Shape-preserving interpolated values or piecewise polynomial struct.
 /// @see spline, makima, ppval
-Value pchip(const Value &x, const Value &y, const Value &xq = Value(), std::pmr::memory_resource *mr = nullptr);
+Value pchip(const Value &x, const Value &y, const Value &xq = Value(), keel::Allocator *mr = nullptr);
 
 /// @brief Modified Akima cubic Hermite interpolation (`makima(x, y, xq)`).
 /// @param x Sample grid points.
@@ -268,7 +268,7 @@ Value pchip(const Value &x, const Value &y, const Value &xq = Value(), std::pmr:
 /// @param mr Memory resource.
 /// @return Interpolated values with reduced overshoots.
 /// @see spline, pchip
-Value makima(const Value &x, const Value &y, const Value &xq, std::pmr::memory_resource *mr = nullptr);
+Value makima(const Value &x, const Value &y, const Value &xq, keel::Allocator *mr = nullptr);
 
 /// @brief Constructs a piecewise polynomial structure (ppform).
 /// @param breaks Vector of break points.
@@ -276,14 +276,14 @@ Value makima(const Value &x, const Value &y, const Value &xq, std::pmr::memory_r
 /// @param mr Memory resource.
 /// @return Piecewise polynomial struct.
 /// @see unmkpp, ppval
-Value mkpp(const Value &breaks, const Value &coefs, std::pmr::memory_resource *mr = nullptr);
+Value mkpp(const Value &breaks, const Value &coefs, keel::Allocator *mr = nullptr);
 
 /// @brief Extracts piecewise polynomial structure fields (`[breaks, coefs, l, k, d] = unmkpp(pp)`).
 /// @param pp Piecewise polynomial struct.
 /// @param mr Memory resource.
 /// @return Breaks vector from pp struct.
 /// @see mkpp, ppval
-Value unmkpp(const Value &pp, std::pmr::memory_resource *mr = nullptr);
+Value unmkpp(const Value &pp, keel::Allocator *mr = nullptr);
 
 /// @brief Evaluates a piecewise polynomial structure at query points `xq`.
 /// @param pp Piecewise polynomial structure.
@@ -291,7 +291,7 @@ Value unmkpp(const Value &pp, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource.
 /// @return Evaluated values.
 /// @see mkpp, unmkpp, spline, pchip
-Value ppval(const Value &pp, const Value &xq, std::pmr::memory_resource *mr = nullptr);
+Value ppval(const Value &pp, const Value &xq, keel::Allocator *mr = nullptr);
 
 /// @brief Numerical gradient of 1-D array or uniform multi-dimensional array (`gradient(f, h)`).
 /// @param f Input array.
@@ -299,7 +299,7 @@ Value ppval(const Value &pp, const Value &xq, std::pmr::memory_resource *mr = nu
 /// @param mr Memory resource.
 /// @return Approximate derivative along the operating dimension.
 /// @see del2, diff
-Value gradient(const Value &f, double h = 1.0, std::pmr::memory_resource *mr = nullptr);
+Value gradient(const Value &f, keel::f64 h = 1.0, keel::Allocator *mr = nullptr);
 
 /// @brief Numerical 2-D gradient along rows and columns (`[fx, fy] = gradient(f, hx, hy)`).
 /// @param f 2-D input matrix.
@@ -307,7 +307,7 @@ Value gradient(const Value &f, double h = 1.0, std::pmr::memory_resource *mr = n
 /// @param hy Grid spacing along Y.
 /// @param mr Memory resource.
 /// @return Tuple containing `{fx, fy}` partial derivatives.
-std::tuple<Value, Value> gradient2(const Value &f, double hx = 1.0, double hy = 1.0, std::pmr::memory_resource *mr = nullptr);
+std::tuple<Value, Value> gradient2(const Value &f, keel::f64 hx = 1.0, keel::f64 hy = 1.0, keel::Allocator *mr = nullptr);
 
 /// @brief Five-point discrete Laplacian / Laplace operator (`del2(u, h)`).
 /// @param u Input array.
@@ -315,14 +315,14 @@ std::tuple<Value, Value> gradient2(const Value &f, double hx = 1.0, double hy = 
 /// @param mr Memory resource.
 /// @return Discrete Laplacian array.
 /// @see gradient
-Value del2(const Value &u, double h = 1.0, std::pmr::memory_resource *mr = nullptr);
+Value del2(const Value &u, keel::f64 h = 1.0, keel::Allocator *mr = nullptr);
 
 /// @brief Trapezoidal numerical integration with unit spacing (`trapz(y)`).
 /// @param y Function values vector or array.
 /// @param mr Memory resource.
 /// @return Integral approximation.
 /// @see cumtrapz, integral
-Value trapz(const Value &y, std::pmr::memory_resource *mr = nullptr);
+Value trapz(const Value &y, keel::Allocator *mr = nullptr);
 
 /// @brief Trapezoidal numerical integration over coordinates `x` (`trapz(x, y)`).
 /// @param x Coordinate points.
@@ -330,7 +330,7 @@ Value trapz(const Value &y, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource.
 /// @return Integral approximation.
 /// @see cumtrapz, integral
-Value trapz(const Value &x, const Value &y, std::pmr::memory_resource *mr = nullptr);
+Value trapz(const Value &x, const Value &y, keel::Allocator *mr = nullptr);
 
 /// @brief Trapezoidal numerical integration along specified dimension (`trapz(x, y, dim)`).
 /// @param x Coordinate points.
@@ -338,21 +338,21 @@ Value trapz(const Value &x, const Value &y, std::pmr::memory_resource *mr = null
 /// @param dim Dimension along which to integrate.
 /// @param mr Memory resource.
 /// @return Integrated array.
-Value trapz(const Value &x, const Value &y, int dim, std::pmr::memory_resource *mr = nullptr);
+Value trapz(const Value &x, const Value &y, int dim, keel::Allocator *mr = nullptr);
 
 /// @brief Cumulative trapezoidal numerical integration with unit spacing (`cumtrapz(y)`).
 /// @param y Function values.
 /// @param mr Memory resource.
 /// @return Cumulative integral array.
 /// @see trapz
-Value cumtrapz(const Value &y, std::pmr::memory_resource *mr = nullptr);
+Value cumtrapz(const Value &y, keel::Allocator *mr = nullptr);
 
 /// @brief Cumulative trapezoidal numerical integration over coordinates `x` (`cumtrapz(x, y)`).
 /// @param x Coordinate points.
 /// @param y Function values.
 /// @param mr Memory resource.
 /// @return Cumulative integral array.
-Value cumtrapz(const Value &x, const Value &y, std::pmr::memory_resource *mr = nullptr);
+Value cumtrapz(const Value &x, const Value &y, keel::Allocator *mr = nullptr);
 
 /// @brief Cumulative trapezoidal numerical integration along dimension (`cumtrapz(x, y, dim)`).
 /// @param x Coordinate points.
@@ -360,14 +360,14 @@ Value cumtrapz(const Value &x, const Value &y, std::pmr::memory_resource *mr = n
 /// @param dim Operating dimension.
 /// @param mr Memory resource.
 /// @return Cumulative integral array.
-Value cumtrapz(const Value &x, const Value &y, int dim, std::pmr::memory_resource *mr = nullptr);
+Value cumtrapz(const Value &x, const Value &y, int dim, keel::Allocator *mr = nullptr);
 
 /// @brief Cumulative trapezoidal numerical integration with unit spacing along dimension (`cumtrapz(y, dim)`).
 /// @param y Function values.
 /// @param dim Operating dimension.
 /// @param mr Memory resource.
 /// @return Cumulative integral array.
-Value cumtrapzDim(const Value &y, int dim, std::pmr::memory_resource *mr = nullptr);
+Value cumtrapzDim(const Value &y, int dim, keel::Allocator *mr = nullptr);
 
 /// @brief Numerical 1-D adaptive quadrature integration (`integral(fn, a, b)`).
 /// @param fn Function handle taking numeric vector argument.
@@ -377,7 +377,7 @@ Value cumtrapzDim(const Value &y, int dim, std::pmr::memory_resource *mr = nullp
 /// @param mr Memory resource.
 /// @return Integral value.
 /// @see integral2, integral3, trapz
-Value integral(FnHandle fn, double a, double b, double absTol = 1e-10, std::pmr::memory_resource *mr = nullptr);
+Value integral(FnHandle fn, keel::f64 a, keel::f64 b, keel::f64 absTol = 1e-10, keel::Allocator *mr = nullptr);
 
 /// @brief Numerical 2-D double integration over rectangular region (`integral2(fn, a, b, c, d)`).
 /// @param fn Function handle taking `(x, y)`.
@@ -389,7 +389,7 @@ Value integral(FnHandle fn, double a, double b, double absTol = 1e-10, std::pmr:
 /// @param mr Memory resource.
 /// @return Double integral value.
 /// @see integral, integral3
-Value integral2(FnHandle fn, double a, double b, double c, double d, double absTol = 1e-10, std::pmr::memory_resource *mr = nullptr);
+Value integral2(FnHandle fn, keel::f64 a, keel::f64 b, keel::f64 c, keel::f64 d, keel::f64 absTol = 1e-10, keel::Allocator *mr = nullptr);
 
 /// @brief Numerical 3-D triple integration over cuboid region (`integral3(fn, a, b, c, d, e, f)`).
 /// @param fn Function handle taking `(x, y, z)`.
@@ -403,7 +403,7 @@ Value integral2(FnHandle fn, double a, double b, double c, double d, double absT
 /// @param mr Memory resource.
 /// @return Triple integral value.
 /// @see integral, integral2
-Value integral3(FnHandle fn, double a, double b, double c, double d, double e, double f, double absTol = 1e-10, std::pmr::memory_resource *mr = nullptr);
+Value integral3(FnHandle fn, keel::f64 a, keel::f64 b, keel::f64 c, keel::f64 d, keel::f64 e, keel::f64 f, keel::f64 absTol = 1e-10, keel::Allocator *mr = nullptr);
 
 // ── Computational Geometry ──────────────────────────────────────────────────
 
@@ -432,7 +432,7 @@ struct PolyxpolyResult {
 /// @param y Vertex y-coordinates.
 /// @param mr Memory resource.
 /// @return Signed or unsigned polygon area.
-Value polyarea(const Value &x, const Value &y, std::pmr::memory_resource *mr = nullptr);
+Value polyarea(const Value &x, const Value &y, keel::Allocator *mr = nullptr);
 
 /// @brief Tests if 2-D query points are inside polygonal region (`inpolygon(xq, yq, xv, yv)`).
 /// @param xq Query points x-coordinates.
@@ -442,7 +442,7 @@ Value polyarea(const Value &x, const Value &y, std::pmr::memory_resource *mr = n
 /// @param mr Memory resource.
 /// @return Logical array indicating whether query points lie inside or on edge.
 /// @see inpolygon2
-Value inpolygon(const Value &xq, const Value &yq, const Value &xv, const Value &yv, std::pmr::memory_resource *mr = nullptr);
+Value inpolygon(const Value &xq, const Value &yq, const Value &xv, const Value &yv, keel::Allocator *mr = nullptr);
 
 /// @brief Tests points inside and on edge of 2-D polygonal region (`[in, on] = inpolygon(xq, yq, xv, yv)`).
 /// @param xq Query points x-coordinates.
@@ -451,7 +451,7 @@ Value inpolygon(const Value &xq, const Value &yq, const Value &xv, const Value &
 /// @param yv Polygon vertices y-coordinates.
 /// @param mr Memory resource.
 /// @return Struct containing `{in, on}` logical arrays.
-InpolygonResult inpolygon2(const Value &xq, const Value &yq, const Value &xv, const Value &yv, std::pmr::memory_resource *mr = nullptr);
+InpolygonResult inpolygon2(const Value &xq, const Value &yq, const Value &xv, const Value &yv, keel::Allocator *mr = nullptr);
 
 /// @brief Computes 2-D convex hull of planar point set (`convhull(x, y)`).
 /// @param x Point x-coordinates.
@@ -459,7 +459,7 @@ InpolygonResult inpolygon2(const Value &xq, const Value &yq, const Value &xv, co
 /// @param mr Memory resource.
 /// @return Indices of vertices forming the convex hull in counterclockwise order.
 /// @see delaunay, boundary
-Value convhull(const Value &x, const Value &y, std::pmr::memory_resource *mr = nullptr);
+Value convhull(const Value &x, const Value &y, keel::Allocator *mr = nullptr);
 
 /// @brief Intersection points of polygonal lines or boundaries (`[xi, yi] = polyxpoly(x1, y1, x2, y2)`).
 /// @param x1 First line x-coordinates.
@@ -468,7 +468,7 @@ Value convhull(const Value &x, const Value &y, std::pmr::memory_resource *mr = n
 /// @param y2 Second line y-coordinates.
 /// @param mr Memory resource.
 /// @return Intersection coordinates struct.
-PolyxpolyResult polyxpoly(const Value &x1, const Value &y1, const Value &x2, const Value &y2, std::pmr::memory_resource *mr = nullptr);
+PolyxpolyResult polyxpoly(const Value &x1, const Value &y1, const Value &x2, const Value &y2, keel::Allocator *mr = nullptr);
 
 /// @brief Solves linear sum assignment problem with cost threshold (`matchpairs(C, cU, mode)`).
 /// @param C Cost matrix.
@@ -476,7 +476,7 @@ PolyxpolyResult polyxpoly(const Value &x1, const Value &y1, const Value &x2, con
 /// @param mode Optimization mode (`"min"` or `"max"`).
 /// @param mr Memory resource.
 /// @return Matchpairs result containing matched indices and unmatched rows/cols.
-MatchpairsResult matchpairs(const Value &C, double cU, const std::string &mode = "min", std::pmr::memory_resource *mr = nullptr);
+MatchpairsResult matchpairs(const Value &C, keel::f64 cU, const std::string &mode = "min", keel::Allocator *mr = nullptr);
 
 /// @brief Computes boundary / alpha-shape around 2-D point cloud (`boundary(x, y, shrink)`).
 /// @param x Point x-coordinates.
@@ -485,7 +485,7 @@ MatchpairsResult matchpairs(const Value &C, double cU, const std::string &mode =
 /// @param mr Memory resource.
 /// @return Indices of boundary points.
 /// @see convhull
-Value boundary(const Value &x, const Value &y, double shrink = 0.5, std::pmr::memory_resource *mr = nullptr);
+Value boundary(const Value &x, const Value &y, keel::f64 shrink = 0.5, keel::Allocator *mr = nullptr);
 
 /// @brief 2-D Delaunay triangulation of planar point set (`delaunay(x, y)`).
 /// @param x Point x-coordinates.
@@ -493,7 +493,7 @@ Value boundary(const Value &x, const Value &y, double shrink = 0.5, std::pmr::me
 /// @param mr Memory resource.
 /// @return `M x 3` matrix where each row defines a triangle by point indices.
 /// @see convhull
-Value delaunay(const Value &x, const Value &y, std::pmr::memory_resource *mr = nullptr);
+Value delaunay(const Value &x, const Value &y, keel::Allocator *mr = nullptr);
 
 /// @brief Interpolates scattered 2-D data onto query points (`griddata(x, y, v, xq, yq, method)`).
 /// @param x Scattered point x-coordinates.
@@ -504,7 +504,7 @@ Value delaunay(const Value &x, const Value &y, std::pmr::memory_resource *mr = n
 /// @param mr Memory resource.
 /// @return Interpolated surface values.
 /// @see griddatan, interp2
-Value griddata(const Value &x, const Value &y, const Value &v, const Value &xq, const Value &yq, std::pmr::memory_resource *mr = nullptr);
+Value griddata(const Value &x, const Value &y, const Value &v, const Value &xq, const Value &yq, keel::Allocator *mr = nullptr);
 
 /// @brief Interpolates scattered 2-D data onto query points with specified method (`griddata(x, y, v, xq, yq, method)`).
 /// @param x Scattered point x-coordinates.
@@ -515,7 +515,7 @@ Value griddata(const Value &x, const Value &y, const Value &v, const Value &xq, 
 /// @param method Interpolation method (`"linear"`, `"nearest"`, `"cubic"`, `"natural"`).
 /// @param mr Memory resource.
 /// @return Interpolated surface values.
-Value griddata(const Value &x, const Value &y, const Value &v, const Value &xq, const Value &yq, const std::string &method, std::pmr::memory_resource *mr = nullptr);
+Value griddata(const Value &x, const Value &y, const Value &v, const Value &xq, const Value &yq, const std::string &method, keel::Allocator *mr = nullptr);
 
 /// @brief N-D scattered data interpolation (`griddatan(Xv, vv, xi, method)`).
 /// @param Xv `M x N` matrix of scattered sample point coordinates.
@@ -524,7 +524,7 @@ Value griddata(const Value &x, const Value &y, const Value &v, const Value &xq, 
 /// @param mr Memory resource.
 /// @return Interpolated values vector `P x 1`.
 /// @see griddata
-Value griddatan(const Value &Xv, const Value &vv, const Value &xi, std::pmr::memory_resource *mr = nullptr);
+Value griddatan(const Value &Xv, const Value &vv, const Value &xi, keel::Allocator *mr = nullptr);
 
 /// @brief N-D scattered data interpolation with method (`griddatan(Xv, vv, xi, method)`).
 /// @param Xv `M x N` sample point coordinates.
@@ -533,7 +533,7 @@ Value griddatan(const Value &Xv, const Value &vv, const Value &xi, std::pmr::mem
 /// @param method Interpolation method (`"linear"`, `"nearest"`).
 /// @param mr Memory resource.
 /// @return Interpolated values.
-Value griddatan(const Value &Xv, const Value &vv, const Value &xi, const std::string &method, std::pmr::memory_resource *mr = nullptr);
+Value griddatan(const Value &Xv, const Value &vv, const Value &xi, const std::string &method, keel::Allocator *mr = nullptr);
 
 /// @brief Computes 2-D bivariate histogram bin counts (`histcounts2(x, y, xedges, yedges)`).
 /// @param x Data points x-coordinates.
@@ -542,7 +542,7 @@ Value griddatan(const Value &Xv, const Value &vv, const Value &xi, const std::st
 /// @param yedgesV Bin edges vector along Y.
 /// @param mr Memory resource.
 /// @return 2-D matrix of bivariate count values.
-Value histcounts2(const Value &x, const Value &y, const Value &xedgesV, const Value &yedgesV, std::pmr::memory_resource *mr = nullptr);
+Value histcounts2(const Value &x, const Value &y, const Value &xedgesV, const Value &yedgesV, keel::Allocator *mr = nullptr);
 
 
 /// @}

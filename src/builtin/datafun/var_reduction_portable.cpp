@@ -5,6 +5,7 @@
 // reliably autovectorised by recent compilers and the FMA in the
 // inner-loop accumulator gives the same single-rounding behaviour.
 
+#include <keel/core.h>
 #include "var_reduction.hpp"
 
 #include <cmath>
@@ -12,29 +13,29 @@
 
 namespace numkit::builtin {
 
-double sumScan(const double *p, std::size_t n)
+double sumScan(const double *p, keel::usize n)
 {
     double s = 0.0;
-    for (std::size_t i = 0; i < n; ++i) s += p[i];
+    for (keel::usize i = 0; i < n; ++i) s += p[i];
     return s;
 }
 
-double sumSquaredDeviationsScan(const double *p, std::size_t n, double mean)
+double sumSquaredDeviationsScan(const double *p, keel::usize n, double mean)
 {
     double ss = 0.0;
-    for (std::size_t i = 0; i < n; ++i) {
+    for (keel::usize i = 0; i < n; ++i) {
         const double d = p[i] - mean;
         ss += d * d;
     }
     return ss;
 }
 
-void addInto(double *dst, const double *src, std::size_t n)
+void addInto(double *dst, const double *src, keel::usize n)
 {
-    for (std::size_t i = 0; i < n; ++i) dst[i] += src[i];
+    for (keel::usize i = 0; i < n; ++i) dst[i] += src[i];
 }
 
-double varianceTwoPass(const double *p, std::size_t n, int normFlag)
+double varianceTwoPass(const double *p, keel::usize n, int normFlag)
 {
     if (n == 0) return std::nan("");
     // MATLAB: variance of a single observation is 0 for BOTH the N-1

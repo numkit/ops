@@ -7,11 +7,13 @@
 
 #pragma once
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/complex.h>
+#include <keel/math.h>
 #include <algorithm>
 #include <cmath>
-#include <complex>
 #include <cstddef>
-#include <memory_resource>
 #include <tuple>
 #include <vector>
 
@@ -25,11 +27,11 @@ namespace numkit::linalg {
 // upper triangle of A. Returns the 1-based column index where the
 // factorization broke down (non-positive pivot), or 0 on success.
 template <typename T>
-std::size_t cholUpperFactor(const T *a, T *r, std::size_t n) {
+keel::usize cholUpperFactor(const T *a, T *r, keel::usize n) {
     std::fill(r, r + n * n, T(0));
-    for (std::size_t j = 0; j < n; ++j) {
+    for (keel::usize j = 0; j < n; ++j) {
         T s = a[j + j * n];
-        for (std::size_t k = 0; k < j; ++k) {
+        for (keel::usize k = 0; k < j; ++k) {
             if constexpr (detail::is_complex_v<T>) {
                 s -= detail::abs_sq(r[k + j * n]);
             } else {
@@ -37,22 +39,22 @@ std::size_t cholUpperFactor(const T *a, T *r, std::size_t n) {
             }
         }
         if constexpr (detail::is_complex_v<T>) {
-            if (s.real() <= 0.0 || std::abs(s.imag()) > 1e-12 * (1.0 + std::abs(s.real()))) return j + 1;
+            if (s.real() <= 0.0 || keel::abs(s.imag()) > 1e-12 * (1.0 + keel::abs(s.real()))) return j + 1;
             r[j + j * n] = T(std::sqrt(s.real()), 0.0);
         } else {
             if (s <= 0.0) return j + 1;
             r[j + j * n] = std::sqrt(s);
         }
         const T inv_diag = T(1) / r[j + j * n];
-        for (std::size_t i = j + 1; i < n; ++i) {
+        for (keel::usize i = j + 1; i < n; ++i) {
             T t = a[j + i * n];
             if constexpr (detail::is_complex_v<T>) {
                 const T a_ji = a[i + j * n];
-                if (std::abs(t - std::conj(a_ji)) > 1e-12 * (1.0 + std::abs(t))) return j + 1;
+                if (keel::abs(t - keel::conj(a_ji)) > 1e-12 * (1.0 + keel::abs(t))) return j + 1;
             }
-            for (std::size_t k = 0; k < j; ++k) {
+            for (keel::usize k = 0; k < j; ++k) {
                 if constexpr (detail::is_complex_v<T>) {
-                    t -= std::conj(r[k + j * n]) * r[k + i * n];
+                    t -= keel::conj(r[k + j * n]) * r[k + i * n];
                 } else {
                     t -= r[k + j * n] * r[k + i * n];
                 }
@@ -65,11 +67,11 @@ std::size_t cholUpperFactor(const T *a, T *r, std::size_t n) {
 
 // Transpose (conjugate transpose for complex) a square kÃ—k column-major matrix into a fresh Value.
 template <typename T>
-Value transposeSquare(const T *src, std::size_t k, std::pmr::memory_resource *mr) {
+Value transposeSquare(const T *src, keel::usize k, keel::Allocator *mr) {
     Value out = detail::make_matrix<T>(k, k, mr);
     T *d = detail::get_data_mut<T>(out);
-    for (std::size_t col = 0; col < k; ++col) {
-        for (std::size_t row = 0; row < k; ++row) {
+    for (keel::usize col = 0; col < k; ++col) {
+        for (keel::usize row = 0; row < k; ++row) {
             d[row + col * k] = detail::conj_if_complex(src[col + row * k]);
         }
     }
@@ -78,7 +80,7 @@ Value transposeSquare(const T *src, std::size_t k, std::pmr::memory_resource *mr
 
 // Column-pivoted QR (the [Q,R,P] form).
 std::tuple<Value, Value>
-qr_pivoted(const Value &A, std::vector<std::size_t> &perm,
-           std::pmr::memory_resource *mr = nullptr);
+qr_pivoted(const Value &A, std::vector<keel::usize> &perm,
+           keel::Allocator *mr = nullptr);
 
 } // namespace numkit::linalg

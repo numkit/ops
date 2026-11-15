@@ -14,10 +14,11 @@
 // per-TU inliner-budget cost. Lives in the always-on ops sources so it is in
 // both the SIMD and portable builds.
 
+#include <keel/core.h>
+#include <keel/math.h>
 #include <numkit/ops/fused/fused_kernels.hpp>
 
 #include <cmath>
-#include <complex>
 #include <cstddef>
 
 namespace numkit::ops {
@@ -26,72 +27,72 @@ namespace numkit::ops {
 // product-coefficient kinds) or a pure shift/neg (scale is exactly ±1 → add or
 // negate, NOT a complex mul by (±1+0i), which would make 0*Inf=NaN and diverge
 // from the per-op bare add/sub on a non-finite z).
-static inline Cx cxInner(const Cx &z, const Cx &scale, const Cx &offset,
+static inline keel::c64 cxInner(const keel::c64 &z, const keel::c64 &scale, const keel::c64 &offset,
                          bool affine) {
     if (affine) return scale * z + offset;
     return (scale.real() > 0.0 ? z : -z) + offset;
 }
 
-void fusedAffineCx(const Cx *x, Cx scale, Cx offset, Cx *out, std::size_t n) {
-    for (std::size_t i = 0; i < n; ++i) out[i] = scale * x[i] + offset;
+void fusedAffineCx(const keel::c64 *x, keel::c64 scale, keel::c64 offset, keel::c64 *out, keel::usize n) {
+    for (keel::usize i = 0; i < n; ++i) out[i] = scale * x[i] + offset;
 }
 
-void fusedAxpbyCx(const Cx *x, Cx a, const Cx *y, Cx b, Cx *out, std::size_t n) {
-    for (std::size_t i = 0; i < n; ++i) out[i] = a * x[i] + b * y[i];
+void fusedAxpbyCx(const keel::c64 *x, keel::c64 a, const keel::c64 *y, keel::c64 b, keel::c64 *out, keel::usize n) {
+    for (keel::usize i = 0; i < n; ++i) out[i] = a * x[i] + b * y[i];
 }
 
-void fusedShiftScaleMulCx(const Cx *x, Cx sub, Cx mul, Cx *out, std::size_t n) {
-    for (std::size_t i = 0; i < n; ++i) out[i] = (x[i] - sub) * mul;
+void fusedShiftScaleMulCx(const keel::c64 *x, keel::c64 sub, keel::c64 mul, keel::c64 *out, keel::usize n) {
+    for (keel::usize i = 0; i < n; ++i) out[i] = (x[i] - sub) * mul;
 }
 
-void fusedShiftScaleDivCx(const Cx *x, Cx sub, Cx div, Cx *out, std::size_t n) {
-    for (std::size_t i = 0; i < n; ++i) out[i] = (x[i] - sub) / div;
+void fusedShiftScaleDivCx(const keel::c64 *x, keel::c64 sub, keel::c64 div, keel::c64 *out, keel::usize n) {
+    for (keel::usize i = 0; i < n; ++i) out[i] = (x[i] - sub) / div;
 }
 
 // z.^2 on a COMPLEX base is std::pow(z, 2) in nk (the .^2 == z.*z fast-path
 // is real-only — for complex, elementPower takes the std::pow branch), so the
 // complex square mirrors that, NOT v*v (std::pow(z,2) != z*z for complex).
-void fusedSqAffineCx(const Cx *x, Cx scale, Cx offset, bool affine,
-                     Cx *out, std::size_t n) {
-    const Cx two(2.0, 0.0);
-    for (std::size_t i = 0; i < n; ++i)
-        out[i] = std::pow(cxInner(x[i], scale, offset, affine), two);
+void fusedSqAffineCx(const keel::c64 *x, keel::c64 scale, keel::c64 offset, bool affine,
+                     keel::c64 *out, keel::usize n) {
+    const keel::c64 two(2.0, 0.0);
+    for (keel::usize i = 0; i < n; ++i)
+        out[i] = keel::pow(cxInner(x[i], scale, offset, affine), two);
 }
 
-void fusedSqDiffCx(const Cx *x, const Cx *y, Cx *out, std::size_t n) {
-    const Cx two(2.0, 0.0);
-    for (std::size_t i = 0; i < n; ++i)
-        out[i] = std::pow(x[i] - y[i], two);
+void fusedSqDiffCx(const keel::c64 *x, const keel::c64 *y, keel::c64 *out, keel::usize n) {
+    const keel::c64 two(2.0, 0.0);
+    for (keel::usize i = 0; i < n; ++i)
+        out[i] = keel::pow(x[i] - y[i], two);
 }
 
 // (z-c).^2 / (c-z).^2 — `rev` picks the subtract order. pow(-w,2) != pow(w,2)
 // for complex (branch), so order is preserved (not folded like a real square).
-void fusedSqDiffScalarCx(const Cx *z, Cx c, bool rev, Cx *out, std::size_t n) {
-    const Cx two(2.0, 0.0);
-    for (std::size_t i = 0; i < n; ++i)
-        out[i] = std::pow(rev ? c - z[i] : z[i] - c, two);
+void fusedSqDiffScalarCx(const keel::c64 *z, keel::c64 c, bool rev, keel::c64 *out, keel::usize n) {
+    const keel::c64 two(2.0, 0.0);
+    for (keel::usize i = 0; i < n; ++i)
+        out[i] = keel::pow(rev ? c - z[i] : z[i] - c, two);
 }
 
-void fusedSqrtSumSqCx(const Cx *x, const Cx *y, Cx *out, std::size_t n) {
-    const Cx two(2.0, 0.0);
-    for (std::size_t i = 0; i < n; ++i)
-        out[i] = std::sqrt(std::pow(x[i], two) + std::pow(y[i], two));
+void fusedSqrtSumSqCx(const keel::c64 *x, const keel::c64 *y, keel::c64 *out, keel::usize n) {
+    const keel::c64 two(2.0, 0.0);
+    for (keel::usize i = 0; i < n; ++i)
+        out[i] = keel::sqrt(keel::pow(x[i], two) + keel::pow(y[i], two));
 }
 
-void fusedSqShiftDivCx(const Cx *x, Cx sub, Cx div, Cx *out, std::size_t n) {
-    const Cx two(2.0, 0.0);
-    for (std::size_t i = 0; i < n; ++i)
-        out[i] = std::pow((x[i] - sub) / div, two);
+void fusedSqShiftDivCx(const keel::c64 *x, keel::c64 sub, keel::c64 div, keel::c64 *out, keel::usize n) {
+    const keel::c64 two(2.0, 0.0);
+    for (keel::usize i = 0; i < n; ++i)
+        out[i] = keel::pow((x[i] - sub) / div, two);
 }
 
-void fusedSqrtAffineCx(const Cx *x, Cx scale, Cx offset, bool affine,
-                       Cx *out, std::size_t n) {
-    for (std::size_t i = 0; i < n; ++i)
-        out[i] = std::sqrt(cxInner(x[i], scale, offset, affine));
+void fusedSqrtAffineCx(const keel::c64 *x, keel::c64 scale, keel::c64 offset, bool affine,
+                       keel::c64 *out, keel::usize n) {
+    for (keel::usize i = 0; i < n; ++i)
+        out[i] = keel::sqrt(cxInner(x[i], scale, offset, affine));
 }
 
-void fusedSqrtShiftDivCx(const Cx *x, Cx sub, Cx div, Cx *out, std::size_t n) {
-    for (std::size_t i = 0; i < n; ++i) out[i] = std::sqrt((x[i] - sub) / div);
+void fusedSqrtShiftDivCx(const keel::c64 *x, keel::c64 sub, keel::c64 div, keel::c64 *out, keel::usize n) {
+    for (keel::usize i = 0; i < n; ++i) out[i] = keel::sqrt((x[i] - sub) / div);
 }
 
 // floor/ceil/fix/round on a COMPLEX value apply the scalar rounder to the real
@@ -110,91 +111,91 @@ static inline double roundLikeCxScalar(UnaryAffineFn fn, double d) {
     return d;
 }
 
-void fusedRoundLikeAffineCx(const Cx *x, Cx scale, Cx offset, bool affine,
-                            UnaryAffineFn fn, Cx *out, std::size_t n) {
-    for (std::size_t i = 0; i < n; ++i) {
-        const Cx v = cxInner(x[i], scale, offset, affine);
-        out[i] = Cx(roundLikeCxScalar(fn, v.real()), roundLikeCxScalar(fn, v.imag()));
+void fusedRoundLikeAffineCx(const keel::c64 *x, keel::c64 scale, keel::c64 offset, bool affine,
+                            UnaryAffineFn fn, keel::c64 *out, keel::usize n) {
+    for (keel::usize i = 0; i < n; ++i) {
+        const keel::c64 v = cxInner(x[i], scale, offset, affine);
+        out[i] = keel::c64(roundLikeCxScalar(fn, v.real()), roundLikeCxScalar(fn, v.imag()));
     }
 }
 
-void fusedRoundLikeShiftDivCx(const Cx *x, Cx sub, Cx div, UnaryAffineFn fn,
-                              Cx *out, std::size_t n) {
-    for (std::size_t i = 0; i < n; ++i) {
-        const Cx v = (x[i] - sub) / div;
-        out[i] = Cx(roundLikeCxScalar(fn, v.real()), roundLikeCxScalar(fn, v.imag()));
+void fusedRoundLikeShiftDivCx(const keel::c64 *x, keel::c64 sub, keel::c64 div, UnaryAffineFn fn,
+                              keel::c64 *out, keel::usize n) {
+    for (keel::usize i = 0; i < n; ++i) {
+        const keel::c64 v = (x[i] - sub) / div;
+        out[i] = keel::c64(roundLikeCxScalar(fn, v.real()), roundLikeCxScalar(fn, v.imag()));
     }
 }
 
 // Per-element complex transcendental, mirroring nk's complex op for each fn
 // (the complexOp lambdas in trig/exp_log): mostly std::F(z); log2 = log(z)/log2,
 // log1p = log(1+z), expm1 = exp(z)-1 (matches the per-op complex expm1).
-static inline Cx transCxApply(TransAffineFn fn, Cx v) {
+static inline keel::c64 transCxApply(TransAffineFn fn, keel::c64 v) {
     switch (fn) {
-        case TransAffineFn::Exp:   return std::exp(v);
-        case TransAffineFn::Log:   return std::log(v);
-        case TransAffineFn::Log2:  return std::log(v) / std::log(2.0);
-        case TransAffineFn::Log10: return std::log10(v);
-        case TransAffineFn::Log1p: return std::log(Cx(1.0, 0.0) + v);
-        case TransAffineFn::Sin:   return std::sin(v);
-        case TransAffineFn::Cos:   return std::cos(v);
-        case TransAffineFn::Tan:   return std::tan(v);
-        case TransAffineFn::Tanh:  return std::tanh(v);
-        case TransAffineFn::Sinh:  return std::sinh(v);
-        case TransAffineFn::Cosh:  return std::cosh(v);
-        case TransAffineFn::Atan:  return std::atan(v);
-        case TransAffineFn::Asinh: return std::asinh(v);
-        case TransAffineFn::Asin:  return std::asin(v);
-        case TransAffineFn::Acos:  return std::acos(v);
-        case TransAffineFn::Acosh: return std::acosh(v);
-        case TransAffineFn::Atanh: return std::atanh(v);
-        case TransAffineFn::Expm1: return std::exp(v) - 1.0;  // exp(z)-1 (per-op match)
+        case TransAffineFn::Exp:   return keel::exp(v);
+        case TransAffineFn::Log:   return keel::log(v);
+        case TransAffineFn::Log2:  return keel::log(v) / std::log(2.0);
+        case TransAffineFn::Log10: return keel::log10(v);
+        case TransAffineFn::Log1p: return keel::log(keel::c64(1.0, 0.0) + v);
+        case TransAffineFn::Sin:   return keel::sin(v);
+        case TransAffineFn::Cos:   return keel::cos(v);
+        case TransAffineFn::Tan:   return keel::tan(v);
+        case TransAffineFn::Tanh:  return keel::tanh(v);
+        case TransAffineFn::Sinh:  return keel::sinh(v);
+        case TransAffineFn::Cosh:  return keel::cosh(v);
+        case TransAffineFn::Atan:  return keel::atan(v);
+        case TransAffineFn::Asinh: return keel::asinh(v);
+        case TransAffineFn::Asin:  return keel::asin(v);
+        case TransAffineFn::Acos:  return keel::acos(v);
+        case TransAffineFn::Acosh: return keel::acosh(v);
+        case TransAffineFn::Atanh: return keel::atanh(v);
+        case TransAffineFn::Expm1: return keel::exp(v) - 1.0;  // exp(z)-1 (per-op match)
     }
     return v;
 }
 
-void fusedTransAffineCx(const Cx *x, Cx scale, Cx offset, bool affine,
-                        TransAffineFn fn, Cx *out, std::size_t n) {
-    for (std::size_t i = 0; i < n; ++i)
+void fusedTransAffineCx(const keel::c64 *x, keel::c64 scale, keel::c64 offset, bool affine,
+                        TransAffineFn fn, keel::c64 *out, keel::usize n) {
+    for (keel::usize i = 0; i < n; ++i)
         out[i] = transCxApply(fn, cxInner(x[i], scale, offset, affine));
 }
 
-void fusedTransShiftDivCx(const Cx *x, Cx sub, Cx div, TransAffineFn fn,
-                          Cx *out, std::size_t n) {
-    for (std::size_t i = 0; i < n; ++i)
+void fusedTransShiftDivCx(const keel::c64 *x, keel::c64 sub, keel::c64 div, TransAffineFn fn,
+                          keel::c64 *out, keel::usize n) {
+    for (keel::usize i = 0; i < n; ++i)
         out[i] = transCxApply(fn, (x[i] - sub) / div);
 }
 
 // abs of complex → the REAL magnitude std::abs(z) (mirrors nk's abs(complex),
 // which is per-element std::abs). out is double.
-void fusedAbsAffineCx(const Cx *x, Cx scale, Cx offset, bool affine,
-                      double *out, std::size_t n) {
-    for (std::size_t i = 0; i < n; ++i)
-        out[i] = std::abs(cxInner(x[i], scale, offset, affine));
+void fusedAbsAffineCx(const keel::c64 *x, keel::c64 scale, keel::c64 offset, bool affine,
+                      double *out, keel::usize n) {
+    for (keel::usize i = 0; i < n; ++i)
+        out[i] = keel::abs(cxInner(x[i], scale, offset, affine));
 }
 
-void fusedAbsShiftDivCx(const Cx *x, Cx sub, Cx div, double *out, std::size_t n) {
-    for (std::size_t i = 0; i < n; ++i) out[i] = std::abs((x[i] - sub) / div);
+void fusedAbsShiftDivCx(const keel::c64 *x, keel::c64 sub, keel::c64 div, double *out, keel::usize n) {
+    for (keel::usize i = 0; i < n; ++i) out[i] = keel::abs((x[i] - sub) / div);
 }
 
-void fusedAbsDiffCx(const Cx *x, const Cx *y, double *out, std::size_t n) {
-    for (std::size_t i = 0; i < n; ++i) out[i] = std::abs(x[i] - y[i]);
+void fusedAbsDiffCx(const keel::c64 *x, const keel::c64 *y, double *out, keel::usize n) {
+    for (keel::usize i = 0; i < n; ++i) out[i] = keel::abs(x[i] - y[i]);
 }
 
 // |z - c| (= |c - z|, since |w| == |-w|) → real magnitude.
-void fusedAbsDiffScalarCx(const Cx *z, Cx c, double *out, std::size_t n) {
-    for (std::size_t i = 0; i < n; ++i) out[i] = std::abs(z[i] - c);
+void fusedAbsDiffScalarCx(const keel::c64 *z, keel::c64 c, double *out, keel::usize n) {
+    for (keel::usize i = 0; i < n; ++i) out[i] = keel::abs(z[i] - c);
 }
 
 // complex soft-threshold: sign(z) .* max(0, |z| - t). sign(z) = z/|z| (0 at
 // z==0, MATLAB R2025b); the .* by the real max promotes it to Complex(mx,0)
 // (full complex mul), exactly as nk's per-op sign(z).*max(...).
-void fusedSoftThresholdCx(const Cx *x, double t, Cx *out, std::size_t n) {
-    for (std::size_t i = 0; i < n; ++i) {
-        const Cx z = x[i];
-        const double m = std::abs(z);
-        const Cx s = (m == 0.0) ? Cx(0.0, 0.0) : z / m;   // sign(z)
-        out[i] = s * Cx(std::fmax(0.0, m - t), 0.0);
+void fusedSoftThresholdCx(const keel::c64 *x, double t, keel::c64 *out, keel::usize n) {
+    for (keel::usize i = 0; i < n; ++i) {
+        const keel::c64 z = x[i];
+        const double m = keel::abs(z);
+        const keel::c64 s = (m == 0.0) ? keel::c64(0.0, 0.0) : z / m;   // sign(z)
+        out[i] = s * keel::c64(std::fmax(0.0, m - t), 0.0);
     }
 }
 

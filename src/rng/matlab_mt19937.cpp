@@ -2,6 +2,7 @@
 //
 // MATLAB-canonical MT19937 RNG. See header for context.
 
+#include <keel/core.h>
 #include <numkit/ops/matlab_mt19937.hpp>
 
 namespace numkit::ops {
@@ -12,11 +13,11 @@ namespace numkit::ops {
 // for i in [1, N): state[i] = 1812433253 * (state[i-1] xor (state[i-1] >> 30)) + i
 //
 // (This is the "Knuth" line; LCG warm-up.)
-void MatlabMT19937::initGenrand(uint32_t s)
+void MatlabMT19937::initGenrand(keel::u32 s)
 {
     mt_[0] = s;
-    for (std::size_t i = 1; i < N; ++i) {
-        mt_[i] = (1812433253UL * (mt_[i - 1] ^ (mt_[i - 1] >> 30)) + static_cast<uint32_t>(i));
+    for (keel::usize i = 1; i < N; ++i) {
+        mt_[i] = (1812433253UL * (mt_[i - 1] ^ (mt_[i - 1] >> 30)) + static_cast<keel::u32>(i));
     }
     mti_ = static_cast<int>(N);   // force generateNextBatch on first draw
 }
@@ -45,17 +46,17 @@ void MatlabMT19937::initGenrand(uint32_t s)
 //       if (i>=N) { mt[0] = mt[N-1]; i=1; }
 //   }
 //   mt[0] = 0x80000000UL;   // MSB is 1; assuring non-zero initial array
-void MatlabMT19937::initByArray_single(uint32_t key)
+void MatlabMT19937::initByArray_single(keel::u32 key)
 {
     initGenrand(19650218UL);
 
     // Length-1 key array: only key[0] = `key`, key[j] = `key` for any j (j always 0).
-    constexpr std::size_t key_length = 1;
-    std::size_t i = 1, j = 0;
-    std::size_t k = (N > key_length ? N : key_length);
+    constexpr keel::usize key_length = 1;
+    keel::usize i = 1, j = 0;
+    keel::usize k = (N > key_length ? N : key_length);
     for (; k; --k) {
         mt_[i] = (mt_[i] ^ ((mt_[i - 1] ^ (mt_[i - 1] >> 30)) * 1664525UL))
-               + key + static_cast<uint32_t>(j);
+               + key + static_cast<keel::u32>(j);
         ++i;
         ++j;
         if (i >= N) { mt_[0] = mt_[N - 1]; i = 1; }
@@ -63,7 +64,7 @@ void MatlabMT19937::initByArray_single(uint32_t key)
     }
     for (k = N - 1; k; --k) {
         mt_[i] = (mt_[i] ^ ((mt_[i - 1] ^ (mt_[i - 1] >> 30)) * 1566083941UL))
-               - static_cast<uint32_t>(i);
+               - static_cast<keel::u32>(i);
         ++i;
         if (i >= N) { mt_[0] = mt_[N - 1]; i = 1; }
     }
@@ -74,9 +75,9 @@ void MatlabMT19937::initByArray_single(uint32_t key)
 // ── Generate next batch of N values (MT twist) ────────────────────────
 void MatlabMT19937::generateNextBatch()
 {
-    static constexpr uint32_t mag01[2] = { 0x0UL, MATRIX_A };
-    uint32_t y;
-    std::size_t kk;
+    static constexpr keel::u32 mag01[2] = { 0x0UL, MATRIX_A };
+    keel::u32 y;
+    keel::usize kk;
     for (kk = 0; kk < N - M; ++kk) {
         y = (mt_[kk] & UPPER_MASK) | (mt_[kk + 1] & LOWER_MASK);
         mt_[kk] = mt_[kk + M] ^ (y >> 1) ^ mag01[y & 0x1UL];
@@ -90,12 +91,12 @@ void MatlabMT19937::generateNextBatch()
     mti_ = 0;
 }
 
-uint32_t MatlabMT19937::genUint32()
+keel::u32 MatlabMT19937::genUint32()
 {
     if (mti_ < 0 || mti_ >= static_cast<int>(N))
         generateNextBatch();
 
-    uint32_t y = mt_[mti_++];
+    keel::u32 y = mt_[mti_++];
     // Tempering.
     y ^= (y >> 11);
     y ^= (y << 7)  & 0x9d2c5680UL;
@@ -113,8 +114,8 @@ uint32_t MatlabMT19937::genUint32()
 double MatlabMT19937::genRes53()
 {
     for (int tries = 0; tries < 1024; ++tries) {
-        const uint32_t a = genUint32() >> 5;
-        const uint32_t b = genUint32() >> 6;
+        const keel::u32 a = genUint32() >> 5;
+        const keel::u32 b = genUint32() >> 6;
         if ((a | b) != 0) {
             return (static_cast<double>(a) * 67108864.0 + static_cast<double>(b))
                  * (1.0 / 9007199254740992.0);
@@ -122,22 +123,22 @@ double MatlabMT19937::genRes53()
     }
     // Unreachable for any valid non-zero MT19937 state; recover if degenerate.
     seed(5489UL);
-    const uint32_t a = genUint32() >> 5;
-    const uint32_t b = genUint32() >> 6;
+    const keel::u32 a = genUint32() >> 5;
+    const keel::u32 b = genUint32() >> 6;
     return (static_cast<double>(a) * 67108864.0 + static_cast<double>(b))
          * (1.0 / 9007199254740992.0);
 }
 
-void MatlabMT19937::getState(uint32_t out[STATE_SIZE], int &outIndex) const
+void MatlabMT19937::getState(keel::u32 out[STATE_SIZE], int &outIndex) const
 {
-    for (std::size_t i = 0; i < N; ++i) out[i] = mt_[i];
+    for (keel::usize i = 0; i < N; ++i) out[i] = mt_[i];
     outIndex = mti_;
 }
 
-void MatlabMT19937::setState(const uint32_t in[STATE_SIZE], int inIndex)
+void MatlabMT19937::setState(const keel::u32 in[STATE_SIZE], int inIndex)
 {
     bool anyNonZero = ((in[0] & UPPER_MASK) != 0);
-    for (std::size_t i = 0; i < N; ++i) {
+    for (keel::usize i = 0; i < N; ++i) {
         mt_[i] = in[i];
         if (i > 0 && in[i] != 0)
             anyNonZero = true;

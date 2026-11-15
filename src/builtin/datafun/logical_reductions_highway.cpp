@@ -16,6 +16,9 @@
 // Scalar fallback for dim=2/3 (strided across column-major / page
 // strides) â€” gather isn't a win here and the slice is usually small.
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/arena.h>
 #include <numkit/builtin/elmat.hpp>
 
 #include <numkit/value/value.hpp>
@@ -25,7 +28,6 @@
 #include <numkit/ops/helpers.hpp>
 #include <numkit/ops/reductions.hpp>
 
-#include <complex>
 #include <cstddef>
 #include <cstdint>
 
@@ -45,13 +47,13 @@ namespace hn = hwy::HWY_NAMESPACE;
 // any() / all(). 4Ã— unrolled to keep load + compare in flight while the
 // branch predictor handles the per-block exit test.
 
-bool AnyDoubleScan(const double *HWY_RESTRICT p, std::size_t n)
+bool AnyDoubleScan(const double *HWY_RESTRICT p, keel::usize n)
 {
     const hn::ScalableTag<double> d;
-    const std::size_t N = hn::Lanes(d);
+    const keel::usize N = hn::Lanes(d);
     const auto zero = hn::Zero(d);
 
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i + 4 * N <= n; i += 4 * N) {
         const auto m0 = hn::Ne(hn::LoadU(d, p + i + 0 * N), zero);
         const auto m1 = hn::Ne(hn::LoadU(d, p + i + 1 * N), zero);
@@ -67,13 +69,13 @@ bool AnyDoubleScan(const double *HWY_RESTRICT p, std::size_t n)
     return false;
 }
 
-bool AllDoubleScan(const double *HWY_RESTRICT p, std::size_t n)
+bool AllDoubleScan(const double *HWY_RESTRICT p, keel::usize n)
 {
     const hn::ScalableTag<double> d;
-    const std::size_t N = hn::Lanes(d);
+    const keel::usize N = hn::Lanes(d);
     const auto zero = hn::Zero(d);
 
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i + 4 * N <= n; i += 4 * N) {
         const auto m0 = hn::Eq(hn::LoadU(d, p + i + 0 * N), zero);
         const auto m1 = hn::Eq(hn::LoadU(d, p + i + 1 * N), zero);
@@ -89,13 +91,13 @@ bool AllDoubleScan(const double *HWY_RESTRICT p, std::size_t n)
     return true;
 }
 
-bool AnyByteScan(const uint8_t *HWY_RESTRICT p, std::size_t n)
+bool AnyByteScan(const keel::u8 *HWY_RESTRICT p, keel::usize n)
 {
-    const hn::ScalableTag<uint8_t> d;
-    const std::size_t N = hn::Lanes(d);
+    const hn::ScalableTag<keel::u8> d;
+    const keel::usize N = hn::Lanes(d);
     const auto zero = hn::Zero(d);
 
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i + 4 * N <= n; i += 4 * N) {
         const auto m0 = hn::Ne(hn::LoadU(d, p + i + 0 * N), zero);
         const auto m1 = hn::Ne(hn::LoadU(d, p + i + 1 * N), zero);
@@ -111,13 +113,13 @@ bool AnyByteScan(const uint8_t *HWY_RESTRICT p, std::size_t n)
     return false;
 }
 
-bool AllByteScan(const uint8_t *HWY_RESTRICT p, std::size_t n)
+bool AllByteScan(const keel::u8 *HWY_RESTRICT p, keel::usize n)
 {
-    const hn::ScalableTag<uint8_t> d;
-    const std::size_t N = hn::Lanes(d);
+    const hn::ScalableTag<keel::u8> d;
+    const keel::usize N = hn::Lanes(d);
     const auto zero = hn::Zero(d);
 
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i + 4 * N <= n; i += 4 * N) {
         const auto m0 = hn::Eq(hn::LoadU(d, p + i + 0 * N), zero);
         const auto m1 = hn::Eq(hn::LoadU(d, p + i + 1 * N), zero);
@@ -149,38 +151,38 @@ namespace {
 
 // Strided scalar scans for dim=2 / dim=3 reductions across a column-major
 // matrix. SIMD gather isn't a win for early-exit boolean reduction.
-bool anyDoubleStrided(const double *p, std::size_t n, std::size_t stride) {
-    for (std::size_t i = 0; i < n; ++i) if (p[i * stride] != 0.0) return true;
+bool anyDoubleStrided(const double *p, keel::usize n, keel::usize stride) {
+    for (keel::usize i = 0; i < n; ++i) if (p[i * stride] != 0.0) return true;
     return false;
 }
-bool allDoubleStrided(const double *p, std::size_t n, std::size_t stride) {
-    for (std::size_t i = 0; i < n; ++i) if (p[i * stride] == 0.0) return false;
+bool allDoubleStrided(const double *p, keel::usize n, keel::usize stride) {
+    for (keel::usize i = 0; i < n; ++i) if (p[i * stride] == 0.0) return false;
     return true;
 }
-bool anyByteStrided(const uint8_t *p, std::size_t n, std::size_t stride) {
-    for (std::size_t i = 0; i < n; ++i) if (p[i * stride] != 0) return true;
+bool anyByteStrided(const keel::u8 *p, keel::usize n, keel::usize stride) {
+    for (keel::usize i = 0; i < n; ++i) if (p[i * stride] != 0) return true;
     return false;
 }
-bool allByteStrided(const uint8_t *p, std::size_t n, std::size_t stride) {
-    for (std::size_t i = 0; i < n; ++i) if (p[i * stride] == 0) return false;
+bool allByteStrided(const keel::u8 *p, keel::usize n, keel::usize stride) {
+    for (keel::usize i = 0; i < n; ++i) if (p[i * stride] == 0) return false;
     return true;
 }
 
 // Generic fallback for SINGLE / INT* / COMPLEX. MATLAB any(complex) is true
 // when either real or imag is non-zero; everything else is "elem != 0".
 template <bool IsAny>
-uint8_t scanGeneric(const Value &x, std::size_t base, std::size_t n, std::size_t stride)
+keel::u8 scanGeneric(const Value &x, keel::usize base, keel::usize n, keel::usize stride)
 {
     if (x.isComplex()) {
         const auto *p = x.complexData();
-        for (std::size_t i = 0; i < n; ++i) {
+        for (keel::usize i = 0; i < n; ++i) {
             const auto z = p[base + i * stride];
             const bool nz = z.real() != 0.0 || z.imag() != 0.0;
             if constexpr (IsAny) { if (nz)  return 1; }
             else                 { if (!nz) return 0; }
         }
     } else {
-        for (std::size_t i = 0; i < n; ++i) {
+        for (keel::usize i = 0; i < n; ++i) {
             const bool nz = x.elemAsDouble(base + i * stride) != 0.0;
             if constexpr (IsAny) { if (nz)  return 1; }
             else                 { if (!nz) return 0; }
@@ -190,7 +192,7 @@ uint8_t scanGeneric(const Value &x, std::size_t base, std::size_t n, std::size_t
 }
 
 template <bool IsAny>
-uint8_t scanSlice(const Value &x, std::size_t base, std::size_t n, std::size_t stride)
+keel::u8 scanSlice(const Value &x, keel::usize base, keel::usize n, keel::usize stride)
 {
     if (n == 0) return IsAny ? 0 : 1; // any([]) = false, all([]) = true
     if (x.type() == ValueType::DOUBLE) {
@@ -203,7 +205,7 @@ uint8_t scanSlice(const Value &x, std::size_t base, std::size_t n, std::size_t s
         else                 return allDoubleStrided(p, n, stride) ? 1 : 0;
     }
     if (x.type() == ValueType::LOGICAL) {
-        const uint8_t *p = x.logicalData() + base;
+        const keel::u8 *p = x.logicalData() + base;
         if (stride == 1) {
             if constexpr (IsAny) return HWY_DYNAMIC_DISPATCH(AnyByteScan)(p, n) ? 1 : 0;
             else                 return HWY_DYNAMIC_DISPATCH(AllByteScan)(p, n) ? 1 : 0;
@@ -215,7 +217,7 @@ uint8_t scanSlice(const Value &x, std::size_t base, std::size_t n, std::size_t s
 }
 
 template <bool IsAny>
-Value logicalReduceImpl(const Value &x, int dim, std::pmr::memory_resource *mr)
+Value logicalReduceImpl(const Value &x, int dim, keel::Allocator *mr)
 {
     if (x.isEmpty())
         return Value::logicalScalar(IsAny ? false : true, mr);
@@ -226,7 +228,7 @@ Value logicalReduceImpl(const Value &x, int dim, std::pmr::memory_resource *mr)
         return Value::logicalScalar(nz, mr);
     }
     if (x.dims().isVector()) {
-        const uint8_t v = scanSlice<IsAny>(x, 0, x.numel(), 1);
+        const keel::u8 v = scanSlice<IsAny>(x, 0, x.numel(), 1);
         return Value::logicalScalar(v != 0, mr);
     }
 
@@ -235,20 +237,20 @@ Value logicalReduceImpl(const Value &x, int dim, std::pmr::memory_resource *mr)
 
     // ND fallback: rank â‰¥ 4 â€” use stride arithmetic.
     if (dd.ndim() >= 4 && d >= 1 && d <= dd.ndim()) {
-        ScratchArena scratch(mr);
-        auto shape = numkit::ops::outShapeForDimND(x, d, &scratch);
+        keel::ArenaTemp scratch = keel::get_scratch(mr);
+        auto shape = numkit::ops::outShapeForDimND(x, d, scratch.allocator());
         Value out = Value::matrixND(shape.data(),
                                       static_cast<int>(shape.size()),
                                       ValueType::LOGICAL, mr);
-        uint8_t *dst = out.logicalDataMut();
-        const std::size_t sliceLen = dd.dim(d - 1);
-        std::size_t B = 1;
+        keel::u8 *dst = out.logicalDataMut();
+        const keel::usize sliceLen = dd.dim(d - 1);
+        keel::usize B = 1;
         for (int i = 0; i < d - 1; ++i) B *= dd.dim(i);
-        std::size_t O = 1;
+        keel::usize O = 1;
         for (int i = d; i < dd.ndim(); ++i) O *= dd.dim(i);
-        for (std::size_t o = 0; o < O; ++o)
-            for (std::size_t b = 0; b < B; ++b) {
-                const std::size_t base = o * sliceLen * B + b;
+        for (keel::usize o = 0; o < O; ++o)
+            for (keel::usize b = 0; b < B; ++b) {
+                const keel::usize base = o * sliceLen * B + b;
                 dst[o * B + b] = scanSlice<IsAny>(x, base, sliceLen, B);
             }
         return out;
@@ -256,29 +258,29 @@ Value logicalReduceImpl(const Value &x, int dim, std::pmr::memory_resource *mr)
 
     const auto outShape = numkit::ops::outShapeForDim(x, d);
     Value out = createMatrix(outShape, ValueType::LOGICAL, mr);
-    uint8_t *dst = out.logicalDataMut();
+    keel::u8 *dst = out.logicalDataMut();
 
-    const std::size_t R = dd.rows(), C = dd.cols(), P = dd.is3D() ? dd.pages() : 1;
+    const keel::usize R = dd.rows(), C = dd.cols(), P = dd.is3D() ? dd.pages() : 1;
 
     if (d == 1) {
-        std::size_t outIdx = 0;
-        for (std::size_t pp = 0; pp < P; ++pp)
-            for (std::size_t c = 0; c < C; ++c) {
-                const std::size_t base = pp * R * C + c * R;
+        keel::usize outIdx = 0;
+        for (keel::usize pp = 0; pp < P; ++pp)
+            for (keel::usize c = 0; c < C; ++c) {
+                const keel::usize base = pp * R * C + c * R;
                 dst[outIdx++] = scanSlice<IsAny>(x, base, R, 1);
             }
     } else if (d == 2) {
-        std::size_t outIdx = 0;
-        for (std::size_t pp = 0; pp < P; ++pp)
-            for (std::size_t r = 0; r < R; ++r) {
-                const std::size_t base = pp * R * C + r;
+        keel::usize outIdx = 0;
+        for (keel::usize pp = 0; pp < P; ++pp)
+            for (keel::usize r = 0; r < R; ++r) {
+                const keel::usize base = pp * R * C + r;
                 dst[outIdx++] = scanSlice<IsAny>(x, base, C, R);
             }
     } else if (d == 3) {
-        std::size_t outIdx = 0;
-        for (std::size_t c = 0; c < C; ++c)
-            for (std::size_t r = 0; r < R; ++r) {
-                const std::size_t base = c * R + r;
+        keel::usize outIdx = 0;
+        for (keel::usize c = 0; c < C; ++c)
+            for (keel::usize r = 0; r < R; ++r) {
+                const keel::usize base = c * R + r;
                 dst[outIdx++] = scanSlice<IsAny>(x, base, P, R * C);
             }
     }
@@ -287,12 +289,12 @@ Value logicalReduceImpl(const Value &x, int dim, std::pmr::memory_resource *mr)
 
 } // namespace
 
-Value anyOf(const Value &x, int dim, std::pmr::memory_resource *mr)
+Value anyOf(const Value &x, int dim, keel::Allocator *mr)
 {
     return logicalReduceImpl<true>(x, dim, mr);
 }
 
-Value allOf(const Value &x, int dim, std::pmr::memory_resource *mr)
+Value allOf(const Value &x, int dim, keel::Allocator *mr)
 {
     return logicalReduceImpl<false>(x, dim, mr);
 }

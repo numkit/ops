@@ -19,17 +19,18 @@
 
 #pragma once
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/arena.h>
+#include <keel/array.h>
 #include <numkit/ops/value_factory.hpp>
 
-#include <memory_resource>
-#include <numkit/value/scratch.hpp>
 #include <numkit/value/error.hpp>
 #include <numkit/value/value.hpp>
 
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
-#include <memory_resource>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -79,7 +80,7 @@ inline DimsArg outShapeForDim(const Value &x, int dim)
 }
 
 // Shape of one slice (count of elements traversed when collapsing dim).
-inline size_t sliceLenForDim(const Value &x, int dim)
+inline keel::usize sliceLenForDim(const Value &x, int dim)
 {
     const auto &d = x.dims();
     switch (dim) {
@@ -91,7 +92,7 @@ inline size_t sliceLenForDim(const Value &x, int dim)
 }
 
 // Number of independent slices we'll produce.
-inline size_t sliceCountForDim(const Value &x, int dim)
+inline keel::usize sliceCountForDim(const Value &x, int dim)
 {
     return x.numel() / sliceLenForDim(x, dim);
 }
@@ -110,26 +111,26 @@ inline size_t sliceCountForDim(const Value &x, int dim)
 // MValues and capture both buffers in F's closure.
 template <typename F>
 void forEachSlice(const Value &x, int dim, F &&f,
-                  std::pmr::memory_resource *mr = nullptr)
+                  keel::Allocator *mr = nullptr)
 {
     const auto &d = x.dims();
-    const size_t R = d.rows(), C = d.cols(), P = d.is3D() ? d.pages() : 1;
-    const size_t N = sliceLenForDim(x, dim);
+    const keel::usize R = d.rows(), C = d.cols(), P = d.is3D() ? d.pages() : 1;
+    const keel::usize N = sliceLenForDim(x, dim);
     const bool fastDouble = (x.type() == ValueType::DOUBLE);
-    const double *src = fastDouble ? x.doubleData() : nullptr;
+    const keel::f64 *src = fastDouble ? x.doubleData() : nullptr;
 
-    ScratchVec<double> scratch(N, mr);
+    keel::Array<keel::f64> scratch(N, mr);
 
     if (dim == 1) {
         // Slice = a column (or column within a page). Stride = 1.
-        size_t outIdx = 0;
-        for (size_t pp = 0; pp < P; ++pp) {
-            for (size_t c = 0; c < C; ++c) {
-                const size_t base = pp * R * C + c * R;
+        keel::usize outIdx = 0;
+        for (keel::usize pp = 0; pp < P; ++pp) {
+            for (keel::usize c = 0; c < C; ++c) {
+                const keel::usize base = pp * R * C + c * R;
                 if (fastDouble) {
                     std::copy(src + base, src + base + N, scratch.data());
                 } else {
-                    for (size_t k = 0; k < N; ++k)
+                    for (keel::usize k = 0; k < N; ++k)
                         scratch[k] = x.elemAsDouble(base + k);
                 }
                 f(outIdx, scratch.data(), N);
@@ -138,14 +139,14 @@ void forEachSlice(const Value &x, int dim, F &&f,
         }
     } else if (dim == 2) {
         // Slice = a row (within a page). Stride = R.
-        size_t outIdx = 0;
-        for (size_t pp = 0; pp < P; ++pp) {
-            for (size_t r = 0; r < R; ++r) {
+        keel::usize outIdx = 0;
+        for (keel::usize pp = 0; pp < P; ++pp) {
+            for (keel::usize r = 0; r < R; ++r) {
                 if (fastDouble) {
-                    for (size_t c = 0; c < C; ++c)
+                    for (keel::usize c = 0; c < C; ++c)
                         scratch[c] = src[pp * R * C + c * R + r];
                 } else {
-                    for (size_t c = 0; c < C; ++c)
+                    for (keel::usize c = 0; c < C; ++c)
                         scratch[c] = x.elemAsDouble(pp * R * C + c * R + r);
                 }
                 f(outIdx, scratch.data(), N);
@@ -154,14 +155,14 @@ void forEachSlice(const Value &x, int dim, F &&f,
         }
     } else if (dim == 3) {
         // Slice = pages at fixed (r,c). Stride = R*C. Only meaningful for 3D.
-        size_t outIdx = 0;
-        for (size_t c = 0; c < C; ++c) {
-            for (size_t r = 0; r < R; ++r) {
+        keel::usize outIdx = 0;
+        for (keel::usize c = 0; c < C; ++c) {
+            for (keel::usize r = 0; r < R; ++r) {
                 if (fastDouble) {
-                    for (size_t pp = 0; pp < P; ++pp)
+                    for (keel::usize pp = 0; pp < P; ++pp)
                         scratch[pp] = src[pp * R * C + c * R + r];
                 } else {
-                    for (size_t pp = 0; pp < P; ++pp)
+                    for (keel::usize pp = 0; pp < P; ++pp)
                         scratch[pp] = x.elemAsDouble(pp * R * C + c * R + r);
                 }
                 f(outIdx, scratch.data(), N);
@@ -177,11 +178,11 @@ void forEachSlice(const Value &x, int dim, F &&f,
 // caller threads in `mr` (typically the same arena that backs the
 // reduction's per-slice scratch) so the shape buffer never hits the
 // global heap.
-inline ScratchVec<size_t> outShapeForDimND(const Value &x, int dim,
-                                            std::pmr::memory_resource *mr = nullptr)
+inline keel::Array<keel::usize> outShapeForDimND(const Value &x, int dim,
+                                            keel::Allocator *mr = nullptr)
 {
     const auto &d = x.dims();
-    ScratchVec<size_t> shape(d.ndim(), mr);
+    keel::Array<keel::usize> shape(d.ndim(), mr);
     for (int i = 0; i < d.ndim(); ++i)
         shape[i] = (i + 1 == dim) ? 1 : d.dim(i);
     return shape;
@@ -195,49 +196,49 @@ inline ScratchVec<size_t> outShapeForDimND(const Value &x, int dim,
 //
 // `mr` backs the per-call scratch buffer (see forEachSlice).
 template <typename F>
-void forEachSliceND(const Value &x, int dim, double *dst, F &&f,
-                    std::pmr::memory_resource *mr = nullptr)
+void forEachSliceND(const Value &x, int dim, keel::f64 *dst, F &&f,
+                    keel::Allocator *mr = nullptr)
 {
     const auto &d = x.dims();
     const int redAxis = dim - 1;
-    const size_t sliceLen = d.dim(redAxis);
-    size_t B = 1;
+    const keel::usize sliceLen = d.dim(redAxis);
+    keel::usize B = 1;
     for (int i = 0; i < redAxis; ++i) B *= d.dim(i);
-    size_t O = 1;
+    keel::usize O = 1;
     for (int i = redAxis + 1; i < d.ndim(); ++i) O *= d.dim(i);
 
     const bool fastDouble = (x.type() == ValueType::DOUBLE);
-    const double *src = fastDouble ? x.doubleData() : nullptr;
-    ScratchVec<double> scratch(sliceLen, mr);
+    const keel::f64 *src = fastDouble ? x.doubleData() : nullptr;
+    keel::Array<keel::f64> scratch(sliceLen, mr);
     if (B == 1) {
         // Reducing axis 0 → contiguous gather.
         if (fastDouble) {
-            for (size_t o = 0; o < O; ++o) {
-                const double *base = src + o * sliceLen;
+            for (keel::usize o = 0; o < O; ++o) {
+                const keel::f64 *base = src + o * sliceLen;
                 std::copy(base, base + sliceLen, scratch.data());
                 dst[o] = f(o, scratch.data(), sliceLen);
             }
         } else {
-            for (size_t o = 0; o < O; ++o) {
-                const size_t base = o * sliceLen;
-                for (size_t k = 0; k < sliceLen; ++k)
+            for (keel::usize o = 0; o < O; ++o) {
+                const keel::usize base = o * sliceLen;
+                for (keel::usize k = 0; k < sliceLen; ++k)
                     scratch[k] = x.elemAsDouble(base + k);
                 dst[o] = f(o, scratch.data(), sliceLen);
             }
         }
         return;
     }
-    for (size_t o = 0; o < O; ++o) {
-        for (size_t b = 0; b < B; ++b) {
-            const size_t base = o * sliceLen * B + b;
+    for (keel::usize o = 0; o < O; ++o) {
+        for (keel::usize b = 0; b < B; ++b) {
+            const keel::usize base = o * sliceLen * B + b;
             if (fastDouble) {
-                for (size_t k = 0; k < sliceLen; ++k)
+                for (keel::usize k = 0; k < sliceLen; ++k)
                     scratch[k] = src[base + k * B];
             } else {
-                for (size_t k = 0; k < sliceLen; ++k)
+                for (keel::usize k = 0; k < sliceLen; ++k)
                     scratch[k] = x.elemAsDouble(base + k * B);
             }
-            const size_t outIdx = o * B + b;
+            const keel::usize outIdx = o * B + b;
             dst[outIdx] = f(outIdx, scratch.data(), sliceLen);
         }
     }
@@ -247,7 +248,7 @@ void forEachSliceND(const Value &x, int dim, double *dst, F &&f,
 // Returns an Value with the dim collapsed to 1. dim==-1 means "reduce
 // all elements to a single scalar" (vector/scalar case).
 template <typename F>
-Value applyAlongDim(const Value &x, int dim, F &&f, std::pmr::memory_resource *mr = nullptr)
+Value applyAlongDim(const Value &x, int dim, F &&f, keel::Allocator *mr = nullptr)
 {
     // 2D/3D empty: collapse to 0×0 (legacy behaviour; MATLAB's
     // shape-preservation for empty 2D inputs was never wired up here).
@@ -256,33 +257,33 @@ Value applyAlongDim(const Value &x, int dim, F &&f, std::pmr::memory_resource *m
     if (x.isEmpty() && x.dims().ndim() < 4) {
         return Value::matrix(0, 0, ValueType::DOUBLE, mr);
     }
-    ScratchArena scratch(mr);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
     if (x.dims().isVector() || x.isScalar()) {
-        auto buf = ScratchVec<double>(x.numel(), &scratch);
+        auto buf = keel::Array<keel::f64>(x.numel(), scratch.allocator());
         if (x.type() == ValueType::DOUBLE)
             std::copy(x.doubleData(), x.doubleData() + x.numel(), buf.data());
         else
-            for (size_t i = 0; i < x.numel(); ++i)
+            for (keel::usize i = 0; i < x.numel(); ++i)
                 buf[i] = x.elemAsDouble(i);
         return Value::scalar(f(0, buf.data(), x.numel()), mr);
     }
     // ND fallback for rank ≥ 4. dim out-of-range was already mapped by
     // validateDim → ndim+1 sentinel, but we may receive dim ∈ [1, ndim].
     if (x.dims().ndim() >= 4 && dim >= 1 && dim <= x.dims().ndim()) {
-        auto shape = outShapeForDimND(x, dim, &scratch);
+        auto shape = outShapeForDimND(x, dim, scratch.allocator());
         Value out = Value::matrixND(shape.data(),
                                       static_cast<int>(shape.size()),
                                       ValueType::DOUBLE, mr);
-        double *dst = out.doubleDataMut();
-        forEachSliceND(x, dim, dst, std::forward<F>(f), &scratch);
+        keel::f64 *dst = out.doubleDataMut();
+        forEachSliceND(x, dim, dst, std::forward<F>(f), scratch.allocator());
         return out;
     }
     auto outShape = outShapeForDim(x, dim);
     Value out = createMatrix(outShape, ValueType::DOUBLE, mr);
-    double *dst = out.doubleDataMut();
-    forEachSlice(x, dim, [&](size_t outIdx, double *slice, size_t n) {
+    keel::f64 *dst = out.doubleDataMut();
+    forEachSlice(x, dim, [&](keel::usize outIdx, keel::f64 *slice, keel::usize n) {
         dst[outIdx] = f(outIdx, slice, n);
-    }, &scratch);
+    }, scratch.allocator());
     return out;
 }
 
@@ -290,58 +291,58 @@ Value applyAlongDim(const Value &x, int dim, F &&f, std::pmr::memory_resource *m
 // per slice. Used by min/max with dim. Returns (values, indices).
 template <typename F>
 std::pair<Value, Value>
-applyAlongDimWithIndex(const Value &x, int dim, F &&f, std::pmr::memory_resource *mr = nullptr)
+applyAlongDimWithIndex(const Value &x, int dim, F &&f, keel::Allocator *mr = nullptr)
 {
     if (x.isEmpty() && x.dims().ndim() < 4) {
         return {Value::matrix(0, 0, ValueType::DOUBLE, mr),
                 Value::matrix(0, 0, ValueType::DOUBLE, mr)};
     }
-    ScratchArena scratch(mr);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
     if (x.dims().isVector() || x.isScalar()) {
-        auto buf = ScratchVec<double>(x.numel(), &scratch);
+        auto buf = keel::Array<keel::f64>(x.numel(), scratch.allocator());
         if (x.type() == ValueType::DOUBLE)
             std::copy(x.doubleData(), x.doubleData() + x.numel(), buf.data());
         else
-            for (size_t i = 0; i < x.numel(); ++i)
+            for (keel::usize i = 0; i < x.numel(); ++i)
                 buf[i] = x.elemAsDouble(i);
-        double v = 0;
-        size_t idx = 0;
+        keel::f64 v = 0;
+        keel::usize idx = 0;
         f(buf.data(), x.numel(), v, idx);
         return {Value::scalar(v, mr),
-                Value::scalar(static_cast<double>(idx + 1), mr)};
+                Value::scalar(static_cast<keel::f64>(idx + 1), mr)};
     }
     // ND fallback (rank ≥ 4)
     if (x.dims().ndim() >= 4 && dim >= 1 && dim <= x.dims().ndim()) {
-        auto shape = outShapeForDimND(x, dim, &scratch);
+        auto shape = outShapeForDimND(x, dim, scratch.allocator());
         Value out    = Value::matrixND(shape.data(),
                                          static_cast<int>(shape.size()),
                                          ValueType::DOUBLE, mr);
         Value outIdx = Value::matrixND(shape.data(),
                                          static_cast<int>(shape.size()),
                                          ValueType::DOUBLE, mr);
-        double *dst  = out.doubleDataMut();
-        double *dstI = outIdx.doubleDataMut();
+        keel::f64 *dst  = out.doubleDataMut();
+        keel::f64 *dstI = outIdx.doubleDataMut();
         forEachSliceND(x, dim, dst,
-            [&](size_t outOff, double *slice, size_t n) {
-                double v = 0; size_t idx = 0;
+            [&](keel::usize outOff, keel::f64 *slice, keel::usize n) {
+                keel::f64 v = 0; keel::usize idx = 0;
                 f(slice, n, v, idx);
-                dstI[outOff] = static_cast<double>(idx + 1);
+                dstI[outOff] = static_cast<keel::f64>(idx + 1);
                 return v;
-            }, &scratch);
+            }, scratch.allocator());
         return {std::move(out), std::move(outIdx)};
     }
     auto outShape = outShapeForDim(x, dim);
     Value out = createMatrix(outShape, ValueType::DOUBLE, mr);
     Value outIdx = createMatrix(outShape, ValueType::DOUBLE, mr);
-    double *dst = out.doubleDataMut();
-    double *dstI = outIdx.doubleDataMut();
-    forEachSlice(x, dim, [&](size_t outOff, double *slice, size_t n) {
-        double v = 0;
-        size_t idx = 0;
+    keel::f64 *dst = out.doubleDataMut();
+    keel::f64 *dstI = outIdx.doubleDataMut();
+    forEachSlice(x, dim, [&](keel::usize outOff, keel::f64 *slice, keel::usize n) {
+        keel::f64 v = 0;
+        keel::usize idx = 0;
         f(slice, n, v, idx);
         dst[outOff] = v;
-        dstI[outOff] = static_cast<double>(idx + 1);
-    }, &scratch);
+        dstI[outOff] = static_cast<keel::f64>(idx + 1);
+    }, scratch.allocator());
     return {std::move(out), std::move(outIdx)};
 }
 
@@ -358,10 +359,10 @@ inline int resolveDim(const Value &x, int explicitDim, const char *fn)
 // they call the regular reduction kernel on [data, data+k) and decide
 // what to return when k == 0 (which depends on the function — nansum
 // returns 0, nanmean/nanvar/nanstd/nanmedian/nanmax/nanmin return NaN).
-inline size_t compactNonNan(double *data, size_t n)
+inline keel::usize compactNonNan(keel::f64 *data, keel::usize n)
 {
-    size_t w = 0;
-    for (size_t i = 0; i < n; ++i) {
+    keel::usize w = 0;
+    for (keel::usize i = 0; i < n; ++i) {
         if (!std::isnan(data[i])) {
             if (w != i) data[w] = data[i];
             ++w;

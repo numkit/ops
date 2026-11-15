@@ -3,8 +3,10 @@
 // toolboxes/signal/include/numkit/signal/transforms/fft.hpp
 #pragma once
 
-#include <memory_resource>
-#include <numkit/value/span.hpp>
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/ref.h>
+#include <keel/complex.h>
 #include <numkit/value/value.hpp>
 
 namespace numkit::signal {
@@ -49,7 +51,7 @@ namespace numkit::signal {
 Value fft(const Value &                x,
           int                          n   = -1,
           int                          dim = 0,
-          std::pmr::memory_resource *  mr  = nullptr);
+          keel::Allocator *  mr  = nullptr);
 
 /// 1-D inverse discrete Fourier transform along a given dimension.
 ///
@@ -66,7 +68,7 @@ Value fft(const Value &                x,
 Value ifft(const Value &                X,
            int                          n   = -1,
            int                          dim = 0,
-           std::pmr::memory_resource *  mr  = nullptr);
+           keel::Allocator *  mr  = nullptr);
 
 /// Inverse DFT with conjugate-symmetric input (MATLAB's `ifft(X,...,
 /// 'symmetric')`). Treats `X` as conjugate-symmetric along `dim`: the lower
@@ -86,7 +88,7 @@ Value ifft(const Value &                X,
 Value ifftSymmetric(const Value &                X,
                     int                          n   = -1,
                     int                          dim = 0,
-                    std::pmr::memory_resource *  mr  = nullptr);
+                    keel::Allocator *  mr  = nullptr);
 
 /// 2-D forward FFT.
 ///
@@ -103,7 +105,7 @@ Value ifftSymmetric(const Value &                X,
 Value fft2(const Value &                X,
            int                          m  = -1,
            int                          n  = -1,
-           std::pmr::memory_resource *  mr = nullptr);
+           keel::Allocator *  mr = nullptr);
 
 /// @brief 2-D inverse FFT (`Y = ifft2(X, m, n)`).
 ///
@@ -117,7 +119,7 @@ Value fft2(const Value &                X,
 /// @return    `m × n` array (COMPLEX or DOUBLE).
 /// @see fft2, ifft, ifftn
 Value ifft2(const Value &X, int m = -1, int n = -1,
-            std::pmr::memory_resource *mr = nullptr);
+            keel::Allocator *mr = nullptr);
 
 /// 2-D inverse FFT with conjugate-symmetric input (MATLAB's
 /// `ifft2(X,'symmetric')`). Treats `X` as conjugate-symmetric so the inverse
@@ -129,7 +131,7 @@ Value ifft2(const Value &X, int m = -1, int n = -1,
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    Real (DOUBLE) 2-D inverse transform.
 /// @see ifft2, ifftSymmetric
-Value ifft2Symmetric(const Value &X, std::pmr::memory_resource *mr = nullptr);
+Value ifft2Symmetric(const Value &X, keel::Allocator *mr = nullptr);
 
 /// @brief N-D forward FFT.
 ///
@@ -149,8 +151,8 @@ Value ifft2Symmetric(const Value &X, std::pmr::memory_resource *mr = nullptr);
 /// @return     Same-shape (or `sz`-shape) COMPLEX array.
 /// @see fft, fft2, ifftn
 Value fftn(const Value &              X,
-           Span<const std::size_t>    sz = {},
-           std::pmr::memory_resource *mr = nullptr);
+           keel::ArrayRef<keel::usize>    sz = {},
+           keel::Allocator *mr = nullptr);
 
 /// @brief N-D inverse FFT (`Y = ifftn(X, sz)`).
 ///
@@ -164,8 +166,8 @@ Value fftn(const Value &              X,
 /// @return     Same-shape (or `sz`-shape) array (COMPLEX or DOUBLE).
 /// @see fftn, ifft, ifft2
 Value ifftn(const Value &              X,
-            Span<const std::size_t>    sz = {},
-            std::pmr::memory_resource *mr = nullptr);
+            keel::ArrayRef<keel::usize>    sz = {},
+            keel::Allocator *mr = nullptr);
 
 /// Chirp Z-transform (Bluestein).
 ///
@@ -202,9 +204,9 @@ Value ifftn(const Value &              X,
 /// @endcode
 Value czt(const Value &                x,
           int                          m,
-          Complex                      w,
-          Complex                      a,
-          std::pmr::memory_resource *  mr = nullptr);
+          keel::c64                      w,
+          keel::c64                      a,
+          keel::Allocator *  mr = nullptr);
 
 /// FFT-based band-limited interpolation of `x` to `n` equispaced samples.
 ///
@@ -222,7 +224,7 @@ Value czt(const Value &                x,
 Value interpft(const Value &                x,
                int                          n,
                int                          dim = 0,
-               std::pmr::memory_resource *  mr  = nullptr);
+               keel::Allocator *  mr  = nullptr);
 
 
 /// @}

@@ -7,7 +7,7 @@
 
 #pragma once
 
-#include <memory_resource>
+#include <keel/memory.h>
 #include <tuple>
 #include <numkit/value/value.hpp>
 
@@ -30,7 +30,7 @@ namespace numkit::linalg {
 /// @return              `(L, D, P)` triple.
 std::tuple<Value, Value, Value>
 ldl(const Value &A, bool upper_form, bool p_as_vector,
-    std::pmr::memory_resource *mr = nullptr);
+    keel::Allocator *mr = nullptr);
 
 
 /// @}

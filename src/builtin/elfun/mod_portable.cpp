@@ -4,27 +4,28 @@
 // NUMKIT_WITH_SIMD=OFF; the Highway-dispatched variant lives in
 // mod_highway.cpp and is bit-identical (same separate-mul/sub formula).
 
+#include <keel/core.h>
 #include "mod_simd.hpp"
 
 #include <cmath>
 
 namespace numkit::builtin::detail {
 
-void modLoopVV(const double *a, const double *b, double *out, std::size_t n)
+void modLoopVV(const double *a, const double *b, double *out, keel::usize n)
 {
-    for (std::size_t i = 0; i < n; ++i)
+    for (keel::usize i = 0; i < n; ++i)
         out[i] = (b[i] != 0) ? a[i] - std::floor(a[i] / b[i]) * b[i] : a[i];
 }
 
-void modLoopVS(const double *a, double s, double *out, std::size_t n)
+void modLoopVS(const double *a, double s, double *out, keel::usize n)
 {
-    for (std::size_t i = 0; i < n; ++i)
+    for (keel::usize i = 0; i < n; ++i)
         out[i] = (s != 0) ? a[i] - std::floor(a[i] / s) * s : a[i];
 }
 
-void modLoopSV(double s, const double *b, double *out, std::size_t n)
+void modLoopSV(double s, const double *b, double *out, keel::usize n)
 {
-    for (std::size_t i = 0; i < n; ++i)
+    for (keel::usize i = 0; i < n; ++i)
         out[i] = (b[i] != 0) ? s - std::floor(s / b[i]) * b[i] : s;
 }
 

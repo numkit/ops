@@ -3,17 +3,18 @@
 // cross / dot / kron â€” implementations and engine adapters.
 // Migrated from toolboxes/builtin/src/language/arrays/matrix.cpp.
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/complex.h>
 #include <numkit/linalg/vector_ops.hpp>
 
 // Compute-only TU: Value substrate + Error, no engine. The cross/dot/kron
 // builtins (CallContext wrappers) live in vector_ops_reg.cpp.
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
-#include <numkit/value/span.hpp>
 #include <numkit/value/value_type.hpp>
 
 #include <cmath>
-#include <complex>
 #include <limits>
 
 namespace numkit::linalg {
@@ -22,17 +23,17 @@ namespace numkit::linalg {
 // round-half-away-from-zero cast (mirrors core's castConcatToInteger). Used
 // by kron to preserve the integer class of integer operands.
 static Value narrowKronToInteger(const Value &d, ValueType vt,
-                                 std::pmr::memory_resource *mr)
+                                 keel::Allocator *mr)
 {
     const auto &dd = d.dims();
     Value r = Value::matrix(dd.rows(), dd.cols(), vt, mr);
-    const size_t n = d.numel();
+    const keel::usize n = d.numel();
     const double *src = d.doubleData();
     auto fill = [&](auto *dst) {
         using T = std::remove_pointer_t<std::decay_t<decltype(dst)>>;
         const double lo = static_cast<double>(std::numeric_limits<T>::min());
         const double hi = static_cast<double>(std::numeric_limits<T>::max());
-        for (size_t i = 0; i < n; ++i) {
+        for (keel::usize i = 0; i < n; ++i) {
             double v = std::round(src[i]);
             if (v < lo) v = lo; else if (v > hi) v = hi;
             dst[i] = static_cast<T>(v);
@@ -74,14 +75,14 @@ static ValueType kronIntegerClass(const Value &a, const Value &b)
 static void intTypeRange(ValueType vt, double &lo, double &hi)
 {
     switch (vt) {
-    case ValueType::INT8:   lo = std::numeric_limits<int8_t>::min();   hi = std::numeric_limits<int8_t>::max();   break;
-    case ValueType::INT16:  lo = std::numeric_limits<int16_t>::min();  hi = std::numeric_limits<int16_t>::max();  break;
-    case ValueType::INT32:  lo = std::numeric_limits<int32_t>::min();  hi = std::numeric_limits<int32_t>::max();  break;
-    case ValueType::INT64:  lo = static_cast<double>(std::numeric_limits<int64_t>::min());  hi = static_cast<double>(std::numeric_limits<int64_t>::max());  break;
-    case ValueType::UINT8:  lo = 0; hi = std::numeric_limits<uint8_t>::max();  break;
-    case ValueType::UINT16: lo = 0; hi = std::numeric_limits<uint16_t>::max(); break;
-    case ValueType::UINT32: lo = 0; hi = std::numeric_limits<uint32_t>::max(); break;
-    case ValueType::UINT64: lo = 0; hi = static_cast<double>(std::numeric_limits<uint64_t>::max()); break;
+    case ValueType::INT8:   lo = std::numeric_limits<keel::i8>::min();   hi = std::numeric_limits<keel::i8>::max();   break;
+    case ValueType::INT16:  lo = std::numeric_limits<keel::i16>::min();  hi = std::numeric_limits<keel::i16>::max();  break;
+    case ValueType::INT32:  lo = std::numeric_limits<keel::i32>::min();  hi = std::numeric_limits<keel::i32>::max();  break;
+    case ValueType::INT64:  lo = static_cast<double>(std::numeric_limits<keel::i64>::min());  hi = static_cast<double>(std::numeric_limits<keel::i64>::max());  break;
+    case ValueType::UINT8:  lo = 0; hi = std::numeric_limits<keel::u8>::max();  break;
+    case ValueType::UINT16: lo = 0; hi = std::numeric_limits<keel::u16>::max(); break;
+    case ValueType::UINT32: lo = 0; hi = std::numeric_limits<keel::u32>::max(); break;
+    case ValueType::UINT64: lo = 0; hi = static_cast<double>(std::numeric_limits<keel::u64>::max()); break;
     default:                lo = 0; hi = 0; break;
     }
 }
@@ -105,14 +106,14 @@ static ValueType crossIntegerClass(const Value &a, const Value &b)
 // Element-wise copy of any numeric Value to a fresh DOUBLE Value (via
 // elemAsDouble, so integer/logical operands are handled). DOUBLE is returned
 // as-is. Used for the lenient double-output cross path.
-static Value crossToDouble(const Value &v, std::pmr::memory_resource *mr)
+static Value crossToDouble(const Value &v, keel::Allocator *mr)
 {
     if (v.type() == ValueType::DOUBLE) return v;
     const auto &d = v.dims();
     Value r = Value::matrix(d.rows(), d.cols(), ValueType::DOUBLE, mr);
-    const size_t n = v.numel();
+    const keel::usize n = v.numel();
     double *dst = r.doubleDataMut();
-    for (size_t i = 0; i < n; ++i) dst[i] = v.elemAsDouble(i);
+    for (keel::usize i = 0; i < n; ++i) dst[i] = v.elemAsDouble(i);
     return r;
 }
 
@@ -122,8 +123,8 @@ static Value crossToDouble(const Value &v, std::pmr::memory_resource *mr)
 // int8([0 100 100])) = [127 -127 127], not [127 -128 127]. Operands are read
 // class-agnostically (elemAsDouble); the result is narrowed to outType.
 static Value crossIntegerSaturating(const Value &a, const Value &b, int crossDim,
-                                    ValueType outType, size_t nr, size_t nc,
-                                    std::pmr::memory_resource *mr)
+                                    ValueType outType, keel::usize nr, keel::usize nc,
+                                    keel::Allocator *mr)
 {
     double lo, hi;
     intTypeRange(outType, lo, hi);
@@ -136,11 +137,11 @@ static Value crossIntegerSaturating(const Value &a, const Value &b, int crossDim
     };
     Value dbl = Value::matrix(nr, nc, ValueType::DOUBLE, mr);
     double *od = dbl.doubleDataMut();
-    auto ga = [&](size_t i) { return a.elemAsDouble(i); };
-    auto gb = [&](size_t i) { return b.elemAsDouble(i); };
+    auto ga = [&](keel::usize i) { return a.elemAsDouble(i); };
+    auto gb = [&](keel::usize i) { return b.elemAsDouble(i); };
     if (crossDim == 0) {
-        for (size_t c = 0; c < nc; ++c) {
-            const size_t base = c * 3;
+        for (keel::usize c = 0; c < nc; ++c) {
+            const keel::usize base = c * 3;
             const double a0 = ga(base), a1 = ga(base + 1), a2 = ga(base + 2);
             const double b0 = gb(base), b1 = gb(base + 1), b2 = gb(base + 2);
             od[base]     = comp(a1, b2, a2, b1);
@@ -148,7 +149,7 @@ static Value crossIntegerSaturating(const Value &a, const Value &b, int crossDim
             od[base + 2] = comp(a0, b1, a1, b0);
         }
     } else {
-        for (size_t r = 0; r < nr; ++r) {
+        for (keel::usize r = 0; r < nr; ++r) {
             const double a0 = ga(r), a1 = ga(r + nr), a2 = ga(r + 2 * nr);
             const double b0 = gb(r), b1 = gb(r + nr), b2 = gb(r + 2 * nr);
             od[r]          = comp(a1, b2, a2, b1);
@@ -162,37 +163,37 @@ static Value crossIntegerSaturating(const Value &a, const Value &b, int crossDim
 // Core cross-product along crossDim (0 = each column is a 3-vec / MATLAB
 // dim 1; 1 = each row is a 3-vec / MATLAB dim 2). Shape already validated.
 static Value crossCore(const Value &a, const Value &b, int crossDim,
-                       std::pmr::memory_resource *mr)
+                       keel::Allocator *mr)
 {
-    const size_t nr = a.dims().rows();
-    const size_t nc = a.dims().cols();
+    const keel::usize nr = a.dims().rows();
+    const keel::usize nc = a.dims().cols();
 
     // Complex cross-product â€” ordinary complex arithmetic, NO conjugation
     // (unlike dot). Either operand complex takes this path; reals -> z+0i.
     if (a.type() == ValueType::COMPLEX || b.type() == ValueType::COMPLEX) {
         const bool aCx = (a.type() == ValueType::COMPLEX);
         const bool bCx = (b.type() == ValueType::COMPLEX);
-        auto ga = [&](size_t i) {
-            return aCx ? a.complexData()[i] : Complex(a.elemAsDouble(i), 0.0);
+        auto ga = [&](keel::usize i) {
+            return aCx ? a.complexData()[i] : keel::c64(a.elemAsDouble(i), 0.0);
         };
-        auto gb = [&](size_t i) {
-            return bCx ? b.complexData()[i] : Complex(b.elemAsDouble(i), 0.0);
+        auto gb = [&](keel::usize i) {
+            return bCx ? b.complexData()[i] : keel::c64(b.elemAsDouble(i), 0.0);
         };
         auto outc = Value::matrix(nr, nc, ValueType::COMPLEX, mr);
-        Complex *oc = outc.complexDataMut();
+        keel::c64 *oc = outc.complexDataMut();
         if (crossDim == 0) {
-            for (size_t c = 0; c < nc; ++c) {
-                const size_t base = c * 3;
-                const Complex a0 = ga(base), a1 = ga(base + 1), a2 = ga(base + 2);
-                const Complex b0 = gb(base), b1 = gb(base + 1), b2 = gb(base + 2);
+            for (keel::usize c = 0; c < nc; ++c) {
+                const keel::usize base = c * 3;
+                const keel::c64 a0 = ga(base), a1 = ga(base + 1), a2 = ga(base + 2);
+                const keel::c64 b0 = gb(base), b1 = gb(base + 1), b2 = gb(base + 2);
                 oc[base    ] = a1 * b2 - a2 * b1;
                 oc[base + 1] = a2 * b0 - a0 * b2;
                 oc[base + 2] = a0 * b1 - a1 * b0;
             }
         } else {
-            for (size_t r = 0; r < nr; ++r) {
-                const Complex a0 = ga(r), a1 = ga(r + nr), a2 = ga(r + 2 * nr);
-                const Complex b0 = gb(r), b1 = gb(r + nr), b2 = gb(r + 2 * nr);
+            for (keel::usize r = 0; r < nr; ++r) {
+                const keel::c64 a0 = ga(r), a1 = ga(r + nr), a2 = ga(r + 2 * nr);
+                const keel::c64 b0 = gb(r), b1 = gb(r + nr), b2 = gb(r + 2 * nr);
                 oc[r           ] = a1 * b2 - a2 * b1;
                 oc[r +     nr  ] = a2 * b0 - a0 * b2;
                 oc[r + 2 * nr  ] = a0 * b1 - a1 * b0;
@@ -216,9 +217,9 @@ static Value crossCore(const Value &a, const Value &b, int crossDim,
 
     if (crossDim == 0) {
         // 3xN: column-major storage, so col c starts at c*3.
-        const size_t batches = nc;
-        for (size_t c = 0; c < batches; ++c) {
-            const size_t base = c * 3;
+        const keel::usize batches = nc;
+        for (keel::usize c = 0; c < batches; ++c) {
+            const keel::usize base = c * 3;
             const double a0 = ad[base], a1 = ad[base + 1], a2 = ad[base + 2];
             const double b0 = bd[base], b1 = bd[base + 1], b2 = bd[base + 2];
             od[base    ] = a1 * b2 - a2 * b1;
@@ -227,8 +228,8 @@ static Value crossCore(const Value &a, const Value &b, int crossDim,
         }
     } else {
         // Nx3: column-major, so element (r, k) at r + k*nr.
-        const size_t batches = nr;
-        for (size_t r = 0; r < batches; ++r) {
+        const keel::usize batches = nr;
+        for (keel::usize r = 0; r < batches; ++r) {
             const double a0 = ad[r], a1 = ad[r + nr], a2 = ad[r + 2 * nr];
             const double b0 = bd[r], b1 = bd[r + nr], b2 = bd[r + 2 * nr];
             od[r           ] = a1 * b2 - a2 * b1;
@@ -239,7 +240,7 @@ static Value crossCore(const Value &a, const Value &b, int crossDim,
     return out;
 }
 
-Value cross(const Value &a, const Value &b, std::pmr::memory_resource *mr)
+Value cross(const Value &a, const Value &b, keel::Allocator *mr)
 {
     // MATLAB: cross(A, B) operates along the FIRST dimension of size 3.
     // Common shapes: 1x3, 3x1, 3xN, Nx3. Result has the same shape as inputs.
@@ -257,7 +258,7 @@ Value cross(const Value &a, const Value &b, std::pmr::memory_resource *mr)
     return crossCore(a, b, crossDim, mr);
 }
 
-Value cross(const Value &a, const Value &b, int dim, std::pmr::memory_resource *mr)
+Value cross(const Value &a, const Value &b, int dim, keel::Allocator *mr)
 {
     if (dim == 0) return cross(a, b, mr);   // default: first length-3 dimension
     const auto &da = a.dims();
@@ -272,20 +273,20 @@ Value cross(const Value &a, const Value &b, int dim, std::pmr::memory_resource *
         throw Error("cross: dim must be 1 or 2",
                      0, 0, "cross", "", "numkit:cross:badDim");
     // MATLAB: A and B must have length 3 along the operating dimension.
-    const size_t lenAlongDim = (dim == 1) ? da.rows() : da.cols();
+    const keel::usize lenAlongDim = (dim == 1) ? da.rows() : da.cols();
     if (lenAlongDim != 3)
         throw Error("cross: A and B must have length 3 in the operating dimension",
                      0, 0, "cross", "", "numkit:cross:badSize");
     return crossCore(a, b, /*crossDim=*/dim - 1, mr);
 }
 
-Value dot(const Value &a, const Value &b, std::pmr::memory_resource *mr)
+Value dot(const Value &a, const Value &b, keel::Allocator *mr)
 {
     if (a.numel() != b.numel())
         throw Error("dot: A and B must be the same size",
                      0, 0, "dot", "", "numkit:dot:lengthMismatch");
     const auto &da = a.dims();
-    const size_t H = da.rows(), W = da.cols();
+    const keel::usize H = da.rows(), W = da.cols();
     // Vectors (row or column) -> a single scalar.
     const bool isVector = (!da.is3D()) && (H == 1 || W == 1);
 
@@ -296,24 +297,24 @@ Value dot(const Value &a, const Value &b, std::pmr::memory_resource *mr)
     if (a.type() == ValueType::COMPLEX || b.type() == ValueType::COMPLEX) {
         const bool aCx = (a.type() == ValueType::COMPLEX);
         const bool bCx = (b.type() == ValueType::COMPLEX);
-        auto getA = [&](size_t i) {
-            return aCx ? a.complexData()[i] : Complex(a.elemAsDouble(i), 0.0);
+        auto getA = [&](keel::usize i) {
+            return aCx ? a.complexData()[i] : keel::c64(a.elemAsDouble(i), 0.0);
         };
-        auto getB = [&](size_t i) {
-            return bCx ? b.complexData()[i] : Complex(b.elemAsDouble(i), 0.0);
+        auto getB = [&](keel::usize i) {
+            return bCx ? b.complexData()[i] : keel::c64(b.elemAsDouble(i), 0.0);
         };
         if (isVector) {
-            Complex s(0.0, 0.0);
-            for (size_t i = 0; i < a.numel(); ++i)
-                s += std::conj(getA(i)) * getB(i);
+            keel::c64 s(0.0, 0.0);
+            for (keel::usize i = 0; i < a.numel(); ++i)
+                s += keel::conj(getA(i)) * getB(i);
             return Value::complexScalar(s, mr);
         }
         Value out = Value::matrix(1, W, ValueType::COMPLEX, mr);
-        Complex *od = out.complexDataMut();
-        for (size_t j = 0; j < W; ++j) {
-            Complex s(0.0, 0.0);
-            for (size_t i = 0; i < H; ++i)
-                s += std::conj(getA(j * H + i)) * getB(j * H + i);
+        keel::c64 *od = out.complexDataMut();
+        for (keel::usize j = 0; j < W; ++j) {
+            keel::c64 s(0.0, 0.0);
+            for (keel::usize i = 0; i < H; ++i)
+                s += keel::conj(getA(j * H + i)) * getB(j * H + i);
             od[j] = s;
         }
         return out;
@@ -321,7 +322,7 @@ Value dot(const Value &a, const Value &b, std::pmr::memory_resource *mr)
 
     if (isVector) {
         double s = 0.0;
-        for (size_t i = 0; i < a.numel(); ++i)
+        for (keel::usize i = 0; i < a.numel(); ++i)
             s += a.elemAsDouble(i) * b.elemAsDouble(i);
         return Value::scalar(s, mr);
     }
@@ -329,16 +330,16 @@ Value dot(const Value &a, const Value &b, std::pmr::memory_resource *mr)
     // matching MATLAB (the previous code flattened everything to a scalar).
     Value out = Value::matrix(1, W, ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
-    for (size_t j = 0; j < W; ++j) {
+    for (keel::usize j = 0; j < W; ++j) {
         double s = 0.0;
-        for (size_t i = 0; i < H; ++i)
+        for (keel::usize i = 0; i < H; ++i)
             s += a.elemAsDouble(j * H + i) * b.elemAsDouble(j * H + i);
         od[j] = s;
     }
     return out;
 }
 
-Value dot(const Value &a, const Value &b, int dim, std::pmr::memory_resource *mr)
+Value dot(const Value &a, const Value &b, int dim, keel::Allocator *mr)
 {
     if (dim == 0)
         return dot(a, b, mr);   // default (vector â†’ scalar, matrix â†’ per-column)
@@ -353,29 +354,29 @@ Value dot(const Value &a, const Value &b, int dim, std::pmr::memory_resource *mr
         throw Error("dot: the dim argument supports 2-D inputs only",
                      0, 0, "dot", "", "numkit:dot:rank");
 
-    const size_t H = a.dims().rows(), W = a.dims().cols();
+    const keel::usize H = a.dims().rows(), W = a.dims().cols();
     // sum(conj(A).*B, dim): dim 1 â†’ 1xW (down columns), dim 2 â†’ Hx1 (across rows).
-    const size_t outR = (dim == 1) ? 1 : H;
-    const size_t outC = (dim == 1) ? W : 1;
+    const keel::usize outR = (dim == 1) ? 1 : H;
+    const keel::usize outC = (dim == 1) ? W : 1;
     const bool cplx = (a.type() == ValueType::COMPLEX || b.type() == ValueType::COMPLEX);
 
     if (cplx) {
         const bool aCx = (a.type() == ValueType::COMPLEX);
         const bool bCx = (b.type() == ValueType::COMPLEX);
-        auto getA = [&](size_t i) { return aCx ? a.complexData()[i] : Complex(a.elemAsDouble(i), 0.0); };
-        auto getB = [&](size_t i) { return bCx ? b.complexData()[i] : Complex(b.elemAsDouble(i), 0.0); };
+        auto getA = [&](keel::usize i) { return aCx ? a.complexData()[i] : keel::c64(a.elemAsDouble(i), 0.0); };
+        auto getB = [&](keel::usize i) { return bCx ? b.complexData()[i] : keel::c64(b.elemAsDouble(i), 0.0); };
         Value out = Value::matrix(outR, outC, ValueType::COMPLEX, mr);
-        Complex *od = out.complexDataMut();
+        keel::c64 *od = out.complexDataMut();
         if (dim == 1)
-            for (size_t j = 0; j < W; ++j) {
-                Complex s(0.0, 0.0);
-                for (size_t i = 0; i < H; ++i) s += std::conj(getA(j * H + i)) * getB(j * H + i);
+            for (keel::usize j = 0; j < W; ++j) {
+                keel::c64 s(0.0, 0.0);
+                for (keel::usize i = 0; i < H; ++i) s += keel::conj(getA(j * H + i)) * getB(j * H + i);
                 od[j] = s;
             }
         else
-            for (size_t i = 0; i < H; ++i) {
-                Complex s(0.0, 0.0);
-                for (size_t j = 0; j < W; ++j) s += std::conj(getA(j * H + i)) * getB(j * H + i);
+            for (keel::usize i = 0; i < H; ++i) {
+                keel::c64 s(0.0, 0.0);
+                for (keel::usize j = 0; j < W; ++j) s += keel::conj(getA(j * H + i)) * getB(j * H + i);
                 od[i] = s;
             }
         return out;
@@ -384,21 +385,21 @@ Value dot(const Value &a, const Value &b, int dim, std::pmr::memory_resource *mr
     Value out = Value::matrix(outR, outC, ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
     if (dim == 1)
-        for (size_t j = 0; j < W; ++j) {
+        for (keel::usize j = 0; j < W; ++j) {
             double s = 0.0;
-            for (size_t i = 0; i < H; ++i) s += a.elemAsDouble(j * H + i) * b.elemAsDouble(j * H + i);
+            for (keel::usize i = 0; i < H; ++i) s += a.elemAsDouble(j * H + i) * b.elemAsDouble(j * H + i);
             od[j] = s;
         }
     else
-        for (size_t i = 0; i < H; ++i) {
+        for (keel::usize i = 0; i < H; ++i) {
             double s = 0.0;
-            for (size_t j = 0; j < W; ++j) s += a.elemAsDouble(j * H + i) * b.elemAsDouble(j * H + i);
+            for (keel::usize j = 0; j < W; ++j) s += a.elemAsDouble(j * H + i) * b.elemAsDouble(j * H + i);
             od[i] = s;
         }
     return out;
 }
 
-Value kron(const Value &a, const Value &b, std::pmr::memory_resource *mr)
+Value kron(const Value &a, const Value &b, keel::Allocator *mr)
 {
     // Class contract probed R2025b (probe66/67): cell/struct reject
     // (numeric, char or logical only); 3-D rejects; integers combine
@@ -440,9 +441,9 @@ Value kron(const Value &a, const Value &b, std::pmr::memory_resource *mr)
         throw Error("kron: empty inputs are rejected.",
                     0, 0, "kron", "", "numkit:kron:badsubscript");
 
-    const size_t rA = a.dims().rows(), cA = a.dims().cols();
-    const size_t rB = b.dims().rows(), cB = b.dims().cols();
-    const size_t rOut = rA * rB, cOut = cA * cB;
+    const keel::usize rA = a.dims().rows(), cA = a.dims().cols();
+    const keel::usize rB = b.dims().rows(), cB = b.dims().cols();
+    const keel::usize rOut = rA * rB, cOut = cA * cB;
 
     // Complex Kronecker product â€” ordinary complex element products (no
     // conjugation). Either operand complex takes this path; reals -> z+0i.
@@ -451,17 +452,17 @@ Value kron(const Value &a, const Value &b, std::pmr::memory_resource *mr)
         const bool bCx = (b.type() == ValueType::COMPLEX);
         auto outc = Value::matrix(rOut, cOut, ValueType::COMPLEX, mr);
         if (rOut == 0 || cOut == 0) return outc;
-        Complex *dst = outc.complexDataMut();
-        for (size_t ja = 0; ja < cA; ++ja)
-            for (size_t ia = 0; ia < rA; ++ia) {
-                const Complex av = aCx ? a.complexData()[ia + ja * rA]
-                                       : Complex(a.elemAsDouble(ia + ja * rA), 0.0);
-                for (size_t jb = 0; jb < cB; ++jb) {
-                    const size_t jOut = ja * cB + jb;
-                    for (size_t ib = 0; ib < rB; ++ib) {
-                        const size_t iOut = ia * rB + ib;
-                        const Complex bv = bCx ? b.complexData()[ib + jb * rB]
-                                               : Complex(b.elemAsDouble(ib + jb * rB), 0.0);
+        keel::c64 *dst = outc.complexDataMut();
+        for (keel::usize ja = 0; ja < cA; ++ja)
+            for (keel::usize ia = 0; ia < rA; ++ia) {
+                const keel::c64 av = aCx ? a.complexData()[ia + ja * rA]
+                                       : keel::c64(a.elemAsDouble(ia + ja * rA), 0.0);
+                for (keel::usize jb = 0; jb < cB; ++jb) {
+                    const keel::usize jOut = ja * cB + jb;
+                    for (keel::usize ib = 0; ib < rB; ++ib) {
+                        const keel::usize iOut = ia * rB + ib;
+                        const keel::c64 bv = bCx ? b.complexData()[ib + jb * rB]
+                                               : keel::c64(b.elemAsDouble(ib + jb * rB), 0.0);
                         dst[jOut * rOut + iOut] = av * bv;
                     }
                 }
@@ -481,13 +482,13 @@ Value kron(const Value &a, const Value &b, std::pmr::memory_resource *mr)
                                              : narrowKronToInteger(out, intClass, mr);
 
     double *dst = out.doubleDataMut();
-    for (size_t ja = 0; ja < cA; ++ja)
-        for (size_t ia = 0; ia < rA; ++ia) {
+    for (keel::usize ja = 0; ja < cA; ++ja)
+        for (keel::usize ia = 0; ia < rA; ++ia) {
             const double av = a.elemAsDouble(ia + ja * rA);
-            for (size_t jb = 0; jb < cB; ++jb) {
-                const size_t jOut = ja * cB + jb;
-                for (size_t ib = 0; ib < rB; ++ib) {
-                    const size_t iOut = ia * rB + ib;
+            for (keel::usize jb = 0; jb < cB; ++jb) {
+                const keel::usize jOut = ja * cB + jb;
+                for (keel::usize ib = 0; ib < rB; ++ib) {
+                    const keel::usize iOut = ia * rB + ib;
                     const double bv = b.elemAsDouble(ib + jb * rB);
                     dst[jOut * rOut + iOut] = av * bv;
                 }
@@ -500,7 +501,7 @@ Value kron(const Value &a, const Value &b, std::pmr::memory_resource *mr)
                                 ValueType::SINGLE, mr);
         const double *od = out.doubleData();
         float *sd = s.singleDataMut();
-        for (size_t i = 0; i < out.numel(); ++i)
+        for (keel::usize i = 0; i < out.numel(); ++i)
             sd[i] = static_cast<float>(od[i]);
         return s;
     }

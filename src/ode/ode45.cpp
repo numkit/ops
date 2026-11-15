@@ -10,6 +10,8 @@
 //     formulae", J. Comput. Appl. Math. 6(1), pp. 19-26.
 //   â€¢ Shampine & Reichelt (1997), "The MATLAB ODE Suite", Â§3.
 
+#include <keel/core.h>
+#include <keel/memory.h>
 #include <numkit/ode/solvers.hpp>
 #include <numkit/ode/options.hpp>
 
@@ -108,9 +110,9 @@ void dense_eval(double theta, double dir, double h,
                 std::vector<double> &out)
 {
     const DenseCoeffs c = dense_coeffs(theta);
-    const std::size_t d = y_n.size();
+    const keel::usize d = y_n.size();
     out.resize(d);
-    for (std::size_t i = 0; i < d; ++i) {
+    for (keel::usize i = 0; i < d; ++i) {
         out[i] = y_n[i] + dir * h
                * (c.b1 * k1[i] + c.b3 * k3[i] + c.b4 * k4[i]
                 + c.b5 * k5[i] + c.b6 * k6[i] + c.b7 * k7[i]);
@@ -121,7 +123,7 @@ void dense_eval(double theta, double dir, double h,
 // binder keeps the call sites below unqualified and names ode45 in errors.
 void eval_rhs(FnHandle rhs, double t,
               const std::vector<double> &y,
-              std::vector<double> &dydt, std::pmr::memory_resource *mr)
+              std::vector<double> &dydt, keel::Allocator *mr)
 {
     callOdeRhs(rhs, t, y, dydt, mr, "ode45");
 }
@@ -130,36 +132,36 @@ void eval_rhs(FnHandle rhs, double t,
 
 std::tuple<Value, Value>
 ode45(FnHandle rhs, const Value &tspan, const Value &y0,
-      const Value &opts, std::pmr::memory_resource *mr)
+      const Value &opts, keel::Allocator *mr)
 {
     // â”€â”€ Validate inputs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    const std::size_t nspan = tspan.numel();
+    const keel::usize nspan = tspan.numel();
     if (nspan < 2)
         throw Error("ode45: tspan must have at least 2 elements",
                     0, 0, "ode45", "", "numkit:ode45:tspanShort");
     std::vector<double> ts(nspan);
-    for (std::size_t i = 0; i < nspan; ++i) ts[i] = tspan.elemAsDouble(i);
+    for (keel::usize i = 0; i < nspan; ++i) ts[i] = tspan.elemAsDouble(i);
     const double t0 = ts.front();
     const double tf = ts.back();
     if (t0 == tf)
         throw Error("ode45: tspan(end) must differ from tspan(1)",
                     0, 0, "ode45", "", "numkit:ode45:tspanDegenerate");
     const double dir = (tf > t0) ? 1.0 : -1.0;
-    for (std::size_t i = 1; i < nspan; ++i) {
+    for (keel::usize i = 1; i < nspan; ++i) {
         if ((ts[i] - ts[i - 1]) * dir <= 0.0)
             throw Error("ode45: tspan must be strictly monotonic",
                         0, 0, "ode45", "", "numkit:ode45:tspanMono");
     }
 
-    const std::size_t d = y0.numel();
+    const keel::usize d = y0.numel();
     std::vector<double> y(d);
-    for (std::size_t i = 0; i < d; ++i) y[i] = y0.elemAsDouble(i);
+    for (keel::usize i = 0; i < d; ++i) y[i] = y0.elemAsDouble(i);
 
     OdeOpts O = read_opts(opts, 4);
     if (O.abs_tol.size() != 1 && O.abs_tol.size() != d)
         throw Error("ode45: AbsTol must be scalar or match length(y0)",
                     0, 0, "ode45", "", "numkit:ode45:absTolSize");
-    auto atol_i = [&](std::size_t i) {
+    auto atol_i = [&](keel::usize i) {
         return (O.abs_tol.size() == 1) ? O.abs_tol[0] : O.abs_tol[i];
     };
 
@@ -170,7 +172,7 @@ ode45(FnHandle rhs, const Value &tspan, const Value &y0,
     double h = O.initial_step;
     if (!(h > 0.0)) {
         double d0 = 0.0, d1 = 0.0;
-        for (std::size_t i = 0; i < d; ++i) {
+        for (keel::usize i = 0; i < d; ++i) {
             const double sc = atol_i(i) + O.rel_tol * std::fabs(y[i]);
             d0 += (y[i] / sc) * (y[i] / sc);
             d1 += (k1[i] / sc) * (k1[i] / sc);
@@ -180,10 +182,10 @@ ode45(FnHandle rhs, const Value &tspan, const Value &y0,
         h0 = std::min(h0, std::fabs(tf - t0));
         // Trial step.
         std::vector<double> y1(d), k2_trial(d);
-        for (std::size_t i = 0; i < d; ++i) y1[i] = y[i] + dir * h0 * k1[i];
+        for (keel::usize i = 0; i < d; ++i) y1[i] = y[i] + dir * h0 * k1[i];
         eval_rhs(rhs, t0 + dir * h0, y1, k2_trial, mr);
         double d2 = 0.0;
-        for (std::size_t i = 0; i < d; ++i) {
+        for (keel::usize i = 0; i < d; ++i) {
             const double sc = atol_i(i) + O.rel_tol * std::fabs(y[i]);
             const double diff = (k2_trial[i] - k1[i]) / sc;
             d2 += diff * diff;
@@ -208,7 +210,7 @@ ode45(FnHandle rhs, const Value &tspan, const Value &y0,
     // Refine = 4).
     const bool emit_at_tspan = (nspan > 2);
     const int refine = emit_at_tspan ? 1 : std::max(1, O.refine);
-    std::size_t next_span_idx = 1;    // next target tspan index
+    keel::usize next_span_idx = 1;    // next target tspan index
 
     double t = t0;
     const int max_steps = 100000;
@@ -227,32 +229,32 @@ ode45(FnHandle rhs, const Value &tspan, const Value &y0,
         // Stages k2..k7 with k1 carried in (FSAL).
         std::vector<double> ytmp(d);
         // k2 at (t + c2 h, y + h a21 k1)
-        for (std::size_t i = 0; i < d; ++i)
+        for (keel::usize i = 0; i < d; ++i)
             ytmp[i] = y[i] + dir * trial_h * (a21 * k1[i]);
         eval_rhs(rhs, t + dir * c2 * trial_h, ytmp, k2, mr);
         // k3 at (t + c3 h, y + h (a31 k1 + a32 k2))
-        for (std::size_t i = 0; i < d; ++i)
+        for (keel::usize i = 0; i < d; ++i)
             ytmp[i] = y[i] + dir * trial_h * (a31 * k1[i] + a32 * k2[i]);
         eval_rhs(rhs, t + dir * c3 * trial_h, ytmp, k3, mr);
         // k4
-        for (std::size_t i = 0; i < d; ++i)
+        for (keel::usize i = 0; i < d; ++i)
             ytmp[i] = y[i] + dir * trial_h
                     * (a41 * k1[i] + a42 * k2[i] + a43 * k3[i]);
         eval_rhs(rhs, t + dir * c4 * trial_h, ytmp, k4, mr);
         // k5
-        for (std::size_t i = 0; i < d; ++i)
+        for (keel::usize i = 0; i < d; ++i)
             ytmp[i] = y[i] + dir * trial_h
                     * (a51 * k1[i] + a52 * k2[i] + a53 * k3[i] + a54 * k4[i]);
         eval_rhs(rhs, t + dir * c5 * trial_h, ytmp, k5, mr);
         // k6
-        for (std::size_t i = 0; i < d; ++i)
+        for (keel::usize i = 0; i < d; ++i)
             ytmp[i] = y[i] + dir * trial_h
                     * (a61 * k1[i] + a62 * k2[i] + a63 * k3[i]
                      + a64 * k4[i] + a65 * k5[i]);
         eval_rhs(rhs, t + dir * trial_h, ytmp, k6, mr);
         // 5th-order solution
         std::vector<double> y_new(d);
-        for (std::size_t i = 0; i < d; ++i)
+        for (keel::usize i = 0; i < d; ++i)
             y_new[i] = y[i] + dir * trial_h
                      * (b1 * k1[i] + b3 * k3[i] + b4 * k4[i]
                       + b5 * k5[i] + b6 * k6[i]);
@@ -260,7 +262,7 @@ ode45(FnHandle rhs, const Value &tspan, const Value &y0,
         eval_rhs(rhs, t + dir * trial_h, y_new, k7, mr);
         // Error estimate
         double err_norm = 0.0;
-        for (std::size_t i = 0; i < d; ++i) {
+        for (keel::usize i = 0; i < d; ++i) {
             const double sc = atol_i(i)
                             + O.rel_tol * std::max(std::fabs(y[i]),
                                                    std::fabs(y_new[i]));
@@ -347,12 +349,12 @@ ode45(FnHandle rhs, const Value &tspan, const Value &y0,
                   + " integration steps", 0, 0, "ode45", "", "numkit:ode45:tooManySteps");
 
     // Assemble output: t (m Ã— 1) and y (m Ã— d).
-    const std::size_t m = t_out.size();
+    const keel::usize m = t_out.size();
     Value t_val = Value::matrix(m, 1, ValueType::DOUBLE, mr);
-    for (std::size_t i = 0; i < m; ++i) t_val.doubleDataMut()[i] = t_out[i];
+    for (keel::usize i = 0; i < m; ++i) t_val.doubleDataMut()[i] = t_out[i];
     Value y_val = Value::matrix(m, d, ValueType::DOUBLE, mr);
-    for (std::size_t i = 0; i < m; ++i)
-        for (std::size_t j = 0; j < d; ++j)
+    for (keel::usize i = 0; i < m; ++i)
+        for (keel::usize j = 0; j < d; ++j)
             y_val.doubleDataMut()[j * m + i] = y_out[i][j];
     return {std::move(t_val), std::move(y_val)};
 }

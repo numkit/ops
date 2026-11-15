@@ -2,29 +2,30 @@
 //
 // Trigonometric coordinate transforms, degree conversions, angle wrapping.
 
+#include <keel/memory.h>
+#include <keel/ref.h>
 #include <numkit/builtin/elfun.hpp>
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
 #include <numkit/ops/helpers.hpp>
 
 #include <cmath>
-#include <complex>
 #include "_unary_hint.hpp"
 
 namespace numkit::builtin {
 
-Value sin(const Value &x, std::pmr::memory_resource *mr) { return sin(x, nullptr, mr); }
-Value cos(const Value &x, std::pmr::memory_resource *mr) { return cos(x, nullptr, mr); }
+Value sin(const Value &x, keel::Allocator *mr) { return sin(x, nullptr, mr); }
+Value cos(const Value &x, keel::Allocator *mr) { return cos(x, nullptr, mr); }
 
 // ── Degree / Radian conversions ─────────────────────────────────────────────
 
-Value deg2rad(const Value &x, std::pmr::memory_resource *mr)
+Value deg2rad(const Value &x, keel::Allocator *mr)
 {
     constexpr double k = 3.14159265358979323846 / 180.0;
     return unaryDouble(x, [k](double v) { return v * k; }, mr);
 }
 
-Value rad2deg(const Value &x, std::pmr::memory_resource *mr)
+Value rad2deg(const Value &x, keel::Allocator *mr)
 {
     constexpr double k = 180.0 / 3.14159265358979323846;
     return unaryDouble(x, [k](double v) { return v * k; }, mr);
@@ -56,42 +57,42 @@ inline double wrapToSym(double x, double half, double period)
 }
 } // namespace
 
-Value wrapToPi(const Value &x, std::pmr::memory_resource *mr)
+Value wrapToPi(const Value &x, keel::Allocator *mr)
 {
     return unaryDouble(x, [](double v) { return wrapToSym(v, kPi, kTwoPi); }, mr);
 }
 
-Value wrapTo2Pi(const Value &x, std::pmr::memory_resource *mr)
+Value wrapTo2Pi(const Value &x, keel::Allocator *mr)
 {
     return unaryDouble(x, [](double v) { return wrapToUpper(v, kTwoPi); }, mr);
 }
 
-Value wrapTo180(const Value &x, std::pmr::memory_resource *mr)
+Value wrapTo180(const Value &x, keel::Allocator *mr)
 {
     return unaryDouble(x, [](double v) { return wrapToSym(v, 180.0, 360.0); }, mr);
 }
 
-Value wrapTo360(const Value &x, std::pmr::memory_resource *mr)
+Value wrapTo360(const Value &x, keel::Allocator *mr)
 {
     return unaryDouble(x, [](double v) { return wrapToUpper(v, 360.0); }, mr);
 }
 
 // ── Coordinate transforms ───────────────────────────────────────────────────
 
-PolarPair cart2pol(const Value &x, const Value &y, std::pmr::memory_resource *mr)
+PolarPair cart2pol(const Value &x, const Value &y, keel::Allocator *mr)
 {
     Value theta = atan2(y, x, mr);
     Value rho   = hypot(x, y, mr);
     return { std::move(theta), std::move(rho) };
 }
 
-CylTriple cart2pol(const Value &x, const Value &y, const Value &z, std::pmr::memory_resource *mr)
+CylTriple cart2pol(const Value &x, const Value &y, const Value &z, keel::Allocator *mr)
 {
     auto [theta, rho] = cart2pol(x, y, mr);
     return { std::move(theta), std::move(rho), z };
 }
 
-CartPair pol2cart(const Value &theta, const Value &rho, std::pmr::memory_resource *mr)
+CartPair pol2cart(const Value &theta, const Value &rho, keel::Allocator *mr)
 {
     Value xv = elementwiseDouble(rho, theta,
         [](double r, double t) { return r * std::cos(t); }, mr);
@@ -100,13 +101,13 @@ CartPair pol2cart(const Value &theta, const Value &rho, std::pmr::memory_resourc
     return { std::move(xv), std::move(yv) };
 }
 
-CartTriple pol2cart(const Value &theta, const Value &rho, const Value &z, std::pmr::memory_resource *mr)
+CartTriple pol2cart(const Value &theta, const Value &rho, const Value &z, keel::Allocator *mr)
 {
     auto [xv, yv] = pol2cart(theta, rho, mr);
     return { std::move(xv), std::move(yv), z };
 }
 
-SphTriple cart2sph(const Value &x, const Value &y, const Value &z, std::pmr::memory_resource *mr)
+SphTriple cart2sph(const Value &x, const Value &y, const Value &z, keel::Allocator *mr)
 {
     Value az = elementwiseDouble(y, x,
         [](double yy, double xx) { return std::atan2(yy + 0.0, xx + 0.0); }, mr);
@@ -119,7 +120,7 @@ SphTriple cart2sph(const Value &x, const Value &y, const Value &z, std::pmr::mem
     return { std::move(az), std::move(el), std::move(r) };
 }
 
-CartTriple sph2cart(const Value &az, const Value &el, const Value &r, std::pmr::memory_resource *mr)
+CartTriple sph2cart(const Value &az, const Value &el, const Value &r, keel::Allocator *mr)
 {
     Value rcos_el = elementwiseDouble(r, el,
         [](double rr, double ee) { return rr * std::cos(ee); }, mr);
@@ -132,7 +133,7 @@ CartTriple sph2cart(const Value &az, const Value &el, const Value &r, std::pmr::
     return { std::move(xv), std::move(yv), std::move(zv) };
 }
 
-Value cart2pol(Span<const Value> args, std::pmr::memory_resource *mr)
+Value cart2pol(keel::ArrayRef<Value> args, keel::Allocator *mr)
 {
     if (args.size() < 2)
         throw Error("cart2pol: requires at least 2 arguments (x, y)",
@@ -140,7 +141,7 @@ Value cart2pol(Span<const Value> args, std::pmr::memory_resource *mr)
     return cart2pol(args[0], args[1], mr).theta;
 }
 
-Value pol2cart(Span<const Value> args, std::pmr::memory_resource *mr)
+Value pol2cart(keel::ArrayRef<Value> args, keel::Allocator *mr)
 {
     if (args.size() < 2)
         throw Error("pol2cart: requires at least 2 arguments (theta, rho)",
@@ -148,7 +149,7 @@ Value pol2cart(Span<const Value> args, std::pmr::memory_resource *mr)
     return pol2cart(args[0], args[1], mr).x;
 }
 
-Value cart2sph(Span<const Value> args, std::pmr::memory_resource *mr)
+Value cart2sph(keel::ArrayRef<Value> args, keel::Allocator *mr)
 {
     if (args.size() < 3)
         throw Error("cart2sph: requires 3 arguments (x, y, z)",
@@ -156,7 +157,7 @@ Value cart2sph(Span<const Value> args, std::pmr::memory_resource *mr)
     return cart2sph(args[0], args[1], args[2], mr).az;
 }
 
-Value sph2cart(Span<const Value> args, std::pmr::memory_resource *mr)
+Value sph2cart(keel::ArrayRef<Value> args, keel::Allocator *mr)
 {
     if (args.size() < 3)
         throw Error("sph2cart: requires 3 arguments (az, el, r)",

@@ -7,6 +7,7 @@
 // and max(0, d) omits NaN (std::fmax semantics, matching nk's max(0,·)) —
 // so the result is bit-identical to `sign(x) .* max(0, abs(x) - t)`.
 
+#include <keel/core.h>
 #include <numkit/ops/fused/fused_kernels.hpp>
 #include <numkit/ops/parallel_for.hpp>
 
@@ -24,12 +25,12 @@ namespace HWY_NAMESPACE {
 
 namespace hn = hwy::HWY_NAMESPACE;
 
-void SoftThresholdImpl(const double *x, double t, double *out, std::size_t n) {
+void SoftThresholdImpl(const double *x, double t, double *out, keel::usize n) {
     const hn::ScalableTag<double> d;
-    const std::size_t L = hn::Lanes(d);
+    const keel::usize L = hn::Lanes(d);
     const auto vt = hn::Set(d, t);
     const auto zero = hn::Zero(d), one = hn::Set(d, 1.0), neg1 = hn::Set(d, -1.0);
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i + L <= n; i += L) {
         const auto v = hn::LoadU(d, x + i);
         // sign(v): NaN→v, v>0→1, v<0→-1, else→0 (== nk signOp).
@@ -57,9 +58,9 @@ namespace numkit::ops {
 
 HWY_EXPORT(SoftThresholdImpl);
 
-void fusedSoftThreshold(const double *x, double t, double *out, std::size_t n) {
+void fusedSoftThreshold(const double *x, double t, double *out, keel::usize n) {
     if (n == 0) return;
-    detail::parallel_for(n, std::size_t{1} << 16, [&](std::size_t s, std::size_t e) {
+    detail::parallel_for(n, keel::usize{1} << 16, [&](keel::usize s, keel::usize e) {
         HWY_DYNAMIC_DISPATCH(SoftThresholdImpl)(x + s, t, out + s, e - s);
     });
 }

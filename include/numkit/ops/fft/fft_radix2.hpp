@@ -11,10 +11,11 @@
 // compiled). Hosting the butterfly here keeps ops self-contained; signal's
 // dsp_helpers.hpp now includes this header for its convenience overloads.
 //
+#include <keel/core.h>
+#include <keel/complex.h>
 #include <numkit/value/value.hpp>   // numkit::Complex
 
 #include <algorithm>                // std::swap
-#include <complex>
 #include <cstddef>
 
 namespace numkit {
@@ -24,14 +25,14 @@ namespace numkit {
 // signal's dsp_helpers.hpp for how to build one). Decoupled from any container
 // type so callers can back the buffer with std::vector, std::pmr::vector, a
 // stack array, or any other contiguous Complex storage.
-inline void fftRadix2(Complex *buf, std::size_t N, const Complex *W)
+inline void fftRadix2(keel::c64 *buf, keel::usize N, const keel::c64 *W)
 {
     if (N <= 1)
         return;
 
     // Bit-reversal permutation
-    for (std::size_t i = 1, j = 0; i < N; ++i) {
-        std::size_t bit = N >> 1;
+    for (keel::usize i = 1, j = 0; i < N; ++i) {
+        keel::usize bit = N >> 1;
         for (; j & bit; bit >>= 1)
             j ^= bit;
         j ^= bit;
@@ -40,13 +41,13 @@ inline void fftRadix2(Complex *buf, std::size_t N, const Complex *W)
     }
 
     // Butterfly stages — look up twiddles from the precomputed table.
-    for (std::size_t len = 2; len <= N; len <<= 1) {
-        const std::size_t step = N / len;
-        for (std::size_t i = 0; i < N; i += len) {
-            for (std::size_t j = 0; j < len / 2; ++j) {
-                const Complex w = W[j * step];
-                const Complex u = buf[i + j];
-                const Complex v = buf[i + j + len / 2] * w;
+    for (keel::usize len = 2; len <= N; len <<= 1) {
+        const keel::usize step = N / len;
+        for (keel::usize i = 0; i < N; i += len) {
+            for (keel::usize j = 0; j < len / 2; ++j) {
+                const keel::c64 w = W[j * step];
+                const keel::c64 u = buf[i + j];
+                const keel::c64 v = buf[i + j + len / 2] * w;
                 buf[i + j]           = u + v;
                 buf[i + j + len / 2] = u - v;
             }

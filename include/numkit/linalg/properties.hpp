@@ -11,7 +11,8 @@
 
 #pragma once
 
-#include <memory_resource>
+#include <keel/core.h>
+#include <keel/memory.h>
 #include <numkit/value/value.hpp>
 
 namespace numkit::linalg {
@@ -29,26 +30,26 @@ namespace numkit::linalg {
 /// @param mr  Memory resource (nullptr â†’ process default).
 /// @return    `A^{-1}`.
 /// @throws Error  Non-square or singular (`m:inv:singular`).
-Value inv(const Value &A, std::pmr::memory_resource *mr = nullptr);
+Value inv(const Value &A, keel::Allocator *mr = nullptr);
 
 /// @brief Trace = sum of diagonal (`t = trace(A)`).
-Value trace(const Value &A, std::pmr::memory_resource *mr = nullptr);
+Value trace(const Value &A, keel::Allocator *mr = nullptr);
 
 /// @brief Determinant via LU with partial pivoting (`d = det(A)`).
 ///
 /// `det(A) = sign(P) Â· prod(diag(U))` where `A = PÂ·LÂ·U`.
-Value det(const Value &A, std::pmr::memory_resource *mr = nullptr);
+Value det(const Value &A, keel::Allocator *mr = nullptr);
 
 /// @brief Numerical rank (`r = rank(A, tol)`).
 ///
 /// Count of singular values above `tol`.
 /// Default `tol = max(size(A))Â·eps(max(svd(A)))`.
-Value rank_of(const Value &A, double tol = -1.0, std::pmr::memory_resource *mr = nullptr);
+Value rank_of(const Value &A, keel::f64 tol = -1.0, keel::Allocator *mr = nullptr);
 
 /// @brief 2-norm condition number (`c = cond(A)`).
 ///
 /// `sigma_max / sigma_min` via SVD. Returns `Inf` for singular `A`.
-Value cond_2norm(const Value &A, std::pmr::memory_resource *mr = nullptr);
+Value cond_2norm(const Value &A, keel::Allocator *mr = nullptr);
 
 /// @brief General p-norm condition number (`c = cond(A, p)`).
 ///
@@ -58,20 +59,20 @@ Value cond_2norm(const Value &A, std::pmr::memory_resource *mr = nullptr);
 ///
 /// `p_kind`: 1 â†’ 1-norm, 2 â†’ 2-norm, 3 â†’ Inf-norm, 4 â†’ Frobenius.
 /// (Integer enum to avoid a string allocation in the hot path.)
-Value cond_pnorm(const Value &A, int p_kind, std::pmr::memory_resource *mr = nullptr);
+Value cond_pnorm(const Value &A, int p_kind, keel::Allocator *mr = nullptr);
 
 /// @brief 2-norm estimate (`n = normest(A)`).
 ///
 /// Currently equivalent to `svd(A)(1)` â€” no power-iteration shortcut
 /// yet (correctness over performance).
-Value normest(const Value &A, std::pmr::memory_resource *mr = nullptr);
+Value normest(const Value &A, keel::Allocator *mr = nullptr);
 
 /// @brief Reciprocal 1-norm condition estimate (`c = rcond(A)`).
 ///
 /// Cheap path: `1 / (norm(A, 1) Â· norm(inv(A), 1))`. Returns 0 for
 /// singular `A`. KNOWN GAP: accurate on well-conditioned cases;
 /// differs from LAPACK's `dgecon` on near-singular matrices.
-Value rcond(const Value &A, std::pmr::memory_resource *mr = nullptr);
+Value rcond(const Value &A, keel::Allocator *mr = nullptr);
 
 /// @brief 1-norm condition number estimate (`c = condest(A)`).
 ///
@@ -79,7 +80,7 @@ Value rcond(const Value &A, std::pmr::memory_resource *mr = nullptr);
 /// @ref rcond â€” accurate on well-conditioned A; on near-singular A
 /// differs slightly from MATLAB's LAPACK dgecon-based estimator
 /// (Higham 1988 power-iteration approximator).
-Value condest(const Value &A, std::pmr::memory_resource *mr = nullptr);
+Value condest(const Value &A, keel::Allocator *mr = nullptr);
 
 /// @brief Eigenvalue condition numbers (`c = condeig(A)`).
 ///
@@ -90,7 +91,7 @@ Value condest(const Value &A, std::pmr::memory_resource *mr = nullptr);
 ///
 /// Returns a column vector of length n. The 3-output form
 /// `[V, D, s] = condeig(A)` is exposed via the engine adapter.
-Value condeig(const Value &A, std::pmr::memory_resource *mr = nullptr);
+Value condeig(const Value &A, keel::Allocator *mr = nullptr);
 
 
 /// @}

@@ -2,10 +2,15 @@
 //
 // accumarray — group-by reduction algorithm.
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/ref.h>
+#include <keel/arena.h>
+#include <keel/array.h>
+#include <keel/math.h>
 #include <numkit/builtin/datafun.hpp>
 #include <numkit/value/value.hpp>
 #include <numkit/value/value_type.hpp>
-#include <numkit/value/scratch.hpp>
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
@@ -13,7 +18,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
-#include <memory_resource>
 #include <string>
 
 namespace numkit::builtin {
@@ -21,16 +25,16 @@ namespace numkit::builtin {
 namespace {
 
 // 1-based subscript validation: must be a positive integer <= outDim.
-size_t toSubIndex(double v, size_t maxAllowed, const char *fn)
+keel::usize toSubIndex(double v, keel::usize maxAllowed, const char *fn)
 {
     if (!std::isfinite(v) || v < 1.0)
         throw Error(std::string(fn) + ": subscripts must be positive integers",
                      0, 0, fn, "", std::string("numkit:") + fn + ":subRange");
     const double rounded = std::round(v);
-    if (std::abs(v - rounded) > 1e-9)
+    if (keel::abs(v - rounded) > 1e-9)
         throw Error(std::string(fn) + ": subscripts must be integer-valued",
                      0, 0, fn, "", std::string("numkit:") + fn + ":subInt");
-    const size_t idx = static_cast<size_t>(rounded);
+    const keel::usize idx = static_cast<keel::usize>(rounded);
     if (maxAllowed > 0 && idx > maxAllowed)
         throw Error(std::string(fn) + ": subscript exceeds output dimension",
                      0, 0, fn, "", std::string("numkit:") + fn + ":subOOB");
@@ -67,30 +71,30 @@ inline double applyReducer(AccumReducer op, double acc, double v)
 
 // Build the output shape. userShape (passed-in) wins if non-zero
 // length, else derive from per-column max(subs). subs is N x D.
-ScratchVec<size_t> resolveOutShape(const Value &subs, const size_t *userShape,
-                                   std::size_t nUserShape, const char *fn,
-                                   std::pmr::memory_resource *mr)
+keel::Array<keel::usize> resolveOutShape(const Value &subs, const keel::usize *userShape,
+                                   keel::usize nUserShape, const char *fn,
+                                   keel::Allocator *mr)
 {
     const auto &d = subs.dims();
-    const size_t N = d.rows();
-    const size_t D = (d.ndim() <= 1) ? 1 : d.cols();
+    const keel::usize N = d.rows();
+    const keel::usize D = (d.ndim() <= 1) ? 1 : d.cols();
     if (nUserShape > 0) {
         if (nUserShape < D)
             throw Error(std::string(fn) + ": sz length must be at least size(subs, 2)",
                          0, 0, fn, "", std::string("numkit:") + fn + ":sizeRank");
-        ScratchVec<size_t> out(userShape, userShape + nUserShape, mr);
+        keel::Array<keel::usize> out(keel::ArrayRef<keel::usize>(userShape, nUserShape), mr);
         return out;
     }
     // Auto-derive from max per column. For 1D subs, 1D output.
-    ScratchVec<size_t> shape(D, mr);
+    keel::Array<keel::usize> shape(D, mr);
     if (N == 0) {
         // Empty subs + no sz -> 0x0 (matches MATLAB).
-        return ScratchVec<size_t>(std::max<size_t>(D, 1), 0, mr);
+        return keel::Array<keel::usize>(std::max<keel::usize>(D, 1), 0, mr);
     }
     const double *p = subs.doubleData();
-    for (size_t c = 0; c < D; ++c) {
+    for (keel::usize c = 0; c < D; ++c) {
         double mx = 0.0;
-        for (size_t r = 0; r < N; ++r) {
+        for (keel::usize r = 0; r < N; ++r) {
             const double v = p[c * N + r];
             if (v > mx) mx = v;
         }
@@ -100,14 +104,14 @@ ScratchVec<size_t> resolveOutShape(const Value &subs, const size_t *userShape,
 }
 
 // Column-major linear index from the row-of-subs r of the N x D matrix.
-size_t linearIndexFromSubs(const Value &subs, size_t r, size_t N, size_t D,
-                           const size_t *shape, const char *fn)
+keel::usize linearIndexFromSubs(const Value &subs, keel::usize r, keel::usize N, keel::usize D,
+                           const keel::usize *shape, const char *fn)
 {
     const double *p = subs.doubleData();
-    size_t idx = 0;
-    size_t stride = 1;
-    for (size_t c = 0; c < D; ++c) {
-        const size_t s = toSubIndex(p[c * N + r], shape[c], fn);
+    keel::usize idx = 0;
+    keel::usize stride = 1;
+    for (keel::usize c = 0; c < D; ++c) {
+        const keel::usize s = toSubIndex(p[c * N + r], shape[c], fn);
         idx += (s - 1) * stride;
         stride *= shape[c];
     }
@@ -115,7 +119,7 @@ size_t linearIndexFromSubs(const Value &subs, size_t r, size_t N, size_t D,
 }
 
 // Allocate the output Value for the given shape.
-Value allocOutput(const size_t *shape, std::size_t nShape, std::pmr::memory_resource *mr)
+Value allocOutput(const keel::usize *shape, keel::usize nShape, keel::Allocator *mr)
 {
     if (nShape == 1)
         return Value::matrix(shape[0], 1, ValueType::DOUBLE, mr);
@@ -125,15 +129,15 @@ Value allocOutput(const size_t *shape, std::size_t nShape, std::pmr::memory_reso
                             ValueType::DOUBLE, mr);
 }
 
-inline double readVal(const Value &vals, size_t i, bool valIsScalar)
+inline double readVal(const Value &vals, keel::usize i, bool valIsScalar)
 {
     return valIsScalar ? vals.toScalar() : vals.doubleData()[i];
 }
 
 } // namespace
 
-Value accumarray(const Value &subs, const Value &vals, Span<const size_t> outShape,
-                 AccumReducer op, double fillVal, std::pmr::memory_resource *mr)
+Value accumarray(const Value &subs, const Value &vals, keel::ArrayRef<keel::usize> outShape,
+                 AccumReducer op, double fillVal, keel::Allocator *mr)
 {
     const char *fn = "accumarray";
 
@@ -149,34 +153,34 @@ Value accumarray(const Value &subs, const Value &vals, Span<const size_t> outSha
         throw Error("accumarray: subs must be a 2D matrix",
                      0, 0, fn, "", "numkit:accumarray:subND");
 
-    const size_t N = sd.rows();
-    const size_t D = (sd.ndim() <= 1 || sd.cols() == 0) ? 1 : sd.cols();
+    const keel::usize N = sd.rows();
+    const keel::usize D = (sd.ndim() <= 1 || sd.cols() == 0) ? 1 : sd.cols();
 
     const bool valIsScalar = vals.isScalar();
     if (!valIsScalar && vals.numel() != N)
         throw Error("accumarray: vals must be a scalar or a length-N vector",
                      0, 0, fn, "", "numkit:accumarray:valSize");
 
-    ScratchArena scratch(mr);
-    auto shape = resolveOutShape(subs, outShape.data(), outShape.size(), fn, &scratch);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    auto shape = resolveOutShape(subs, outShape.data(), outShape.size(), fn, scratch.allocator());
     if (shape.size() < D) shape.resize(D, 1);
 
     Value out = allocOutput(shape.data(), shape.size(), mr);
-    const size_t total = out.numel();
+    const keel::usize total = out.numel();
     double *dst = out.doubleDataMut();
 
     if (total == 0)
         return out;
 
-    auto touched = ScratchVec<uint8_t>(total, &scratch);
+    auto touched = keel::Array<keel::u8>(total, scratch.allocator());
     const bool needCount = (op == AccumReducer::Mean);
-    auto count = ScratchVec<size_t>(&scratch);
+    auto count = keel::Array<keel::usize>(scratch.allocator());
     if (needCount) count.assign(total, 0);
 
     const double init = identityFor(op);
 
-    for (size_t r = 0; r < N; ++r) {
-        const size_t lin = linearIndexFromSubs(subs, r, N, D, shape.data(), fn);
+    for (keel::usize r = 0; r < N; ++r) {
+        const keel::usize lin = linearIndexFromSubs(subs, r, N, D, shape.data(), fn);
         const double v = readVal(vals, r, valIsScalar);
         if (!touched[lin]) {
             dst[lin] = applyReducer(op, init, v);
@@ -188,14 +192,14 @@ Value accumarray(const Value &subs, const Value &vals, Span<const size_t> outSha
     }
 
     if (needCount) {
-        for (size_t i = 0; i < total; ++i) {
+        for (keel::usize i = 0; i < total; ++i) {
             if (!touched[i])       dst[i] = fillVal;
             else if (count[i] > 0) dst[i] /= static_cast<double>(count[i]);
         }
     } else if (fillVal != 0.0 ||
                op == AccumReducer::Prod || op == AccumReducer::Max ||
                op == AccumReducer::Min  || op == AccumReducer::All) {
-        for (size_t i = 0; i < total; ++i)
+        for (keel::usize i = 0; i < total; ++i)
             if (!touched[i]) dst[i] = fillVal;
     }
 

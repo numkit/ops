@@ -13,7 +13,8 @@
 
 #pragma once
 
-#include <memory_resource>
+#include <keel/core.h>
+#include <keel/memory.h>
 #include <numkit/value/value.hpp>
 
 namespace numkit::linalg {
@@ -34,17 +35,17 @@ namespace numkit::linalg {
 /// @return    Scalar norm.
 /// @throws Error  Unsupported matrix p-norm.
 /// @see norm_inf, norm_fro, vecnorm
-Value norm_value(const Value &x, double p, std::pmr::memory_resource *mr = nullptr);
+Value norm_value(const Value &x, keel::f64 p, keel::Allocator *mr = nullptr);
 
 /// @brief Inf-norm (`n = norm(x, inf)`).
 ///
 /// Vector: `max(|v|)`. Matrix: max row sum.
-Value norm_inf(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value norm_inf(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Frobenius norm (`n = norm(A, 'fro')`).
 ///
 /// `sqrt(sum(A.^2))`.
-Value norm_fro(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value norm_fro(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Vector p-norm along a dim (`y = vecnorm(A, p, dim)`).
 ///
@@ -56,7 +57,7 @@ Value norm_fro(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param dim  1-based dimension (0 â†’ first non-singleton).
 /// @param mr   Memory resource (nullptr â†’ process default).
 /// @return     Norms reduced along `dim`.
-Value vecnorm(const Value &A, double p = 2.0, int dim = 0, std::pmr::memory_resource *mr = nullptr);
+Value vecnorm(const Value &A, keel::f64 p = 2.0, int dim = 0, keel::Allocator *mr = nullptr);
 
 
 /// @}

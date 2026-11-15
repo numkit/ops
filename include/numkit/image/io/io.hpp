@@ -10,8 +10,9 @@
 
 #pragma once
 
+#include <keel/core.h>
+#include <keel/memory.h>
 #include <cstdint>
-#include <memory_resource>
 #include <numkit/value/value.hpp>
 #include <string>
 #include <utility>
@@ -38,7 +39,7 @@ namespace numkit::image {
 ///
 /// @see imwrite, imfinfo
 Value imread(const std::string &path,
-             std::pmr::memory_resource *mr = nullptr);
+             keel::Allocator *mr = nullptr);
 
 /// Write an image to disk (`imwrite(A, path)`).
 ///
@@ -59,7 +60,7 @@ Value imread(const std::string &path,
 ///
 /// @see imread
 void imwrite(const Value &A, const std::string &path,
-             std::pmr::memory_resource *mr = nullptr);
+             keel::Allocator *mr = nullptr);
 
 /// Encode an image to in-memory bytes (companion to imwrite). Used by the
 /// engine entry so writes go through the VFS â€” works on the virtual AND
@@ -69,7 +70,7 @@ void imwrite(const Value &A, const std::string &path,
 ///
 /// @throws Error on unsupported extension or encode failure.
 std::string imwriteToBytes(const Value &A, const std::string &ext,
-                           std::pmr::memory_resource *mr = nullptr);
+                           keel::Allocator *mr = nullptr);
 
 /// Read image header metadata without decoding pixels (`S = imfinfo(path)`).
 ///
@@ -88,7 +89,7 @@ std::string imwriteToBytes(const Value &A, const std::string &ext,
 ///
 /// @see imread
 Value imfinfo(const std::string &path,
-              std::pmr::memory_resource *mr = nullptr);
+              keel::Allocator *mr = nullptr);
 
 /// imfinfo from already-loaded bytes (the engine entry feeds these from the
 /// VFS so it works on the virtual + real filesystem). `filename` is recorded
@@ -96,7 +97,7 @@ Value imfinfo(const std::string &path,
 ///
 /// @see imfinfo
 Value imfinfoFromBytes(const std::string &bytes, const std::string &filename,
-                       std::pmr::memory_resource *mr = nullptr);
+                       keel::Allocator *mr = nullptr);
 
 /// Minimal TIFF reader for the formats stb doesn't decode.
 ///
@@ -118,20 +119,20 @@ Value imfinfoFromBytes(const std::string &bytes, const std::string &filename,
 ///
 /// @see imread
 Value readTiff(const std::string &path,
-               std::pmr::memory_resource *mr = nullptr);
+               keel::Allocator *mr = nullptr);
 
 /// Multi-page form: read the `page`-th IFD (1-based). MATLAB's
 /// `imread(file, k)` semantics.
-Value readTiff(const std::string &path, std::uint32_t page,
-               std::pmr::memory_resource *mr = nullptr);
+Value readTiff(const std::string &path, keel::u32 page,
+               keel::Allocator *mr = nullptr);
 
 /// Buffer overloads â€” decode TIFF from already-loaded bytes (the IDE feeds
 /// these from the VFS so reads work on the virtual + real filesystem).
-Value readTiff(std::vector<std::uint8_t> buf, std::uint32_t page,
-               std::pmr::memory_resource *mr = nullptr);
+Value readTiff(std::vector<keel::u8> buf, keel::u32 page,
+               keel::Allocator *mr = nullptr);
 std::pair<Value, Value>
-readTiffWithMap(std::vector<std::uint8_t> buf, std::uint32_t page,
-                std::pmr::memory_resource *mr = nullptr);
+readTiffWithMap(std::vector<keel::u8> buf, keel::u32 page,
+                keel::Allocator *mr = nullptr);
 
 /// Two-output read for palette TIFFs: returns `(indices, colormap)`.
 /// `indices` is the same as `readTiff` (uint8 / uint16). `colormap` is
@@ -139,30 +140,30 @@ readTiffWithMap(std::vector<std::uint8_t> buf, std::uint32_t page,
 /// for non-palette files. K = 2^BitsPerSample. Matches MATLAB's
 /// `[A, map] = imread(file)` for indexed images.
 std::pair<Value, Value>
-readTiffWithMap(const std::string &path, std::uint32_t page,
-                std::pmr::memory_resource *mr = nullptr);
+readTiffWithMap(const std::string &path, keel::u32 page,
+                keel::Allocator *mr = nullptr);
 
 /// Peek a TIFF file's first-IFD metadata without decoding pixels.
 /// Output struct: `Width`, `Height`, `BitsPerSample`, `NumberOfChannels`.
 ///
 /// @see imfinfo
 void peekTiff(const std::string &path,
-              std::uint32_t &W,
-              std::uint32_t &H,
-              std::uint16_t &bits,
-              std::uint16_t &channels);
+              keel::u32 &W,
+              keel::u32 &H,
+              keel::u16 &bits,
+              keel::u16 &channels);
 
 /// Buffer overload â€” peek metadata from already-loaded TIFF bytes (the IDE
 /// feeds these from the VFS so imfinfo works on the virtual + real FS).
-void peekTiff(const std::vector<std::uint8_t> &buf,
-              std::uint32_t &W,
-              std::uint32_t &H,
-              std::uint16_t &bits,
-              std::uint16_t &channels);
+void peekTiff(const std::vector<keel::u8> &buf,
+              keel::u32 &W,
+              keel::u32 &H,
+              keel::u16 &bits,
+              keel::u16 &channels);
 
 /// Count the number of IFDs (pages) in a TIFF file. Walks the IFD chain
 /// without decoding any pixel data.
-std::uint32_t tiffNumPages(const std::string &path);
+keel::u32 tiffNumPages(const std::string &path);
 
 /// Write `A` to `path` as a baseline TIFF. Companion to readTiff().
 ///
@@ -188,10 +189,10 @@ void writeTiff(const Value &A, const std::string &path,
 /// @param A            Image (uint8 / uint16; 1, 3, or 4 channels).
 /// @param compression  "none" | "packbits" | "lzw" | "deflate".
 /// @param existing     Optional bytes of a prior TIFF to append a page to.
-std::vector<std::uint8_t>
+std::vector<keel::u8>
 writeTiffToBytes(const Value &A,
                  const std::string &compression = "none",
-                 const std::vector<std::uint8_t> *existing = nullptr);
+                 const std::vector<keel::u8> *existing = nullptr);
 
 
 /// @}

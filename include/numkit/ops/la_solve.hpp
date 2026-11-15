@@ -17,9 +17,10 @@
 
 #pragma once
 
-#include <complex>
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/complex.h>
 #include <cstddef>
-#include <memory_resource>
 
 namespace numkit::ops {
 
@@ -30,17 +31,17 @@ namespace numkit::ops {
 // Returns false on: m < n (unsupported), singular A (square, zero pivot),
 // or rank-deficient A (tall, zero column norm or zero R diagonal). Internal
 // scratch is allocated via the supplied memory_resource.
-bool la_solve(const double *A, std::size_t m, std::size_t n,
-              const double *B, std::size_t nrhs,
-              double *X,
-              std::pmr::memory_resource *mr = nullptr);
+bool la_solve(const keel::f64 *A, keel::usize m, keel::usize n,
+              const keel::f64 *B, keel::usize nrhs,
+              keel::f64 *X,
+              keel::Allocator *mr = nullptr);
 
-bool la_solve(const std::complex<double> *A, std::size_t m, std::size_t n,
-              const std::complex<double> *B, std::size_t nrhs,
-              std::complex<double> *X,
-              std::pmr::memory_resource *mr = nullptr);
+bool la_solve(const keel::c64 *A, keel::usize m, keel::usize n,
+              const keel::c64 *B, keel::usize nrhs,
+              keel::c64 *X,
+              keel::Allocator *mr = nullptr);
 
-bool lu_factor_inplace(double *A, std::size_t lda, std::int32_t *piv, std::size_t m, std::size_t n);
-bool lu_factor_inplace(std::complex<double> *A, std::size_t lda, std::int32_t *piv, std::size_t m, std::size_t n);
+bool lu_factor_inplace(keel::f64 *A, keel::usize lda, keel::i32 *piv, keel::usize m, keel::usize n);
+bool lu_factor_inplace(keel::c64 *A, keel::usize lda, keel::i32 *piv, keel::usize m, keel::usize n);
 
 } // namespace numkit::ops

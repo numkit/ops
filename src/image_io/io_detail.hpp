@@ -9,11 +9,11 @@
 // Phase 2b compute/register split â€” see project_layering_refactor memory.
 #pragma once
 
+#include <keel/memory.h>
 #include <numkit/value/value.hpp>
 
 #include <algorithm>
 #include <cctype>
-#include <memory_resource>
 #include <string>
 
 namespace numkit::image {
@@ -34,6 +34,6 @@ inline std::string lowerExt(const std::string &path) {
 bool isTiffBytes(const std::string &b);
 
 // Decode an image from in-memory bytes â€” the single place pixels are produced.
-Value imreadFromBytes(const std::string &bytes, std::pmr::memory_resource *mr);
+Value imreadFromBytes(const std::string &bytes, keel::Allocator *mr);
 
 } // namespace numkit::image

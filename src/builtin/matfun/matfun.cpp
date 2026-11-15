@@ -2,9 +2,9 @@
 //
 // Matrix functions implementations for numkit::builtin.
 
+#include <keel/memory.h>
 #include <numkit/builtin/matfun.hpp>
 #include <numkit/value/value.hpp>
-#include <numkit/value/span.hpp>
 #include <numkit/builtin/ops.hpp>
 #include <numkit/builtin/datatypes.hpp>
 #include <numkit/builtin/elfun.hpp>
@@ -15,7 +15,7 @@
 
 namespace numkit::builtin {
 
-Value idivide(const Value &a, const Value &b, const std::string &mode, std::pmr::memory_resource *mr)
+Value idivide(const Value &a, const Value &b, const std::string &mode, keel::Allocator *mr)
 {
     std::string opt = mode;
     for (auto &c : opt)

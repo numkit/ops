@@ -11,6 +11,7 @@
 // pass. 4× unrolled accumulators preserve the same ILP pattern as the
 // existing binary-op SIMD loops.
 
+#include <keel/core.h>
 #include <numkit/ops/nan_reductions.hpp>
 
 #include <cmath>
@@ -28,15 +29,15 @@ namespace HWY_NAMESPACE {
 
 namespace hn = hwy::HWY_NAMESPACE;
 
-double NanSumScanLoop(const double *HWY_RESTRICT p, std::size_t n)
+double NanSumScanLoop(const double *HWY_RESTRICT p, keel::usize n)
 {
     const hn::ScalableTag<double> d;
-    const std::size_t N = hn::Lanes(d);
+    const keel::usize N = hn::Lanes(d);
     const auto zero = hn::Zero(d);
 
     auto a0 = zero, a1 = zero, a2 = zero, a3 = zero;
 
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i + 4 * N <= n; i += 4 * N) {
         const auto v0 = hn::LoadU(d, p + i + 0 * N);
         const auto v1 = hn::LoadU(d, p + i + 1 * N);
@@ -63,19 +64,19 @@ double NanSumScanLoop(const double *HWY_RESTRICT p, std::size_t n)
 // ReduceSum) avoids the cross-type mask juggling that would be needed
 // to keep counts in int64 — we never have N close to 2^53 so the
 // precision loss is nil.
-void NanSumCountScanLoop(const double *HWY_RESTRICT p, std::size_t n,
+void NanSumCountScanLoop(const double *HWY_RESTRICT p, keel::usize n,
                          double *HWY_RESTRICT outSum,
                          double *HWY_RESTRICT outCount)
 {
     const hn::ScalableTag<double> d;
-    const std::size_t N = hn::Lanes(d);
+    const keel::usize N = hn::Lanes(d);
     const auto zero = hn::Zero(d);
     const auto one  = hn::Set(d, 1.0);
 
     auto sum0 = zero, sum1 = zero, sum2 = zero, sum3 = zero;
     auto cnt0 = zero, cnt1 = zero, cnt2 = zero, cnt3 = zero;
 
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i + 4 * N <= n; i += 4 * N) {
         const auto v0 = hn::LoadU(d, p + i + 0 * N);
         const auto v1 = hn::LoadU(d, p + i + 1 * N);
@@ -120,12 +121,12 @@ void NanSumCountScanLoop(const double *HWY_RESTRICT p, std::size_t n,
 //
 // Returns the reduced value via outVal; sets *outAllNaN = 1.0 when no
 // lane carried a non-NaN element (so caller can return NaN).
-void NanMaxScanLoop(const double *HWY_RESTRICT p, std::size_t n,
+void NanMaxScanLoop(const double *HWY_RESTRICT p, keel::usize n,
                     double *HWY_RESTRICT outVal,
                     double *HWY_RESTRICT outAllNaN)
 {
     const hn::ScalableTag<double> d;
-    const std::size_t N = hn::Lanes(d);
+    const keel::usize N = hn::Lanes(d);
     const auto neg_inf = hn::Set(d, -std::numeric_limits<double>::infinity());
     const auto zero    = hn::Zero(d);
     const auto one     = hn::Set(d, 1.0);
@@ -133,7 +134,7 @@ void NanMaxScanLoop(const double *HWY_RESTRICT p, std::size_t n,
     auto m0 = neg_inf, m1 = neg_inf, m2 = neg_inf, m3 = neg_inf;
     auto cnt = zero;   // single accumulator is enough — only need >0 check
 
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i + 4 * N <= n; i += 4 * N) {
         const auto v0 = hn::LoadU(d, p + i + 0 * N);
         const auto v1 = hn::LoadU(d, p + i + 1 * N);
@@ -171,12 +172,12 @@ void NanMaxScanLoop(const double *HWY_RESTRICT p, std::size_t n,
     *outAllNaN = (validCount == 0.0) ? 1.0 : 0.0;
 }
 
-void NanMinScanLoop(const double *HWY_RESTRICT p, std::size_t n,
+void NanMinScanLoop(const double *HWY_RESTRICT p, keel::usize n,
                     double *HWY_RESTRICT outVal,
                     double *HWY_RESTRICT outAllNaN)
 {
     const hn::ScalableTag<double> d;
-    const std::size_t N = hn::Lanes(d);
+    const keel::usize N = hn::Lanes(d);
     const auto pos_inf = hn::Set(d, std::numeric_limits<double>::infinity());
     const auto zero    = hn::Zero(d);
     const auto one     = hn::Set(d, 1.0);
@@ -184,7 +185,7 @@ void NanMinScanLoop(const double *HWY_RESTRICT p, std::size_t n,
     auto m0 = pos_inf, m1 = pos_inf, m2 = pos_inf, m3 = pos_inf;
     auto cnt = zero;
 
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i + 4 * N <= n; i += 4 * N) {
         const auto v0 = hn::LoadU(d, p + i + 0 * N);
         const auto v1 = hn::LoadU(d, p + i + 1 * N);
@@ -224,16 +225,16 @@ void NanMinScanLoop(const double *HWY_RESTRICT p, std::size_t n,
 // Pass 2 of nan-aware variance: sum of (x - mean)^2 over non-NaN lanes.
 // NaN lanes contribute 0 to the accumulator. Caller divides by the
 // (count - {0,1}) it already computed in pass 1.
-double NanSumSqDevScanLoop(const double *HWY_RESTRICT p, std::size_t n,
+double NanSumSqDevScanLoop(const double *HWY_RESTRICT p, keel::usize n,
                            double mean)
 {
     const hn::ScalableTag<double> d;
-    const std::size_t N = hn::Lanes(d);
+    const keel::usize N = hn::Lanes(d);
     const auto vmean = hn::Set(d, mean);
     const auto zero  = hn::Zero(d);
     auto a0 = zero, a1 = zero, a2 = zero, a3 = zero;
 
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i + 4 * N <= n; i += 4 * N) {
         const auto v0 = hn::LoadU(d, p + i + 0 * N);
         const auto v1 = hn::LoadU(d, p + i + 1 * N);
@@ -282,21 +283,21 @@ HWY_EXPORT(NanMaxScanLoop);
 HWY_EXPORT(NanMinScanLoop);
 HWY_EXPORT(NanSumSqDevScanLoop);
 
-double nanSumScan(const double *p, std::size_t n)
+double nanSumScan(const double *p, keel::usize n)
 {
     if (n == 0) return 0.0;
     return HWY_DYNAMIC_DISPATCH(NanSumScanLoop)(p, n);
 }
 
-NanSumCount nanSumCountScan(const double *p, std::size_t n)
+NanSumCount nanSumCountScan(const double *p, keel::usize n)
 {
     if (n == 0) return {0.0, 0};
     double sum = 0.0, cnt = 0.0;
     HWY_DYNAMIC_DISPATCH(NanSumCountScanLoop)(p, n, &sum, &cnt);
-    return {sum, static_cast<std::size_t>(cnt)};
+    return {sum, static_cast<keel::usize>(cnt)};
 }
 
-double nanMaxScan(const double *p, std::size_t n)
+double nanMaxScan(const double *p, keel::usize n)
 {
     if (n == 0) return std::nan("");
     double best = 0.0, allNaN = 0.0;
@@ -304,7 +305,7 @@ double nanMaxScan(const double *p, std::size_t n)
     return (allNaN != 0.0) ? std::nan("") : best;
 }
 
-double nanMinScan(const double *p, std::size_t n)
+double nanMinScan(const double *p, keel::usize n)
 {
     if (n == 0) return std::nan("");
     double best = 0.0, allNaN = 0.0;
@@ -312,7 +313,7 @@ double nanMinScan(const double *p, std::size_t n)
     return (allNaN != 0.0) ? std::nan("") : best;
 }
 
-double nanVarianceTwoPass(const double *p, std::size_t n, int normFlag)
+double nanVarianceTwoPass(const double *p, keel::usize n, int normFlag)
 {
     if (n == 0) return std::nan("");
     const auto sc = nanSumCountScan(p, n);

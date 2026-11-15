@@ -19,6 +19,7 @@
 // leading-NaN prefix in src is preserved as NaN in dst by handling it
 // scalar-ly before entering the SIMD loop.
 
+#include <keel/core.h>
 #include "cumsum.hpp"
 
 #include <cmath>
@@ -47,7 +48,7 @@ namespace hn = hwy::HWY_NAMESPACE;
 template <class D>
 HWY_INLINE auto inVectorScanSum(D d, hn::VFromD<D> v)
 {
-    constexpr std::size_t N = hn::MaxLanes(d);
+    constexpr keel::usize N = hn::MaxLanes(d);
     if constexpr (N >= 2) v = hn::Add(v, hn::SlideUpLanes(d, v, 1));
     if constexpr (N >= 4) v = hn::Add(v, hn::SlideUpLanes(d, v, 2));
     if constexpr (N >= 8) v = hn::Add(v, hn::SlideUpLanes(d, v, 4));
@@ -62,7 +63,7 @@ HWY_INLINE auto inVectorScanSum(D d, hn::VFromD<D> v)
 template <class D, class Op>
 HWY_INLINE auto inVectorScanGen(D d, hn::VFromD<D> v, double identity, Op op)
 {
-    constexpr std::size_t N = hn::MaxLanes(d);
+    constexpr keel::usize N = hn::MaxLanes(d);
     const auto idVec = hn::Set(d, identity);
     if constexpr (N >= 2) {
         auto s = hn::SlideUpLanes(d, v, 1);
@@ -83,12 +84,12 @@ HWY_INLINE auto inVectorScanGen(D d, hn::VFromD<D> v, double identity, Op op)
 }
 
 void CumsumScanLoop(const double *HWY_RESTRICT src, double *HWY_RESTRICT dst,
-                    std::size_t n)
+                    keel::usize n)
 {
     const hn::ScalableTag<double> d;
-    const std::size_t N = hn::Lanes(d);
+    const keel::usize N = hn::Lanes(d);
     double carry = 0.0;
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i + N <= n; i += N) {
         const auto v = hn::LoadU(d, src + i);
         const auto scanned = inVectorScanSum(d, v);
@@ -103,12 +104,12 @@ void CumsumScanLoop(const double *HWY_RESTRICT src, double *HWY_RESTRICT dst,
 }
 
 void CumprodScanLoop(const double *HWY_RESTRICT src, double *HWY_RESTRICT dst,
-                     std::size_t n)
+                     keel::usize n)
 {
     const hn::ScalableTag<double> d;
-    const std::size_t N = hn::Lanes(d);
+    const keel::usize N = hn::Lanes(d);
     double carry = 1.0;
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i + N <= n; i += N) {
         const auto v = hn::LoadU(d, src + i);
         const auto scanned = inVectorScanGen(d, v, 1.0,
@@ -128,16 +129,16 @@ void CumprodScanLoop(const double *HWY_RESTRICT src, double *HWY_RESTRICT dst,
 // cummax / cummin: NaN-skip by replacing NaN with identity per lane.
 // Pre-masked vector goes into the standard prefix-Max scan.
 void CummaxScanLoopBody(const double *HWY_RESTRICT src,
-                        double *HWY_RESTRICT dst, std::size_t n,
+                        double *HWY_RESTRICT dst, keel::usize n,
                         double initialCarry)
 {
     const hn::ScalableTag<double> d;
-    const std::size_t N = hn::Lanes(d);
+    const keel::usize N = hn::Lanes(d);
     constexpr double NEG_INF = -std::numeric_limits<double>::infinity();
     const auto neg_inf_v = hn::Set(d, NEG_INF);
 
     double carry = initialCarry;
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i + N <= n; i += N) {
         auto v = hn::LoadU(d, src + i);
         v = hn::IfThenElse(hn::IsNaN(v), neg_inf_v, v);
@@ -155,16 +156,16 @@ void CummaxScanLoopBody(const double *HWY_RESTRICT src,
 }
 
 void CumminScanLoopBody(const double *HWY_RESTRICT src,
-                        double *HWY_RESTRICT dst, std::size_t n,
+                        double *HWY_RESTRICT dst, keel::usize n,
                         double initialCarry)
 {
     const hn::ScalableTag<double> d;
-    const std::size_t N = hn::Lanes(d);
+    const keel::usize N = hn::Lanes(d);
     constexpr double POS_INF = std::numeric_limits<double>::infinity();
     const auto pos_inf_v = hn::Set(d, POS_INF);
 
     double carry = initialCarry;
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i + N <= n; i += N) {
         auto v = hn::LoadU(d, src + i);
         v = hn::IfThenElse(hn::IsNaN(v), pos_inf_v, v);
@@ -193,13 +194,13 @@ HWY_EXPORT(CumprodScanLoop);
 HWY_EXPORT(CummaxScanLoopBody);
 HWY_EXPORT(CumminScanLoopBody);
 
-void cumsumScan(const double *src, double *dst, std::size_t n)
+void cumsumScan(const double *src, double *dst, keel::usize n)
 {
     if (n == 0) return;
     HWY_DYNAMIC_DISPATCH(CumsumScanLoop)(src, dst, n);
 }
 
-void cumprodScan(const double *src, double *dst, std::size_t n)
+void cumprodScan(const double *src, double *dst, keel::usize n)
 {
     if (n == 0) return;
     HWY_DYNAMIC_DISPATCH(CumprodScanLoop)(src, dst, n);
@@ -209,9 +210,9 @@ namespace {
 
 // Walk the leading-NaN prefix scalar-ly and emit NaN; returns the index
 // of the first non-NaN element (or n if the input is all-NaN).
-std::size_t copyLeadingNaN(const double *src, double *dst, std::size_t n)
+keel::usize copyLeadingNaN(const double *src, double *dst, keel::usize n)
 {
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i < n && std::isnan(src[i]); ++i)
         dst[i] = std::nan("");
     return i;
@@ -219,10 +220,10 @@ std::size_t copyLeadingNaN(const double *src, double *dst, std::size_t n)
 
 } // namespace
 
-void cummaxScan(const double *src, double *dst, std::size_t n)
+void cummaxScan(const double *src, double *dst, keel::usize n)
 {
     if (n == 0) return;
-    const std::size_t start = copyLeadingNaN(src, dst, n);
+    const keel::usize start = copyLeadingNaN(src, dst, n);
     if (start == n) return; // all-NaN â€” done
     // First non-NaN seeds the running max (matches scalar semantics).
     dst[start] = src[start];
@@ -233,10 +234,10 @@ void cummaxScan(const double *src, double *dst, std::size_t n)
                                              src[start]);
 }
 
-void cumminScan(const double *src, double *dst, std::size_t n)
+void cumminScan(const double *src, double *dst, keel::usize n)
 {
     if (n == 0) return;
-    const std::size_t start = copyLeadingNaN(src, dst, n);
+    const keel::usize start = copyLeadingNaN(src, dst, n);
     if (start == n) return;
     dst[start] = src[start];
     if (start + 1 == n) return;

@@ -3,6 +3,11 @@
 // Page-wise linalg ops on 3-D arrays. All wrappers iterate over
 // pages and dispatch to the 2-D variant.
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/arena.h>
+#include <keel/array.h>
+#include <keel/complex.h>
 #include <numkit/linalg/page_ops.hpp>
 
 #include <numkit/linalg/decompositions.hpp>   // chol/lu/qr/svd
@@ -18,8 +23,6 @@
 // (CallContext wrappers) live in page_ops_reg.cpp.
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
-#include <numkit/value/scratch.hpp>
-#include <numkit/value/span.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -30,22 +33,22 @@ namespace numkit::linalg {
 
 namespace {
 
-void fillIdentity(double *buf, std::size_t n)
+void fillIdentity(double *buf, keel::usize n)
 {
     std::fill(buf, buf + n * n, 0.0);
-    for (std::size_t i = 0; i < n; ++i)
+    for (keel::usize i = 0; i < n; ++i)
         buf[i + i * n] = 1.0;
 }
 
 // Make a stand-alone 2-D Value from page `p` of a 3-D source. We
 // copy the mÃ—n block into a fresh allocation so the 2-D linalg fn
 // can do whatever scratch it needs without seeing 3-D dims.
-Value pageView(const Value &A, std::size_t p, std::size_t m, std::size_t n,
-               std::pmr::memory_resource *mr)
+Value pageView(const Value &A, keel::usize p, keel::usize m, keel::usize n,
+               keel::Allocator *mr)
 {
     if (A.isComplex()) {
         auto out = Value::matrix(m, n, ValueType::COMPLEX, mr);
-        const std::complex<double> *src = A.complexData() + p * m * n;
+        const keel::c64 *src = A.complexData() + p * m * n;
         std::copy(src, src + m * n, out.complexDataMut());
         return out;
     }
@@ -53,7 +56,7 @@ Value pageView(const Value &A, std::size_t p, std::size_t m, std::size_t n,
     if (A.type() == ValueType::SINGLE) {
         const float *src = A.singleData() + p * m * n;
         double *dst = out.doubleDataMut();
-        for (std::size_t i = 0; i < m * n; ++i)
+        for (keel::usize i = 0; i < m * n; ++i)
             dst[i] = static_cast<double>(src[i]);
         return out;
     }
@@ -62,22 +65,22 @@ Value pageView(const Value &A, std::size_t p, std::size_t m, std::size_t n,
     return out;
 }
 
-std::tuple<std::size_t, std::size_t, std::size_t>
+std::tuple<keel::usize, keel::usize, keel::usize>
 pageShape(const Value &A, const char *who)
 {
     const int nd = A.dims().ndim();
     if (nd < 2 || nd > 3)
         throw Error(std::string(who) + ": input must be 2-D or 3-D",
                     0, 0, who, "", std::string("numkit:") + who + ":badDim");
-    const std::size_t m = static_cast<std::size_t>(A.dims().dim(0));
-    const std::size_t n = static_cast<std::size_t>(A.dims().dim(1));
-    const std::size_t p = (nd == 2) ? 1 : static_cast<std::size_t>(A.dims().dim(2));
+    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
+    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
+    const keel::usize p = (nd == 2) ? 1 : static_cast<keel::usize>(A.dims().dim(2));
     return {m, n, p};
 }
 
 // Make a 3-D output (or 2-D if pages == 1, matching input rank).
-Value makePageOutput(std::size_t m, std::size_t n, std::size_t pages, bool input_was_3d,
-                     std::pmr::memory_resource *mr)
+Value makePageOutput(keel::usize m, keel::usize n, keel::usize pages, bool input_was_3d,
+                     keel::Allocator *mr)
 {
     if (!input_was_3d)
         return Value::matrix(m, n, ValueType::DOUBLE, mr);
@@ -86,7 +89,7 @@ Value makePageOutput(std::size_t m, std::size_t n, std::size_t pages, bool input
 
 } // anonymous namespace
 
-Value pageinv(const Value &A, std::pmr::memory_resource *mr)
+Value pageinv(const Value &A, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "pageinv");
     auto [m, n, pages] = pageShape(A, "pageinv");
@@ -99,26 +102,26 @@ Value pageinv(const Value &A, std::pmr::memory_resource *mr)
 
     Value Aw = detail::widenSingleToDouble(A, mr);
 
-    ScratchArena scratch(mr);
-    ScratchVec<double> A_buf(m * n, &scratch);
-    ScratchVec<double> I_buf(n * n, &scratch);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<double> A_buf(m * n, scratch.allocator());
+    keel::Array<double> I_buf(n * n, scratch.allocator());
     const double *src = Aw.doubleData();
     double *dst = out.doubleDataMut();
-    const std::size_t stride = m * n;
+    const keel::usize stride = m * n;
 
-    for (std::size_t p = 0; p < pages; ++p) {
+    for (keel::usize p = 0; p < pages; ++p) {
         std::copy(src + p * stride, src + (p + 1) * stride, A_buf.begin());
         fillIdentity(I_buf.data(), n);
         if (!numkit::ops::la_solve(A_buf.data(), m, n,
                                                 I_buf.data(), n,
-                                                dst + p * stride, &scratch))
+                                                dst + p * stride, scratch.allocator()))
             throw Error("pageinv: page is singular",
                         0, 0, "pageinv", "", "numkit:pageinv:singular");
     }
     return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
 
-Value pageeig_values(const Value &A, std::pmr::memory_resource *mr)
+Value pageeig_values(const Value &A, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "pageeig");
     auto [m, n, pages] = pageShape(A, "pageeig");
@@ -134,7 +137,7 @@ Value pageeig_values(const Value &A, std::pmr::memory_resource *mr)
 
     auto out = Value::matrix3d(n, 1, pages, ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
-    for (std::size_t p = 0; p < pages; ++p) {
+    for (keel::usize p = 0; p < pages; ++p) {
         auto pg = pageView(A, p, m, n, mr);
         Value evs;
         try { evs = eig_values(pg, mr); }
@@ -148,7 +151,7 @@ Value pageeig_values(const Value &A, std::pmr::memory_resource *mr)
 }
 
 std::tuple<Value, Value>
-pageeig_VD(const Value &A, std::pmr::memory_resource *mr)
+pageeig_VD(const Value &A, keel::Allocator *mr)
 {
     auto [m, n, pages] = pageShape(A, "pageeig");
     if (m != n)
@@ -165,8 +168,8 @@ pageeig_VD(const Value &A, std::pmr::memory_resource *mr)
     auto D = Value::matrix3d(n, n, pages, ValueType::DOUBLE, mr);
     double *Vd = V.doubleDataMut();
     double *Dd = D.doubleDataMut();
-    const std::size_t stride = n * n;
-    for (std::size_t p = 0; p < pages; ++p) {
+    const keel::usize stride = n * n;
+    for (keel::usize p = 0; p < pages; ++p) {
         auto pg = pageView(A, p, m, n, mr);
         Value Vp, Dp;
         try {
@@ -184,11 +187,11 @@ pageeig_VD(const Value &A, std::pmr::memory_resource *mr)
         detail::narrowDoubleToSingleIf(D, wantSingle, mr));
 }
 
-Value pagesvd_values(const Value &A, std::pmr::memory_resource *mr)
+Value pagesvd_values(const Value &A, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "pagesvd");
     auto [m, n, pages] = pageShape(A, "pagesvd");
-    const std::size_t k = std::min(m, n);
+    const keel::usize k = std::min(m, n);
 
     const bool wantSingle = A.type() == ValueType::SINGLE;
     if (A.dims().ndim() == 2)
@@ -196,7 +199,7 @@ Value pagesvd_values(const Value &A, std::pmr::memory_resource *mr)
 
     auto out = Value::matrix3d(k, 1, pages, ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
-    for (std::size_t p = 0; p < pages; ++p) {
+    for (keel::usize p = 0; p < pages; ++p) {
         auto pg = pageView(A, p, m, n, mr);
         auto sv = svd_values(pg, mr);
         std::copy(sv.doubleData(), sv.doubleData() + k, od + p * k);
@@ -205,7 +208,7 @@ Value pagesvd_values(const Value &A, std::pmr::memory_resource *mr)
 }
 
 std::tuple<Value, Value, Value>
-pagesvd_decompose(const Value &A, std::pmr::memory_resource *mr)
+pagesvd_decompose(const Value &A, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "pagesvd");
     auto [m, n, pages] = pageShape(A, "pagesvd");
@@ -220,8 +223,8 @@ pagesvd_decompose(const Value &A, std::pmr::memory_resource *mr)
     double *Ud = U.doubleDataMut();
     double *Sd = S.doubleDataMut();
     double *Vd = V.doubleDataMut();
-    const std::size_t uStride = m * m, sStride = m * n, vStride = n * n;
-    for (std::size_t p = 0; p < pages; ++p) {
+    const keel::usize uStride = m * m, sStride = m * n, vStride = n * n;
+    for (keel::usize p = 0; p < pages; ++p) {
         auto pg = pageView(A, p, m, n, mr);
         auto [u, s, v] = svd_decompose(pg, mr);
         std::copy(u.doubleData(), u.doubleData() + uStride, Ud + p * uStride);
@@ -234,7 +237,7 @@ pagesvd_decompose(const Value &A, std::pmr::memory_resource *mr)
         detail::narrowDoubleToSingleIf(V, wantSingle, mr));
 }
 
-Value pagepinv(const Value &A, double tol, std::pmr::memory_resource *mr)
+Value pagepinv(const Value &A, double tol, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "pagepinv");
     auto [m, n, pages] = pageShape(A, "pagepinv");
@@ -245,8 +248,8 @@ Value pagepinv(const Value &A, double tol, std::pmr::memory_resource *mr)
 
     auto out = Value::matrix3d(n, m, pages, ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
-    const std::size_t outStride = n * m;
-    for (std::size_t p = 0; p < pages; ++p) {
+    const keel::usize outStride = n * m;
+    for (keel::usize p = 0; p < pages; ++p) {
         auto pg = pageView(A, p, m, n, mr);
         if (wantSingle && tol < 0.0) {
             pg = detail::narrowDoubleToSingle(pg, mr);
@@ -260,7 +263,7 @@ Value pagepinv(const Value &A, double tol, std::pmr::memory_resource *mr)
 namespace {
 
 Value scalarNormDispatch(const Value &page, double p, bool fro_flag, bool inf_flag,
-                         std::pmr::memory_resource *mr)
+                         keel::Allocator *mr)
 {
     if (fro_flag) return norm_fro(page, mr);
     if (inf_flag || std::isinf(p)) return norm_inf(page, mr);
@@ -269,7 +272,7 @@ Value scalarNormDispatch(const Value &page, double p, bool fro_flag, bool inf_fl
 
 } // anonymous namespace
 
-Value pagenorm(const Value &A, double p, std::pmr::memory_resource *mr)
+Value pagenorm(const Value &A, double p, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "pagenorm");
     auto [m, n, pages] = pageShape(A, "pagenorm");
@@ -280,7 +283,7 @@ Value pagenorm(const Value &A, double p, std::pmr::memory_resource *mr)
 
     auto out = Value::matrix3d(1, 1, pages, ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
-    for (std::size_t pp = 0; pp < pages; ++pp) {
+    for (keel::usize pp = 0; pp < pages; ++pp) {
         auto pg = pageView(A, pp, m, n, mr);
         auto sv = scalarNormDispatch(pg, p, /*fro=*/false, /*inf=*/false, mr);
         od[pp] = sv.toScalar();
@@ -293,15 +296,15 @@ namespace {
 // Validate compatible page counts. Allow one of the operands to be
 // 2-D (broadcast over pages).
 void checkPagePair(const Value &A, const Value &B, const char *who,
-                   std::size_t &pages)
+                   keel::usize &pages)
 {
     const int nda = A.dims().ndim();
     const int ndb = B.dims().ndim();
     if (nda < 2 || nda > 3 || ndb < 2 || ndb > 3)
         throw Error(std::string(who) + ": inputs must be 2-D or 3-D",
                     0, 0, who, "", std::string("numkit:") + who + ":badDim");
-    const std::size_t pa = (nda == 2) ? 1 : static_cast<std::size_t>(A.dims().dim(2));
-    const std::size_t pb = (ndb == 2) ? 1 : static_cast<std::size_t>(B.dims().dim(2));
+    const keel::usize pa = (nda == 2) ? 1 : static_cast<keel::usize>(A.dims().dim(2));
+    const keel::usize pb = (ndb == 2) ? 1 : static_cast<keel::usize>(B.dims().dim(2));
     if (pa == pb)            pages = pa;
     else if (pa == 1)        pages = pb;
     else if (pb == 1)        pages = pa;
@@ -310,8 +313,8 @@ void checkPagePair(const Value &A, const Value &B, const char *who,
                     0, 0, who, "", std::string("numkit:") + who + ":pageMismatch");
 }
 
-Value pageOfA(const Value &A, std::size_t p, std::size_t m, std::size_t n,
-              std::pmr::memory_resource *mr)
+Value pageOfA(const Value &A, keel::usize p, keel::usize m, keel::usize n,
+              keel::Allocator *mr)
 {
     if (A.dims().ndim() == 2 || A.dims().dim(2) == 1)
         return pageView(A, 0, m, n, mr);
@@ -320,16 +323,16 @@ Value pageOfA(const Value &A, std::size_t p, std::size_t m, std::size_t n,
 
 } // anonymous namespace
 
-Value pagemldivide(const Value &A, const Value &B, std::pmr::memory_resource *mr)
+Value pagemldivide(const Value &A, const Value &B, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "pagemldivide", "A", 1);
     detail::requireDoubleInput(B, "pagemldivide", "B", 2);
-    std::size_t pages = 0;
+    keel::usize pages = 0;
     checkPagePair(A, B, "pagemldivide", pages);
-    const std::size_t mA = static_cast<std::size_t>(A.dims().dim(0));
-    const std::size_t nA = static_cast<std::size_t>(A.dims().dim(1));
-    const std::size_t mB = static_cast<std::size_t>(B.dims().dim(0));
-    const std::size_t nB = static_cast<std::size_t>(B.dims().dim(1));
+    const keel::usize mA = static_cast<keel::usize>(A.dims().dim(0));
+    const keel::usize nA = static_cast<keel::usize>(A.dims().dim(1));
+    const keel::usize mB = static_cast<keel::usize>(B.dims().dim(0));
+    const keel::usize nB = static_cast<keel::usize>(B.dims().dim(1));
     if (mA != mB)
         throw Error("pagemldivide: row counts of A and B must match",
                     0, 0, "pagemldivide", "", "numkit:pagemldivide:badRows");
@@ -341,20 +344,20 @@ Value pagemldivide(const Value &A, const Value &B, std::pmr::memory_resource *mr
     auto out = any3d
         ? Value::matrix3d(nA, nB, pages, outT, mr)
         : Value::matrix(nA, nB, outT, mr);
-    const std::size_t outStride = nA * nB;
+    const keel::usize outStride = nA * nB;
 
-    for (std::size_t p = 0; p < pages; ++p) {
+    for (keel::usize p = 0; p < pages; ++p) {
         auto ap = pageOfA(A, p, mA, nA, mr);
         auto bp = pageOfA(B, p, mB, nB, mr);
         auto xp = linsolve(ap, bp, mr);
         if (anyCx) {
-            std::complex<double> *dst = out.complexDataMut() + p * outStride;
+            keel::c64 *dst = out.complexDataMut() + p * outStride;
             if (xp.isComplex()) {
-                const std::complex<double> *xs = xp.complexData();
+                const keel::c64 *xs = xp.complexData();
                 std::copy(xs, xs + outStride, dst);
             } else {
                 const double *xs = xp.doubleData();
-                for (std::size_t i = 0; i < outStride; ++i) dst[i] = xs[i];
+                for (keel::usize i = 0; i < outStride; ++i) dst[i] = xs[i];
             }
         } else {
             const double *xs = xp.doubleData();
@@ -365,16 +368,16 @@ Value pagemldivide(const Value &A, const Value &B, std::pmr::memory_resource *mr
     return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
 
-Value pagemrdivide(const Value &A, const Value &B, std::pmr::memory_resource *mr)
+Value pagemrdivide(const Value &A, const Value &B, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "pagemrdivide", "A", 1);
     detail::requireDoubleInput(B, "pagemrdivide", "B", 2);
-    std::size_t pages = 0;
+    keel::usize pages = 0;
     checkPagePair(A, B, "pagemrdivide", pages);
-    const std::size_t mA = static_cast<std::size_t>(A.dims().dim(0));
-    const std::size_t nA = static_cast<std::size_t>(A.dims().dim(1));
-    const std::size_t mB = static_cast<std::size_t>(B.dims().dim(0));
-    const std::size_t nB = static_cast<std::size_t>(B.dims().dim(1));
+    const keel::usize mA = static_cast<keel::usize>(A.dims().dim(0));
+    const keel::usize nA = static_cast<keel::usize>(A.dims().dim(1));
+    const keel::usize mB = static_cast<keel::usize>(B.dims().dim(0));
+    const keel::usize nB = static_cast<keel::usize>(B.dims().dim(1));
     if (nA != nB)
         throw Error("pagemrdivide: column counts of A and B must match",
                     0, 0, "pagemrdivide", "", "numkit:pagemrdivide:badCols");
@@ -386,53 +389,53 @@ Value pagemrdivide(const Value &A, const Value &B, std::pmr::memory_resource *mr
     auto out = any3d
         ? Value::matrix3d(mA, mB, pages, outT, mr)
         : Value::matrix(mA, mB, outT, mr);
-    const std::size_t outStride = mA * mB;
+    const keel::usize outStride = mA * mB;
 
-    for (std::size_t p = 0; p < pages; ++p) {
+    for (keel::usize p = 0; p < pages; ++p) {
         auto ap = pageOfA(A, p, mA, nA, mr);
         auto bp = pageOfA(B, p, mB, nB, mr);
         auto ap_T = Value::matrix(nA, mA, ap.type(), mr);
         auto bp_T = Value::matrix(nB, mB, bp.type(), mr);
         if (ap.isComplex()) {
-            const std::complex<double> *as = ap.complexData();
-            std::complex<double> *at = ap_T.complexDataMut();
-            for (std::size_t i = 0; i < mA; ++i)
-                for (std::size_t j = 0; j < nA; ++j)
+            const keel::c64 *as = ap.complexData();
+            keel::c64 *at = ap_T.complexDataMut();
+            for (keel::usize i = 0; i < mA; ++i)
+                for (keel::usize j = 0; j < nA; ++j)
                     at[j + i * nA] = as[i + j * mA];
         } else {
             const double *as = ap.doubleData();
             double *at = ap_T.doubleDataMut();
-            for (std::size_t i = 0; i < mA; ++i)
-                for (std::size_t j = 0; j < nA; ++j)
+            for (keel::usize i = 0; i < mA; ++i)
+                for (keel::usize j = 0; j < nA; ++j)
                     at[j + i * nA] = as[i + j * mA];
         }
         if (bp.isComplex()) {
-            const std::complex<double> *bs = bp.complexData();
-            std::complex<double> *bt = bp_T.complexDataMut();
-            for (std::size_t i = 0; i < mB; ++i)
-                for (std::size_t j = 0; j < nB; ++j)
+            const keel::c64 *bs = bp.complexData();
+            keel::c64 *bt = bp_T.complexDataMut();
+            for (keel::usize i = 0; i < mB; ++i)
+                for (keel::usize j = 0; j < nB; ++j)
                     bt[j + i * nB] = bs[i + j * mB];
         } else {
             const double *bs = bp.doubleData();
             double *bt = bp_T.doubleDataMut();
-            for (std::size_t i = 0; i < mB; ++i)
-                for (std::size_t j = 0; j < nB; ++j)
+            for (keel::usize i = 0; i < mB; ++i)
+                for (keel::usize j = 0; j < nB; ++j)
                     bt[j + i * nB] = bs[i + j * mB];
         }
         auto xt = linsolve(bp_T, ap_T, mr);
         if (anyCx) {
-            const std::complex<double> *xc = xt.isComplex() ? xt.complexData() : nullptr;
+            const keel::c64 *xc = xt.isComplex() ? xt.complexData() : nullptr;
             const double *xd = xc ? nullptr : xt.doubleData();
-            std::complex<double> *dst = out.complexDataMut() + p * outStride;
-            for (std::size_t i = 0; i < mA; ++i)
-                for (std::size_t j = 0; j < mB; ++j)
+            keel::c64 *dst = out.complexDataMut() + p * outStride;
+            for (keel::usize i = 0; i < mA; ++i)
+                for (keel::usize j = 0; j < mB; ++j)
                     dst[i + j * mA] = xc ? xc[j + i * mB]
-                                          : std::complex<double>(xd[j + i * mB], 0.0);
+                                          : keel::c64(xd[j + i * mB], 0.0);
         } else {
             const double *xs = xt.doubleData();
             double *dst = out.doubleDataMut() + p * outStride;
-            for (std::size_t i = 0; i < mA; ++i)
-                for (std::size_t j = 0; j < mB; ++j)
+            for (keel::usize i = 0; i < mA; ++i)
+                for (keel::usize j = 0; j < mB; ++j)
                     dst[i + j * mA] = xs[j + i * mB];
         }
     }
@@ -440,16 +443,16 @@ Value pagemrdivide(const Value &A, const Value &B, std::pmr::memory_resource *mr
 }
 
 Value pagelsqminnorm(const Value &A, const Value &B, bool have_tol, double tol_user,
-                     std::pmr::memory_resource *mr)
+                     keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "pagelsqminnorm", "A", 1);
     detail::requireDoubleInput(B, "pagelsqminnorm", "B", 2);
-    std::size_t pages = 0;
+    keel::usize pages = 0;
     checkPagePair(A, B, "pagelsqminnorm", pages);
-    const std::size_t mA = static_cast<std::size_t>(A.dims().dim(0));
-    const std::size_t nA = static_cast<std::size_t>(A.dims().dim(1));
-    const std::size_t mB = static_cast<std::size_t>(B.dims().dim(0));
-    const std::size_t nB = static_cast<std::size_t>(B.dims().dim(1));
+    const keel::usize mA = static_cast<keel::usize>(A.dims().dim(0));
+    const keel::usize nA = static_cast<keel::usize>(A.dims().dim(1));
+    const keel::usize mB = static_cast<keel::usize>(B.dims().dim(0));
+    const keel::usize nB = static_cast<keel::usize>(B.dims().dim(1));
     if (mA != mB)
         throw Error("pagelsqminnorm: row counts of A and B must match",
                     0, 0, "pagelsqminnorm", "", "numkit:pagelsqminnorm:badRows");
@@ -460,9 +463,9 @@ Value pagelsqminnorm(const Value &A, const Value &B, bool have_tol, double tol_u
         ? Value::matrix3d(nA, nB, pages, ValueType::DOUBLE, mr)
         : Value::matrix(nA, nB, ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
-    const std::size_t outStride = nA * nB;
+    const keel::usize outStride = nA * nB;
 
-    for (std::size_t p = 0; p < pages; ++p) {
+    for (keel::usize p = 0; p < pages; ++p) {
         auto ap = pageOfA(A, p, mA, nA, mr);
         auto bp = pageOfA(B, p, mB, nB, mr);
         if (wantSingle && !have_tol) {

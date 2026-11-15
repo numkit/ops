@@ -1,15 +1,16 @@
 #pragma once
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/array.h>
+#include <keel/complex.h>
 #include <numkit/value/value.hpp>
-#include <numkit/value/scratch.hpp>
 #include <numkit/ops/fft/fft_radix2.hpp>   // numkit::fftRadix2(buf,N,W) base butterfly (ops-layer)
 
 #define _USE_MATH_DEFINES
 #include <algorithm>
 #include <cmath>
-#include <complex>
 #include <cstddef>
-#include <memory_resource>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -30,14 +31,14 @@ namespace numkit {
 // dir=+1 matches the current sign convention used by fftRadix2 and
 // its conjugate-trick inverse wrapper in fft.cpp.
 // ============================================================
-inline void fillFftTwiddles(Complex *W, size_t N, int dir)
+inline void fillFftTwiddles(keel::c64 *W, keel::usize N, int dir)
 {
-    const size_t half = N / 2;
+    const keel::usize half = N / 2;
     if (half == 0) return;
     const double base = dir * 2.0 * M_PI / static_cast<double>(N);
-    for (size_t k = 0; k < half; ++k) {
+    for (keel::usize k = 0; k < half; ++k) {
         const double a = base * static_cast<double>(k);
-        W[k] = Complex(std::cos(a), std::sin(a));
+        W[k] = keel::c64(std::cos(a), std::sin(a));
     }
 }
 
@@ -54,11 +55,11 @@ inline void fillFftTwiddles(Complex *W, size_t N, int dir)
 // time_frequency/, transforms/hilbert.cpp). For hot paths
 // (fftAlongDim in fft.cpp), prefer the primary overload + fillFftTwiddles
 // so the table cost amortises.
-inline void fftRadix2(std::pmr::memory_resource *mr,
-                      Complex *buf, size_t N, int dir)
+inline void fftRadix2(keel::Allocator *mr,
+                      keel::c64 *buf, keel::usize N, int dir)
 {
     if (N <= 1) return;
-    ScratchVec<Complex> W(N / 2, mr);
+    keel::Array<keel::c64> W(N / 2, mr);
     fillFftTwiddles(W.data(), N, dir);
     fftRadix2(buf, N, W.data());
 }
@@ -66,7 +67,7 @@ inline void fftRadix2(std::pmr::memory_resource *mr,
 // Container overload — buf.data() + buf.size() + dir. Handles both
 // std::vector<Complex> and std::pmr::vector<Complex>.
 template <typename Container>
-inline auto fftRadix2(std::pmr::memory_resource *mr, Container &buf, int dir)
+inline auto fftRadix2(keel::Allocator *mr, Container &buf, int dir)
     -> decltype(buf.data(), buf.size(), void())
 {
     fftRadix2(mr, buf.data(), buf.size(), dir);
@@ -75,11 +76,11 @@ inline auto fftRadix2(std::pmr::memory_resource *mr, Container &buf, int dir)
 // ============================================================
 // Next power of 2 >= n
 // ============================================================
-inline size_t nextPow2(size_t n)
+inline keel::usize nextPow2(keel::usize n)
 {
     if (n == 0)
         return 1;
-    size_t p = 1;
+    keel::usize p = 1;
     while (p < n)
         p <<= 1;
     return p;
@@ -89,19 +90,19 @@ inline size_t nextPow2(size_t n)
 // Prepare complex buffer from Value (real or complex)
 // with zero-padding to fftLen.
 // ============================================================
-inline ScratchVec<Complex> prepareFFTBuffer(std::pmr::memory_resource *mr,
+inline keel::Array<keel::c64> prepareFFTBuffer(keel::Allocator *mr,
                                             const Value &x,
-                                            size_t inputLen, size_t fftLen)
+                                            keel::usize inputLen, keel::usize fftLen)
 {
-    ScratchVec<Complex> buf(fftLen, mr);
+    keel::Array<keel::c64> buf(fftLen, mr);
     if (x.isComplex()) {
-        const Complex *src = x.complexData();
-        for (size_t i = 0; i < inputLen; ++i)
+        const keel::c64 *src = x.complexData();
+        for (keel::usize i = 0; i < inputLen; ++i)
             buf[i] = src[i];
     } else {
         const double *src = x.doubleData();
-        for (size_t i = 0; i < inputLen; ++i)
-            buf[i] = Complex(src[i], 0.0);
+        for (keel::usize i = 0; i < inputLen; ++i)
+            buf[i] = keel::c64(src[i], 0.0);
     }
     return buf;
 }
@@ -111,11 +112,11 @@ inline ScratchVec<Complex> prepareFFTBuffer(std::pmr::memory_resource *mr,
 // Pointer + size, not a container reference, so the same helper
 // composes with std::vector, std::pmr::vector, raw arrays, etc.
 // ============================================================
-inline Value packComplexResult(const Complex *buf, size_t outLen, std::pmr::memory_resource *mr)
+inline Value packComplexResult(const keel::c64 *buf, keel::usize outLen, keel::Allocator *mr)
 {
     auto r = Value::complexMatrix(1, outLen, mr);
-    Complex *dst = r.complexDataMut();
-    for (size_t i = 0; i < outLen; ++i)
+    keel::c64 *dst = r.complexDataMut();
+    for (keel::usize i = 0; i < outLen; ++i)
         dst[i] = buf[i];
     return r;
 }
@@ -127,42 +128,42 @@ inline Value packComplexResult(const Complex *buf, size_t outLen, std::pmr::memo
 // ============================================================
 // FFT-based convolution O(N log N)
 // ============================================================
-inline ScratchVec<double> convFFT(std::pmr::memory_resource *mr,
-                                  const double *a, size_t na,
-                                  const double *b, size_t nb)
+inline keel::Array<double> convFFT(keel::Allocator *mr,
+                                  const double *a, keel::usize na,
+                                  const double *b, keel::usize nb)
 {
-    size_t nc = na + nb - 1;
-    size_t fftLen = nextPow2(nc);
+    keel::usize nc = na + nb - 1;
+    keel::usize fftLen = nextPow2(nc);
 
-    ScratchVec<Complex> fa(fftLen, mr);
-    ScratchVec<Complex> fb(fftLen, mr);
-    for (size_t i = 0; i < na; ++i) fa[i] = Complex(a[i], 0.0);
-    for (size_t i = 0; i < nb; ++i) fb[i] = Complex(b[i], 0.0);
+    keel::Array<keel::c64> fa(fftLen, mr);
+    keel::Array<keel::c64> fb(fftLen, mr);
+    for (keel::usize i = 0; i < na; ++i) fa[i] = keel::c64(a[i], 0.0);
+    for (keel::usize i = 0; i < nb; ++i) fb[i] = keel::c64(b[i], 0.0);
 
     // Forward twiddles used for both fa and fb; inverse twiddles used
     // once for fa. Hoisting them here saves two tables' worth of work
     // vs the convenience overload.
-    ScratchVec<Complex> W_fwd(fftLen / 2, mr);
-    ScratchVec<Complex> W_inv(fftLen / 2, mr);
+    keel::Array<keel::c64> W_fwd(fftLen / 2, mr);
+    keel::Array<keel::c64> W_inv(fftLen / 2, mr);
     fillFftTwiddles(W_fwd.data(), fftLen, +1);
     fillFftTwiddles(W_inv.data(), fftLen, -1);
 
     fftRadix2(fa.data(), fftLen, W_fwd.data());
     fftRadix2(fb.data(), fftLen, W_fwd.data());
 
-    for (size_t i = 0; i < fftLen; ++i)
+    for (keel::usize i = 0; i < fftLen; ++i)
         fa[i] *= fb[i];
 
     fftRadix2(fa.data(), fftLen, W_inv.data());
 
     double invN = 1.0 / static_cast<double>(fftLen);
-    ScratchVec<double> c(nc, mr);
-    for (size_t i = 0; i < nc; ++i)
+    keel::Array<double> c(nc, mr);
+    for (keel::usize i = 0; i < nc; ++i)
         c[i] = fa[i].real() * invN;
     return c;
 }
 
 // Threshold for switching conv from direct to FFT
-constexpr size_t CONV_FFT_THRESHOLD = 500;
+constexpr keel::usize CONV_FFT_THRESHOLD = 500;
 
 } // namespace numkit

@@ -5,11 +5,15 @@
 // movement (memcpy where possible) — no SIMD opportunity beyond what
 // the compiler auto-vectorises in the inner copy loops.
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/ref.h>
+#include <keel/arena.h>
+#include <keel/array.h>
 #include <numkit/builtin/elmat.hpp>
 #include <numkit/builtin/ops.hpp>
 
 #include <numkit/value/value.hpp>
-#include <numkit/value/scratch.hpp>
 #include <numkit/value/shape_ops.hpp>
 #include <numkit/value/error.hpp>
 
@@ -30,21 +34,21 @@ namespace numkit::builtin {
 //
 // Tile the input matrix m × n times (and optionally p times along
 // pages for the 3D form). Output dims: (R*m) × (C*n) × (P*p).
-Value repmat(const Value &x, size_t m, size_t n, size_t p, std::pmr::memory_resource *mr)
+Value repmat(const Value &x, keel::usize m, keel::usize n, keel::usize p, keel::Allocator *mr)
 {
     // STRING / CELL / non-DOUBLE types delegate to the ND path which
     // handles them. The fast 2-D DOUBLE memcpy loop below assumes
     // contiguous double storage. See BUGS.md #6.
     const ValueType t = x.type();
     if (t != ValueType::DOUBLE) {
-        const size_t tiles[3] = { m, n, p };
-        const size_t nd = (p > 1 || x.dims().is3D()) ? 3 : 2;
-        return repmatND(x, Span<const size_t>(tiles, nd), mr);
+        const keel::usize tiles[3] = { m, n, p };
+        const keel::usize nd = (p > 1 || x.dims().is3D()) ? 3 : 2;
+        return repmatND(x, keel::ArrayRef<keel::usize>(tiles, nd), mr);
     }
     const auto &dd = x.dims();
-    const size_t R = dd.rows(), C = dd.cols();
-    const size_t P = dd.is3D() ? dd.pages() : 1;
-    const size_t outR = R * m, outC = C * n, outP = P * p;
+    const keel::usize R = dd.rows(), C = dd.cols();
+    const keel::usize P = dd.is3D() ? dd.pages() : 1;
+    const keel::usize outR = R * m, outC = C * n, outP = P * p;
     const bool out3D = (outP > 1) || dd.is3D();
 
     auto r = out3D ? Value::matrix3d(outR, outC, outP, ValueType::DOUBLE, mr)
@@ -62,19 +66,19 @@ Value repmat(const Value &x, size_t m, size_t n, size_t p, std::pmr::memory_reso
     // shortcut on the per-page cost. The win here is ONLY for p > 1
     // (page replication) where one big memcpy per page beats redoing
     // the per-column tile loop.
-    for (size_t srcPage = 0; srcPage < P; ++srcPage) {
+    for (keel::usize srcPage = 0; srcPage < P; ++srcPage) {
         double *firstPage = dst + (0 * P + srcPage) * outR * outC;
-        for (size_t cTile = 0; cTile < n; ++cTile) {
-            for (size_t c = 0; c < C; ++c) {
+        for (keel::usize cTile = 0; cTile < n; ++cTile) {
+            for (keel::usize c = 0; c < C; ++c) {
                 const double *colSrc = src + srcPage * R * C + c * R;
-                for (size_t rTile = 0; rTile < m; ++rTile) {
+                for (keel::usize rTile = 0; rTile < m; ++rTile) {
                     double *colDst = firstPage + (cTile * C + c) * outR
                                                  + rTile * R;
                     std::memcpy(colDst, colSrc, R * sizeof(double));
                 }
             }
         }
-        for (size_t pTile = 1; pTile < p; ++pTile) {
+        for (keel::usize pTile = 1; pTile < p; ++pTile) {
             double *targetPage = dst + (pTile * P + srcPage) * outR * outC;
             std::memcpy(targetPage, firstPage, outR * outC * sizeof(double));
         }
@@ -86,7 +90,7 @@ Value repmat(const Value &x, size_t m, size_t n, size_t p, std::pmr::memory_reso
 // each output column-of-axis-0 back to its source column via per-axis
 // modulo, then memcpys axis-0-bytes tilesPadded[0] times to fill the
 // output column. Type-preserving via byte-copy (elementSize-based).
-Value repmatND(const Value &x, Span<const size_t> tiles, std::pmr::memory_resource *mr)
+Value repmatND(const Value &x, keel::ArrayRef<keel::usize> tiles, keel::Allocator *mr)
 {
     const ValueType t = x.type();
     if (t == ValueType::FUNC_HANDLE)
@@ -106,24 +110,24 @@ Value repmatND(const Value &x, Span<const size_t> tiles, std::pmr::memory_resour
     // OBJECT arrays store per-element state — build the tile→source index
     // map (per-axis modulo, same as the CELL path) and gather.
     if (x.isObject()) {
-        size_t inDP[kMaxNd], tilesP[kMaxNd], outD[kMaxNd];
+        keel::usize inDP[kMaxNd], tilesP[kMaxNd], outD[kMaxNd];
         for (int i = 0; i < outNdim; ++i) {
             inDP[i] = (i < inDims.ndim()) ? inDims.dim(i) : 1;
             tilesP[i] = (i < ntiles) ? tiles[i] : 1;
             outD[i] = inDP[i] * tilesP[i];
         }
         Dims outDims(outD, outNdim);
-        const size_t total = outDims.numel();
-        std::vector<size_t> srcMap(total, 0);
+        const keel::usize total = outDims.numel();
+        std::vector<keel::usize> srcMap(total, 0);
         if (x.numel() > 0 && total > 0) {
-            size_t outStrides[kMaxNd], srcStrides[kMaxNd];
+            keel::usize outStrides[kMaxNd], srcStrides[kMaxNd];
             computeStridesColMajor(outDims, outStrides);
             computeStridesColMajor(inDims, srcStrides);
             for (int i = inDims.ndim(); i < outNdim; ++i) srcStrides[i] = 0;
-            for (size_t outIdx = 0; outIdx < total; ++outIdx) {
-                size_t rem = outIdx, srcIdx = 0;
+            for (keel::usize outIdx = 0; outIdx < total; ++outIdx) {
+                keel::usize rem = outIdx, srcIdx = 0;
                 for (int d = outNdim - 1; d >= 0; --d) {
-                    const size_t coord = rem / outStrides[d];
+                    const keel::usize coord = rem / outStrides[d];
                     rem -= coord * outStrides[d];
                     if (d < inDims.ndim())
                         srcIdx += (coord % inDP[d]) * srcStrides[d];
@@ -139,9 +143,9 @@ Value repmatND(const Value &x, Span<const size_t> tiles, std::pmr::memory_resour
     // a null rawData(). Walk by element and copy Values directly.
     // See BUGS.md #6 and #7-related cell-array handling.
     if (t == ValueType::STRING || t == ValueType::CELL || t == ValueType::STRUCT) {
-        size_t inDP[kMaxNd];
-        size_t tilesP[kMaxNd];
-        size_t outD[kMaxNd];
+        keel::usize inDP[kMaxNd];
+        keel::usize tilesP[kMaxNd];
+        keel::usize outD[kMaxNd];
         for (int i = 0; i < outNdim; ++i) {
             inDP[i]   = (i < inDims.ndim()) ? inDims.dim(i) : 1;
             tilesP[i] = (i < ntiles)        ? tiles[i]      : 1;
@@ -171,7 +175,7 @@ Value repmatND(const Value &x, Span<const size_t> tiles, std::pmr::memory_resour
                 r = Value::structArray(outD[0], effNdim >= 2 ? outD[1] : 1, mr);
             } else {
                 r = Value::structArray(0, 0, mr);
-                size_t maxCoords[kMaxNd];
+                keel::usize maxCoords[kMaxNd];
                 bool anyZero = false;
                 for (int i = 0; i < effNdim; ++i) {
                     if (outD[i] == 0) { anyZero = true; break; }
@@ -183,22 +187,22 @@ Value repmatND(const Value &x, Span<const size_t> tiles, std::pmr::memory_resour
         }
         if (x.numel() == 0 || r.numel() == 0) return r;
 
-        size_t outStrides[kMaxNd];
+        keel::usize outStrides[kMaxNd];
         computeStridesColMajor(r.dims(), outStrides);
-        size_t srcStrides[kMaxNd];
+        keel::usize srcStrides[kMaxNd];
         computeStridesColMajor(inDims, srcStrides);
         for (int i = inDims.ndim(); i < outNdim; ++i) srcStrides[i] = 0;
 
         const std::vector<std::string> structFieldsOrder =
             (t == ValueType::STRUCT) ? x.fieldNamesInOrder() : std::vector<std::string>{};
 
-        const size_t total = r.numel();
-        for (size_t outIdx = 0; outIdx < total; ++outIdx) {
+        const keel::usize total = r.numel();
+        for (keel::usize outIdx = 0; outIdx < total; ++outIdx) {
             // Recover output coord, map back to source coord by per-axis modulo.
-            size_t rem = outIdx;
-            size_t srcIdx = 0;
+            keel::usize rem = outIdx;
+            keel::usize srcIdx = 0;
             for (int d = outNdim - 1; d >= 0; --d) {
-                const size_t coord = rem / outStrides[d];
+                const keel::usize coord = rem / outStrides[d];
                 rem -= coord * outStrides[d];
                 if (d < inDims.ndim())
                     srcIdx += (coord % inDP[d]) * srcStrides[d];
@@ -219,9 +223,9 @@ Value repmatND(const Value &x, Span<const size_t> tiles, std::pmr::memory_resour
         return r;
     }
 
-    size_t inDimPadded[kMaxNd];
-    size_t tilesPadded[kMaxNd];
-    size_t outDim[kMaxNd];
+    keel::usize inDimPadded[kMaxNd];
+    keel::usize tilesPadded[kMaxNd];
+    keel::usize outDim[kMaxNd];
     for (int i = 0; i < outNdim; ++i) {
         inDimPadded[i] = (i < inDims.ndim()) ? inDims.dim(i) : 1;
         tilesPadded[i] = (i < ntiles) ? tiles[i] : 1;
@@ -231,39 +235,39 @@ Value repmatND(const Value &x, Span<const size_t> tiles, std::pmr::memory_resour
     auto r = Value::matrixND(outDim, outNdim, t, mr);
     if (r.numel() == 0 || x.numel() == 0) return r;
 
-    const size_t es = elementSize(t);
+    const keel::usize es = elementSize(t);
     const char *src = static_cast<const char *>(x.rawData());
     char *dst = static_cast<char *>(r.rawDataMut());
 
     // 1D special case: input is a row/col, output is `tilesPadded[0]` copies.
     if (outNdim == 1) {
-        for (size_t k = 0; k < tilesPadded[0]; ++k)
+        for (keel::usize k = 0; k < tilesPadded[0]; ++k)
             std::memcpy(dst + k * inDimPadded[0] * es, src,
                         inDimPadded[0] * es);
         return r;
     }
 
-    size_t outStrides[kMaxNd];
+    keel::usize outStrides[kMaxNd];
     computeStridesColMajor(r.dims(), outStrides);
-    size_t srcStrides[kMaxNd];
+    keel::usize srcStrides[kMaxNd];
     computeStridesColMajor(inDims, srcStrides);
     for (int i = inDims.ndim(); i < outNdim; ++i) srcStrides[i] = 0;
 
-    size_t outerDimsArr[kMaxNd];
+    keel::usize outerDimsArr[kMaxNd];
     for (int i = 1; i < outNdim; ++i) outerDimsArr[i - 1] = outDim[i];
     Dims outerIter(outerDimsArr, outNdim - 1);
 
-    size_t outerCoords[kMaxNd] = {0};
+    keel::usize outerCoords[kMaxNd] = {0};
     do {
-        size_t srcOff = 0;
-        size_t dstOff = 0;
+        keel::usize srcOff = 0;
+        keel::usize dstOff = 0;
         for (int i = 1; i < outNdim; ++i) {
-            const size_t oc = outerCoords[i - 1];
-            const size_t inDimI = inDimPadded[i];
+            const keel::usize oc = outerCoords[i - 1];
+            const keel::usize inDimI = inDimPadded[i];
             srcOff += (oc % inDimI) * srcStrides[i];
             dstOff += oc * outStrides[i];
         }
-        for (size_t k = 0; k < tilesPadded[0]; ++k)
+        for (keel::usize k = 0; k < tilesPadded[0]; ++k)
             std::memcpy(dst + (dstOff + k * inDimPadded[0]) * es,
                         src + srcOff * es,
                         inDimPadded[0] * es);
@@ -277,7 +281,7 @@ Value repmatND(const Value &x, Span<const size_t> tiles, std::pmr::memory_resour
 // ────────────────────────────────────────────────────────────────────
 
 
-Value fliplr(const Value &x, std::pmr::memory_resource *mr)
+Value fliplr(const Value &x, keel::Allocator *mr)
 {
     const auto &dd = x.dims();
     if (isCellOrString(x.type())) return flipCellStr(x, 1, "fliplr", mr);
@@ -288,17 +292,17 @@ Value fliplr(const Value &x, std::pmr::memory_resource *mr)
     // is a pure rearrangement, so it is type-preserving (cell/string handled
     // above via flipCellStr).
     const ValueType t = x.type();
-    const size_t R = dd.rows(), C = dd.cols();
-    const size_t P = dd.is3D() ? dd.pages() : 1;
+    const keel::usize R = dd.rows(), C = dd.cols();
+    const keel::usize P = dd.is3D() ? dd.pages() : 1;
     auto r = dd.is3D() ? Value::matrix3d(R, C, P, t, mr)
                        : Value::matrix(R, C, t, mr);
     if (x.numel() == 0) return r;
 
-    const size_t es = elementSize(t);
+    const keel::usize es = elementSize(t);
     const char *src = static_cast<const char *>(x.rawData());
     char *dst = static_cast<char *>(r.rawDataMut());
-    for (size_t pp = 0; pp < P; ++pp)
-        for (size_t c = 0; c < C; ++c) {
+    for (keel::usize pp = 0; pp < P; ++pp)
+        for (keel::usize c = 0; c < C; ++c) {
             const char *colSrc = src + (pp * R * C + (C - 1 - c) * R) * es;
             char *colDst = dst + (pp * R * C + c * R) * es;
             std::memcpy(colDst, colSrc, R * es);
@@ -306,7 +310,7 @@ Value fliplr(const Value &x, std::pmr::memory_resource *mr)
     return r;
 }
 
-Value flipud(const Value &x, std::pmr::memory_resource *mr)
+Value flipud(const Value &x, keel::Allocator *mr)
 {
     const auto &dd = x.dims();
     if (isCellOrString(x.type())) return flipCellStr(x, 0, "flipud", mr);
@@ -315,20 +319,20 @@ Value flipud(const Value &x, std::pmr::memory_resource *mr)
 
     // POD types copy raw bytes — type-preserving (cell/string handled above).
     const ValueType t = x.type();
-    const size_t R = dd.rows(), C = dd.cols();
-    const size_t P = dd.is3D() ? dd.pages() : 1;
+    const keel::usize R = dd.rows(), C = dd.cols();
+    const keel::usize P = dd.is3D() ? dd.pages() : 1;
     auto r = dd.is3D() ? Value::matrix3d(R, C, P, t, mr)
                        : Value::matrix(R, C, t, mr);
     if (x.numel() == 0) return r;
 
-    const size_t es = elementSize(t);
+    const keel::usize es = elementSize(t);
     const char *src = static_cast<const char *>(x.rawData());
     char *dst = static_cast<char *>(r.rawDataMut());
-    for (size_t pp = 0; pp < P; ++pp)
-        for (size_t c = 0; c < C; ++c) {
+    for (keel::usize pp = 0; pp < P; ++pp)
+        for (keel::usize c = 0; c < C; ++c) {
             const char *colSrc = src + (pp * R * C + c * R) * es;
             char *colDst = dst + (pp * R * C + c * R) * es;
-            for (size_t rr = 0; rr < R; ++rr)
+            for (keel::usize rr = 0; rr < R; ++rr)
                 std::memcpy(colDst + rr * es, colSrc + (R - 1 - rr) * es, es);
         }
     return r;
@@ -343,7 +347,7 @@ Value flipud(const Value &x, std::pmr::memory_resource *mr)
 // generalisation: k mod 4 selects 0/90/180/270° rotation. Negative k
 // is clockwise.
 
-Value rot90(const Value &x, int k, std::pmr::memory_resource *mr)
+Value rot90(const Value &x, int k, keel::Allocator *mr)
 {
     int kMod = k % 4;
     if (kMod < 0) kMod += 4;
@@ -352,15 +356,15 @@ Value rot90(const Value &x, int k, std::pmr::memory_resource *mr)
 
     const auto &dd = x.dims();
     const int nd = dd.ndim();
-    const size_t R = dd.rows(), C = dd.cols();
+    const keel::usize R = dd.rows(), C = dd.cols();
 
     // OBJECT (2-D): rotate via the same index map as rot90CellStr (each
     // assignment is result[outIdx] = src[srcIdx]) → objectGather.
     if (x.isObject() && nd < 4) {
-        std::vector<size_t> map(R * C);
+        std::vector<keel::usize> map(R * C);
         Dims outD = (kMod == 1 || kMod == 3) ? Dims(C, R) : Dims(R, C);
-        for (size_t c = 0; c < C; ++c)
-            for (size_t rr = 0; rr < R; ++rr) {
+        for (keel::usize c = 0; c < C; ++c)
+            for (keel::usize rr = 0; rr < R; ++rr) {
                 if (kMod == 0)
                     map[c * R + rr] = c * R + rr;
                 else if (kMod == 2)
@@ -387,23 +391,23 @@ Value rot90(const Value &x, int k, std::pmr::memory_resource *mr)
         if (nd > kMaxNd)
             throw Error("rot90: rank exceeds 32",
                          0, 0, "rot90", "", "numkit:rot90:tooManyDims");
-        size_t outDims[kMaxNd];
+        keel::usize outDims[kMaxNd];
         outDims[0] = (kMod == 1 || kMod == 3) ? C : R;
         outDims[1] = (kMod == 1 || kMod == 3) ? R : C;
         for (int i = 2; i < nd; ++i) outDims[i] = dd.dim(i);
         auto r = Value::matrixND(outDims, nd, t, mr);
         if (x.numel() == 0) return r;
-        const size_t es = elementSize(t);
+        const keel::usize es = elementSize(t);
         const char *src = static_cast<const char *>(x.rawData());
         char *dst = static_cast<char *>(r.rawDataMut());
-        const size_t pageElems = R * C;
+        const keel::usize pageElems = R * C;
         if (kMod == 0) {
             std::memcpy(dst, src, x.numel() * es);
         } else {
             auto pageFn = (kMod == 1) ? rot90OncePageBytes
                         : (kMod == 2) ? rot180PageBytes
                                       : rot270PageBytes;
-            forEachOuterPage(dd, [&](size_t pp, const size_t *) {
+            forEachOuterPage(dd, [&](keel::usize pp, const keel::usize *) {
                 pageFn(src + pp * pageElems * es,
                        dst + pp * pageElems * es, R, C, es);
             });
@@ -411,7 +415,7 @@ Value rot90(const Value &x, int k, std::pmr::memory_resource *mr)
         return r;
     }
 
-    const size_t P = dd.is3D() ? dd.pages() : 1;
+    const keel::usize P = dd.is3D() ? dd.pages() : 1;
     const bool is3D = dd.is3D();
 
     // Non-DOUBLE 2-D/3-D POD types (char/logical/complex/single/int): rot90 is
@@ -419,7 +423,7 @@ Value rot90(const Value &x, int k, std::pmr::memory_resource *mr)
     // handled above by rot90CellStr). Output preserves x's type.
     if (x.type() != ValueType::DOUBLE) {
         const ValueType t = x.type();
-        const size_t es = elementSize(t);
+        const keel::usize es = elementSize(t);
         const char *src = static_cast<const char *>(x.rawData());
         if (kMod == 0) {
             auto r = is3D ? Value::matrix3d(R, C, P, t, mr) : Value::matrix(R, C, t, mr);
@@ -430,7 +434,7 @@ Value rot90(const Value &x, int k, std::pmr::memory_resource *mr)
             auto r = is3D ? Value::matrix3d(R, C, P, t, mr) : Value::matrix(R, C, t, mr);
             if (x.numel() == 0) return r;
             char *dst = static_cast<char *>(r.rawDataMut());
-            for (size_t pp = 0; pp < P; ++pp)
+            for (keel::usize pp = 0; pp < P; ++pp)
                 rot180PageBytes(src + pp * R * C * es, dst + pp * R * C * es, R, C, es);
             return r;
         }
@@ -439,7 +443,7 @@ Value rot90(const Value &x, int k, std::pmr::memory_resource *mr)
         if (x.numel() == 0) return r;
         char *dst = static_cast<char *>(r.rawDataMut());
         const auto kern = (kMod == 1) ? rot90OncePageBytes : rot270PageBytes;
-        for (size_t pp = 0; pp < P; ++pp)
+        for (keel::usize pp = 0; pp < P; ++pp)
             kern(src + pp * R * C * es, dst + pp * C * R * es, R, C, es);
         return r;
     }
@@ -461,7 +465,7 @@ Value rot90(const Value &x, int k, std::pmr::memory_resource *mr)
         if (x.numel() == 0) return r;
         const double *src = x.doubleData();
         double *dst = r.doubleDataMut();
-        for (size_t pp = 0; pp < P; ++pp)
+        for (keel::usize pp = 0; pp < P; ++pp)
             rot180Page(src + pp * R * C, dst + pp * R * C, R, C);
         return r;
     }
@@ -474,10 +478,10 @@ Value rot90(const Value &x, int k, std::pmr::memory_resource *mr)
     const double *src = x.doubleData();
     double *dst = r.doubleDataMut();
     if (kMod == 1) {
-        for (size_t pp = 0; pp < P; ++pp)
+        for (keel::usize pp = 0; pp < P; ++pp)
             rot90OncePage(src + pp * R * C, dst + pp * C * R, R, C);
     } else { // kMod == 3
-        for (size_t pp = 0; pp < P; ++pp)
+        for (keel::usize pp = 0; pp < P; ++pp)
             rot270Page(src + pp * R * C, dst + pp * C * R, R, C);
     }
     return r;
@@ -494,7 +498,7 @@ Value rot90(const Value &x, int k, std::pmr::memory_resource *mr)
 // Modulo arithmetic ensures shifts >= dim length wrap correctly.
 // Negative shifts work via the same modulo (k%n then add n if negative).
 
-Value circshift(const Value &x, int64_t k, std::pmr::memory_resource *mr)
+Value circshift(const Value &x, keel::i64 k, keel::Allocator *mr)
 {
     const auto &dd = x.dims();
     // Non-DOUBLE (char / logical / complex / cell / string): circshift is a
@@ -505,16 +509,16 @@ Value circshift(const Value &x, int64_t k, std::pmr::memory_resource *mr)
         int fnsd = 0;
         for (int i = 0; i < dd.ndim(); ++i)
             if (dd.dim(i) > 1) { fnsd = i; break; }
-        int64_t sh[Dims::kMaxRank] = {0};
+        keel::i64 sh[Dims::kMaxRank] = {0};
         sh[fnsd] = k;
-        return circshiftND(x, Span<const int64_t>(sh, fnsd + 1), mr);
+        return circshiftND(x, keel::ArrayRef<keel::i64>(sh, fnsd + 1), mr);
     }
     if (x.isScalar()) return Value::scalar(x.toScalar(), mr);
     if (dd.isVector()) {
-        const size_t n = x.numel();
+        const keel::usize n = x.numel();
         auto r = Value::matrix(dd.rows(), dd.cols(), ValueType::DOUBLE, mr);
-        const size_t sh = wrap(k, n);
-        for (size_t i = 0; i < n; ++i)
+        const keel::usize sh = wrap(k, n);
+        for (keel::usize i = 0; i < n; ++i)
             r.doubleDataMut()[i] = x.doubleData()[(i + n - sh) % n];
         return r;
     }
@@ -524,7 +528,7 @@ Value circshift(const Value &x, int64_t k, std::pmr::memory_resource *mr)
     return circshift(x, k, 0, mr);
 }
 
-Value circshiftND(const Value &x, Span<const int64_t> shifts, std::pmr::memory_resource *mr)
+Value circshiftND(const Value &x, keel::ArrayRef<keel::i64> shifts, keel::Allocator *mr)
 {
     const ValueType t = x.type();
     // STRING arrays + struct arrays + function-handle arrays are deferred.
@@ -545,7 +549,7 @@ Value circshiftND(const Value &x, Span<const int64_t> shifts, std::pmr::memory_r
         throw Error("circshift: cell array rank > 2 not supported",
                      0, 0, "circshift", "", "numkit:circshift:cellND");
 
-    size_t outDims[kMaxNd];
+    keel::usize outDims[kMaxNd];
     for (int i = 0; i < nd; ++i) outDims[i] = d.dim(i);
     // CELL needs proper cell storage (Value::matrixND does not allocate it).
     Value r = isCell ? Value::cell(outDims[0], nd >= 2 ? outDims[1] : 1, mr)
@@ -553,24 +557,24 @@ Value circshiftND(const Value &x, Span<const int64_t> shifts, std::pmr::memory_r
     if (x.numel() == 0) return r;
 
     const int nshifts = static_cast<int>(shifts.size());
-    size_t shiftMod[kMaxNd] = {0};
+    keel::usize shiftMod[kMaxNd] = {0};
     for (int i = 0; i < nd; ++i) {
-        const int64_t s = (i < nshifts) ? shifts[i] : 0;
+        const keel::i64 s = (i < nshifts) ? shifts[i] : 0;
         shiftMod[i] = wrap(s, d.dim(i));
     }
 
     // OBJECT: build the per-element shifted source map → objectGather.
     if (x.isObject()) {
-        size_t strides[kMaxNd];
+        keel::usize strides[kMaxNd];
         computeStridesColMajor(d, strides);
-        const size_t total = d.numel();
-        std::vector<size_t> map(total);
-        for (size_t dstLin = 0; dstLin < total; ++dstLin) {
-            size_t rem = dstLin, srcLin = 0;
+        const keel::usize total = d.numel();
+        std::vector<keel::usize> map(total);
+        for (keel::usize dstLin = 0; dstLin < total; ++dstLin) {
+            keel::usize rem = dstLin, srcLin = 0;
             for (int i = nd - 1; i >= 0; --i) {
-                const size_t coord = rem / strides[i];
+                const keel::usize coord = rem / strides[i];
                 rem -= coord * strides[i];
-                const size_t srcCoord = (coord + d.dim(i) - shiftMod[i]) % d.dim(i);
+                const keel::usize srcCoord = (coord + d.dim(i) - shiftMod[i]) % d.dim(i);
                 srcLin += srcCoord * strides[i];
             }
             map[dstLin] = srcLin;
@@ -580,45 +584,45 @@ Value circshiftND(const Value &x, Span<const int64_t> shifts, std::pmr::memory_r
 
     // CELL permutes element-by-element (Value copy); POD types copy raw
     // bytes. circshift is a pure rearrangement, so it is type-agnostic.
-    const size_t es = isCell ? 0 : elementSize(t);
+    const keel::usize es = isCell ? 0 : elementSize(t);
     const char *src = isCell ? nullptr : static_cast<const char *>(x.rawData());
     char *dst = isCell ? nullptr : static_cast<char *>(r.rawDataMut());
-    auto copyElem = [&](size_t dIdx, size_t sIdx) {
+    auto copyElem = [&](keel::usize dIdx, keel::usize sIdx) {
         if (isCell) r.cellAt(dIdx) = x.cellAt(sIdx);
         else        std::memcpy(dst + dIdx * es, src + sIdx * es, es);
     };
-    const size_t R = d.dim(0);
-    const size_t shift0 = shiftMod[0];
+    const keel::usize R = d.dim(0);
+    const keel::usize shift0 = shiftMod[0];
 
     if (nd == 1) {
-        for (size_t i = 0; i < R; ++i)
+        for (keel::usize i = 0; i < R; ++i)
             copyElem(i, (i + R - shift0) % R);
         return r;
     }
 
-    size_t srcStrides[kMaxNd];
+    keel::usize srcStrides[kMaxNd];
     computeStridesColMajor(d, srcStrides);
 
-    size_t outerDimsArr[kMaxNd];
+    keel::usize outerDimsArr[kMaxNd];
     for (int i = 1; i < nd; ++i) outerDimsArr[i - 1] = d.dim(i);
     Dims outerIter(outerDimsArr, nd - 1);
 
-    size_t outerCoords[kMaxNd] = {0};
+    keel::usize outerCoords[kMaxNd] = {0};
     do {
-        size_t srcOuterOff = 0, dstOuterOff = 0;
+        keel::usize srcOuterOff = 0, dstOuterOff = 0;
         for (int i = 1; i < nd; ++i) {
-            const size_t dimI = d.dim(i);
-            const size_t srcCoord = (outerCoords[i - 1] + dimI - shiftMod[i]) % dimI;
+            const keel::usize dimI = d.dim(i);
+            const keel::usize srcCoord = (outerCoords[i - 1] + dimI - shiftMod[i]) % dimI;
             srcOuterOff += srcCoord * srcStrides[i];
             dstOuterOff += outerCoords[i - 1] * srcStrides[i];
         }
         if (shift0 == 0) {
             if (isCell)
-                for (size_t i = 0; i < R; ++i) copyElem(dstOuterOff + i, srcOuterOff + i);
+                for (keel::usize i = 0; i < R; ++i) copyElem(dstOuterOff + i, srcOuterOff + i);
             else
                 std::memcpy(dst + dstOuterOff * es, src + srcOuterOff * es, R * es);
         } else {
-            for (size_t i = 0; i < R; ++i)
+            for (keel::usize i = 0; i < R; ++i)
                 copyElem(dstOuterOff + i, srcOuterOff + (i + R - shift0) % R);
         }
     } while (incrementCoords(outerCoords, outerIter));
@@ -626,31 +630,31 @@ Value circshiftND(const Value &x, Span<const int64_t> shifts, std::pmr::memory_r
     return r;
 }
 
-Value circshift(const Value &x, int64_t kRow, int64_t kCol, std::pmr::memory_resource *mr)
+Value circshift(const Value &x, keel::i64 kRow, keel::i64 kCol, keel::Allocator *mr)
 {
     const auto &dd = x.dims();
     // Non-DOUBLE: route through the type-agnostic ND permute (shift dim1 by
     // kRow, dim2 by kCol; higher dims unshifted).
     if (x.type() != ValueType::DOUBLE) {
         if (x.isScalar() || x.numel() == 0) return x;
-        const int64_t shifts[2] = {kRow, kCol};
-        return circshiftND(x, Span<const int64_t>(shifts, 2), mr);
+        const keel::i64 shifts[2] = {kRow, kCol};
+        return circshiftND(x, keel::ArrayRef<keel::i64>(shifts, 2), mr);
     }
     if (x.isScalar()) return Value::scalar(x.toScalar(), mr);
     if (dd.is3D()) {
-        const size_t R = dd.rows(), C = dd.cols(), P = dd.pages();
+        const keel::usize R = dd.rows(), C = dd.cols(), P = dd.pages();
         auto r = Value::matrix3d(R, C, P, ValueType::DOUBLE, mr);
-        for (size_t pp = 0; pp < P; ++pp)
+        for (keel::usize pp = 0; pp < P; ++pp)
             shift2D(x.doubleData() + pp * R * C,
                     r.doubleDataMut() + pp * R * C,
                     R, C, kRow, kCol);
         return r;
     }
     if (dd.ndim() >= 4) {
-        const int64_t shifts[2] = {kRow, kCol};
-        return circshiftND(x, Span<const int64_t>(shifts, 2), mr);
+        const keel::i64 shifts[2] = {kRow, kCol};
+        return circshiftND(x, keel::ArrayRef<keel::i64>(shifts, 2), mr);
     }
-    const size_t R = dd.rows(), C = dd.cols();
+    const keel::usize R = dd.rows(), C = dd.cols();
     auto r = Value::matrix(R, C, ValueType::DOUBLE, mr);
     shift2D(x.doubleData(), r.doubleDataMut(), R, C, kRow, kCol);
     return r;
@@ -672,7 +676,7 @@ Value circshift(const Value &x, int64_t kRow, int64_t kCol, std::pmr::memory_res
 // All numeric types supported via byte-copy + memset(0) (zero bit pattern
 // is the canonical zero for DOUBLE/SINGLE/integer/LOGICAL/COMPLEX).
 
-Value tril(const Value &x, int k, std::pmr::memory_resource *mr)
+Value tril(const Value &x, int k, keel::Allocator *mr)
 {
     const auto &dd = x.dims();
     if (dd.ndim() >= 4)
@@ -688,20 +692,20 @@ Value tril(const Value &x, int k, std::pmr::memory_resource *mr)
         throw Error("tril: inputs must be numeric, char, or logical",
                      0, 0, "tril", "", "numkit:tril:badType");
 
-    const size_t R = dd.rows(), C = dd.cols();
-    const size_t P = dd.is3D() ? dd.pages() : 1;
+    const keel::usize R = dd.rows(), C = dd.cols();
+    const keel::usize P = dd.is3D() ? dd.pages() : 1;
     auto r = dd.is3D() ? Value::matrix3d(R, C, P, t, mr)
                        : Value::matrix(R, C, t, mr);
     if (x.numel() == 0) return r;
-    const size_t es = elementSize(t);
+    const keel::usize es = elementSize(t);
     const char *src = static_cast<const char *>(x.rawData());
     char *dst = static_cast<char *>(r.rawDataMut());
-    for (size_t pp = 0; pp < P; ++pp)
+    for (keel::usize pp = 0; pp < P; ++pp)
         trilPageBytes(src + pp * R * C * es, dst + pp * R * C * es, R, C, k, es);
     return r;
 }
 
-Value triu(const Value &x, int k, std::pmr::memory_resource *mr)
+Value triu(const Value &x, int k, keel::Allocator *mr)
 {
     const auto &dd = x.dims();
     if (dd.ndim() >= 4)
@@ -714,15 +718,15 @@ Value triu(const Value &x, int k, std::pmr::memory_resource *mr)
         throw Error("triu: inputs must be numeric, char, or logical",
                      0, 0, "triu", "", "numkit:triu:badType");
 
-    const size_t R = dd.rows(), C = dd.cols();
-    const size_t P = dd.is3D() ? dd.pages() : 1;
+    const keel::usize R = dd.rows(), C = dd.cols();
+    const keel::usize P = dd.is3D() ? dd.pages() : 1;
     auto r = dd.is3D() ? Value::matrix3d(R, C, P, t, mr)
                        : Value::matrix(R, C, t, mr);
     if (x.numel() == 0) return r;
-    const size_t es = elementSize(t);
+    const keel::usize es = elementSize(t);
     const char *src = static_cast<const char *>(x.rawData());
     char *dst = static_cast<char *>(r.rawDataMut());
-    for (size_t pp = 0; pp < P; ++pp)
+    for (keel::usize pp = 0; pp < P; ++pp)
         triuPageBytes(src + pp * R * C * es, dst + pp * R * C * es, R, C, k, es);
     return r;
 }
@@ -731,7 +735,7 @@ Value triu(const Value &x, int k, std::pmr::memory_resource *mr)
 // flip — generalized N-D flip
 // ────────────────────────────────────────────────────────────────────
 
-Value flip(const Value &x, int dim1Based, std::pmr::memory_resource *mr)
+Value flip(const Value &x, int dim1Based, keel::Allocator *mr)
 {
     int axis;
     if (dim1Based <= 0) {
@@ -762,7 +766,7 @@ Value flip(const Value &x, int dim1Based, std::pmr::memory_resource *mr)
 // DOUBLE inputs only for now (covers ~all script use). Other types
 // would need the typed-byte-copy treatment used by repmat / flip.
 
-Value repelem(const Value &x, size_t n, std::pmr::memory_resource *mr)
+Value repelem(const Value &x, keel::usize n, keel::Allocator *mr)
 {
     const auto &d = x.dims();
     if (d.ndim() > 2 || (d.rows() != 1 && d.cols() != 1 && !x.isScalar()))
@@ -772,8 +776,8 @@ Value repelem(const Value &x, size_t n, std::pmr::memory_resource *mr)
         throw Error("repelem: only DOUBLE inputs are supported",
                      0, 0, "repelem", "", "numkit:repelem:type");
 
-    const size_t inN = x.numel();
-    const size_t outN = inN * n;
+    const keel::usize inN = x.numel();
+    const keel::usize outN = inN * n;
     // Preserve column-vector orientation; scalar → row vector of n.
     const bool isCol = (d.rows() > 1 && d.cols() == 1);
     auto r = isCol ? Value::matrix(outN, 1, ValueType::DOUBLE, mr)
@@ -782,15 +786,15 @@ Value repelem(const Value &x, size_t n, std::pmr::memory_resource *mr)
 
     const double *src = x.doubleData();
     double *dst = r.doubleDataMut();
-    for (size_t i = 0; i < inN; ++i) {
+    for (keel::usize i = 0; i < inN; ++i) {
         const double v = src[i];
-        for (size_t k = 0; k < n; ++k)
+        for (keel::usize k = 0; k < n; ++k)
             dst[i * n + k] = v;
     }
     return r;
 }
 
-Value repelem(const Value &x, size_t m, size_t n, std::pmr::memory_resource *mr)
+Value repelem(const Value &x, keel::usize m, keel::usize n, keel::Allocator *mr)
 {
     const auto &d = x.dims();
     if (d.ndim() > 2)
@@ -800,8 +804,8 @@ Value repelem(const Value &x, size_t m, size_t n, std::pmr::memory_resource *mr)
         throw Error("repelem: only DOUBLE inputs are supported",
                      0, 0, "repelem", "", "numkit:repelem:type");
 
-    const size_t R = d.rows(), C = d.cols();
-    const size_t outR = R * m, outC = C * n;
+    const keel::usize R = d.rows(), C = d.cols();
+    const keel::usize outR = R * m, outC = C * n;
     auto r = Value::matrix(outR, outC, ValueType::DOUBLE, mr);
     if (outR == 0 || outC == 0) return r;
 
@@ -809,10 +813,10 @@ Value repelem(const Value &x, size_t m, size_t n, std::pmr::memory_resource *mr)
     double *dst = r.doubleDataMut();
     // Column-major: walk output by (outRow, outCol) and pull from
     // src(outRow / m, outCol / n).
-    for (size_t oc = 0; oc < outC; ++oc) {
-        const size_t srcCol = oc / n;
-        for (size_t orow = 0; orow < outR; ++orow) {
-            const size_t srcRow = orow / m;
+    for (keel::usize oc = 0; oc < outC; ++oc) {
+        const keel::usize srcCol = oc / n;
+        for (keel::usize orow = 0; orow < outR; ++orow) {
+            const keel::usize srcRow = orow / m;
             dst[oc * outR + orow] = src[srcCol * R + srcRow];
         }
     }
@@ -821,10 +825,10 @@ Value repelem(const Value &x, size_t m, size_t n, std::pmr::memory_resource *mr)
 
 
 // repelem(v, counts): per-element counts (scalar or vector the length of v).
-Value repelem(const Value &x, const Value &counts, std::pmr::memory_resource *mr)
+Value repelem(const Value &x, const Value &counts, keel::Allocator *mr)
 {
     if (counts.isScalar())   // fast path / preserves scalar-form semantics
-        return repelem(x, static_cast<size_t>(counts.toScalar()), mr);
+        return repelem(x, static_cast<keel::usize>(counts.toScalar()), mr);
 
     const auto &d = x.dims();
     if (d.ndim() > 2 || (d.rows() != 1 && d.cols() != 1 && !x.isScalar()))
@@ -834,9 +838,9 @@ Value repelem(const Value &x, const Value &counts, std::pmr::memory_resource *mr
         throw Error("repelem: only DOUBLE inputs are supported",
                      0, 0, "repelem", "", "numkit:repelem:type");
 
-    ScratchArena arena(mr);
+    keel::ArenaTemp arena = keel::get_scratch(mr);
     auto map = repelemMap(counts, x.numel(), arena);
-    const size_t outN = map.size();
+    const keel::usize outN = map.size();
     const bool isCol = (d.rows() > 1 && d.cols() == 1);
     auto r = isCol ? Value::matrix(outN, 1, ValueType::DOUBLE, mr)
                    : Value::matrix(1, outN, ValueType::DOUBLE, mr);
@@ -844,17 +848,17 @@ Value repelem(const Value &x, const Value &counts, std::pmr::memory_resource *mr
 
     const double *src = x.doubleData();
     double *dst = r.doubleDataMut();
-    for (size_t k = 0; k < outN; ++k) dst[k] = src[map[k]];
+    for (keel::usize k = 0; k < outN; ++k) dst[k] = src[map[k]];
     return r;
 }
 
 // repelem(A, r, c): per-row / per-column counts (each scalar or vector).
 Value repelem(const Value &x, const Value &rCounts, const Value &cCounts,
-              std::pmr::memory_resource *mr)
+              keel::Allocator *mr)
 {
     if (rCounts.isScalar() && cCounts.isScalar())   // fast path
-        return repelem(x, static_cast<size_t>(rCounts.toScalar()),
-                          static_cast<size_t>(cCounts.toScalar()), mr);
+        return repelem(x, static_cast<keel::usize>(rCounts.toScalar()),
+                          static_cast<keel::usize>(cCounts.toScalar()), mr);
 
     const auto &d = x.dims();
     if (d.ndim() > 2)
@@ -864,19 +868,19 @@ Value repelem(const Value &x, const Value &rCounts, const Value &cCounts,
         throw Error("repelem: only DOUBLE inputs are supported",
                      0, 0, "repelem", "", "numkit:repelem:type");
 
-    const size_t R = d.rows(), C = d.cols();
-    ScratchArena arena(mr);
+    const keel::usize R = d.rows(), C = d.cols();
+    keel::ArenaTemp arena = keel::get_scratch(mr);
     auto rowMap = repelemMap(rCounts, R, arena);
     auto colMap = repelemMap(cCounts, C, arena);
-    const size_t outR = rowMap.size(), outC = colMap.size();
+    const keel::usize outR = rowMap.size(), outC = colMap.size();
     auto r = Value::matrix(outR, outC, ValueType::DOUBLE, mr);
     if (outR == 0 || outC == 0) return r;
 
     const double *src = x.doubleData();
     double *dst = r.doubleDataMut();
-    for (size_t oc = 0; oc < outC; ++oc) {
-        const size_t srcCol = colMap[oc];
-        for (size_t orow = 0; orow < outR; ++orow)
+    for (keel::usize oc = 0; oc < outC; ++oc) {
+        const keel::usize srcCol = colMap[oc];
+        for (keel::usize orow = 0; orow < outR; ++orow)
             dst[oc * outR + orow] = src[srcCol * R + rowMap[orow]];
     }
     return r;
@@ -890,7 +894,7 @@ Value repelem(const Value &x, const Value &rCounts, const Value &cCounts,
 // inputs only — the pad cell is `0` (matches MATLAB R2024 default).
 
 
-Value paddata(const Value &v, size_t n, int dim, const std::string &side, double fillValue, std::pmr::memory_resource *mr)
+Value paddata(const Value &v, keel::usize n, int dim, const std::string &side, double fillValue, keel::Allocator *mr)
 {
     if (!v.isEmpty() && v.type() != ValueType::DOUBLE)
         throw Error("paddata: only DOUBLE inputs supported",
@@ -914,31 +918,31 @@ Value paddata(const Value &v, size_t n, int dim, const std::string &side, double
         else opDim = 1;
     }
 
-    const size_t R = d.rows(), C = d.cols();
-    const size_t cur = (opDim == 1) ? R : C;
+    const keel::usize R = d.rows(), C = d.cols();
+    const keel::usize cur = (opDim == 1) ? R : C;
     if (cur >= n) return v;
 
-    const size_t padTotal = n - cur;
-    size_t padBefore = 0;
+    const keel::usize padTotal = n - cur;
+    keel::usize padBefore = 0;
     if (sd == "left" || sd == "leading") padBefore = padTotal;
     else if (sd == "both")               padBefore = padTotal / 2;
 
     if (opDim == 1) {
-        const size_t outC = (R == 0 && C == 0) ? 1 : C;
+        const keel::usize outC = (R == 0 && C == 0) ? 1 : C;
         auto out = Value::matrix(n, outC, ValueType::DOUBLE, mr);
         double *dst = out.doubleDataMut();
-        for (size_t i = 0; i < n * outC; ++i) dst[i] = fillValue;
+        for (keel::usize i = 0; i < n * outC; ++i) dst[i] = fillValue;
         if (R > 0 && C > 0) {
             const double *src = v.doubleData();
-            for (size_t c = 0; c < C; ++c)
+            for (keel::usize c = 0; c < C; ++c)
                 std::memcpy(dst + c * n + padBefore, src + c * R, R * sizeof(double));
         }
         return out;
     } else {
-        const size_t outR = (R == 0 && C == 0) ? 1 : R;
+        const keel::usize outR = (R == 0 && C == 0) ? 1 : R;
         auto out = Value::matrix(outR, n, ValueType::DOUBLE, mr);
         double *dst = out.doubleDataMut();
-        for (size_t i = 0; i < outR * n; ++i) dst[i] = fillValue;
+        for (keel::usize i = 0; i < outR * n; ++i) dst[i] = fillValue;
         if (R > 0 && C > 0) {
             const double *src = v.doubleData();
             std::memcpy(dst + padBefore * outR, src, R * C * sizeof(double));
@@ -947,7 +951,7 @@ Value paddata(const Value &v, size_t n, int dim, const std::string &side, double
     }
 }
 
-Value paddata(const Value &v, size_t n, std::pmr::memory_resource *mr)
+Value paddata(const Value &v, keel::usize n, keel::Allocator *mr)
 {
     if (!isVectorLike(v))
         throw Error("paddata: vector input required",
@@ -955,12 +959,12 @@ Value paddata(const Value &v, size_t n, std::pmr::memory_resource *mr)
     return paddata(v, n, 0, "trailing", 0.0, mr);
 }
 
-Value paddata(const Value &x, size_t len, int dim, const std::string &side, std::pmr::memory_resource *mr)
+Value paddata(const Value &x, keel::usize len, int dim, const std::string &side, keel::Allocator *mr)
 {
     return paddata(x, len, dim, side, 0.0, mr);
 }
 
-Value trimdata(const Value &v, size_t n, int dim, const std::string &side, std::pmr::memory_resource *mr)
+Value trimdata(const Value &v, keel::usize n, int dim, const std::string &side, keel::Allocator *mr)
 {
     if (!v.isEmpty() && v.type() != ValueType::DOUBLE)
         throw Error("trimdata: only DOUBLE inputs supported",
@@ -982,12 +986,12 @@ Value trimdata(const Value &v, size_t n, int dim, const std::string &side, std::
         else opDim = 1;
     }
 
-    const size_t R = d.rows(), C = d.cols();
-    const size_t cur = (opDim == 1) ? R : C;
+    const keel::usize R = d.rows(), C = d.cols();
+    const keel::usize cur = (opDim == 1) ? R : C;
     if (cur <= n) return v;
 
-    const size_t trimTotal = cur - n;
-    size_t keepStart = 0;
+    const keel::usize trimTotal = cur - n;
+    keel::usize keepStart = 0;
     if (sd == "left" || sd == "leading") keepStart = trimTotal;
     else if (sd == "both")               keepStart = trimTotal / 2;
 
@@ -996,7 +1000,7 @@ Value trimdata(const Value &v, size_t n, int dim, const std::string &side, std::
         if (n > 0 && C > 0) {
             const double *src = v.doubleData();
             double *dst = out.doubleDataMut();
-            for (size_t c = 0; c < C; ++c)
+            for (keel::usize c = 0; c < C; ++c)
                 std::memcpy(dst + c * n, src + c * R + keepStart, n * sizeof(double));
         }
         return out;
@@ -1011,7 +1015,7 @@ Value trimdata(const Value &v, size_t n, int dim, const std::string &side, std::
     }
 }
 
-Value trimdata(const Value &v, size_t n, std::pmr::memory_resource *mr)
+Value trimdata(const Value &v, keel::usize n, keel::Allocator *mr)
 {
     if (!isVectorLike(v))
         throw Error("trimdata: vector input required",
@@ -1019,7 +1023,7 @@ Value trimdata(const Value &v, size_t n, std::pmr::memory_resource *mr)
     return trimdata(v, n, 0, "trailing", mr);
 }
 
-Value resize(const Value &v, size_t n, int dim, const std::string &side, double fillValue, std::pmr::memory_resource *mr)
+Value resize(const Value &v, keel::usize n, int dim, const std::string &side, double fillValue, keel::Allocator *mr)
 {
     const auto &d = v.dims();
     int opDim = dim;
@@ -1028,29 +1032,29 @@ Value resize(const Value &v, size_t n, int dim, const std::string &side, double 
         else if (d.rows() == 0 && d.cols() == 0) opDim = 2;
         else opDim = 1;
     }
-    const size_t cur = (opDim == 1) ? d.rows() : d.cols();
+    const keel::usize cur = (opDim == 1) ? d.rows() : d.cols();
     return (cur < n) ? paddata(v, n, dim, side, fillValue, mr)
                      : trimdata(v, n, dim, side, mr);
 }
 
-Value resize(const Value &v, size_t n, std::pmr::memory_resource *mr)
+Value resize(const Value &v, keel::usize n, keel::Allocator *mr)
 {
     return (v.numel() < n) ? paddata(v, n, mr) : trimdata(v, n, mr);
 }
 
-Value head(const Value &x, size_t k, std::pmr::memory_resource *mr)
+Value head(const Value &x, keel::usize k, keel::Allocator *mr)
 {
     if (x.isEmpty()) return x;
     const auto &d = x.dims();
-    const size_t R = d.rows();
-    const size_t C = d.cols();
-    const size_t r = std::min(k, R);
+    const keel::usize R = d.rows();
+    const keel::usize C = d.cols();
+    const keel::usize r = std::min(k, R);
     if (r == R) return x;
-    const size_t totalElems = x.numel();
-    const size_t elemSize = totalElems > 0 ? (x.rawBytes() / totalElems) : sizeof(double);
+    const keel::usize totalElems = x.numel();
+    const keel::usize elemSize = totalElems > 0 ? (x.rawBytes() / totalElems) : sizeof(double);
     auto out = Value::matrix(r, C, x.type(), mr);
     if (elemSize > 0 && x.rawData() != nullptr) {
-        for (size_t c = 0; c < C; ++c) {
+        for (keel::usize c = 0; c < C; ++c) {
             const char *srcCol = static_cast<const char *>(x.rawData()) + c * R * elemSize;
             char *dstCol = static_cast<char *>(out.rawDataMut()) + c * r * elemSize;
             std::memcpy(dstCol, srcCol, r * elemSize);
@@ -1059,20 +1063,20 @@ Value head(const Value &x, size_t k, std::pmr::memory_resource *mr)
     return out;
 }
 
-Value tail(const Value &x, size_t k, std::pmr::memory_resource *mr)
+Value tail(const Value &x, keel::usize k, keel::Allocator *mr)
 {
     if (x.isEmpty()) return x;
     const auto &d = x.dims();
-    const size_t R = d.rows();
-    const size_t C = d.cols();
-    const size_t r = std::min(k, R);
+    const keel::usize R = d.rows();
+    const keel::usize C = d.cols();
+    const keel::usize r = std::min(k, R);
     if (r == R) return x;
-    const size_t startRow = R - r;
-    const size_t totalElems = x.numel();
-    const size_t elemSize = totalElems > 0 ? (x.rawBytes() / totalElems) : sizeof(double);
+    const keel::usize startRow = R - r;
+    const keel::usize totalElems = x.numel();
+    const keel::usize elemSize = totalElems > 0 ? (x.rawBytes() / totalElems) : sizeof(double);
     auto out = Value::matrix(r, C, x.type(), mr);
     if (elemSize > 0 && x.rawData() != nullptr) {
-        for (size_t c = 0; c < C; ++c) {
+        for (keel::usize c = 0; c < C; ++c) {
             const char *srcCol = static_cast<const char *>(x.rawData()) + (c * R + startRow) * elemSize;
             char *dstCol = static_cast<char *>(out.rawDataMut()) + c * r * elemSize;
             std::memcpy(dstCol, srcCol, r * elemSize);
@@ -1081,7 +1085,7 @@ Value tail(const Value &x, size_t k, std::pmr::memory_resource *mr)
     return out;
 }
 
-Value bsxfun(const std::string &op, const Value &a, const Value &b, std::pmr::memory_resource *mr)
+Value bsxfun(const std::string &op, const Value &a, const Value &b, keel::Allocator *mr)
 {
     if (op == "plus" || op == "@plus") return plus(a, b, mr);
     if (op == "minus" || op == "@minus") return minus(a, b, mr);
@@ -1102,10 +1106,10 @@ Value bsxfun(const std::string &op, const Value &a, const Value &b, std::pmr::me
 
 // ── sub2ind / ind2sub (see manip.hpp) ─────────────────────────────────
 
-Value sub2ind(const Value &siz, Span<const Value> subs,
-              std::pmr::memory_resource *mr)
+Value sub2ind(const Value &siz, keel::ArrayRef<Value> subs,
+              keel::Allocator *mr)
 {
-    const size_t nDims = siz.numel();
+    const keel::usize nDims = siz.numel();
     if (nDims == 0)
         throw Error("sub2ind: siz must not be empty",
                      0, 0, "sub2ind", "", "numkit:sub2ind:badSiz");
@@ -1113,20 +1117,20 @@ Value sub2ind(const Value &siz, Span<const Value> subs,
         throw Error("sub2ind: requires at least 1 subscript",
                      0, 0, "sub2ind", "", "numkit:sub2ind:nargin");
 
-    ScratchArena scratch(mr);
-    auto dims = ScratchVec<size_t>(nDims, &scratch);
-    for (size_t i = 0; i < nDims; ++i)
-        dims[i] = static_cast<size_t>(siz.doubleData()[i]);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    auto dims = keel::Array<keel::usize>(nDims, scratch.allocator());
+    for (keel::usize i = 0; i < nDims; ++i)
+        dims[i] = static_cast<keel::usize>(siz.doubleData()[i]);
 
-    const size_t nSubs = subs.size();
+    const keel::usize nSubs = subs.size();
     if (nSubs > nDims)
         throw Error("sub2ind: too many subscript arrays for given siz",
                      0, 0, "sub2ind", "", "numkit:sub2ind:tooManySubs");
 
     // All sub arrays must agree on shape; result inherits that shape.
     const Value &shapeRef = subs[0];
-    const size_t outN = shapeRef.numel();
-    for (size_t a = 0; a < nSubs; ++a)
+    const keel::usize outN = shapeRef.numel();
+    for (keel::usize a = 0; a < nSubs; ++a)
         if (subs[a].numel() != outN)
             throw Error("sub2ind: subscript arrays must be the same size",
                          0, 0, "sub2ind", "", "numkit:sub2ind:shape");
@@ -1137,17 +1141,17 @@ Value sub2ind(const Value &siz, Span<const Value> subs,
                                 ValueType::DOUBLE, mr);
     double *dst = r.doubleDataMut();
     // Strides for column-major: stride[0]=1, stride[1]=dim0, stride[2]=dim0*dim1.
-    auto strideOfDim = [&](size_t d) {
-        size_t s = 1;
-        for (size_t i = 0; i < d && i < nDims; ++i) s *= dims[i];
+    auto strideOfDim = [&](keel::usize d) {
+        keel::usize s = 1;
+        for (keel::usize i = 0; i < d && i < nDims; ++i) s *= dims[i];
         return s;
     };
-    for (size_t k = 0; k < outN; ++k) {
-        size_t lin = 0;
-        for (size_t d = 0; d < nSubs; ++d) {
+    for (keel::usize k = 0; k < outN; ++k) {
+        keel::usize lin = 0;
+        for (keel::usize d = 0; d < nSubs; ++d) {
             const double sd = subs[d].isScalar() ? subs[d].toScalar()
                                                  : subs[d].doubleData()[k];
-            const size_t idx = static_cast<size_t>(sd) - 1;  // 1-based → 0-based
+            const keel::usize idx = static_cast<keel::usize>(sd) - 1;  // 1-based → 0-based
             lin += idx * strideOfDim(d);
         }
         dst[k] = static_cast<double>(lin + 1);  // back to 1-based
@@ -1155,34 +1159,34 @@ Value sub2ind(const Value &siz, Span<const Value> subs,
     return r;
 }
 
-std::vector<Value> ind2sub(const Value &siz, const Value &ind, size_t nout,
-                           std::pmr::memory_resource *mr)
+std::vector<Value> ind2sub(const Value &siz, const Value &ind, keel::usize nout,
+                           keel::Allocator *mr)
 {
-    const size_t nDims = siz.numel();
+    const keel::usize nDims = siz.numel();
     if (nDims == 0)
         throw Error("ind2sub: siz must not be empty",
                      0, 0, "ind2sub", "", "numkit:ind2sub:badSiz");
 
-    ScratchArena scratch(mr);
-    auto dims = ScratchVec<size_t>(nDims, &scratch);
-    for (size_t i = 0; i < nDims; ++i)
-        dims[i] = static_cast<size_t>(siz.doubleData()[i]);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    auto dims = keel::Array<keel::usize>(nDims, scratch.allocator());
+    for (keel::usize i = 0; i < nDims; ++i)
+        dims[i] = static_cast<keel::usize>(siz.doubleData()[i]);
 
-    const size_t outDims = (nout == 0) ? nDims : nout;
-    const size_t outN = ind.numel();
+    const keel::usize outDims = (nout == 0) ? nDims : nout;
+    const keel::usize outN = ind.numel();
 
     // Build effective dim list: outDims entries. The first outDims-1
     // match siz; the last absorbs the product of remaining dims.
-    auto effDim = [&](size_t d) -> size_t {
+    auto effDim = [&](keel::usize d) -> keel::usize {
         if (d + 1 < outDims) return d < nDims ? dims[d] : 1;
-        size_t r = 1;
-        for (size_t i = d; i < nDims; ++i) r *= dims[i];
+        keel::usize r = 1;
+        for (keel::usize i = d; i < nDims; ++i) r *= dims[i];
         return r ? r : 1;
     };
-    ScratchVec<size_t> stride(outDims, &scratch);
+    keel::Array<keel::usize> stride(outDims, scratch.allocator());
     {
-        size_t s = 1;
-        for (size_t d = 0; d < outDims; ++d) {
+        keel::usize s = 1;
+        for (keel::usize d = 0; d < outDims; ++d) {
             stride[d] = s;
             s *= effDim(d);
         }
@@ -1196,13 +1200,13 @@ std::vector<Value> ind2sub(const Value &siz, const Value &ind, size_t nout,
     };
     std::vector<Value> rs;
     rs.reserve(outDims);
-    for (size_t i = 0; i < outDims; ++i) rs.emplace_back(makeLike());
+    for (keel::usize i = 0; i < outDims; ++i) rs.emplace_back(makeLike());
 
-    for (size_t k = 0; k < outN; ++k) {
+    for (keel::usize k = 0; k < outN; ++k) {
         const double iv = ind.isScalar() ? ind.toScalar() : ind.doubleData()[k];
-        size_t lin = static_cast<size_t>(iv) - 1;
-        for (size_t d = 0; d < outDims; ++d) {
-            const size_t v = (d + 1 < outDims)
+        keel::usize lin = static_cast<keel::usize>(iv) - 1;
+        for (keel::usize d = 0; d < outDims; ++d) {
+            const keel::usize v = (d + 1 < outDims)
                                  ? (lin / stride[d]) % effDim(d)
                                  : (lin / stride[d]);
             rs[d].doubleDataMut()[k] = static_cast<double>(v + 1);

@@ -3,10 +3,14 @@
 // Phase 2b compute/register split — see project_layering_refactor memory.
 #pragma once
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/arena.h>
+#include <keel/array.h>
+#include <keel/complex.h>
+#include <keel/math.h>
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
-#include <numkit/value/scratch.hpp>
-#include <numkit/value/span.hpp>
 #include <numkit/ops/reductions.hpp>  // engine-free numkit::builtin::detail dim-infra (ops re-export)
 
 #include <algorithm>
@@ -15,7 +19,6 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
-#include <memory_resource>
 #include <numeric>
 #include <string>
 #include <tuple>
@@ -34,12 +37,12 @@ namespace {
 // acc with init. For 2D: reduces across rows → row vector of cols. For 3D:
 // reduces along first non-singleton dimension. For vectors/scalars: scalar.
 template<typename Op>
-Value reduce(const Value &x, Op op, double init, std::pmr::memory_resource *mr, bool meanMode = false)
+Value reduce(const Value &x, Op op, double init, keel::Allocator *mr, bool meanMode = false)
 {
     // Reads each element as double — supports DOUBLE / SINGLE / integer
     // / LOGICAL transparently. DOUBLE keeps the contiguous fast path.
     const bool fastDouble = (x.type() == ValueType::DOUBLE);
-    auto readD = [&](size_t i) -> double {
+    auto readD = [&](keel::usize i) -> double {
         return fastDouble ? x.doubleData()[i] : x.elemAsDouble(i);
     };
 
@@ -52,31 +55,31 @@ Value reduce(const Value &x, Op op, double init, std::pmr::memory_resource *mr, 
 
     if (x.dims().isVector() || x.isScalar()) {
         double acc = init;
-        for (size_t i = 0; i < x.numel(); ++i)
+        for (keel::usize i = 0; i < x.numel(); ++i)
             acc = op(acc, readD(i));
         if (meanMode)
             acc /= static_cast<double>(x.numel());
         return Value::scalar(acc, mr);
     }
 
-    const size_t R = x.dims().rows(), C = x.dims().cols();
+    const keel::usize R = x.dims().rows(), C = x.dims().cols();
 
     if (x.dims().is3D()) {
-        const size_t P = x.dims().pages();
+        const keel::usize P = x.dims().pages();
         const int redDim = (R > 1) ? 0 : (C > 1) ? 1 : 2;
-        const size_t outR = (redDim == 0) ? 1 : R;
-        const size_t outC = (redDim == 1) ? 1 : C;
-        const size_t outP = (redDim == 2) ? 1 : P;
-        const size_t N = (redDim == 0) ? R : (redDim == 1) ? C : P;
+        const keel::usize outR = (redDim == 0) ? 1 : R;
+        const keel::usize outC = (redDim == 1) ? 1 : C;
+        const keel::usize outP = (redDim == 2) ? 1 : P;
+        const keel::usize N = (redDim == 0) ? R : (redDim == 1) ? C : P;
         auto r = Value::matrix3d(outR, outC, outP, ValueType::DOUBLE, mr);
-        for (size_t pp = 0; pp < outP; ++pp)
-            for (size_t c = 0; c < outC; ++c)
-                for (size_t rr = 0; rr < outR; ++rr) {
+        for (keel::usize pp = 0; pp < outP; ++pp)
+            for (keel::usize c = 0; c < outC; ++c)
+                for (keel::usize rr = 0; rr < outR; ++rr) {
                     double acc = init;
-                    for (size_t k = 0; k < N; ++k) {
-                        const size_t rIdx = (redDim == 0) ? k : rr;
-                        const size_t cIdx = (redDim == 1) ? k : c;
-                        const size_t pIdx = (redDim == 2) ? k : pp;
+                    for (keel::usize k = 0; k < N; ++k) {
+                        const keel::usize rIdx = (redDim == 0) ? k : rr;
+                        const keel::usize cIdx = (redDim == 1) ? k : c;
+                        const keel::usize pIdx = (redDim == 2) ? k : pp;
                         acc = op(acc, readD(pIdx * R * C + cIdx * R + rIdx));
                     }
                     if (meanMode)
@@ -87,9 +90,9 @@ Value reduce(const Value &x, Op op, double init, std::pmr::memory_resource *mr, 
     }
 
     auto r = Value::matrix(1, C, ValueType::DOUBLE, mr);
-    for (size_t c = 0; c < C; ++c) {
+    for (keel::usize c = 0; c < C; ++c) {
         double acc = init;
-        for (size_t rr = 0; rr < R; ++rr)
+        for (keel::usize rr = 0; rr < R; ++rr)
             acc = op(acc, readD(c * R + rr));
         if (meanMode)
             acc /= static_cast<double>(R);
@@ -106,7 +109,7 @@ namespace {
 // integers) — this branch only fires for the (rare) typeMatch=false
 // dispatch error case, but kept for safety.
 template <typename T>
-inline T readSrcAsT(const Value &x, size_t i, bool typeMatch)
+inline T readSrcAsT(const Value &x, keel::usize i, bool typeMatch)
 {
     if (typeMatch)
         return static_cast<const T *>(x.rawData())[i];
@@ -121,7 +124,7 @@ inline T readSrcAsT(const Value &x, size_t i, bool typeMatch)
 }
 
 template <typename T>
-inline Value makeScalarT(T v, ValueType outType, std::pmr::memory_resource *mr)
+inline Value makeScalarT(T v, ValueType outType, keel::Allocator *mr)
 {
     if (outType == ValueType::DOUBLE)
         return Value::scalar(static_cast<double>(v), mr);
@@ -137,25 +140,25 @@ inline Value makeScalarT(T v, ValueType outType, std::pmr::memory_resource *mr)
 // dst[outIdx] and (1-based) source position to dstI[outIdx]. Handles
 // 2D / 3D / ND uniformly via stride arithmetic.
 template <typename T, typename Cmp>
-void minMaxAlongDim(const Value &x, int redDim, T *dst, double *dstI, Cmp cmp, bool typeMatch, std::pmr::memory_resource *mr)
+void minMaxAlongDim(const Value &x, int redDim, T *dst, double *dstI, Cmp cmp, bool typeMatch, keel::Allocator *mr)
 {
     const auto &d = x.dims();
     const int redAxis = redDim - 1;
-    const size_t sliceLen = d.dim(redAxis);
-    size_t B = 1;
+    const keel::usize sliceLen = d.dim(redAxis);
+    keel::usize B = 1;
     for (int i = 0; i < redAxis; ++i) B *= d.dim(i);
-    size_t O = 1;
+    keel::usize O = 1;
     for (int i = redAxis + 1; i < d.ndim(); ++i) O *= d.dim(i);
 
     if (sliceLen == 0) return;  // empty slice — caller has set output to defaults
 
-    ScratchVec<T> scratch(sliceLen, mr);
-    auto runSlice = [&](size_t outIdx, size_t baseOff, size_t stride) {
-        for (size_t k = 0; k < sliceLen; ++k)
+    keel::Array<T> scratch(sliceLen, mr);
+    auto runSlice = [&](keel::usize outIdx, keel::usize baseOff, keel::usize stride) {
+        for (keel::usize k = 0; k < sliceLen; ++k)
             scratch[k] = readSrcAsT<T>(x, baseOff + k * stride, typeMatch);
         T best = scratch[0];
-        size_t bi = 0;
-        for (size_t k = 1; k < sliceLen; ++k)
+        keel::usize bi = 0;
+        for (keel::usize k = 1; k < sliceLen; ++k)
             if (cmp(scratch[k], best)) { best = scratch[k]; bi = k; }
         dst[outIdx] = best;
         dstI[outIdx] = static_cast<double>(bi + 1);
@@ -163,14 +166,14 @@ void minMaxAlongDim(const Value &x, int redDim, T *dst, double *dstI, Cmp cmp, b
 
     if (B == 1) {
         // Reducing axis 0 → contiguous gather (stride = 1).
-        for (size_t o = 0; o < O; ++o)
+        for (keel::usize o = 0; o < O; ++o)
             runSlice(o, o * sliceLen, 1);
         return;
     }
-    for (size_t o = 0; o < O; ++o) {
-        for (size_t b = 0; b < B; ++b) {
-            const size_t base = o * sliceLen * B + b;
-            const size_t outIdx = o * B + b;
+    for (keel::usize o = 0; o < O; ++o) {
+        for (keel::usize b = 0; b < B; ++b) {
+            const keel::usize base = o * sliceLen * B + b;
+            const keel::usize outIdx = o * B + b;
             runSlice(outIdx, base, B);
         }
     }
@@ -179,11 +182,11 @@ void minMaxAlongDim(const Value &x, int redDim, T *dst, double *dstI, Cmp cmp, b
 // Construct the right-shaped (value, idx) output pair for reduction
 // along `redDim` of x: value array has `outType`, idx array has DOUBLE.
 inline std::pair<Value, Value>
-allocMinMaxOutputs(const Value &x, int redDim, ValueType outType, std::pmr::memory_resource *mr)
+allocMinMaxOutputs(const Value &x, int redDim, ValueType outType, keel::Allocator *mr)
 {
     if (x.dims().ndim() >= 4 && redDim >= 1 && redDim <= x.dims().ndim()) {
-        ScratchArena scratch(mr);
-        auto shape = numkit::ops::outShapeForDimND(x, redDim, &scratch);
+        keel::ArenaTemp scratch = keel::get_scratch(mr);
+        auto shape = numkit::ops::outShapeForDimND(x, redDim, scratch.allocator());
         return {Value::matrixND(shape.data(), (int) shape.size(), outType, mr),
                 Value::matrixND(shape.data(), (int) shape.size(), ValueType::DOUBLE, mr)};
     }
@@ -200,7 +203,7 @@ allocMinMaxOutputs(const Value &x, int redDim, ValueType outType, std::pmr::memo
 // non-singleton here), defaulting to 1. Value keeps the input class; the
 // index output is an empty DOUBLE of the same shape.
 inline std::tuple<Value, Value>
-emptyMinMaxResult(const Value &x, int dimArg, ValueType outType, std::pmr::memory_resource *mr)
+emptyMinMaxResult(const Value &x, int dimArg, ValueType outType, keel::Allocator *mr)
 {
     const auto &d = x.dims();
     int opDim = dimArg;
@@ -210,7 +213,7 @@ emptyMinMaxResult(const Value &x, int dimArg, ValueType outType, std::pmr::memor
         for (int i = 0; i < nd; ++i)
             if (d.dim(i) != 1) { opDim = i + 1; break; }
     }
-    auto clamp1 = [](size_t s) -> size_t { return s < 1 ? s : 1; };
+    auto clamp1 = [](keel::usize s) -> keel::usize { return s < 1 ? s : 1; };
     DimsArg o{d.rows(), d.cols(), d.is3D() ? d.pages() : 0};
     switch (opDim) {
         case 1: o.rows  = clamp1(o.rows); break;
@@ -224,15 +227,15 @@ emptyMinMaxResult(const Value &x, int dimArg, ValueType outType, std::pmr::memor
 
 template <typename T, typename Cmp>
 std::tuple<Value, Value>
-reduceMinMaxAllT(const Value &x, Cmp cmp, ValueType outType, std::pmr::memory_resource *mr)
+reduceMinMaxAllT(const Value &x, Cmp cmp, ValueType outType, keel::Allocator *mr)
 {
     const bool typeMatch = (x.type() == outType);
     if (x.numel() == 0)
         throw std::runtime_error("min/max of empty array is not supported");
     if (x.isScalar() || x.dims().isVector()) {
         T best = readSrcAsT<T>(x, 0, typeMatch);
-        size_t bi = 0;
-        for (size_t i = 1; i < x.numel(); ++i) {
+        keel::usize bi = 0;
+        for (keel::usize i = 1; i < x.numel(); ++i) {
             const T v = readSrcAsT<T>(x, i, typeMatch);
             if (cmp(v, best)) { best = v; bi = i; }
         }
@@ -242,14 +245,14 @@ reduceMinMaxAllT(const Value &x, Cmp cmp, ValueType outType, std::pmr::memory_re
     // Multi-dim: reduce along first non-singleton dim (MATLAB rule).
     const int redDim = numkit::ops::firstNonSingletonDim(x);
     auto [out, outIdx] = allocMinMaxOutputs(x, redDim, outType, mr);
-    ScratchArena scratch(mr);
-    minMaxAlongDim<T>(x, redDim, static_cast<T *>(out.rawDataMut()), outIdx.doubleDataMut(), cmp, typeMatch, &scratch);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    minMaxAlongDim<T>(x, redDim, static_cast<T *>(out.rawDataMut()), outIdx.doubleDataMut(), cmp, typeMatch, scratch.allocator());
     return std::make_tuple(std::move(out), std::move(outIdx));
 }
 
 template <typename T, typename Cmp>
 std::tuple<Value, Value>
-reduceMinMaxAlongDimT(const Value &x, int dim, Cmp cmp, ValueType outType, std::pmr::memory_resource *mr)
+reduceMinMaxAlongDimT(const Value &x, int dim, Cmp cmp, ValueType outType, keel::Allocator *mr)
 {
     const bool typeMatch = (x.type() == outType);
     if (x.isScalar() || x.dims().isVector()) {
@@ -259,7 +262,7 @@ reduceMinMaxAlongDimT(const Value &x, int dim, Cmp cmp, ValueType outType, std::
         if (dim != numkit::ops::firstNonSingletonDim(x)) {
             // Identity reduction: copy x as outType (cast where needed) and
             // return ones as idx.
-            const size_t n = x.numel();
+            const keel::usize n = x.numel();
             Value out, outIdx;
             if (x.dims().isVector()) {
                 out    = createMatrix({x.dims().rows(), x.dims().cols(), 0}, outType, mr);
@@ -271,7 +274,7 @@ reduceMinMaxAlongDimT(const Value &x, int dim, Cmp cmp, ValueType outType, std::
             }
             T *dst = static_cast<T *>(out.rawDataMut());
             double *dstI = outIdx.doubleDataMut();
-            for (size_t i = 0; i < n; ++i) {
+            for (keel::usize i = 0; i < n; ++i) {
                 dst[i]  = readSrcAsT<T>(x, i, typeMatch);
                 dstI[i] = 1.0;
             }
@@ -281,8 +284,8 @@ reduceMinMaxAlongDimT(const Value &x, int dim, Cmp cmp, ValueType outType, std::
         return reduceMinMaxAllT<T>(x, cmp, outType, mr);
     }
     auto [out, outIdx] = allocMinMaxOutputs(x, dim, outType, mr);
-    ScratchArena scratch(mr);
-    minMaxAlongDim<T>(x, dim, static_cast<T *>(out.rawDataMut()), outIdx.doubleDataMut(), cmp, typeMatch, &scratch);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    minMaxAlongDim<T>(x, dim, static_cast<T *>(out.rawDataMut()), outIdx.doubleDataMut(), cmp, typeMatch, scratch.allocator());
     return std::make_tuple(std::move(out), std::move(outIdx));
 }
 
@@ -295,26 +298,26 @@ reduceMinMaxAlongDimT(const Value &x, int dim, Cmp cmp, ValueType outType, std::
 // Output value array is COMPLEX; index array is always DOUBLE (matches
 // the round-3 typed reducers). The all-real check is one O(n) scan over
 // the input — fast and amortised across the per-slice work.
-inline bool allImagZero(const Complex *data, size_t n)
+inline bool allImagZero(const keel::c64 *data, keel::usize n)
 {
-    for (size_t i = 0; i < n; ++i)
+    for (keel::usize i = 0; i < n; ++i)
         if (data[i].imag() != 0.0) return false;
     return true;
 }
 
 template <bool IsMax>
-inline bool complexBetter(Complex v, Complex best, bool allReal)
+inline bool complexBetter(keel::c64 v, keel::c64 best, bool allReal)
 {
     if (allReal) {
         if constexpr (IsMax) return v.real() > best.real();
         else                 return v.real() < best.real();
     }
-    const double absV = std::abs(v), absB = std::abs(best);
+    const double absV = keel::abs(v), absB = keel::abs(best);
     if (absV != absB) {
         if constexpr (IsMax) return absV > absB;
         else                 return absV < absB;
     }
-    const double angV = std::arg(v), angB = std::arg(best);
+    const double angV = keel::arg(v), angB = keel::arg(best);
     if constexpr (IsMax) return angV > angB;
     else                 return angV < angB;
 }
@@ -328,7 +331,7 @@ inline bool complexBetter(Complex v, Complex best, bool allReal)
 // the FIRST operand (MATLAB: max(complex(NaN,2),complex(1,NaN)) = NaN+2i).
 // includenan: a missing operand propagates and wins, first operand first.
 template <bool IsMax>
-inline Complex complexMinMaxPick(Complex a, Complex b, bool omitNan)
+inline keel::c64 complexMinMaxPick(keel::c64 a, keel::c64 b, bool omitNan)
 {
     const bool aNan = std::isnan(a.real()) || std::isnan(a.imag());
     const bool bNan = std::isnan(b.real()) || std::isnan(b.imag());
@@ -344,11 +347,11 @@ inline Complex complexMinMaxPick(Complex a, Complex b, bool omitNan)
 }
 
 inline std::pair<Value, Value>
-allocComplexMinMaxOutputs(const Value &x, int redDim, std::pmr::memory_resource *mr)
+allocComplexMinMaxOutputs(const Value &x, int redDim, keel::Allocator *mr)
 {
     if (x.dims().ndim() >= 4 && redDim >= 1 && redDim <= x.dims().ndim()) {
-        ScratchArena scratch(mr);
-        auto shape = numkit::ops::outShapeForDimND(x, redDim, &scratch);
+        keel::ArenaTemp scratch = keel::get_scratch(mr);
+        auto shape = numkit::ops::outShapeForDimND(x, redDim, scratch.allocator());
         return {Value::matrixND(shape.data(), (int) shape.size(), ValueType::COMPLEX, mr),
                 Value::matrixND(shape.data(), (int) shape.size(), ValueType::DOUBLE,  mr)};
     }
@@ -359,49 +362,49 @@ allocComplexMinMaxOutputs(const Value &x, int redDim, std::pmr::memory_resource 
 
 template <bool IsMax>
 std::tuple<Value, Value>
-reduceMinMaxComplexAll(const Value &x, std::pmr::memory_resource *mr, const char *fn)
+reduceMinMaxComplexAll(const Value &x, keel::Allocator *mr, const char *fn)
 {
     if (x.numel() == 0)
         throw Error(std::string(fn) + " of empty array is not supported",
                      0, 0, fn, "", std::string("numkit:") + fn + ":empty");
-    const Complex *data = x.complexData();
+    const keel::c64 *data = x.complexData();
     const bool allReal = allImagZero(data, x.numel());
     if (x.isScalar() || x.dims().isVector()) {
-        Complex best = data[0];
-        size_t bi = 0;
-        for (size_t i = 1; i < x.numel(); ++i)
+        keel::c64 best = data[0];
+        keel::usize bi = 0;
+        for (keel::usize i = 1; i < x.numel(); ++i)
             if (complexBetter<IsMax>(data[i], best, allReal)) { best = data[i]; bi = i; }
         return std::make_tuple(Value::complexScalar(best, mr),
                                Value::scalar(static_cast<double>(bi + 1), mr));
     }
     const int redDim = numkit::ops::firstNonSingletonDim(x);
     auto [out, outIdx] = allocComplexMinMaxOutputs(x, redDim, mr);
-    Complex *dst  = out.complexDataMut();
+    keel::c64 *dst  = out.complexDataMut();
     double  *dstI = outIdx.doubleDataMut();
 
     const auto &d = x.dims();
     const int redAxis = redDim - 1;
-    const size_t sliceLen = d.dim(redAxis);
-    size_t B = 1;
+    const keel::usize sliceLen = d.dim(redAxis);
+    keel::usize B = 1;
     for (int i = 0; i < redAxis; ++i) B *= d.dim(i);
-    size_t O = 1;
+    keel::usize O = 1;
     for (int i = redAxis + 1; i < d.ndim(); ++i) O *= d.dim(i);
 
-    auto runSlice = [&](size_t outOff, size_t baseOff, size_t stride) {
-        Complex best = data[baseOff];
-        size_t bi = 0;
-        for (size_t k = 1; k < sliceLen; ++k) {
-            const Complex v = data[baseOff + k * stride];
+    auto runSlice = [&](keel::usize outOff, keel::usize baseOff, keel::usize stride) {
+        keel::c64 best = data[baseOff];
+        keel::usize bi = 0;
+        for (keel::usize k = 1; k < sliceLen; ++k) {
+            const keel::c64 v = data[baseOff + k * stride];
             if (complexBetter<IsMax>(v, best, allReal)) { best = v; bi = k; }
         }
         dst[outOff] = best;
         dstI[outOff] = static_cast<double>(bi + 1);
     };
     if (B == 1) {
-        for (size_t o = 0; o < O; ++o) runSlice(o, o * sliceLen, 1);
+        for (keel::usize o = 0; o < O; ++o) runSlice(o, o * sliceLen, 1);
     } else {
-        for (size_t o = 0; o < O; ++o)
-            for (size_t b = 0; b < B; ++b)
+        for (keel::usize o = 0; o < O; ++o)
+            for (keel::usize b = 0; b < B; ++b)
                 runSlice(o * B + b, o * sliceLen * B + b, B);
     }
     return std::make_tuple(std::move(out), std::move(outIdx));
@@ -409,12 +412,12 @@ reduceMinMaxComplexAll(const Value &x, std::pmr::memory_resource *mr, const char
 
 template <bool IsMax>
 std::tuple<Value, Value>
-reduceMinMaxComplexAlongDim(const Value &x, int dim, std::pmr::memory_resource *mr, const char *fn)
+reduceMinMaxComplexAlongDim(const Value &x, int dim, keel::Allocator *mr, const char *fn)
 {
     if (x.isScalar() || x.dims().isVector()) {
         if (dim != numkit::ops::firstNonSingletonDim(x)) {
             // Identity reduction: copy x as COMPLEX, idx = ones.
-            const size_t n = x.numel();
+            const keel::usize n = x.numel();
             Value out, outIdx;
             if (x.dims().isVector()) {
                 out    = createMatrix({x.dims().rows(), x.dims().cols(), 0}, ValueType::COMPLEX, mr);
@@ -424,43 +427,43 @@ reduceMinMaxComplexAlongDim(const Value &x, int dim, std::pmr::memory_resource *
                 outIdx = Value::scalar(1.0, mr);
                 return std::make_tuple(std::move(out), std::move(outIdx));
             }
-            Complex *dst = out.complexDataMut();
+            keel::c64 *dst = out.complexDataMut();
             double  *dstI = outIdx.doubleDataMut();
-            const Complex *src = x.complexData();
-            for (size_t i = 0; i < n; ++i) { dst[i] = src[i]; dstI[i] = 1.0; }
+            const keel::c64 *src = x.complexData();
+            for (keel::usize i = 0; i < n; ++i) { dst[i] = src[i]; dstI[i] = 1.0; }
             return std::make_tuple(std::move(out), std::move(outIdx));
         }
         return reduceMinMaxComplexAll<IsMax>(x, mr, fn);
     }
-    const Complex *data = x.complexData();
+    const keel::c64 *data = x.complexData();
     const bool allReal = allImagZero(data, x.numel());
     auto [out, outIdx] = allocComplexMinMaxOutputs(x, dim, mr);
-    Complex *dst  = out.complexDataMut();
+    keel::c64 *dst  = out.complexDataMut();
     double  *dstI = outIdx.doubleDataMut();
 
     const auto &d = x.dims();
     const int redAxis = dim - 1;
-    const size_t sliceLen = d.dim(redAxis);
-    size_t B = 1;
+    const keel::usize sliceLen = d.dim(redAxis);
+    keel::usize B = 1;
     for (int i = 0; i < redAxis; ++i) B *= d.dim(i);
-    size_t O = 1;
+    keel::usize O = 1;
     for (int i = redAxis + 1; i < d.ndim(); ++i) O *= d.dim(i);
 
-    auto runSlice = [&](size_t outOff, size_t baseOff, size_t stride) {
-        Complex best = data[baseOff];
-        size_t bi = 0;
-        for (size_t k = 1; k < sliceLen; ++k) {
-            const Complex v = data[baseOff + k * stride];
+    auto runSlice = [&](keel::usize outOff, keel::usize baseOff, keel::usize stride) {
+        keel::c64 best = data[baseOff];
+        keel::usize bi = 0;
+        for (keel::usize k = 1; k < sliceLen; ++k) {
+            const keel::c64 v = data[baseOff + k * stride];
             if (complexBetter<IsMax>(v, best, allReal)) { best = v; bi = k; }
         }
         dst[outOff] = best;
         dstI[outOff] = static_cast<double>(bi + 1);
     };
     if (B == 1) {
-        for (size_t o = 0; o < O; ++o) runSlice(o, o * sliceLen, 1);
+        for (keel::usize o = 0; o < O; ++o) runSlice(o, o * sliceLen, 1);
     } else {
-        for (size_t o = 0; o < O; ++o)
-            for (size_t b = 0; b < B; ++b)
+        for (keel::usize o = 0; o < O; ++o)
+            for (keel::usize b = 0; b < B; ++b)
                 runSlice(o * B + b, o * sliceLen * B + b, B);
     }
     return std::make_tuple(std::move(out), std::move(outIdx));
@@ -472,11 +475,11 @@ reduceMinMaxComplexAlongDim(const Value &x, int dim, std::pmr::memory_resource *
 // the declaration to be visible at the point of (template) reference.
 template <bool IsMax, typename Cmp>
 std::tuple<Value, Value>
-dispatchMinMaxAll(const Value &x, Cmp cmp, std::pmr::memory_resource *mr, const char *fn);
+dispatchMinMaxAll(const Value &x, Cmp cmp, keel::Allocator *mr, const char *fn);
 
 template <bool IsMax, typename Cmp>
 std::tuple<Value, Value>
-dispatchMinMaxAlongDim(const Value &x, int dim, Cmp cmp, std::pmr::memory_resource *mr, const char *fn);
+dispatchMinMaxAlongDim(const Value &x, int dim, Cmp cmp, keel::Allocator *mr, const char *fn);
 
 // ── NaN-aware min/max (omitnan flag) ─────────────────────────────────
 //
@@ -501,18 +504,18 @@ void minMaxNanAlongDim(const Value &x, int redDim, T *dst, double *dstI,
 {
     const auto &d = x.dims();
     const int redAxis = redDim - 1;
-    const size_t sliceLen = d.dim(redAxis);
-    size_t B = 1;
+    const keel::usize sliceLen = d.dim(redAxis);
+    keel::usize B = 1;
     for (int i = 0; i < redAxis; ++i) B *= d.dim(i);
-    size_t O = 1;
+    keel::usize O = 1;
     for (int i = redAxis + 1; i < d.ndim(); ++i) O *= d.dim(i);
 
     if (sliceLen == 0) return;
 
-    auto runSlice = [&](size_t outIdx, size_t baseOff, size_t stride) {
-        size_t firstValid = SIZE_MAX;
+    auto runSlice = [&](keel::usize outIdx, keel::usize baseOff, keel::usize stride) {
+        keel::usize firstValid = SIZE_MAX;
         T best{};
-        for (size_t k = 0; k < sliceLen; ++k) {
+        for (keel::usize k = 0; k < sliceLen; ++k) {
             const T v = readSrcAsT<T>(x, baseOff + k * stride, typeMatch);
             if (isElemNan(v)) continue;
             if (firstValid == SIZE_MAX) {
@@ -534,25 +537,25 @@ void minMaxNanAlongDim(const Value &x, int redDim, T *dst, double *dstI,
         }
     };
     if (B == 1) {
-        for (size_t o = 0; o < O; ++o) runSlice(o, o * sliceLen, 1);
+        for (keel::usize o = 0; o < O; ++o) runSlice(o, o * sliceLen, 1);
         return;
     }
-    for (size_t o = 0; o < O; ++o)
-        for (size_t b = 0; b < B; ++b)
+    for (keel::usize o = 0; o < O; ++o)
+        for (keel::usize b = 0; b < B; ++b)
             runSlice(o * B + b, o * sliceLen * B + b, B);
 }
 
 template <typename T, typename Cmp>
 std::tuple<Value, Value>
-reduceMinMaxNanAllT(const Value &x, Cmp cmp, ValueType outType, std::pmr::memory_resource *mr)
+reduceMinMaxNanAllT(const Value &x, Cmp cmp, ValueType outType, keel::Allocator *mr)
 {
     if (x.numel() == 0)
         throw std::runtime_error("min/max of empty array is not supported");
     const bool typeMatch = (x.type() == outType);
     if (x.isScalar() || x.dims().isVector()) {
-        size_t firstValid = SIZE_MAX;
+        keel::usize firstValid = SIZE_MAX;
         T best{};
-        for (size_t i = 0; i < x.numel(); ++i) {
+        for (keel::usize i = 0; i < x.numel(); ++i) {
             const T v = readSrcAsT<T>(x, i, typeMatch);
             if (isElemNan(v)) continue;
             if (firstValid == SIZE_MAX) { best = v; firstValid = i; }
@@ -580,7 +583,7 @@ reduceMinMaxNanAllT(const Value &x, Cmp cmp, ValueType outType, std::pmr::memory
 
 template <typename T, typename Cmp>
 std::tuple<Value, Value>
-reduceMinMaxNanAlongDimT(const Value &x, int dim, Cmp cmp, ValueType outType, std::pmr::memory_resource *mr)
+reduceMinMaxNanAlongDimT(const Value &x, int dim, Cmp cmp, ValueType outType, keel::Allocator *mr)
 {
     const bool typeMatch = (x.type() == outType);
     if (x.isScalar() || x.dims().isVector()) {
@@ -600,24 +603,24 @@ reduceMinMaxNanAlongDimT(const Value &x, int dim, Cmp cmp, ValueType outType, st
 // elements where either real or imag part is NaN.
 template <bool IsMax>
 std::tuple<Value, Value>
-reduceMinMaxComplexNanAll(const Value &x, std::pmr::memory_resource *mr, const char *fn)
+reduceMinMaxComplexNanAll(const Value &x, keel::Allocator *mr, const char *fn)
 {
     if (x.numel() == 0)
         throw Error(std::string(fn) + " of empty array is not supported",
                      0, 0, fn, "", std::string("numkit:") + fn + ":empty");
-    const Complex *data = x.complexData();
-    auto isNan = [](Complex c) { return std::isnan(c.real()) || std::isnan(c.imag()); };
+    const keel::c64 *data = x.complexData();
+    auto isNan = [](keel::c64 c) { return std::isnan(c.real()) || std::isnan(c.imag()); };
     // For all-real check, only consider non-NaN elements.
     bool allReal = true;
-    for (size_t i = 0; i < x.numel(); ++i) {
+    for (keel::usize i = 0; i < x.numel(); ++i) {
         if (isNan(data[i])) continue;
         if (data[i].imag() != 0.0) { allReal = false; break; }
     }
-    auto findBest = [&](size_t baseOff, size_t stride, size_t n,
-                        Complex &best, size_t &bi) {
-        size_t firstValid = SIZE_MAX;
-        for (size_t k = 0; k < n; ++k) {
-            const Complex v = data[baseOff + k * stride];
+    auto findBest = [&](keel::usize baseOff, keel::usize stride, keel::usize n,
+                        keel::c64 &best, keel::usize &bi) {
+        keel::usize firstValid = SIZE_MAX;
+        for (keel::usize k = 0; k < n; ++k) {
+            const keel::c64 v = data[baseOff + k * stride];
             if (isNan(v)) continue;
             if (firstValid == SIZE_MAX) {
                 best = v; bi = k; firstValid = k;
@@ -629,32 +632,32 @@ reduceMinMaxComplexNanAll(const Value &x, std::pmr::memory_resource *mr, const c
     };
 
     if (x.isScalar() || x.dims().isVector()) {
-        Complex best;
-        size_t bi = 0;
+        keel::c64 best;
+        keel::usize bi = 0;
         if (!findBest(0, 1, x.numel(), best, bi))
-            return std::make_tuple(Value::complexScalar(Complex(std::nan(""), 0.0), mr),
+            return std::make_tuple(Value::complexScalar(keel::c64(std::nan(""), 0.0), mr),
                                    Value::scalar(1.0, mr));
         return std::make_tuple(Value::complexScalar(best, mr),
                                Value::scalar(static_cast<double>(bi + 1), mr));
     }
     const int redDim = numkit::ops::firstNonSingletonDim(x);
     auto [out, outIdx] = allocComplexMinMaxOutputs(x, redDim, mr);
-    Complex *dst = out.complexDataMut();
+    keel::c64 *dst = out.complexDataMut();
     double *dstI = outIdx.doubleDataMut();
 
     const auto &d = x.dims();
     const int redAxis = redDim - 1;
-    const size_t sliceLen = d.dim(redAxis);
-    size_t B = 1;
+    const keel::usize sliceLen = d.dim(redAxis);
+    keel::usize B = 1;
     for (int i = 0; i < redAxis; ++i) B *= d.dim(i);
-    size_t O = 1;
+    keel::usize O = 1;
     for (int i = redAxis + 1; i < d.ndim(); ++i) O *= d.dim(i);
 
-    auto runSlice = [&](size_t outOff, size_t baseOff, size_t stride) {
-        Complex best;
-        size_t bi = 0;
+    auto runSlice = [&](keel::usize outOff, keel::usize baseOff, keel::usize stride) {
+        keel::c64 best;
+        keel::usize bi = 0;
         if (!findBest(baseOff, stride, sliceLen, best, bi)) {
-            dst[outOff] = Complex(std::nan(""), 0.0);
+            dst[outOff] = keel::c64(std::nan(""), 0.0);
             dstI[outOff] = 1.0;
         } else {
             dst[outOff] = best;
@@ -662,10 +665,10 @@ reduceMinMaxComplexNanAll(const Value &x, std::pmr::memory_resource *mr, const c
         }
     };
     if (B == 1) {
-        for (size_t o = 0; o < O; ++o) runSlice(o, o * sliceLen, 1);
+        for (keel::usize o = 0; o < O; ++o) runSlice(o, o * sliceLen, 1);
     } else {
-        for (size_t o = 0; o < O; ++o)
-            for (size_t b = 0; b < B; ++b)
+        for (keel::usize o = 0; o < O; ++o)
+            for (keel::usize b = 0; b < B; ++b)
                 runSlice(o * B + b, o * sliceLen * B + b, B);
     }
     return std::make_tuple(std::move(out), std::move(outIdx));
@@ -673,44 +676,44 @@ reduceMinMaxComplexNanAll(const Value &x, std::pmr::memory_resource *mr, const c
 
 template <bool IsMax>
 std::tuple<Value, Value>
-reduceMinMaxComplexNanAlongDim(const Value &x, int dim, std::pmr::memory_resource *mr, const char *fn)
+reduceMinMaxComplexNanAlongDim(const Value &x, int dim, keel::Allocator *mr, const char *fn)
 {
     if (x.isScalar() || x.dims().isVector()) {
         if (dim != numkit::ops::firstNonSingletonDim(x))
             return reduceMinMaxComplexAlongDim<IsMax>(x, dim, mr, fn);
         return reduceMinMaxComplexNanAll<IsMax>(x, mr, fn);
     }
-    const Complex *data = x.complexData();
-    auto isNan = [](Complex c) { return std::isnan(c.real()) || std::isnan(c.imag()); };
+    const keel::c64 *data = x.complexData();
+    auto isNan = [](keel::c64 c) { return std::isnan(c.real()) || std::isnan(c.imag()); };
     bool allReal = true;
-    for (size_t i = 0; i < x.numel(); ++i) {
+    for (keel::usize i = 0; i < x.numel(); ++i) {
         if (isNan(data[i])) continue;
         if (data[i].imag() != 0.0) { allReal = false; break; }
     }
     auto [out, outIdx] = allocComplexMinMaxOutputs(x, dim, mr);
-    Complex *dst = out.complexDataMut();
+    keel::c64 *dst = out.complexDataMut();
     double *dstI = outIdx.doubleDataMut();
 
     const auto &d = x.dims();
     const int redAxis = dim - 1;
-    const size_t sliceLen = d.dim(redAxis);
-    size_t B = 1;
+    const keel::usize sliceLen = d.dim(redAxis);
+    keel::usize B = 1;
     for (int i = 0; i < redAxis; ++i) B *= d.dim(i);
-    size_t O = 1;
+    keel::usize O = 1;
     for (int i = redAxis + 1; i < d.ndim(); ++i) O *= d.dim(i);
 
-    auto runSlice = [&](size_t outOff, size_t baseOff, size_t stride) {
-        size_t firstValid = SIZE_MAX;
-        Complex best;
-        size_t bi = 0;
-        for (size_t k = 0; k < sliceLen; ++k) {
-            const Complex v = data[baseOff + k * stride];
+    auto runSlice = [&](keel::usize outOff, keel::usize baseOff, keel::usize stride) {
+        keel::usize firstValid = SIZE_MAX;
+        keel::c64 best;
+        keel::usize bi = 0;
+        for (keel::usize k = 0; k < sliceLen; ++k) {
+            const keel::c64 v = data[baseOff + k * stride];
             if (isNan(v)) continue;
             if (firstValid == SIZE_MAX) { best = v; bi = k; firstValid = k; }
             else if (complexBetter<IsMax>(v, best, allReal)) { best = v; bi = k; firstValid = k; }
         }
         if (firstValid == SIZE_MAX) {
-            dst[outOff] = Complex(std::nan(""), 0.0);
+            dst[outOff] = keel::c64(std::nan(""), 0.0);
             dstI[outOff] = 1.0;
         } else {
             dst[outOff] = best;
@@ -718,10 +721,10 @@ reduceMinMaxComplexNanAlongDim(const Value &x, int dim, std::pmr::memory_resourc
         }
     };
     if (B == 1) {
-        for (size_t o = 0; o < O; ++o) runSlice(o, o * sliceLen, 1);
+        for (keel::usize o = 0; o < O; ++o) runSlice(o, o * sliceLen, 1);
     } else {
-        for (size_t o = 0; o < O; ++o)
-            for (size_t b = 0; b < B; ++b)
+        for (keel::usize o = 0; o < O; ++o)
+            for (keel::usize b = 0; b < B; ++b)
                 runSlice(o * B + b, o * sliceLen * B + b, B);
     }
     return std::make_tuple(std::move(out), std::move(outIdx));
@@ -729,7 +732,7 @@ reduceMinMaxComplexNanAlongDim(const Value &x, int dim, std::pmr::memory_resourc
 
 template <bool IsMax, typename Cmp>
 std::tuple<Value, Value>
-dispatchMinMaxNanAll(const Value &x, Cmp cmp, std::pmr::memory_resource *mr, const char *fn)
+dispatchMinMaxNanAll(const Value &x, Cmp cmp, keel::Allocator *mr, const char *fn)
 {
     if (x.numel() == 0) return emptyMinMaxResult(x, -1, x.type(), mr);
     switch (x.type()) {
@@ -744,7 +747,7 @@ dispatchMinMaxNanAll(const Value &x, Cmp cmp, std::pmr::memory_resource *mr, con
 template <bool IsMax, typename Cmp>
 std::tuple<Value, Value>
 dispatchMinMaxNanAlongDim(const Value &x, int dim, Cmp cmp,
-                          std::pmr::memory_resource *mr, const char *fn)
+                          keel::Allocator *mr, const char *fn)
 {
     if (x.numel() == 0) return emptyMinMaxResult(x, dim, x.type(), mr);
     switch (x.type()) {
@@ -760,21 +763,21 @@ dispatchMinMaxNanAlongDim(const Value &x, int dim, Cmp cmp,
 // COMPLEX uses the |z|-then-angle comparator (MATLAB rule).
 template <bool IsMax, typename Cmp>
 std::tuple<Value, Value>
-dispatchMinMaxAll(const Value &x, Cmp cmp, std::pmr::memory_resource *mr, const char *fn)
+dispatchMinMaxAll(const Value &x, Cmp cmp, keel::Allocator *mr, const char *fn)
 {
     if (x.numel() == 0) return emptyMinMaxResult(x, -1, x.type(), mr);
     switch (x.type()) {
     case ValueType::DOUBLE:  return reduceMinMaxAllT<double  >(x, cmp, ValueType::DOUBLE,  mr);
     case ValueType::SINGLE:  return reduceMinMaxAllT<float   >(x, cmp, ValueType::SINGLE,  mr);
-    case ValueType::INT8:    return reduceMinMaxAllT<int8_t  >(x, cmp, ValueType::INT8,    mr);
-    case ValueType::INT16:   return reduceMinMaxAllT<int16_t >(x, cmp, ValueType::INT16,   mr);
-    case ValueType::INT32:   return reduceMinMaxAllT<int32_t >(x, cmp, ValueType::INT32,   mr);
-    case ValueType::INT64:   return reduceMinMaxAllT<int64_t >(x, cmp, ValueType::INT64,   mr);
-    case ValueType::UINT8:   return reduceMinMaxAllT<uint8_t >(x, cmp, ValueType::UINT8,   mr);
-    case ValueType::UINT16:  return reduceMinMaxAllT<uint16_t>(x, cmp, ValueType::UINT16,  mr);
-    case ValueType::UINT32:  return reduceMinMaxAllT<uint32_t>(x, cmp, ValueType::UINT32,  mr);
-    case ValueType::UINT64:  return reduceMinMaxAllT<uint64_t>(x, cmp, ValueType::UINT64,  mr);
-    case ValueType::LOGICAL: return reduceMinMaxAllT<uint8_t >(x, cmp, ValueType::LOGICAL, mr);
+    case ValueType::INT8:    return reduceMinMaxAllT<keel::i8  >(x, cmp, ValueType::INT8,    mr);
+    case ValueType::INT16:   return reduceMinMaxAllT<keel::i16 >(x, cmp, ValueType::INT16,   mr);
+    case ValueType::INT32:   return reduceMinMaxAllT<keel::i32 >(x, cmp, ValueType::INT32,   mr);
+    case ValueType::INT64:   return reduceMinMaxAllT<keel::i64 >(x, cmp, ValueType::INT64,   mr);
+    case ValueType::UINT8:   return reduceMinMaxAllT<keel::u8 >(x, cmp, ValueType::UINT8,   mr);
+    case ValueType::UINT16:  return reduceMinMaxAllT<keel::u16>(x, cmp, ValueType::UINT16,  mr);
+    case ValueType::UINT32:  return reduceMinMaxAllT<keel::u32>(x, cmp, ValueType::UINT32,  mr);
+    case ValueType::UINT64:  return reduceMinMaxAllT<keel::u64>(x, cmp, ValueType::UINT64,  mr);
+    case ValueType::LOGICAL: return reduceMinMaxAllT<keel::u8 >(x, cmp, ValueType::LOGICAL, mr);
     case ValueType::CHAR:    return reduceMinMaxAllT<char    >(x, cmp, ValueType::CHAR,    mr);
     case ValueType::COMPLEX: return reduceMinMaxComplexAll<IsMax>(x, mr, fn);
     default:
@@ -785,21 +788,21 @@ dispatchMinMaxAll(const Value &x, Cmp cmp, std::pmr::memory_resource *mr, const 
 
 template <bool IsMax, typename Cmp>
 std::tuple<Value, Value>
-dispatchMinMaxAlongDim(const Value &x, int dim, Cmp cmp, std::pmr::memory_resource *mr, const char *fn)
+dispatchMinMaxAlongDim(const Value &x, int dim, Cmp cmp, keel::Allocator *mr, const char *fn)
 {
     if (x.numel() == 0) return emptyMinMaxResult(x, dim, x.type(), mr);
     switch (x.type()) {
     case ValueType::DOUBLE:  return reduceMinMaxAlongDimT<double  >(x, dim, cmp, ValueType::DOUBLE,  mr);
     case ValueType::SINGLE:  return reduceMinMaxAlongDimT<float   >(x, dim, cmp, ValueType::SINGLE,  mr);
-    case ValueType::INT8:    return reduceMinMaxAlongDimT<int8_t  >(x, dim, cmp, ValueType::INT8,    mr);
-    case ValueType::INT16:   return reduceMinMaxAlongDimT<int16_t >(x, dim, cmp, ValueType::INT16,   mr);
-    case ValueType::INT32:   return reduceMinMaxAlongDimT<int32_t >(x, dim, cmp, ValueType::INT32,   mr);
-    case ValueType::INT64:   return reduceMinMaxAlongDimT<int64_t >(x, dim, cmp, ValueType::INT64,   mr);
-    case ValueType::UINT8:   return reduceMinMaxAlongDimT<uint8_t >(x, dim, cmp, ValueType::UINT8,   mr);
-    case ValueType::UINT16:  return reduceMinMaxAlongDimT<uint16_t>(x, dim, cmp, ValueType::UINT16,  mr);
-    case ValueType::UINT32:  return reduceMinMaxAlongDimT<uint32_t>(x, dim, cmp, ValueType::UINT32,  mr);
-    case ValueType::UINT64:  return reduceMinMaxAlongDimT<uint64_t>(x, dim, cmp, ValueType::UINT64,  mr);
-    case ValueType::LOGICAL: return reduceMinMaxAlongDimT<uint8_t >(x, dim, cmp, ValueType::LOGICAL, mr);
+    case ValueType::INT8:    return reduceMinMaxAlongDimT<keel::i8  >(x, dim, cmp, ValueType::INT8,    mr);
+    case ValueType::INT16:   return reduceMinMaxAlongDimT<keel::i16 >(x, dim, cmp, ValueType::INT16,   mr);
+    case ValueType::INT32:   return reduceMinMaxAlongDimT<keel::i32 >(x, dim, cmp, ValueType::INT32,   mr);
+    case ValueType::INT64:   return reduceMinMaxAlongDimT<keel::i64 >(x, dim, cmp, ValueType::INT64,   mr);
+    case ValueType::UINT8:   return reduceMinMaxAlongDimT<keel::u8 >(x, dim, cmp, ValueType::UINT8,   mr);
+    case ValueType::UINT16:  return reduceMinMaxAlongDimT<keel::u16>(x, dim, cmp, ValueType::UINT16,  mr);
+    case ValueType::UINT32:  return reduceMinMaxAlongDimT<keel::u32>(x, dim, cmp, ValueType::UINT32,  mr);
+    case ValueType::UINT64:  return reduceMinMaxAlongDimT<keel::u64>(x, dim, cmp, ValueType::UINT64,  mr);
+    case ValueType::LOGICAL: return reduceMinMaxAlongDimT<keel::u8 >(x, dim, cmp, ValueType::LOGICAL, mr);
     case ValueType::CHAR:    return reduceMinMaxAlongDimT<char    >(x, dim, cmp, ValueType::CHAR,    mr);
     case ValueType::COMPLEX: return reduceMinMaxComplexAlongDim<IsMax>(x, dim, mr, fn);
     default:
@@ -811,9 +814,9 @@ dispatchMinMaxAlongDim(const Value &x, int dim, Cmp cmp, std::pmr::memory_resour
 } // anonymous namespace
 
 // nan-omitting max/min workers (defs in reductions.cpp, external).
-std::tuple<Value, Value> maxOmitNan(const Value &x, int dim, std::pmr::memory_resource *mr);
-std::tuple<Value, Value> minOmitNan(const Value &x, int dim, std::pmr::memory_resource *mr);
-Value maxOmitNanBinary(const Value &a, const Value &b, std::pmr::memory_resource *mr);
-Value minOmitNanBinary(const Value &a, const Value &b, std::pmr::memory_resource *mr);
+std::tuple<Value, Value> maxOmitNan(const Value &x, int dim, keel::Allocator *mr);
+std::tuple<Value, Value> minOmitNan(const Value &x, int dim, keel::Allocator *mr);
+Value maxOmitNanBinary(const Value &a, const Value &b, keel::Allocator *mr);
+Value minOmitNanBinary(const Value &a, const Value &b, keel::Allocator *mr);
 
 } // namespace numkit::builtin

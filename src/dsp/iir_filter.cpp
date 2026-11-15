@@ -6,64 +6,68 @@
 // Value-level marshalling helpers (toComplexBuf, firstNonSingletonExtent). The
 // recurrence is sequential — no SIMD backend. See iir_filter.hpp.
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/array.h>
+#include <keel/complex.h>
 #include <numkit/ops/iir_filter.hpp>
 
 #include <algorithm>
 
 namespace numkit::ops {
 
-ScratchVec<double> applyFilterDf2t(const double *bn, std::size_t nb, const double *an,
-                                   std::size_t na, const double *input, std::size_t len,
-                                   const double *zi, std::size_t ziLen, double *zfOut,
-                                   std::pmr::memory_resource *mr)
+keel::Array<double> applyFilterDf2t(const double *bn, keel::usize nb, const double *an,
+                                   keel::usize na, const double *input, keel::usize len,
+                                   const double *zi, keel::usize ziLen, double *zfOut,
+                                   keel::Allocator *mr)
 {
-    const std::size_t  nfilt = std::max(nb, na);
-    ScratchVec<double> out(len, mr);
-    ScratchVec<double> z(nfilt, mr);
-    for (std::size_t i = 0; i < nfilt; ++i)
+    const keel::usize  nfilt = std::max(nb, na);
+    keel::Array<double> out(len, mr);
+    keel::Array<double> z(nfilt, mr);
+    for (keel::usize i = 0; i < nfilt; ++i)
         z[i] = (zi && i < ziLen) ? zi[i] : 0.0;
-    for (std::size_t n = 0; n < len; ++n) {
+    for (keel::usize n = 0; n < len; ++n) {
         out[n] = (nb > 0 ? bn[0] : 0.0) * input[n] + z[0];
-        for (std::size_t i = 1; i < nfilt; ++i) {
+        for (keel::usize i = 1; i < nfilt; ++i) {
             z[i - 1] = (i < nb ? bn[i] : 0.0) * input[n]
                        - (i < na ? an[i] : 0.0) * out[n]
                        + (i < nfilt - 1 ? z[i] : 0.0);
         }
     }
     if (zfOut)
-        for (std::size_t i = 0; i + 1 < nfilt; ++i) zfOut[i] = z[i];
+        for (keel::usize i = 0; i + 1 < nfilt; ++i) zfOut[i] = z[i];
     return out;
 }
 
-ScratchVec<Complex> applyFilterDf2tComplex(const Complex *bn, std::size_t nb, const Complex *an,
-                                           std::size_t na, const Complex *input, std::size_t len,
-                                           const Complex *zi, std::size_t ziLen, Complex *zfOut,
-                                           std::pmr::memory_resource *mr)
+keel::Array<keel::c64> applyFilterDf2tComplex(const keel::c64 *bn, keel::usize nb, const keel::c64 *an,
+                                           keel::usize na, const keel::c64 *input, keel::usize len,
+                                           const keel::c64 *zi, keel::usize ziLen, keel::c64 *zfOut,
+                                           keel::Allocator *mr)
 {
-    const std::size_t   nfilt = std::max(nb, na);
-    ScratchVec<Complex> out(len, mr);
-    ScratchVec<Complex> z(nfilt, mr);
-    const Complex       zero(0.0, 0.0);
-    for (std::size_t i = 0; i < nfilt; ++i)
+    const keel::usize   nfilt = std::max(nb, na);
+    keel::Array<keel::c64> out(len, mr);
+    keel::Array<keel::c64> z(nfilt, mr);
+    const keel::c64       zero(0.0, 0.0);
+    for (keel::usize i = 0; i < nfilt; ++i)
         z[i] = (zi && i < ziLen) ? zi[i] : zero;
-    for (std::size_t n = 0; n < len; ++n) {
+    for (keel::usize n = 0; n < len; ++n) {
         out[n] = (nb > 0 ? bn[0] : zero) * input[n] + z[0];
-        for (std::size_t i = 1; i < nfilt; ++i) {
+        for (keel::usize i = 1; i < nfilt; ++i) {
             z[i - 1] = (i < nb ? bn[i] : zero) * input[n]
                        - (i < na ? an[i] : zero) * out[n]
                        + (i < nfilt - 1 ? z[i] : zero);
         }
     }
     if (zfOut)
-        for (std::size_t i = 0; i + 1 < nfilt; ++i) zfOut[i] = z[i];
+        for (keel::usize i = 0; i + 1 < nfilt; ++i) zfOut[i] = z[i];
     return out;
 }
 
 void biquadDf2t(double b0, double b1, double b2, double a1, double a2,
-                const double *x, double *y, std::size_t n)
+                const double *x, double *y, keel::usize n)
 {
     double s1 = 0.0, s2 = 0.0;
-    for (std::size_t i = 0; i < n; ++i) {
+    for (keel::usize i = 0; i < n; ++i) {
         const double xi = x[i];
         const double yi = b0 * xi + s1;
         s1 = b1 * xi - a1 * yi + s2;
@@ -73,11 +77,11 @@ void biquadDf2t(double b0, double b1, double b2, double a1, double a2,
 }
 
 void biquadDf2tWithState(double b0, double b1, double b2, double a1, double a2,
-                         const double *x, double *y, std::size_t n,
+                         const double *x, double *y, keel::usize n,
                          double s1_init, double s2_init)
 {
     double s1 = s1_init, s2 = s2_init;
-    for (std::size_t i = 0; i < n; ++i) {
+    for (keel::usize i = 0; i < n; ++i) {
         const double xi = x[i];
         const double yi = b0 * xi + s1;
         s1 = b1 * xi - a1 * yi + s2;

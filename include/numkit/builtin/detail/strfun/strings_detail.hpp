@@ -3,10 +3,15 @@
 // Phase 2b compute/register split — see project_layering_refactor memory.
 #pragma once
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/ref.h>
+#include <keel/arena.h>
+#include <keel/array.h>
+#include <keel/complex.h>
+#include <keel/math.h>
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
-#include <numkit/value/scratch.hpp>
-#include <numkit/value/span.hpp>
 #include <numkit/ops/reductions.hpp>  // engine-free numkit::builtin::detail dim-infra (ops re-export)
 
 #include <algorithm>
@@ -15,7 +20,6 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
-#include <memory_resource>
 #include <numeric>
 #include <string>
 #include <tuple>
@@ -36,7 +40,7 @@ namespace {
 // with exactly-zero imaginary part prints as a bare real (num2str(complex(5,0))
 // = "5"). The DEFAULT-precision/N forms for complex ARRAYS use MATLAB's
 // column-aligned layout and remain a deferred gap (see num2str_reg).
-std::string num2strComplexScalar(Complex z, int precOverride)
+std::string num2strComplexScalar(keel::c64 z, int precOverride)
 {
     const double re = z.real(), im = z.imag();
     int prec = precOverride;
@@ -70,10 +74,10 @@ std::string num2strComplexScalar(Complex z, int precOverride)
 // (bugs/opened/lang/num2str-complex-array.md)
 inline std::string num2strComplexArray(const Value &x, int precOverride)
 {
-    const std::size_t rows = x.dims().rows();
-    const std::size_t cols = x.dims().cols();
+    const keel::usize rows = x.dims().rows();
+    const keel::usize cols = x.dims().cols();
     if (rows * cols == 0) return "";
-    const Complex *d = x.complexData();
+    const keel::c64 *d = x.complexData();
 
     // Split into two probed regimes (MATLAB R2025b):
     // 1) ALL imaginary parts == 0 (complex-typed storage of real data):
@@ -86,68 +90,68 @@ inline std::string num2strComplexArray(const Value &x, int precOverride)
     //    divergence — see the bug file.)
     bool anyImag = false, allInt = true;
     double maxAbs = 0.0;
-    for (std::size_t i = 0; i < rows * cols; ++i) {
+    for (keel::usize i = 0; i < rows * cols; ++i) {
         if (d[i].imag() != 0.0) anyImag = true;
         if (d[i].real() != std::floor(d[i].real())) allInt = false;
-        maxAbs = std::max(maxAbs, std::max(std::abs(d[i].real()), std::abs(d[i].imag())));
+        maxAbs = std::max(maxAbs, std::max(keel::abs(d[i].real()), keel::abs(d[i].imag())));
     }
     if (!anyImag) {
         std::vector<std::string> cells;
-        std::size_t wmax = 0;
-        for (std::size_t i = 0; i < rows * cols; ++i) {
+        keel::usize wmax = 0;
+        for (keel::usize i = 0; i < rows * cols; ++i) {
             std::string s = num2strComplexScalar(d[i], precOverride);
             wmax = std::max(wmax, s.size());
             cells.push_back(std::move(s));
         }
-        const std::size_t W = allInt ? wmax + 2
-                                     : (static_cast<std::size_t>(std::max(0, static_cast<int>(std::floor(std::log10(maxAbs > 0 ? maxAbs : 1.0))))) + 5 + 7);
+        const keel::usize W = allInt ? wmax + 2
+                                     : (static_cast<keel::usize>(std::max(0, static_cast<int>(std::floor(std::log10(maxAbs > 0 ? maxAbs : 1.0))))) + 5 + 7);
         std::string out;
-        for (std::size_t r = 0; r < rows; ++r) {
+        for (keel::usize r = 0; r < rows; ++r) {
             if (r) out += '\n';
-            for (std::size_t c = 0; c < cols; ++c) {
+            for (keel::usize c = 0; c < cols; ++c) {
                 const std::string &s = cells[r + c * rows];
-                const std::size_t pad = W > s.size() ? W - s.size() : 0;
+                const keel::usize pad = W > s.size() ? W - s.size() : 0;
                 if (allInt) { out += s; out.append(pad, ' '); }
                 else { out.append(pad, ' '); out += s; }
             }
         }
         // strip common leading/trailing blank columns (row-preserving)
         std::vector<std::string> lines;
-        std::size_t pos = 0;
+        keel::usize pos = 0;
         while (pos <= out.size()) {
-            std::size_t nl = out.find('\n', pos);
+            keel::usize nl = out.find('\n', pos);
             lines.push_back(out.substr(pos, nl == std::string::npos ? std::string::npos : nl - pos));
             if (nl == std::string::npos) break;
             pos = nl + 1;
         }
-        std::size_t commonLead = lines.empty() ? 0 : lines[0].size();
-        std::size_t commonTrail = lines.empty() ? 0 : lines[0].size();
+        keel::usize commonLead = lines.empty() ? 0 : lines[0].size();
+        keel::usize commonTrail = lines.empty() ? 0 : lines[0].size();
         for (auto &L : lines) {
-            std::size_t a = L.find_first_not_of(' ');
+            keel::usize a = L.find_first_not_of(' ');
             if (a == std::string::npos) a = L.size();
             commonLead = std::min(commonLead, a);
-            std::size_t b = L.find_last_not_of(' ');
+            keel::usize b = L.find_last_not_of(' ');
             if (b == std::string::npos) b = 0; else b = L.size() - 1 - b;
             commonTrail = std::min(commonTrail, b);
         }
         std::string stripped;
-        for (std::size_t i = 0; i < lines.size(); ++i) {
+        for (keel::usize i = 0; i < lines.size(); ++i) {
             if (i) stripped += '\n';
-            std::size_t e = lines[i].size() > commonTrail ? lines[i].size() - commonTrail : 0;
+            keel::usize e = lines[i].size() > commonTrail ? lines[i].size() - commonTrail : 0;
             stripped += lines[i].substr(commonLead, e > commonLead ? e - commonLead : 0);
         }
         return stripped;
     }
     // regime 2: any nonzero imag — a+bi for every element
     std::string out;
-    for (std::size_t r = 0; r < rows; ++r) {
+    for (keel::usize r = 0; r < rows; ++r) {
         if (r) out += '\n';
-        for (std::size_t c = 0; c < cols; ++c) {
+        for (keel::usize c = 0; c < cols; ++c) {
             if (c) out += "   ";
-            const Complex z = d[r + c * rows];
+            const keel::c64 z = d[r + c * rows];
             char buf[64], buf2[64];
             snprintf(buf, sizeof buf, "%g", z.real());
-            snprintf(buf2, sizeof buf2, "%g", std::abs(z.imag()));
+            snprintf(buf2, sizeof buf2, "%g", keel::abs(z.imag()));
             out += buf;
             out += (z.imag() < 0.0) ? "-" : "+";
             out += buf2;
@@ -168,7 +172,7 @@ inline std::string num2strComplexArray(const Value &x, int precOverride)
 // fractional, negative, and large/small-magnitude probes.
 std::string num2strArrayFormat(const Value &x, int N)
 {
-    const size_t n = x.numel();
+    const keel::usize n = x.numel();
     char fmt[32];
     if (N >= 1) {
         int p = N; if (p > 99) p = 99;
@@ -178,7 +182,7 @@ std::string num2strArrayFormat(const Value &x, int N)
     double maxabs = 0.0;
     bool allInt = true;
     int maxChars = 1;
-    for (size_t i = 0; i < n; ++i) {
+    for (keel::usize i = 0; i < n; ++i) {
         const double v = x.elemAsDouble(i);
         if (!std::isfinite(v)) { allInt = false; continue; }
         const double a = std::fabs(v);
@@ -217,7 +221,7 @@ namespace {
 // `cmp(sa, sb)` is the per-pair predicate (captures n for strncmp).
 template <class Pred>
 Value strCmpElementwise(const Value &a, const Value &b, Pred cmp,
-                        const char *fn, std::pmr::memory_resource *mr)
+                        const char *fn, keel::Allocator *mr)
 {
     // An operand is an "array" (compared element-wise) when it is a cell OR
     // a non-scalar string array; a char / string scalar broadcasts against it.
@@ -227,10 +231,10 @@ Value strCmpElementwise(const Value &a, const Value &b, Pred cmp,
     auto isText = [](const Value &v) {
         return v.isChar() || v.isString();
     };
-    auto elemIsText = [&](const Value &v, std::size_t idx) -> bool {
+    auto elemIsText = [&](const Value &v, keel::usize idx) -> bool {
         return v.isCell() ? isText(v.cellAt(idx)) : v.isString();
     };
-    auto elemAt = [](const Value &v, std::size_t idx) -> std::string {
+    auto elemAt = [](const Value &v, keel::usize idx) -> std::string {
         return v.isCell() ? v.cellAt(idx).toString() : v.stringElem(idx);
     };
     const bool ac = isArr(a), bc = isArr(b);
@@ -240,12 +244,12 @@ Value strCmpElementwise(const Value &a, const Value &b, Pred cmp,
         return Value::logicalScalar(cmp(a.toString(), b.toString()), mr);
     }
 
-    const std::size_t na = ac ? a.numel() : 1;
-    const std::size_t nb = bc ? b.numel() : 1;
-    std::size_t n = 1, rr = 1, cc = 1;
-    auto shapeOf = [](const Value &v, std::size_t &r, std::size_t &c) {
-        r = static_cast<std::size_t>(v.dims().rows());
-        c = static_cast<std::size_t>(v.dims().cols());
+    const keel::usize na = ac ? a.numel() : 1;
+    const keel::usize nb = bc ? b.numel() : 1;
+    keel::usize n = 1, rr = 1, cc = 1;
+    auto shapeOf = [](const Value &v, keel::usize &r, keel::usize &c) {
+        r = static_cast<keel::usize>(v.dims().rows());
+        c = static_cast<keel::usize>(v.dims().cols());
     };
     if (ac && bc) {
         if (na == nb)      { n = na; shapeOf(a, rr, cc); }
@@ -265,9 +269,9 @@ Value strCmpElementwise(const Value &a, const Value &b, Pred cmp,
     }
     const std::string scalA = ac ? std::string() : a.toString();
     const std::string scalB = bc ? std::string() : b.toString();
-    for (std::size_t i = 0; i < n; ++i) {
-        const std::size_t ia = (na == 1 ? 0 : i);
-        const std::size_t ib = (nb == 1 ? 0 : i);
+    for (keel::usize i = 0; i < n; ++i) {
+        const keel::usize ia = (na == 1 ? 0 : i);
+        const keel::usize ib = (nb == 1 ? 0 : i);
         if ((ac && !elemIsText(a, ia)) || (bc && !elemIsText(b, ib))) {
             od[i] = 0;
             continue;
@@ -282,7 +286,7 @@ Value strCmpElementwise(const Value &a, const Value &b, Pred cmp,
 // strncmp/strncmpi predicate: if BOTH strings are at least n chars, compare
 // the first n; otherwise require full equality (MATLAB: strncmp('ab','ab',5)
 // is true, strncmp('ab','abc',5) is false).
-inline bool strnEq(const std::string &sa, const std::string &sb, size_t n)
+inline bool strnEq(const std::string &sa, const std::string &sb, keel::usize n)
 {
     if (sa.size() >= n && sb.size() >= n)
         return sa.compare(0, n, sb, 0, n) == 0;
@@ -295,10 +299,10 @@ namespace {
 // Length of the LONGEST delimiter (literal) in `delims` matching `s` at
 // position `i`, or 0 if none match. Longest-match so a delimiter ", " wins
 // over "," when both are listed.
-size_t matchDelimAt(const std::string &s, size_t i,
-                    const std::pmr::vector<std::string> &delims)
+keel::usize matchDelimAt(const std::string &s, keel::usize i,
+                    keel::ArrayRef<std::string> delims)
 {
-    size_t best = 0;
+    keel::usize best = 0;
     for (const auto &d : delims)
         if (!d.empty() && d.size() > best && i + d.size() <= s.size() &&
             s.compare(i, d.size(), d) == 0)
@@ -306,35 +310,25 @@ size_t matchDelimAt(const std::string &s, size_t i,
     return best;
 }
 
-// Core split used by every strsplit entry point. Matches MATLAB R2025b:
-//   - any of `delims` (literal, longest-match) is a split point;
-//   - CollapseDelimiters=true (default) merges only CONSECUTIVE delimiters,
-//     so leading/trailing empty tokens are still produced
-//     (',a,b,' -> {'','a','b',''}); collapse=false splits at every
-//     occurrence ('a,,b' -> {'a','','b'});
-//   - the result always has at least one element ('' -> {''}).
-// Splits `s` on `delims`. When `matchesOut` is non-null it receives the
-// matched delimiter text at each split point (the whole collapsed run when
-// collapse is on), supporting MATLAB's [tokens, matches] = strsplit(...).
 Value strsplitImpl(const std::string &s,
-                   const std::pmr::vector<std::string> &delims, bool collapse,
-                   std::pmr::memory_resource *mr,
-                   ScratchVec<std::string> *matchesOut = nullptr)
+                   keel::ArrayRef<std::string> delims, bool collapse,
+                   keel::Allocator *mr,
+                   keel::Array<std::string> *matchesOut = nullptr)
 {
-    ScratchArena scratch(mr);
-    ScratchVec<std::string> parts(&scratch);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<std::string> parts(scratch.allocator());
     std::string current;
-    const size_t n = s.size();
-    size_t i = 0;
+    const keel::usize n = s.size();
+    keel::usize i = 0;
     while (i < n) {
-        size_t mlen = matchDelimAt(s, i, delims);
+        keel::usize mlen = matchDelimAt(s, i, delims);
         if (mlen > 0) {
             parts.push_back(current);
             current.clear();
-            const size_t matchStart = i;
+            const keel::usize matchStart = i;
             i += mlen;
             if (collapse) {
-                size_t m2;
+                keel::usize m2;
                 while (i < n && (m2 = matchDelimAt(s, i, delims)) > 0)
                     i += m2;
             }
@@ -346,13 +340,13 @@ Value strsplitImpl(const std::string &s,
     }
     parts.push_back(current);
     auto c = Value::cell(1, parts.size());
-    for (size_t k = 0; k < parts.size(); ++k)
+    for (keel::usize k = 0; k < parts.size(); ++k)
         c.cellAt(k) = Value::fromString(parts[k], mr);
     return c;
 }
 
 // Append the MATLAB default whitespace delimiter set to `delims`.
-void appendDefaultWhitespace(ScratchVec<std::string> &delims)
+void appendDefaultWhitespace(keel::Array<std::string> &delims)
 {
     const char ws[] = {' ', '\t', '\n', '\r', '\f', '\v'};
     for (char w : ws)
@@ -360,10 +354,10 @@ void appendDefaultWhitespace(ScratchVec<std::string> &delims)
 }
 
 // Build the delimiter list from a string OR a cell array of strings.
-void appendDelims(const Value &delim, ScratchVec<std::string> &delims)
+void appendDelims(const Value &delim, keel::Array<std::string> &delims)
 {
     if (delim.isCell())
-        for (size_t i = 0; i < delim.numel(); ++i)
+        for (keel::usize i = 0; i < delim.numel(); ++i)
             delims.push_back(delim.cellAt(i).toString());
     else
         delims.push_back(delim.toString());
@@ -374,13 +368,13 @@ namespace {
 // All 1-based indices of `pp` in `ss` (overlapping, like MATLAB) as a 1×k
 // DOUBLE row vector; [] (0×0) if no match or `pp` is empty.
 Value strfindOne(const std::string &ss, const std::string &pp,
-                 std::pmr::memory_resource *mr)
+                 keel::Allocator *mr)
 {
     if (pp.empty())
         return Value::matrix(0, 0, ValueType::DOUBLE, mr);  // strfind(s,'') -> []
-    ScratchArena scratch(mr);
-    ScratchVec<size_t> hits(&scratch);
-    size_t pos = 0;
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<keel::usize> hits(scratch.allocator());
+    keel::usize pos = 0;
     while ((pos = ss.find(pp, pos)) != std::string::npos) {
         hits.push_back(pos + 1);  // 1-based
         pos += 1;                 // overlapping matches like MATLAB
@@ -388,7 +382,7 @@ Value strfindOne(const std::string &ss, const std::string &pp,
     if (hits.empty())
         return Value::matrix(0, 0, ValueType::DOUBLE, mr);
     auto r = Value::matrix(1, hits.size(), ValueType::DOUBLE, mr);
-    for (size_t i = 0; i < hits.size(); ++i)
+    for (keel::usize i = 0; i < hits.size(); ++i)
         r.doubleDataMut()[i] = static_cast<double>(hits[i]);
     return r;
 }
@@ -400,7 +394,7 @@ namespace {
 // one per element (both store their elements as Values in cellDataVec()).
 // Shared by contains/startsWith/endsWith (match-any) and count/erase
 // (apply each listed pattern).
-void collectMatchPatterns(const Value &pat, ScratchVec<std::string> &out)
+void collectMatchPatterns(const Value &pat, keel::Array<std::string> &out)
 {
     if (pat.isCell() || (pat.isString() && pat.numel() != 1)) {
         const auto &vec = pat.cellDataVec();
@@ -434,11 +428,11 @@ namespace {
 // Build a logical array shaped like the input char/string by running
 // `predFn(c)` over each character.
 template <typename PredFn>
-Value applyCharPred(const Value &s, PredFn pred, std::pmr::memory_resource *mr)
+Value applyCharPred(const Value &s, PredFn pred, keel::Allocator *mr)
 {
     if (s.isChar()) {
         const std::string str = s.toString();
-        const size_t n = str.size();
+        const keel::usize n = str.size();
         // Mirror char's shape (1×N for typical char rows).
         const auto &d = s.dims();
         auto r = (d.is3D()
@@ -446,7 +440,7 @@ Value applyCharPred(const Value &s, PredFn pred, std::pmr::memory_resource *mr)
                                        ValueType::LOGICAL, mr)
                      : Value::matrix(d.rows(), d.cols(),
                                      ValueType::LOGICAL, mr));
-        for (size_t i = 0; i < n && i < r.numel(); ++i)
+        for (keel::usize i = 0; i < n && i < r.numel(); ++i)
             r.logicalDataMut()[i] = pred(static_cast<unsigned char>(str[i])) ? 1 : 0;
         return r;
     }
@@ -456,7 +450,7 @@ Value applyCharPred(const Value &s, PredFn pred, std::pmr::memory_resource *mr)
         if (s.numel() == 1) {
             const std::string str = s.toString();
             auto r = Value::matrix(1, str.size(), ValueType::LOGICAL, mr);
-            for (size_t i = 0; i < str.size(); ++i)
+            for (keel::usize i = 0; i < str.size(); ++i)
                 r.logicalDataMut()[i] = pred(static_cast<unsigned char>(str[i])) ? 1 : 0;
             return r;
         }
@@ -468,7 +462,7 @@ Value applyCharPred(const Value &s, PredFn pred, std::pmr::memory_resource *mr)
 }
 } // anon
 namespace {
-struct PosRange { size_t begin; size_t end; bool found; };
+struct PosRange { keel::usize begin; keel::usize end; bool found; };
 
 // Resolve `p` to a [begin, end) range in `s`. For a numeric position
 // p, [p-1, p) is returned (so callers can treat it as a "single
@@ -478,18 +472,18 @@ PosRange resolvePos(const std::string &s, const Value &p)
     if (p.isChar() || p.isString()) {
         const std::string pat = p.toString();
         if (pat.empty()) return {0, 0, false};
-        const size_t pos = s.find(pat);
+        const keel::usize pos = s.find(pat);
         if (pos == std::string::npos) return {0, 0, false};
         return {pos, pos + pat.size(), true};
     }
     // Numeric scalar (1-based).
     const auto p1 = static_cast<long long>(p.toScalar());
-    if (p1 < 1 || static_cast<size_t>(p1) > s.size())
+    if (p1 < 1 || static_cast<keel::usize>(p1) > s.size())
         return {0, 0, false};
-    return {static_cast<size_t>(p1 - 1), static_cast<size_t>(p1), true};
+    return {static_cast<keel::usize>(p1 - 1), static_cast<keel::usize>(p1), true};
 }
 
-inline Value strLikeOf(const Value &s, const std::string &out, std::pmr::memory_resource *mr)
+inline Value strLikeOf(const Value &s, const std::string &out, keel::Allocator *mr)
 {
     if (s.isString()) return Value::stringScalar(out, mr);
     return Value::fromString(out, mr);
@@ -503,10 +497,10 @@ namespace {
 // text (between the two delimiters). Numeric (position-arg) inputs
 // return at most one pair. See BUGS.md #27.
 struct BetweenMatch {
-    size_t openBegin;   // index of first char of opening delimiter
-    size_t openEnd;     // index just past opening delimiter (start of inner)
-    size_t closeBegin;  // index of first char of closing delimiter (end of inner)
-    size_t closeEnd;    // index just past closing delimiter
+    keel::usize openBegin;   // index of first char of opening delimiter
+    keel::usize openEnd;     // index just past opening delimiter (start of inner)
+    keel::usize closeBegin;  // index of first char of closing delimiter (end of inner)
+    keel::usize closeEnd;    // index just past closing delimiter
 };
 
 std::vector<BetweenMatch>
@@ -531,12 +525,12 @@ findAllBetweenPairs(const std::string &ss, const Value &start, const Value &end)
     const std::string ep = end.toString();
     if (sp.empty() || ep.empty()) return matches;
 
-    size_t cursor = 0;
+    keel::usize cursor = 0;
     while (cursor < ss.size()) {
-        const size_t sPos = ss.find(sp, cursor);
+        const keel::usize sPos = ss.find(sp, cursor);
         if (sPos == std::string::npos) break;
-        const size_t innerBeg = sPos + sp.size();
-        const size_t ePos = ss.find(ep, innerBeg);
+        const keel::usize innerBeg = sPos + sp.size();
+        const keel::usize ePos = ss.find(ep, innerBeg);
         if (ePos == std::string::npos) break;
         matches.push_back({sPos, innerBeg, ePos, ePos + ep.size()});
         // Advance past the closing delimiter so non-overlapping pairs
@@ -548,7 +542,7 @@ findAllBetweenPairs(const std::string &ss, const Value &start, const Value &end)
 
 } // namespace
 namespace {
-std::string toBaseString(uint64_t v, int base, int minWidth)
+std::string toBaseString(keel::u64 v, int base, int minWidth)
 {
     if (v == 0) {
         std::string s(std::max(1, minWidth), '0');
@@ -556,18 +550,18 @@ std::string toBaseString(uint64_t v, int base, int minWidth)
     }
     std::string out;
     while (v > 0) {
-        const int d = static_cast<int>(v % static_cast<uint64_t>(base));
+        const int d = static_cast<int>(v % static_cast<keel::u64>(base));
         out.push_back(d < 10 ? char('0' + d) : char('A' + d - 10));
-        v /= static_cast<uint64_t>(base);
+        v /= static_cast<keel::u64>(base);
     }
     while (static_cast<int>(out.size()) < minWidth) out.push_back('0');
     std::reverse(out.begin(), out.end());
     return out;
 }
 
-uint64_t parseBase(const std::string &s, int base)
+keel::u64 parseBase(const std::string &s, int base)
 {
-    uint64_t v = 0;
+    keel::u64 v = 0;
     for (char c : s) {
         if (std::isspace(static_cast<unsigned char>(c))) continue;
         int d;
@@ -581,7 +575,7 @@ uint64_t parseBase(const std::string &s, int base)
             throw Error(std::string("digit '") + c + "' out of range for base "
                           + std::to_string(base),
                           0, 0, "base", "", "numkit:base:badDigit");
-        v = v * static_cast<uint64_t>(base) + static_cast<uint64_t>(d);
+        v = v * static_cast<keel::u64>(base) + static_cast<keel::u64>(d);
     }
     return v;
 }
@@ -589,27 +583,27 @@ uint64_t parseBase(const std::string &s, int base)
 // Convert an N-element double vector to a 2-D char matrix where each
 // row holds the base-`base` representation, padded to the maximum
 // observed width (and at least minWidth).
-Value vecToBaseMatrix(const Value &d, int base, int minWidth, std::pmr::memory_resource *mr)
+Value vecToBaseMatrix(const Value &d, int base, int minWidth, keel::Allocator *mr)
 {
-    const size_t n = d.numel();
+    const keel::usize n = d.numel();
     if (n == 0) return Value::fromString("", mr);
     if (n == 1) {
         const double v = d.toScalar();
         if (v < 0) throw Error("dec2*: value must be non-negative",
                                 0, 0, "dec2", "", "numkit:dec2:negative");
         return Value::fromString(
-            toBaseString(static_cast<uint64_t>(v), base, minWidth), mr);
+            toBaseString(static_cast<keel::u64>(v), base, minWidth), mr);
     }
     // Compute max width.
-    ScratchArena scratch(mr);
-    auto rows = ScratchVec<std::string>(&scratch);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    auto rows = keel::Array<std::string>(scratch.allocator());
     rows.reserve(n);
     int maxW = minWidth;
-    for (size_t i = 0; i < n; ++i) {
+    for (keel::usize i = 0; i < n; ++i) {
         const double v = d.elemAsDouble(i);
         if (v < 0) throw Error("dec2*: value must be non-negative",
                                 0, 0, "dec2", "", "numkit:dec2:negative");
-        rows.emplace_back(toBaseString(static_cast<uint64_t>(v), base, 0));
+        rows.emplace_back(toBaseString(static_cast<keel::u64>(v), base, 0));
         maxW = std::max<int>(maxW, static_cast<int>(rows.back().size()));
     }
     // Pad each row to maxW with leading zeros.
@@ -619,7 +613,7 @@ Value vecToBaseMatrix(const Value &d, int base, int minWidth, std::pmr::memory_r
     // Build a CHAR matrix n × maxW, column-major.
     auto m = Value::matrix(n, maxW, ValueType::CHAR, mr);
     char *dst = static_cast<char *>(m.rawDataMut());
-    for (size_t r = 0; r < n; ++r)
+    for (keel::usize r = 0; r < n; ++r)
         for (int c = 0; c < maxW; ++c)
             dst[c * n + r] = rows[r][c];
     return m;
@@ -639,7 +633,7 @@ double hexBitsToDouble(const std::string &raw)
     }
     if (h.size() > 16) h.resize(16);
     while (h.size() < 16) h.push_back('0');  // right-pad with zeros
-    uint64_t bits = 0;
+    keel::u64 bits = 0;
     for (char c : h) {
         int d;
         if      (c >= '0' && c <= '9') d = c - '0';
@@ -647,7 +641,7 @@ double hexBitsToDouble(const std::string &raw)
         else if (c >= 'A' && c <= 'F') d = 10 + (c - 'A');
         else throw Error(std::string("hex2num: invalid hex digit '") + c + "'",
                           0, 0, "hex2num", "", "numkit:hex2num:badDigit");
-        bits = (bits << 4) | static_cast<uint64_t>(d);
+        bits = (bits << 4) | static_cast<keel::u64>(d);
     }
     double out;
     std::memcpy(&out, &bits, sizeof(out));
@@ -657,9 +651,9 @@ double hexBitsToDouble(const std::string &raw)
 namespace {
 // Parse a base-`base` (2..36) digit string: 0-9 then A-Z / a-z. Whitespace
 // is skipped (MATLAB pads short rows of a char matrix with spaces).
-uint64_t parseBaseN(const std::string &s, int base)
+keel::u64 parseBaseN(const std::string &s, int base)
 {
-    uint64_t v = 0;
+    keel::u64 v = 0;
     for (char c : s) {
         if (std::isspace(static_cast<unsigned char>(c))) continue;
         int d;
@@ -672,7 +666,7 @@ uint64_t parseBaseN(const std::string &s, int base)
             throw Error(std::string("base2dec: digit '") + c +
                             "' out of range for base " + std::to_string(base),
                           0, 0, "base2dec", "", "numkit:base2dec:badDigit");
-        v = v * static_cast<uint64_t>(base) + static_cast<uint64_t>(d);
+        v = v * static_cast<keel::u64>(base) + static_cast<keel::u64>(d);
     }
     return v;
 }
@@ -761,7 +755,7 @@ enum class StrPred { Contains, StartsWith, EndsWith };
 
 // Test one source string against the collected patterns (any-match) under the
 // chosen predicate. ignoreCase ASCII-lowercases both sides.
-bool strMatchAny(std::string src, const ScratchVec<std::string> &pats,
+bool strMatchAny(std::string src, const keel::Array<std::string> &pats,
                  bool ignoreCase, StrPred pred)
 {
     if (ignoreCase) asciiLowerInPlace(src);
@@ -790,19 +784,19 @@ bool strMatchAny(std::string src, const ScratchVec<std::string> &pats,
 // (MATLAB); a scalar char/string source returns a logical scalar. The pattern
 // argument may itself be a scalar or a cell/string array (any-match).
 Value strPredicate(const Value &s, const Value &pat, bool ignoreCase,
-                   StrPred pred, std::pmr::memory_resource *mr)
+                   StrPred pred, keel::Allocator *mr)
 {
-    ScratchArena scratch(mr);
-    ScratchVec<std::string> pats(&scratch);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<std::string> pats(scratch.allocator());
     collectMatchPatterns(pat, pats);
 
     if (s.isCell() || (s.isString() && s.numel() != 1)) {
-        const size_t r = static_cast<size_t>(s.dims().rows());
-        const size_t c = static_cast<size_t>(s.dims().cols());
+        const keel::usize r = static_cast<keel::usize>(s.dims().rows());
+        const keel::usize c = static_cast<keel::usize>(s.dims().cols());
         Value out = Value::matrix(r, c, ValueType::LOGICAL, mr);
-        uint8_t *od = out.logicalDataMut();
-        const size_t n = s.numel();
-        for (size_t i = 0; i < n; ++i) {
+        keel::u8 *od = out.logicalDataMut();
+        const keel::usize n = s.numel();
+        for (keel::usize i = 0; i < n; ++i) {
             const std::string el =
                 s.isCell() ? s.cellAt(i).toString() : s.stringElem(i);
             od[i] = strMatchAny(el, pats, ignoreCase, pred) ? 1 : 0;
@@ -816,7 +810,7 @@ Value strPredicate(const Value &s, const Value &pat, bool ignoreCase,
 namespace {
 
 // Read element i of x as a Value scalar to feed sprintf.
-Value elemScalar(const Value &x, size_t i, std::pmr::memory_resource *mr)
+Value elemScalar(const Value &x, keel::usize i, keel::Allocator *mr)
 {
     if (x.isNumeric()) {
         return Value::scalar(x.elemAsDouble(i), mr);
@@ -843,9 +837,9 @@ void findAllLiteral(const std::string &hay, const std::string &needle,
                     std::vector<std::string> &out)
 {
     if (needle.empty()) return;
-    size_t pos = 0;
+    keel::usize pos = 0;
     while (true) {
-        size_t f = hay.find(needle, pos);
+        keel::usize f = hay.find(needle, pos);
         if (f == std::string::npos) break;
         out.push_back(needle);
         pos = f + needle.size();
@@ -857,9 +851,9 @@ void splitKeepEmpty(const std::string &s, const std::string &delim,
                     std::vector<std::string> &out)
 {
     if (delim.empty()) { out.push_back(s); return; }
-    size_t pos = 0;
+    keel::usize pos = 0;
     while (true) {
-        size_t f = s.find(delim, pos);
+        keel::usize f = s.find(delim, pos);
         if (f == std::string::npos) {
             out.push_back(s.substr(pos));
             return;

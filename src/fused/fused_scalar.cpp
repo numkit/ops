@@ -22,6 +22,7 @@
 // result matches element-for-element. Bodies copied verbatim from the former
 // inline gates / fused_kernels_portable.cpp.
 
+#include <keel/core.h>
 #include <numkit/ops/compiler.hpp>
 #include <numkit/ops/fused/fused_kernels.hpp>
 
@@ -31,44 +32,44 @@
 namespace numkit::ops {
 
 NUMKIT_NOINLINE void fusedAffineScalar(const double *x, double scale, double offset,
-                                       double *out, std::size_t n) {
-    for (std::size_t i = 0; i < n; ++i) out[i] = scale * x[i] + offset;
+                                       double *out, keel::usize n) {
+    for (keel::usize i = 0; i < n; ++i) out[i] = scale * x[i] + offset;
 }
 
 NUMKIT_NOINLINE void fusedAbsAffineScalar(const double *x, double scale, double offset,
-                                          double *out, std::size_t n) {
-    for (std::size_t i = 0; i < n; ++i) out[i] = std::fabs(scale * x[i] + offset);
+                                          double *out, keel::usize n) {
+    for (keel::usize i = 0; i < n; ++i) out[i] = std::fabs(scale * x[i] + offset);
 }
 
 NUMKIT_NOINLINE void fusedAbsShiftDivScalar(const double *x, double sub, double div,
-                                            double *out, std::size_t n) {
-    for (std::size_t i = 0; i < n; ++i) out[i] = std::fabs((x[i] - sub) / div);
+                                            double *out, keel::usize n) {
+    for (keel::usize i = 0; i < n; ++i) out[i] = std::fabs((x[i] - sub) / div);
 }
 
 NUMKIT_NOINLINE void fusedAbsDiffScalar(const double *x, const double *y,
-                                        double *out, std::size_t n) {
-    for (std::size_t i = 0; i < n; ++i) out[i] = std::fabs(x[i] - y[i]);
+                                        double *out, keel::usize n) {
+    for (keel::usize i = 0; i < n; ++i) out[i] = std::fabs(x[i] - y[i]);
 }
 
 NUMKIT_NOINLINE void fusedSqAffineScalar(const double *x, double scale, double offset,
-                                         double *out, std::size_t n) {
-    for (std::size_t i = 0; i < n; ++i) {
+                                         double *out, keel::usize n) {
+    for (keel::usize i = 0; i < n; ++i) {
         const double v = scale * x[i] + offset;
         out[i] = v * v;
     }
 }
 
 NUMKIT_NOINLINE void fusedSqShiftDivScalar(const double *x, double sub, double div,
-                                           double *out, std::size_t n) {
-    for (std::size_t i = 0; i < n; ++i) {
+                                           double *out, keel::usize n) {
+    for (keel::usize i = 0; i < n; ++i) {
         const double v = (x[i] - sub) / div;
         out[i] = v * v;
     }
 }
 
 NUMKIT_NOINLINE void fusedSqDiffScalar(const double *x, const double *y,
-                                       double *out, std::size_t n) {
-    for (std::size_t i = 0; i < n; ++i) {
+                                       double *out, keel::usize n) {
+    for (keel::usize i = 0; i < n; ++i) {
         const double v = x[i] - y[i];
         out[i] = v * v;
     }

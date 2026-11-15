@@ -9,11 +9,13 @@
 
 #pragma once
 
-#include <numkit/value/span.hpp>
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/array.h>
+#include <keel/complex.h>
 #include <numkit/value/value.hpp>
 
 #include <cstddef>
-#include <memory_resource>
 #include <vector>
 
 namespace numkit::builtin::detail {
@@ -44,24 +46,24 @@ inline constexpr double kGaussW[7] = {
 
 // Copy any numeric/logical Value to a fresh DOUBLE Value (used by every
 // cumtrapz/trapz path that needs a real double buffer).
-Value toDoubleCopy(const Value &x, std::pmr::memory_resource *mr);
+Value toDoubleCopy(const Value &x, keel::Allocator *mr);
 
 // N-D gradient: one gradient per dimension, up to `nout`, spacings in `hs`.
-std::pmr::vector<Value> gradientND(const Value &f, const double *hs, size_t nh,
-                                   size_t nout, std::pmr::memory_resource *mr);
+keel::Array<Value> gradientND(const Value &f, const double *hs, keel::usize nh,
+                                   keel::usize nout, keel::Allocator *mr);
 
 // cumtrapz down columns / along rows, real and complex variants.
-Value cumtrapzMatrixCols(const double *src, const double *xData, size_t rows,
-                         size_t cols, std::pmr::memory_resource *mr);
-Value cumtrapzMatrixRows(const double *src, const double *xData, size_t rows,
-                         size_t cols, std::pmr::memory_resource *mr);
-Value cumtrapzMatrixColsC(const Complex *src, const double *xData, size_t rows,
-                          size_t cols, std::pmr::memory_resource *mr);
-Value cumtrapzMatrixRowsC(const Complex *src, const double *xData, size_t rows,
-                          size_t cols, std::pmr::memory_resource *mr);
+Value cumtrapzMatrixCols(const double *src, const double *xData, keel::usize rows,
+                         keel::usize cols, keel::Allocator *mr);
+Value cumtrapzMatrixRows(const double *src, const double *xData, keel::usize rows,
+                         keel::usize cols, keel::Allocator *mr);
+Value cumtrapzMatrixColsC(const keel::c64 *src, const double *xData, keel::usize rows,
+                          keel::usize cols, keel::Allocator *mr);
+Value cumtrapzMatrixRowsC(const keel::c64 *src, const double *xData, keel::usize rows,
+                          keel::usize cols, keel::Allocator *mr);
 
 // trapz along `dim`; `xData` null → unit spacing.
 Value trapzImpl(const Value &y, int dim, const double *xData,
-                std::pmr::memory_resource *mr);
+                keel::Allocator *mr);
 
 } // namespace numkit::builtin::detail

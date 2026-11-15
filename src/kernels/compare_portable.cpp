@@ -6,6 +6,7 @@
 // scalar broadcast), otherwise returns an unset Value so the generic
 // `compareImpl` in binary_ops.cpp handles it.
 
+#include <keel/core.h>
 #include <numkit/ops/compare.hpp>
 #include <numkit/ops/value_factory.hpp>
 
@@ -40,9 +41,9 @@ Value dispatchFast(const Value &a, const Value &b, Op op)
         const double s = a.toScalar();
         const double *pb = b.doubleData();
         auto r = createLike(b, ValueType::LOGICAL, nullptr);
-        uint8_t *out = r.logicalDataMut();
-        const std::size_t n = b.numel();
-        for (std::size_t i = 0; i < n; ++i)
+        keel::u8 *out = r.logicalDataMut();
+        const keel::usize n = b.numel();
+        for (keel::usize i = 0; i < n; ++i)
             out[i] = op(s, pb[i]) ? 1 : 0;
         return r;
     }
@@ -50,18 +51,18 @@ Value dispatchFast(const Value &a, const Value &b, Op op)
         const double s = b.toScalar();
         const double *pa = a.doubleData();
         auto r = createLike(a, ValueType::LOGICAL, nullptr);
-        uint8_t *out = r.logicalDataMut();
-        const std::size_t n = a.numel();
-        for (std::size_t i = 0; i < n; ++i)
+        keel::u8 *out = r.logicalDataMut();
+        const keel::usize n = a.numel();
+        for (keel::usize i = 0; i < n; ++i)
             out[i] = op(pa[i], s) ? 1 : 0;
         return r;
     }
     const double *pa = a.doubleData();
     const double *pb = b.doubleData();
     auto r = createLike(a, ValueType::LOGICAL, nullptr);
-    uint8_t *out = r.logicalDataMut();
-    const std::size_t n = a.numel();
-    for (std::size_t i = 0; i < n; ++i)
+    keel::u8 *out = r.logicalDataMut();
+    const keel::usize n = a.numel();
+    for (keel::usize i = 0; i < n; ++i)
         out[i] = op(pa[i], pb[i]) ? 1 : 0;
     return r;
 }

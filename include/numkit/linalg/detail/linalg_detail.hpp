@@ -5,24 +5,23 @@
 
 #pragma once
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/complex.h>
+#include <keel/math.h>
 #include <algorithm>
 #include <cmath>
-#include <complex>
 #include <cstddef>
 #include <cstdint>
-#include <memory_resource>
 #include <type_traits>
 #include <vector>
 
 #include <numkit/value/error.hpp>
-#include <numkit/value/scratch.hpp>
 #include <numkit/value/value.hpp>
 #include <numkit/value/value_type.hpp>   // mtypeName (argcheck got-clauses)
 #include <numkit/ops/blas.hpp>
 
 namespace numkit::linalg::detail {
-
-using Complex = std::complex<double>;
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Shared <fn>_argcheck cores (argcheck separation,
@@ -64,7 +63,7 @@ inline void requireDoubleInput(const Value &A, std::string_view fn,
                 "numkit:" + std::string(fn) + ":inputType");
 }
 
-inline Value widenSingleToDouble(const Value &v, std::pmr::memory_resource *mr = nullptr)
+inline Value widenSingleToDouble(const Value &v, keel::Allocator *mr = nullptr)
 {
     if (v.type() != ValueType::SINGLE)
         return v;
@@ -73,13 +72,13 @@ inline Value widenSingleToDouble(const Value &v, std::pmr::memory_resource *mr =
         : Value::matrix(v.dims().rows(), v.dims().cols(), ValueType::DOUBLE, mr);
     const float *sd = v.singleData();
     double *dd = out.doubleDataMut();
-    const std::size_t n = v.numel();
-    for (std::size_t i = 0; i < n; ++i)
+    const keel::usize n = v.numel();
+    for (keel::usize i = 0; i < n; ++i)
         dd[i] = static_cast<double>(sd[i]);
     return out;
 }
 
-inline Value narrowDoubleToSingle(const Value &v, std::pmr::memory_resource *mr = nullptr)
+inline Value narrowDoubleToSingle(const Value &v, keel::Allocator *mr = nullptr)
 {
     if (v.type() != ValueType::DOUBLE)
         return v;
@@ -88,13 +87,13 @@ inline Value narrowDoubleToSingle(const Value &v, std::pmr::memory_resource *mr 
         : Value::matrix(v.dims().rows(), v.dims().cols(), ValueType::SINGLE, mr);
     const double *dd = v.doubleData();
     float *sd = out.singleDataMut();
-    const std::size_t n = v.numel();
-    for (std::size_t i = 0; i < n; ++i)
+    const keel::usize n = v.numel();
+    for (keel::usize i = 0; i < n; ++i)
         sd[i] = static_cast<float>(dd[i]);
     return out;
 }
 
-inline Value narrowDoubleToSingleIf(const Value &v, bool wantSingle, std::pmr::memory_resource *mr = nullptr)
+inline Value narrowDoubleToSingleIf(const Value &v, bool wantSingle, keel::Allocator *mr = nullptr)
 {
     return wantSingle ? narrowDoubleToSingle(v, mr) : v;
 }
@@ -127,7 +126,7 @@ inline void requireFloatOrLogicalInput(const Value &A, std::string_view fn,
 // accepted classes per-function first â€” the reference's coercion set
 // differs per entry (gsvd coerces logical, normest logical+char, trace
 // numeric+logical; probed R2025b 2026-09-18).
-inline Value coerceToDoubleMatrix(const Value &A, std::pmr::memory_resource *mr)
+inline Value coerceToDoubleMatrix(const Value &A, keel::Allocator *mr)
 {
     const ValueType t = A.type();
     if (t == ValueType::DOUBLE || t == ValueType::COMPLEX
@@ -137,14 +136,14 @@ inline Value coerceToDoubleMatrix(const Value &A, std::pmr::memory_resource *mr)
             return A;
         Value out = Value::matrix(A.dims().rows(), A.dims().cols(),
                                   ValueType::DOUBLE, mr);
-        const std::size_t n = A.numel();
+        const keel::usize n = A.numel();
         double *od = out.doubleDataMut();
         if (t == ValueType::LOGICAL) {
-            const std::uint8_t *ld = A.logicalData();
-            for (std::size_t i = 0; i < n; ++i)
+            const keel::u8 *ld = A.logicalData();
+            for (keel::usize i = 0; i < n; ++i)
                 od[i] = ld[i] ? 1.0 : 0.0;
         } else {
-            for (std::size_t i = 0; i < n; ++i)
+            for (keel::usize i = 0; i < n; ++i)
                 od[i] = A.elemAsDouble(i);
         }
         return out;
@@ -177,7 +176,7 @@ template <typename T>
 struct is_complex : std::false_type {};
 
 template <typename T>
-struct is_complex<std::complex<T>> : std::true_type {};
+struct is_complex<keel::Complex<T>> : std::true_type {};
 
 template <typename T>
 inline constexpr bool is_complex_v = is_complex<T>::value;
@@ -186,7 +185,7 @@ inline constexpr bool is_complex_v = is_complex<T>::value;
 template <typename T>
 inline T conj_if_complex(const T &val) {
     if constexpr (is_complex_v<T>) {
-        return std::conj(val);
+        return keel::conj(val);
     } else {
         return val;
     }
@@ -196,7 +195,7 @@ inline T conj_if_complex(const T &val) {
 template <typename T>
 inline double abs_sq(const T &val) {
     if constexpr (is_complex_v<T>) {
-        return std::norm(val);
+        return keel::norm(val);
     } else {
         return val * val;
     }
@@ -206,9 +205,9 @@ inline double abs_sq(const T &val) {
 template <typename T>
 inline double abs_val(const T &val) {
     if constexpr (is_complex_v<T>) {
-        return std::abs(val);
+        return keel::abs(val);
     } else {
-        return std::abs(val);
+        return keel::abs(val);
     }
 }
 
@@ -243,8 +242,8 @@ inline T *get_data_mut(Value &v) {
 
 // Value matrix factory for double / complex
 template <typename T>
-inline Value make_matrix(std::size_t rows, std::size_t cols,
-                         std::pmr::memory_resource *mr = nullptr) {
+inline Value make_matrix(keel::usize rows, keel::usize cols,
+                         keel::Allocator *mr = nullptr) {
     if constexpr (is_complex_v<T>) {
         return Value::complexMatrix(rows, cols, mr);
     } else {
@@ -253,13 +252,13 @@ inline Value make_matrix(std::size_t rows, std::size_t cols,
 }
 
 // Narrowing helper: converts a complex Value to a real Value if all imaginary parts are zero (+/- 0)
-inline Value narrow_if_real(const Value &v, std::pmr::memory_resource *mr = nullptr) {
+inline Value narrow_if_real(const Value &v, keel::Allocator *mr = nullptr) {
     if (!v.isComplex()) {
         return v;
     }
-    const Complex *cd = v.complexData();
-    const std::size_t n = v.numel();
-    for (std::size_t i = 0; i < n; ++i) {
+    const keel::c64 *cd = v.complexData();
+    const keel::usize n = v.numel();
+    for (keel::usize i = 0; i < n; ++i) {
         if (cd[i].imag() != 0.0) {
             return v;
         }
@@ -267,7 +266,7 @@ inline Value narrow_if_real(const Value &v, std::pmr::memory_resource *mr = null
     // All imaginary parts are zero, narrow to double matrix
     Value out = Value::matrix(v.dims().rows(), v.dims().cols(), ValueType::DOUBLE, mr);
     double *dd = out.doubleDataMut();
-    for (std::size_t i = 0; i < n; ++i) {
+    for (keel::usize i = 0; i < n; ++i) {
         dd[i] = cd[i].real();
     }
     return out;

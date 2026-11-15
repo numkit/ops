@@ -7,7 +7,8 @@
 
 #pragma once
 
-#include <memory_resource>
+#include <keel/core.h>
+#include <keel/memory.h>
 #include <numkit/value/value.hpp>
 
 namespace numkit::signal {
@@ -26,14 +27,14 @@ namespace numkit::signal {
 /// @return    Scalar DOUBLE.
 ///
 /// @code  size_t pad = 1ull << (size_t)nextpow2(numel(x)).toScalar();  @endcode
-Value nextpow2(double n, std::pmr::memory_resource *mr = nullptr);
+Value nextpow2(keel::f64 n, keel::Allocator *mr = nullptr);
 
 /// Vectorised `nextpow2` — applies elementwise to an array.
 ///
 /// @param x   Real input array (any shape).
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    DOUBLE array with the same shape as `x`.
-Value nextpow2(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value nextpow2(const Value &x, keel::Allocator *mr = nullptr);
 
 /// DC-to-center reordering for FFT output (multidim form).
 ///
@@ -47,7 +48,7 @@ Value nextpow2(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @return    Same-shape and same-type array with elements permuted.
 ///
 /// @see ifftshift, fft
-Value fftshift(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value fftshift(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Inverse of @ref fftshift — shift by `floor(extent/2)`.
 ///
@@ -58,7 +59,7 @@ Value fftshift(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    Same-shape and same-type array with elements permuted.
 /// @see fftshift
-Value ifftshift(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value ifftshift(const Value &x, keel::Allocator *mr = nullptr);
 
 /// Single-dim `fftshift` — shift only along axis `dim`.
 ///
@@ -68,7 +69,7 @@ Value ifftshift(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @return     Same-shape array shifted along `dim`.
 Value fftshift(const Value &                x,
                int                          dim,
-               std::pmr::memory_resource *  mr = nullptr);
+               keel::Allocator *  mr = nullptr);
 
 /// @brief Single-dim `ifftshift` — inverse of single-dim @ref fftshift.
 ///
@@ -77,7 +78,7 @@ Value fftshift(const Value &                x,
 /// @param mr   Memory resource (nullptr → process default).
 /// @return     Same-shape array shifted along `dim`.
 Value ifftshift(const Value &x, int dim,
-                std::pmr::memory_resource *mr = nullptr);
+                keel::Allocator *mr = nullptr);
 
 
 /// @}

@@ -3,10 +3,9 @@
 // Phase 2b compute/register split — see project_layering_refactor memory.
 #pragma once
 
+#include <keel/core.h>
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
-#include <numkit/value/scratch.hpp>
-#include <numkit/value/span.hpp>
 #include <numkit/ops/reductions.hpp>  // engine-free numkit::builtin::detail dim-infra (ops re-export)
 
 #include <algorithm>
@@ -15,7 +14,6 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
-#include <memory_resource>
 #include <numeric>
 #include <string>
 #include <tuple>
@@ -30,18 +28,18 @@ namespace numkit::builtin {
 
 namespace {
 
-inline int64_t toInt64(double v)
+inline keel::i64 toInt64(double v)
 {
     if (std::isnan(v) || std::isinf(v)) return 0;
-    return static_cast<int64_t>(v);
+    return static_cast<keel::i64>(v);
 }
 
-inline int64_t gcdInt(int64_t a, int64_t b)
+inline keel::i64 gcdInt(keel::i64 a, keel::i64 b)
 {
     if (a < 0) a = -a;
     if (b < 0) b = -b;
     while (b != 0) {
-        const int64_t t = a % b;
+        const keel::i64 t = a % b;
         a = b;
         b = t;
     }

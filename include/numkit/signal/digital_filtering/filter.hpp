@@ -3,7 +3,7 @@
 // toolboxes/signal/include/numkit/signal/digital_filtering/filter.hpp
 #pragma once
 
-#include <memory_resource>
+#include <keel/memory.h>
 #include <numkit/value/value.hpp>
 
 namespace numkit::signal {
@@ -38,7 +38,7 @@ namespace numkit::signal {
 Value filter(const Value &                b,
              const Value &                a,
              const Value &                x,
-             std::pmr::memory_resource *  mr = nullptr);
+             keel::Allocator *  mr = nullptr);
 
 /// Output pair of the state-aware filter form (`[y, zf] = filter(...)`):
 /// `y` is the filtered signal, `zf` the final DF2T delay state
@@ -69,7 +69,7 @@ FilterState filter(const Value &                b,
                    const Value &                a,
                    const Value &                x,
                    const Value &                zi,
-                   std::pmr::memory_resource *  mr = nullptr);
+                   keel::Allocator *  mr = nullptr);
 
 /// Zero-phase forward-backward filtering.
 ///
@@ -93,7 +93,7 @@ FilterState filter(const Value &                b,
 Value filtfilt(const Value &                b,
                const Value &                a,
                const Value &                x,
-               std::pmr::memory_resource *  mr = nullptr);
+               keel::Allocator *  mr = nullptr);
 
 
 /// @}

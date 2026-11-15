@@ -4,6 +4,7 @@
 // descriptive_extras_detail.hpp (sliceQuantile) so the select primitive lives
 // in the kernel layer. See quantile_select.hpp.
 
+#include <keel/core.h>
 #include <numkit/ops/quantile_select.hpp>
 
 #include <algorithm>
@@ -12,7 +13,7 @@
 
 namespace numkit::ops {
 
-double sliceQuantile(double *s, std::size_t n, double p)
+double sliceQuantile(double *s, keel::usize n, double p)
 {
     if (n == 0) return std::numeric_limits<double>::quiet_NaN();
     if (n == 1) return s[0];
@@ -25,7 +26,7 @@ double sliceQuantile(double *s, std::size_t n, double p)
     const double q = p * static_cast<double>(n) + 0.5;
     if (q <= 1.0) return *std::min_element(s, s + n);
     if (q >= static_cast<double>(n)) return *std::max_element(s, s + n);
-    const std::size_t lo   = static_cast<std::size_t>(std::floor(q)) - 1;
+    const keel::usize lo   = static_cast<keel::usize>(std::floor(q)) - 1;
     const double      frac = q - std::floor(q);
     // Place the lo-th smallest at s[lo]; everything in (lo, n) is then >= it,
     // so the (lo+1)-th smallest is the minimum of that right partition.

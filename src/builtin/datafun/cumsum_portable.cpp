@@ -4,6 +4,7 @@
 // The loop has a serial data dependency (`s += src[i]; dst[i] = s;`)
 // so this is fundamentally one-add-per-cycle on the portable build.
 
+#include <keel/core.h>
 #include "cumsum.hpp"
 
 #include <cmath>
@@ -11,29 +12,29 @@
 
 namespace numkit::builtin {
 
-void cumsumScan(const double *src, double *dst, std::size_t n)
+void cumsumScan(const double *src, double *dst, keel::usize n)
 {
     double s = 0.0;
-    for (std::size_t i = 0; i < n; ++i) {
+    for (keel::usize i = 0; i < n; ++i) {
         s += src[i];
         dst[i] = s;
     }
 }
 
-void cumprodScan(const double *src, double *dst, std::size_t n)
+void cumprodScan(const double *src, double *dst, keel::usize n)
 {
     double s = 1.0;
-    for (std::size_t i = 0; i < n; ++i) {
+    for (keel::usize i = 0; i < n; ++i) {
         s *= src[i];
         dst[i] = s;
     }
 }
 
-void cummaxScan(const double *src, double *dst, std::size_t n)
+void cummaxScan(const double *src, double *dst, keel::usize n)
 {
     if (n == 0) return;
     // Walk leading NaN, preserve as NaN.
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i < n && std::isnan(src[i]); ++i) dst[i] = std::nan("");
     if (i == n) return;
     double acc = src[i];
@@ -45,10 +46,10 @@ void cummaxScan(const double *src, double *dst, std::size_t n)
     }
 }
 
-void cumminScan(const double *src, double *dst, std::size_t n)
+void cumminScan(const double *src, double *dst, keel::usize n)
 {
     if (n == 0) return;
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i < n && std::isnan(src[i]); ++i) dst[i] = std::nan("");
     if (i == n) return;
     double acc = src[i];

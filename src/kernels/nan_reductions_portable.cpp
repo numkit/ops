@@ -5,6 +5,7 @@
 // (`std::isnan` + ternary) keeps it autovectorisable by recent compilers
 // even on the portable build.
 
+#include <keel/core.h>
 #include <numkit/ops/nan_reductions.hpp>
 
 #include <cmath>
@@ -13,19 +14,19 @@
 
 namespace numkit::ops {
 
-double nanSumScan(const double *p, std::size_t n)
+double nanSumScan(const double *p, keel::usize n)
 {
     double sum = 0.0;
-    for (std::size_t i = 0; i < n; ++i)
+    for (keel::usize i = 0; i < n; ++i)
         if (!std::isnan(p[i])) sum += p[i];
     return sum;
 }
 
-NanSumCount nanSumCountScan(const double *p, std::size_t n)
+NanSumCount nanSumCountScan(const double *p, keel::usize n)
 {
     double sum = 0.0;
-    std::size_t cnt = 0;
-    for (std::size_t i = 0; i < n; ++i) {
+    keel::usize cnt = 0;
+    for (keel::usize i = 0; i < n; ++i) {
         if (!std::isnan(p[i])) {
             sum += p[i];
             ++cnt;
@@ -34,11 +35,11 @@ NanSumCount nanSumCountScan(const double *p, std::size_t n)
     return {sum, cnt};
 }
 
-double nanMaxScan(const double *p, std::size_t n)
+double nanMaxScan(const double *p, keel::usize n)
 {
     double best = -std::numeric_limits<double>::infinity();
     bool seen = false;
-    for (std::size_t i = 0; i < n; ++i) {
+    for (keel::usize i = 0; i < n; ++i) {
         if (!std::isnan(p[i])) {
             if (!seen || p[i] > best) best = p[i];
             seen = true;
@@ -47,11 +48,11 @@ double nanMaxScan(const double *p, std::size_t n)
     return seen ? best : std::nan("");
 }
 
-double nanMinScan(const double *p, std::size_t n)
+double nanMinScan(const double *p, keel::usize n)
 {
     double best = std::numeric_limits<double>::infinity();
     bool seen = false;
-    for (std::size_t i = 0; i < n; ++i) {
+    for (keel::usize i = 0; i < n; ++i) {
         if (!std::isnan(p[i])) {
             if (!seen || p[i] < best) best = p[i];
             seen = true;
@@ -60,7 +61,7 @@ double nanMinScan(const double *p, std::size_t n)
     return seen ? best : std::nan("");
 }
 
-double nanVarianceTwoPass(const double *p, std::size_t n, int normFlag)
+double nanVarianceTwoPass(const double *p, keel::usize n, int normFlag)
 {
     if (n == 0) return std::nan("");
     const auto sc = nanSumCountScan(p, n);
@@ -70,7 +71,7 @@ double nanVarianceTwoPass(const double *p, std::size_t n, int normFlag)
     if (sc.count == 1) return 0.0;
     const double mean = sc.sum / static_cast<double>(sc.count);
     double ss = 0.0;
-    for (std::size_t i = 0; i < n; ++i) {
+    for (keel::usize i = 0; i < n; ++i) {
         if (!std::isnan(p[i])) {
             const double d = p[i] - mean;
             ss += d * d;

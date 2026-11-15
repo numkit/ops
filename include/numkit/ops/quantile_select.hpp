@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <keel/core.h>
 #include <cstddef>
 
 namespace numkit::ops {
@@ -19,6 +20,6 @@ namespace numkit::ops {
 //
 // MUTATES the buffer (nth_element reorders s in place) — callers pass a scratch
 // copy. Returns NaN for n == 0.
-double sliceQuantile(double *s, std::size_t n, double p);
+keel::f64 sliceQuantile(keel::f64 *s, keel::usize n, keel::f64 p);
 
 } // namespace numkit::ops

@@ -3,6 +3,10 @@
 // Thin PRIVATE adapters bridging NumKit's internal image codec headers
 // (PNG, JPEG, BMP, TGA, PNM, TIFF) to keel::image.
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/ref.h>
+#include <keel/array.h>
 #include "png_codec.hpp"
 #include "jpeg_codec.hpp"
 #include "bmp_codec.hpp"
@@ -30,7 +34,7 @@ namespace numkit::image {
 
 namespace {
 
-keel::ArrayRef<keel::u8> toRef(const std::uint8_t *data, std::size_t len) {
+keel::ArrayRef<keel::u8> toRef(const keel::u8 *data, keel::usize len) {
     return keel::ArrayRef<keel::u8>(data, len);
 }
 
@@ -38,8 +42,8 @@ std::string toStdString(const keel::Array<keel::u8> &arr) {
     return std::string(reinterpret_cast<const char *>(arr.data()), arr.size());
 }
 
-std::vector<std::uint8_t> toStdVec(const keel::Array<keel::u8> &arr) {
-    return std::vector<std::uint8_t>(arr.data(), arr.data() + arr.size());
+std::vector<keel::u8> toStdVec(const keel::Array<keel::u8> &arr) {
+    return std::vector<keel::u8>(arr.data(), arr.data() + arr.size());
 }
 
 ValueType mapSampleType(keel::SampleType st) {
@@ -58,46 +62,46 @@ ValueType mapSampleType(keel::SampleType st) {
 
 template <typename T>
 void transposeInterleavedToPlanar(const T *src, T *dst,
-                                  std::size_t H, std::size_t W, std::size_t C) {
-    const std::size_t plane = H * W;
+                                  keel::usize H, keel::usize W, keel::usize C) {
+    const keel::usize plane = H * W;
     if (C == 1) {
-        for (std::size_t r = 0; r < H; ++r) {
+        for (keel::usize r = 0; r < H; ++r) {
             const T *row = src + r * W;
-            for (std::size_t c = 0; c < W; ++c) {
+            for (keel::usize c = 0; c < W; ++c) {
                 dst[c * H + r] = row[c];
             }
         }
         return;
     }
-    for (std::size_t r = 0; r < H; ++r) {
+    for (keel::usize r = 0; r < H; ++r) {
         const T *row = src + r * W * C;
-        for (std::size_t c = 0; c < W; ++c) {
-            const std::size_t dstBase = c * H + r;
+        for (keel::usize c = 0; c < W; ++c) {
+            const keel::usize dstBase = c * H + r;
             const T *px = row + c * C;
-            for (std::size_t ch = 0; ch < C; ++ch) {
+            for (keel::usize ch = 0; ch < C; ++ch) {
                 dst[ch * plane + dstBase] = px[ch];
             }
         }
     }
 }
 
-Value keelImageToValue(const keel::Image &img, std::pmr::memory_resource *mr,
+Value keelImageToValue(const keel::Image &img, keel::Allocator *mr,
                        bool promoteGaToRgba = false) {
-    const std::size_t H = img.height;
-    const std::size_t W = img.width;
-    const std::size_t C = img.channels;
+    const keel::usize H = img.height;
+    const keel::usize W = img.width;
+    const keel::usize C = img.channels;
 
     if (promoteGaToRgba && C == 2) {
-        const std::size_t plane = H * W;
+        const keel::usize plane = H * W;
         if (img.sample_type == keel::SampleType::U16) {
             Value out = Value::matrix3d(H, W, 4, ValueType::UINT16, mr);
             auto *dst = out.uint16DataMut();
-            const auto *src = reinterpret_cast<const std::uint16_t *>(img.pixels.data());
-            for (std::size_t r = 0; r < H; ++r) {
-                for (std::size_t c = 0; c < W; ++c) {
-                    const std::uint16_t g = src[(r * W + c) * 2 + 0];
-                    const std::uint16_t a = src[(r * W + c) * 2 + 1];
-                    const std::size_t idx = c * H + r;
+            const auto *src = reinterpret_cast<const keel::u16 *>(img.pixels.data());
+            for (keel::usize r = 0; r < H; ++r) {
+                for (keel::usize c = 0; c < W; ++c) {
+                    const keel::u16 g = src[(r * W + c) * 2 + 0];
+                    const keel::u16 a = src[(r * W + c) * 2 + 1];
+                    const keel::usize idx = c * H + r;
                     dst[0 * plane + idx] = g;
                     dst[1 * plane + idx] = g;
                     dst[2 * plane + idx] = g;
@@ -109,11 +113,11 @@ Value keelImageToValue(const keel::Image &img, std::pmr::memory_resource *mr,
         Value out = Value::matrix3d(H, W, 4, ValueType::UINT8, mr);
         auto *dst = out.uint8DataMut();
         const auto *src = img.pixels.data();
-        for (std::size_t r = 0; r < H; ++r) {
-            for (std::size_t c = 0; c < W; ++c) {
-                const std::uint8_t g = src[(r * W + c) * 2 + 0];
-                const std::uint8_t a = src[(r * W + c) * 2 + 1];
-                const std::size_t idx = c * H + r;
+        for (keel::usize r = 0; r < H; ++r) {
+            for (keel::usize c = 0; c < W; ++c) {
+                const keel::u8 g = src[(r * W + c) * 2 + 0];
+                const keel::u8 a = src[(r * W + c) * 2 + 1];
+                const keel::usize idx = c * H + r;
                 dst[0 * plane + idx] = g;
                 dst[1 * plane + idx] = g;
                 dst[2 * plane + idx] = g;
@@ -134,27 +138,27 @@ Value keelImageToValue(const keel::Image &img, std::pmr::memory_resource *mr,
             break;
         case keel::SampleType::U16:
             transposeInterleavedToPlanar(
-                reinterpret_cast<const std::uint16_t *>(img.pixels.data()),
+                reinterpret_cast<const keel::u16 *>(img.pixels.data()),
                 out.uint16DataMut(), H, W, C);
             break;
         case keel::SampleType::U32:
             transposeInterleavedToPlanar(
-                reinterpret_cast<const std::uint32_t *>(img.pixels.data()),
+                reinterpret_cast<const keel::u32 *>(img.pixels.data()),
                 out.uint32DataMut(), H, W, C);
             break;
         case keel::SampleType::I8:
             transposeInterleavedToPlanar(
-                reinterpret_cast<const std::int8_t *>(img.pixels.data()),
+                reinterpret_cast<const keel::i8 *>(img.pixels.data()),
                 out.int8DataMut(), H, W, C);
             break;
         case keel::SampleType::I16:
             transposeInterleavedToPlanar(
-                reinterpret_cast<const std::int16_t *>(img.pixels.data()),
+                reinterpret_cast<const keel::i16 *>(img.pixels.data()),
                 out.int16DataMut(), H, W, C);
             break;
         case keel::SampleType::I32:
             transposeInterleavedToPlanar(
-                reinterpret_cast<const std::int32_t *>(img.pixels.data()),
+                reinterpret_cast<const keel::i32 *>(img.pixels.data()),
                 out.int32DataMut(), H, W, C);
             break;
         case keel::SampleType::F32:
@@ -171,16 +175,16 @@ Value keelImageToValue(const keel::Image &img, std::pmr::memory_resource *mr,
     return out;
 }
 
-Value paletteToValue(const keel::Image &img, std::pmr::memory_resource *mr,
+Value paletteToValue(const keel::Image &img, keel::Allocator *mr,
                      bool emptyMatrixWhenNone) {
     if (!img.has_palette()) {
         return emptyMatrixWhenNone ? Value::matrix(0, 0, ValueType::DOUBLE, mr) : Value();
     }
-    const std::size_t K = img.palette_entry_count();
+    const keel::usize K = img.palette_entry_count();
     Value cmap = Value::matrix(K, 3, ValueType::DOUBLE, mr);
     double *cd = cmap.doubleDataMut();
     const double scale = (img.palette_bits == 16) ? (1.0 / 65535.0) : (1.0 / 255.0);
-    for (std::size_t k = 0; k < K; ++k) {
+    for (keel::usize k = 0; k < K; ++k) {
         cd[0 * K + k] = static_cast<double>(img.palette[3 * k + 0]) * scale;
         cd[1 * K + k] = static_cast<double>(img.palette[3 * k + 1]) * scale;
         cd[2 * K + k] = static_cast<double>(img.palette[3 * k + 2]) * scale;
@@ -193,7 +197,7 @@ struct PackedImageBuffer {
     keel::u32 height = 0;
     keel::u16 channels = 1;
     keel::SampleType sampleType = keel::SampleType::U8;
-    std::vector<std::uint8_t> bytes;
+    std::vector<keel::u8> bytes;
 
     keel::ImageView view() const {
         return keel::ImageView{
@@ -209,14 +213,14 @@ struct PackedImageBuffer {
 
 PackedImageBuffer packStandardImage(const Value &A, bool allowU16, bool allow4Ch,
                                     const char *chErrMsg, const char *chErrId) {
-    const std::size_t H = A.dims().rows();
-    const std::size_t W = A.dims().cols();
+    const keel::usize H = A.dims().rows();
+    const keel::usize W = A.dims().cols();
     if (H == 0 || W == 0) {
         throw Error("imwrite: empty image matrix",
                     0, 0, "imwrite", "", "numkit:imwrite:empty");
     }
 
-    std::size_t C = 0;
+    keel::usize C = 0;
     if (A.numel() == H * W)                  C = 1;
     else if (A.numel() == H * W * 3)         C = 3;
     else if (allow4Ch && A.numel() == H * W * 4) C = 4;
@@ -229,17 +233,17 @@ PackedImageBuffer packStandardImage(const Value &A, bool allowU16, bool allow4Ch
     out.height = static_cast<keel::u32>(H);
     out.channels = static_cast<keel::u16>(C);
 
-    const std::size_t plane = H * W;
+    const keel::usize plane = H * W;
     const bool is16Bit = allowU16 && (A.type() == ValueType::UINT16);
     if (is16Bit) {
         out.sampleType = keel::SampleType::U16;
-        out.bytes.resize(H * W * C * sizeof(std::uint16_t));
-        auto *dst = reinterpret_cast<std::uint16_t *>(out.bytes.data());
+        out.bytes.resize(H * W * C * sizeof(keel::u16));
+        auto *dst = reinterpret_cast<keel::u16 *>(out.bytes.data());
         const auto *src = A.uint16Data();
-        for (std::size_t r = 0; r < H; ++r) {
-            for (std::size_t c = 0; c < W; ++c) {
-                for (std::size_t ch = 0; ch < C; ++ch) {
-                    const std::size_t idx = (C == 1) ? (c * H + r) : (ch * plane + c * H + r);
+        for (keel::usize r = 0; r < H; ++r) {
+            for (keel::usize c = 0; c < W; ++c) {
+                for (keel::usize ch = 0; ch < C; ++ch) {
+                    const keel::usize idx = (C == 1) ? (c * H + r) : (ch * plane + c * H + r);
                     dst[(r * W + c) * C + ch] = src[idx];
                 }
             }
@@ -250,23 +254,23 @@ PackedImageBuffer packStandardImage(const Value &A, bool allowU16, bool allow4Ch
         auto *dst = out.bytes.data();
         if (A.type() == ValueType::UINT8) {
             const auto *src = A.uint8Data();
-            for (std::size_t r = 0; r < H; ++r) {
-                for (std::size_t c = 0; c < W; ++c) {
-                    for (std::size_t ch = 0; ch < C; ++ch) {
-                        const std::size_t idx = (C == 1) ? (c * H + r) : (ch * plane + c * H + r);
+            for (keel::usize r = 0; r < H; ++r) {
+                for (keel::usize c = 0; c < W; ++c) {
+                    for (keel::usize ch = 0; ch < C; ++ch) {
+                        const keel::usize idx = (C == 1) ? (c * H + r) : (ch * plane + c * H + r);
                         dst[(r * W + c) * C + ch] = src[idx];
                     }
                 }
             }
         } else {
-            for (std::size_t r = 0; r < H; ++r) {
-                for (std::size_t c = 0; c < W; ++c) {
-                    for (std::size_t ch = 0; ch < C; ++ch) {
-                        const std::size_t idx = (C == 1) ? (c * H + r) : (ch * plane + c * H + r);
+            for (keel::usize r = 0; r < H; ++r) {
+                for (keel::usize c = 0; c < W; ++c) {
+                    for (keel::usize ch = 0; ch < C; ++ch) {
+                        const keel::usize idx = (C == 1) ? (c * H + r) : (ch * plane + c * H + r);
                         double dv = A.elemAsDouble(idx);
                         if (dv < 0.0) dv = 0.0;
                         else if (dv > 255.0) dv = 255.0;
-                        dst[(r * W + c) * C + ch] = static_cast<std::uint8_t>(static_cast<int>(dv));
+                        dst[(r * W + c) * C + ch] = static_cast<keel::u8>(static_cast<int>(dv));
                     }
                 }
             }
@@ -276,14 +280,14 @@ PackedImageBuffer packStandardImage(const Value &A, bool allowU16, bool allow4Ch
 }
 
 template <typename T>
-void packPlanarToInterleavedTyped(const T *src, std::uint8_t *dstBytes,
-                                  std::size_t H, std::size_t W, std::size_t C) {
+void packPlanarToInterleavedTyped(const T *src, keel::u8 *dstBytes,
+                                  keel::usize H, keel::usize W, keel::usize C) {
     auto *dst = reinterpret_cast<T *>(dstBytes);
-    const std::size_t plane = H * W;
-    for (std::size_t r = 0; r < H; ++r) {
-        for (std::size_t c = 0; c < W; ++c) {
-            for (std::size_t ch = 0; ch < C; ++ch) {
-                const std::size_t idx = (C == 1) ? (c * H + r) : (ch * plane + c * H + r);
+    const keel::usize plane = H * W;
+    for (keel::usize r = 0; r < H; ++r) {
+        for (keel::usize c = 0; c < W; ++c) {
+            for (keel::usize ch = 0; ch < C; ++ch) {
+                const keel::usize idx = (C == 1) ? (c * H + r) : (ch * plane + c * H + r);
                 dst[(r * W + c) * C + ch] = src[idx];
             }
         }
@@ -291,14 +295,14 @@ void packPlanarToInterleavedTyped(const T *src, std::uint8_t *dstBytes,
 }
 
 PackedImageBuffer packTiffImage(const Value &A) {
-    const std::size_t H = A.dims().rows();
-    const std::size_t W = A.dims().cols();
+    const keel::usize H = A.dims().rows();
+    const keel::usize W = A.dims().cols();
     if (H == 0 || W == 0) {
         throw Error("imwrite TIFF: empty image",
                     0, 0, "imwrite", "", "numkit:imwrite:empty");
     }
 
-    std::size_t C = 0;
+    keel::usize C = 0;
     if (A.numel() == H * W)          C = 1;
     else if (A.numel() == H * W * 3) C = 3;
     else if (A.numel() == H * W * 4) C = 4;
@@ -351,15 +355,15 @@ PackedImageBuffer packTiffImage(const Value &A) {
         default: {
             out.sampleType = keel::SampleType::U8;
             out.bytes.resize(H * W * C);
-            const std::size_t plane = H * W;
-            for (std::size_t r = 0; r < H; ++r) {
-                for (std::size_t c = 0; c < W; ++c) {
-                    for (std::size_t ch = 0; ch < C; ++ch) {
-                        const std::size_t idx = (C == 1) ? (c * H + r) : (ch * plane + c * H + r);
+            const keel::usize plane = H * W;
+            for (keel::usize r = 0; r < H; ++r) {
+                for (keel::usize c = 0; c < W; ++c) {
+                    for (keel::usize ch = 0; ch < C; ++ch) {
+                        const keel::usize idx = (C == 1) ? (c * H + r) : (ch * plane + c * H + r);
                         double dv = A.elemAsDouble(idx);
                         if (dv < 0.0) dv = 0.0;
                         else if (dv > 255.0) dv = 255.0;
-                        out.bytes[(r * W + c) * C + ch] = static_cast<std::uint8_t>(static_cast<int>(dv));
+                        out.bytes[(r * W + c) * C + ch] = static_cast<keel::u8>(static_cast<int>(dv));
                     }
                 }
             }
@@ -369,7 +373,7 @@ PackedImageBuffer packTiffImage(const Value &A) {
     return out;
 }
 
-std::vector<std::uint8_t> loadFileBytes(const std::string &path, const char *who) {
+std::vector<keel::u8> loadFileBytes(const std::string &path, const char *who) {
     std::ifstream in(path, std::ios::binary);
     if (!in) {
         throw Error(std::string(who) + ": cannot open '" + path + "'",
@@ -378,7 +382,7 @@ std::vector<std::uint8_t> loadFileBytes(const std::string &path, const char *who
     in.seekg(0, std::ios::end);
     const std::streamoff sz = in.tellg();
     in.seekg(0, std::ios::beg);
-    std::vector<std::uint8_t> buf(sz > 0 ? static_cast<std::size_t>(sz) : 0u);
+    std::vector<keel::u8> buf(sz > 0 ? static_cast<keel::usize>(sz) : 0u);
     if (!buf.empty()) {
         in.read(reinterpret_cast<char *>(buf.data()), sz);
     }
@@ -395,8 +399,8 @@ keel::TiffCompression parseTiffCompression(const std::string &s) {
 }
 
 bool fillPeekInfo(const keel::Result<keel::ImageInfo> &res,
-                  std::uint32_t &W, std::uint32_t &H,
-                  std::uint16_t &bitsPerSample, std::uint16_t &channels) {
+                  keel::u32 &W, keel::u32 &H,
+                  keel::u16 &bitsPerSample, keel::u16 &channels) {
     if (!res) return false;
     const auto &info = res.value();
     W = info.width;
@@ -412,8 +416,8 @@ bool fillPeekInfo(const keel::Result<keel::ImageInfo> &res,
 // PNG
 // ============================================================================
 
-std::pair<Value, Value> readPngWithMap(const std::uint8_t *data, std::size_t len,
-                                       std::pmr::memory_resource *mr) {
+std::pair<Value, Value> readPngWithMap(const keel::u8 *data, keel::usize len,
+                                       keel::Allocator *mr) {
     keel::ImageDecodeOptions opts;
     opts.expand_indexed = false;
     auto res = keel::decode_png(toRef(data, len), opts);
@@ -428,8 +432,8 @@ std::pair<Value, Value> readPngWithMap(const std::uint8_t *data, std::size_t len
     };
 }
 
-Value readPng(const std::uint8_t *data, std::size_t len,
-              std::pmr::memory_resource *mr) {
+Value readPng(const keel::u8 *data, keel::usize len,
+              keel::Allocator *mr) {
     return readPngWithMap(data, len, mr).first;
 }
 
@@ -447,9 +451,9 @@ std::string writePngToBytes(const Value &A, int level) {
     return toStdString(res.value());
 }
 
-bool peekPng(const std::uint8_t *data, std::size_t len,
-             std::uint32_t &W, std::uint32_t &H,
-             std::uint16_t &bitsPerSample, std::uint16_t &channels) {
+bool peekPng(const keel::u8 *data, keel::usize len,
+             keel::u32 &W, keel::u32 &H,
+             keel::u16 &bitsPerSample, keel::u16 &channels) {
     return fillPeekInfo(keel::peek_png(toRef(data, len)), W, H, bitsPerSample, channels);
 }
 
@@ -457,8 +461,8 @@ bool peekPng(const std::uint8_t *data, std::size_t len,
 // JPEG
 // ============================================================================
 
-Value readJpeg(const std::uint8_t *data, std::size_t len,
-               std::pmr::memory_resource *mr) {
+Value readJpeg(const keel::u8 *data, keel::usize len,
+               keel::Allocator *mr) {
     auto res = keel::decode_jpeg(toRef(data, len));
     if (!res) {
         throw Error("imread: failed to decode JPEG",
@@ -482,9 +486,9 @@ std::string writeJpegToBytes(const Value &A, int quality) {
     return toStdString(res.value());
 }
 
-bool peekJpeg(const std::uint8_t *data, std::size_t len,
-              std::uint32_t &W, std::uint32_t &H,
-              std::uint16_t &bitsPerSample, std::uint16_t &channels) {
+bool peekJpeg(const keel::u8 *data, keel::usize len,
+              keel::u32 &W, keel::u32 &H,
+              keel::u16 &bitsPerSample, keel::u16 &channels) {
     return fillPeekInfo(keel::peek_jpeg(toRef(data, len)), W, H, bitsPerSample, channels);
 }
 
@@ -492,8 +496,8 @@ bool peekJpeg(const std::uint8_t *data, std::size_t len,
 // BMP
 // ============================================================================
 
-Value readBmp(const std::uint8_t *data, std::size_t len,
-              std::pmr::memory_resource *mr) {
+Value readBmp(const keel::u8 *data, keel::usize len,
+              keel::Allocator *mr) {
     auto res = keel::decode_bmp(toRef(data, len));
     if (!res) {
         throw Error("imread: failed to decode BMP",
@@ -514,9 +518,9 @@ std::string writeBmpToBytes(const Value &A) {
     return toStdString(res.value());
 }
 
-bool peekBmp(const std::uint8_t *data, std::size_t len,
-             std::uint32_t &W, std::uint32_t &H,
-             std::uint16_t &bitsPerSample, std::uint16_t &channels) {
+bool peekBmp(const keel::u8 *data, keel::usize len,
+             keel::u32 &W, keel::u32 &H,
+             keel::u16 &bitsPerSample, keel::u16 &channels) {
     return fillPeekInfo(keel::peek_bmp(toRef(data, len)), W, H, bitsPerSample, channels);
 }
 
@@ -524,8 +528,8 @@ bool peekBmp(const std::uint8_t *data, std::size_t len,
 // TGA
 // ============================================================================
 
-Value readTga(const std::uint8_t *data, std::size_t len,
-              std::pmr::memory_resource *mr) {
+Value readTga(const keel::u8 *data, keel::usize len,
+              keel::Allocator *mr) {
     auto res = keel::decode_tga(toRef(data, len));
     if (!res) {
         throw Error("imread: failed to decode TGA",
@@ -546,9 +550,9 @@ std::string writeTgaToBytes(const Value &A) {
     return toStdString(res.value());
 }
 
-bool peekTga(const std::uint8_t *data, std::size_t len,
-             std::uint32_t &W, std::uint32_t &H,
-             std::uint16_t &bitsPerSample, std::uint16_t &channels) {
+bool peekTga(const keel::u8 *data, keel::usize len,
+             keel::u32 &W, keel::u32 &H,
+             keel::u16 &bitsPerSample, keel::u16 &channels) {
     return fillPeekInfo(keel::peek_tga(toRef(data, len)), W, H, bitsPerSample, channels);
 }
 
@@ -556,8 +560,8 @@ bool peekTga(const std::uint8_t *data, std::size_t len,
 // PNM
 // ============================================================================
 
-Value readPnm(const std::uint8_t *data, std::size_t len,
-              std::pmr::memory_resource *mr) {
+Value readPnm(const keel::u8 *data, keel::usize len,
+              keel::Allocator *mr) {
     auto res = keel::decode_pnm(toRef(data, len));
     if (!res) {
         throw Error("imread: failed to decode PNM",
@@ -581,9 +585,9 @@ std::string writePnmToBytes(const Value &A, const std::string & /*ext*/) {
     return toStdString(res.value());
 }
 
-bool peekPnm(const std::uint8_t *data, std::size_t len,
-             std::uint32_t &W, std::uint32_t &H,
-             std::uint16_t &bitsPerSample, std::uint16_t &channels) {
+bool peekPnm(const keel::u8 *data, keel::usize len,
+             keel::u32 &W, keel::u32 &H,
+             keel::u16 &bitsPerSample, keel::u16 &channels) {
     return fillPeekInfo(keel::peek_pnm(toRef(data, len)), W, H, bitsPerSample, channels);
 }
 
@@ -591,16 +595,16 @@ bool peekPnm(const std::uint8_t *data, std::size_t len,
 // TIFF & BigTIFF
 // ============================================================================
 
-bool isTiffBytes(const std::uint8_t *data, std::size_t len) {
+bool isTiffBytes(const keel::u8 *data, keel::usize len) {
     return keel::is_tiff_bytes(toRef(data, len));
 }
 
 bool isTiffBytes(const std::string &b) {
-    return isTiffBytes(reinterpret_cast<const std::uint8_t *>(b.data()), b.size());
+    return isTiffBytes(reinterpret_cast<const keel::u8 *>(b.data()), b.size());
 }
 
-std::pair<Value, Value> readTiffWithMap(std::vector<std::uint8_t> buf, std::uint32_t page,
-                                        std::pmr::memory_resource *mr) {
+std::pair<Value, Value> readTiffWithMap(std::vector<keel::u8> buf, keel::u32 page,
+                                        keel::Allocator *mr) {
     if (page == 0) {
         throw Error("imread: page index must be >= 1",
                     0, 0, "imread", "", "numkit:imread:tiffPage");
@@ -624,27 +628,27 @@ std::pair<Value, Value> readTiffWithMap(std::vector<std::uint8_t> buf, std::uint
     };
 }
 
-std::pair<Value, Value> readTiffWithMap(const std::string &path, std::uint32_t page,
-                                        std::pmr::memory_resource *mr) {
+std::pair<Value, Value> readTiffWithMap(const std::string &path, keel::u32 page,
+                                        keel::Allocator *mr) {
     return readTiffWithMap(loadFileBytes(path, "imread"), page, mr);
 }
 
-Value readTiff(std::vector<std::uint8_t> buf, std::uint32_t page,
-               std::pmr::memory_resource *mr) {
+Value readTiff(std::vector<keel::u8> buf, keel::u32 page,
+               keel::Allocator *mr) {
     return readTiffWithMap(std::move(buf), page, mr).first;
 }
 
-Value readTiff(const std::string &path, std::uint32_t page,
-               std::pmr::memory_resource *mr) {
+Value readTiff(const std::string &path, keel::u32 page,
+               keel::Allocator *mr) {
     return readTiff(loadFileBytes(path, "imread"), page, mr);
 }
 
-Value readTiff(const std::string &path, std::pmr::memory_resource *mr) {
+Value readTiff(const std::string &path, keel::Allocator *mr) {
     return readTiff(path, 1u, mr);
 }
 
-void peekTiff(const std::vector<std::uint8_t> &buf, std::uint32_t &W,
-              std::uint32_t &H, std::uint16_t &bits, std::uint16_t &channels) {
+void peekTiff(const std::vector<keel::u8> &buf, keel::u32 &W,
+              keel::u32 &H, keel::u16 &bits, keel::u16 &channels) {
     auto res = keel::peek_tiff(toRef(buf.data(), buf.size()));
     if (!res) {
         throw Error("imfinfo: failed to parse TIFF header",
@@ -657,12 +661,12 @@ void peekTiff(const std::vector<std::uint8_t> &buf, std::uint32_t &W,
     channels = info.channels;
 }
 
-void peekTiff(const std::string &path, std::uint32_t &W, std::uint32_t &H,
-              std::uint16_t &bits, std::uint16_t &channels) {
+void peekTiff(const std::string &path, keel::u32 &W, keel::u32 &H,
+              keel::u16 &bits, keel::u16 &channels) {
     peekTiff(loadFileBytes(path, "imfinfo"), W, H, bits, channels);
 }
 
-std::uint32_t tiffNumPages(const std::string &path) {
+keel::u32 tiffNumPages(const std::string &path) {
     const auto buf = loadFileBytes(path, "imfinfo");
     auto res = keel::tiff_page_count(toRef(buf.data(), buf.size()));
     if (!res) {
@@ -672,8 +676,8 @@ std::uint32_t tiffNumPages(const std::string &path) {
     return res.value();
 }
 
-std::vector<std::uint8_t> writeTiffToBytes(const Value &A, const std::string &compression,
-                                           const std::vector<std::uint8_t> *existing) {
+std::vector<keel::u8> writeTiffToBytes(const Value &A, const std::string &compression,
+                                           const std::vector<keel::u8> *existing) {
     keel::TiffEncodeOptions opts;
     opts.compression = parseTiffCompression(compression);
     auto packed = packTiffImage(A);
@@ -693,14 +697,14 @@ std::vector<std::uint8_t> writeTiffToBytes(const Value &A, const std::string &co
 
 void writeTiff(const Value &A, const std::string &path,
                const std::string &compression, bool appendMode) {
-    std::vector<std::uint8_t> existing;
-    const std::vector<std::uint8_t> *exptr = nullptr;
+    std::vector<keel::u8> existing;
+    const std::vector<keel::u8> *exptr = nullptr;
     if (appendMode && std::filesystem::exists(path)) {
         existing = loadFileBytes(path, "imwrite");
         exptr = &existing;
     }
 
-    const std::vector<std::uint8_t> buf = writeTiffToBytes(A, compression, exptr);
+    const std::vector<keel::u8> buf = writeTiffToBytes(A, compression, exptr);
 
     std::ofstream out(path, std::ios::binary | std::ios::trunc);
     if (!out) {

@@ -6,7 +6,7 @@
 
 #pragma once
 
-#include <memory_resource>
+#include <keel/memory.h>
 #include <tuple>
 #include <numkit/value/value.hpp>
 
@@ -21,7 +21,7 @@ namespace numkit::linalg {
 /// such that Q * A * Z = AA and Q * B * Z = BB, where AA is upper quasi-triangular,
 /// BB is upper triangular, and Q, Z are unitary.
 std::tuple<Value, Value, Value, Value> qz(const Value &A, const Value &B,
-                                           std::pmr::memory_resource *mr = nullptr);
+                                           keel::Allocator *mr = nullptr);
 
 
 /// @}

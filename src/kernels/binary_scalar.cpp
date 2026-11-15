@@ -12,6 +12,7 @@
 // bugs/ops/cheap-elementwise-simd-small-n. Each op is one IEEE operation, so the
 // scalar body is bit-identical to the Highway lane op.
 
+#include <keel/core.h>
 #include <numkit/ops/binary_ops.hpp>
 #include <numkit/ops/compiler.hpp>
 
@@ -19,20 +20,20 @@
 
 namespace numkit::ops::detail {
 
-NUMKIT_NOINLINE void plusScalar(const double *a, const double *b, double *out, std::size_t n) {
-    for (std::size_t i = 0; i < n; ++i) out[i] = a[i] + b[i];
+NUMKIT_NOINLINE void plusScalar(const double *a, const double *b, double *out, keel::usize n) {
+    for (keel::usize i = 0; i < n; ++i) out[i] = a[i] + b[i];
 }
 
-NUMKIT_NOINLINE void minusScalar(const double *a, const double *b, double *out, std::size_t n) {
-    for (std::size_t i = 0; i < n; ++i) out[i] = a[i] - b[i];
+NUMKIT_NOINLINE void minusScalar(const double *a, const double *b, double *out, keel::usize n) {
+    for (keel::usize i = 0; i < n; ++i) out[i] = a[i] - b[i];
 }
 
-NUMKIT_NOINLINE void timesScalar(const double *a, const double *b, double *out, std::size_t n) {
-    for (std::size_t i = 0; i < n; ++i) out[i] = a[i] * b[i];
+NUMKIT_NOINLINE void timesScalar(const double *a, const double *b, double *out, keel::usize n) {
+    for (keel::usize i = 0; i < n; ++i) out[i] = a[i] * b[i];
 }
 
-NUMKIT_NOINLINE void rdivideScalar(const double *a, const double *b, double *out, std::size_t n) {
-    for (std::size_t i = 0; i < n; ++i) out[i] = a[i] / b[i];
+NUMKIT_NOINLINE void rdivideScalar(const double *a, const double *b, double *out, keel::usize n) {
+    for (keel::usize i = 0; i < n; ++i) out[i] = a[i] / b[i];
 }
 
 } // namespace numkit::ops::detail

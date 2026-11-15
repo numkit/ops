@@ -1,23 +1,26 @@
 // src/builtin/src/datafun/sets.cpp
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/complex.h>
 #include <numkit/builtin/datafun.hpp>
 #include <numkit/value/value.hpp>
-#include <numkit/value/scratch.hpp>
 #include <numkit/value/error.hpp>
 #include <numkit/ops/helpers.hpp>
 #include <numkit/ops/rows_helpers.hpp>
 
+#include <keel/arena.h>
+#include <keel/array.h>
+#include <keel/hash_map.h>
+#include <keel/hash_set.h>
+#include <keel/math.h>
+
 #include <algorithm>
 #include <cmath>
-#include <complex>
-#include <cstddef>
-#include <cstdint>
 #include <cstring>
 #include <limits>
 #include <numeric>
 #include <string>
-#include <unordered_map>
-#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -28,186 +31,173 @@ namespace numkit::builtin {
 
 // ── unique ─────────────────────────────────────────────────────────
 
-Value unique(const Value &x, bool stable, std::pmr::memory_resource *mr)
+Value unique(const Value &x, bool stable, keel::Allocator *alloc)
 {
-    const size_t n = x.numel();
-    if (n == 0) return emptyRow(mr);
+    const keel::usize n = x.numel();
+    if (n == 0) return emptyRow(alloc);
     if (x.type() == ValueType::COMPLEX)
-        return std::get<0>(uniqueComplexFull(x, stable, mr));
+        return std::get<0>(uniqueComplexFull(x, stable, false, alloc));
 
-    ScratchArena scratch(mr);
-    const double *p = x.doubleData();
+    keel::ArenaTemp scratch = keel::get_scratch(alloc);
+    const keel::f64 *p = x.doubleData();
 
     if (stable) {
         // First-occurrence order, no sort. Each NaN is distinct (kept).
-        std::pmr::unordered_set<double, DoubleHashEq0> seen(&scratch);
+        keel::HashSet<keel::f64, DoubleHashEq0> seen(scratch.allocator());
         seen.reserve(n / 2 + 1);
-        auto out = ScratchVec<double>(&scratch);
+        keel::Array<keel::f64> out(scratch.allocator());
         out.reserve(n);
-        for (size_t i = 0; i < n; ++i) {
-            if (std::isnan(p[i])) out.push_back(std::nan(""));
-            else if (seen.insert(p[i]).second) out.push_back(p[i]);
+        for (keel::usize i = 0; i < n; ++i) {
+            if (keel::is_nan(p[i])) out.push_back(keel::Limits<keel::f64>::quiet_nan());
+            else if (seen.insert(p[i])) out.push_back(p[i]);
         }
-        return rowFromVec(out.data(), out.size(), mr);
+        return rowFromVec(out.data(), out.size(), alloc);
     }
 
-    std::pmr::unordered_set<double, DoubleHashEq0> seen(&scratch);
+    keel::HashSet<keel::f64, DoubleHashEq0> seen(scratch.allocator());
     seen.reserve(n / 2 + 1);
-    size_t nanCount = 0;
-    for (size_t i = 0; i < n; ++i) {
-        if (std::isnan(p[i])) ++nanCount;
+    keel::usize nanCount = 0;
+    for (keel::usize i = 0; i < n; ++i) {
+        if (keel::is_nan(p[i])) ++nanCount;
         else seen.insert(p[i]);
     }
 
-    auto out = ScratchVec<double>(&scratch);
+    keel::Array<keel::f64> out(scratch.allocator());
     out.reserve(seen.size() + nanCount);
-    out.assign(seen.begin(), seen.end());
+    for (keel::f64 v : seen)
+        out.push_back(v);
     std::sort(out.begin(), out.end());
-    for (size_t i = 0; i < nanCount; ++i)
-        out.push_back(std::nan(""));
-    return rowFromVec(out.data(), out.size(), mr);
+    for (keel::usize i = 0; i < nanCount; ++i)
+        out.push_back(keel::Limits<keel::f64>::quiet_nan());
+    return rowFromVec(out.data(), out.size(), alloc);
 }
 
 std::tuple<Value, Value, Value>
 uniqueWithIndices(const Value &x, bool stable, bool last,
-                  std::pmr::memory_resource *mr)
+                  keel::Allocator *alloc)
 {
-    const size_t n = x.numel();
+    const keel::usize n = x.numel();
     if (n == 0) {
-        return std::make_tuple(emptyRow(mr), emptyRow(mr),
-                               emptyRow(mr));
+        return std::make_tuple(emptyRow(alloc), emptyRow(alloc),
+                               emptyRow(alloc));
     }
     if (x.type() == ValueType::COMPLEX)
-        return uniqueComplexFull(x, stable, last, mr);
+        return uniqueComplexFull(x, stable, last, alloc);
 
     if (stable) {
-        // Stable order. C = X(ia); X = C(ic). Each NaN distinct.
-        // 'stable' alone: first-occurrence order (values in the order they
-        // first appear). 'stable'+'last': MATLAB orders by LAST occurrence
-        // (values in the order their last appearance appears in X).
-        ScratchArena scratch(mr);
-        std::pmr::unordered_map<double, size_t, DoubleHashEq0> posByVal(&scratch);
+        keel::ArenaTemp scratch = keel::get_scratch(alloc);
+        keel::HashMap<keel::f64, keel::usize, DoubleHashEq0> posByVal(scratch.allocator());
         posByVal.reserve(n / 2 + 1);
-        auto uVals = ScratchVec<double>(&scratch);
-        auto iaVec = ScratchVec<double>(&scratch);
-        auto ic    = ScratchVec<double>(n, &scratch);
-        const double *p = x.doubleData();
+        keel::Array<keel::f64> uVals(scratch.allocator());
+        keel::Array<keel::f64> iaVec(scratch.allocator());
+        keel::Array<keel::f64> ic(n, scratch.allocator());
+        const keel::f64 *p = x.doubleData();
         if (last) {
-            // 'stable'+'last': two passes — find each value's LAST index,
-            // then emit in the order those last appearances occur in X.
-            std::pmr::unordered_map<double, size_t, DoubleHashEq0> lastIdx(&scratch);
+            keel::HashMap<keel::f64, keel::usize, DoubleHashEq0> lastIdx(scratch.allocator());
             lastIdx.reserve(n / 2 + 1);
-            for (size_t i = 0; i < n; ++i)
-                if (!std::isnan(p[i]))
-                    lastIdx[p[i]] = i;              // keep the LAST index
-            // Second pass: emit values in the order of their last appearance
-            std::pmr::unordered_map<double, bool, DoubleHashEq0> seen(&scratch);
+            for (keel::usize i = 0; i < n; ++i)
+                if (!keel::is_nan(p[i]))
+                    lastIdx.put(p[i], i);
+            keel::HashSet<keel::f64, DoubleHashEq0> seen(scratch.allocator());
             seen.reserve(lastIdx.size() + n / 2);
-            for (size_t i = 0; i < n; ++i) {
-                if (std::isnan(p[i])) {
-                    uVals.push_back(std::nan(""));
-                    iaVec.push_back(static_cast<double>(i + 1));
-                    ic[i] = static_cast<double>(uVals.size());
+            for (keel::usize i = 0; i < n; ++i) {
+                if (keel::is_nan(p[i])) {
+                    uVals.push_back(keel::Limits<keel::f64>::quiet_nan());
+                    iaVec.push_back(static_cast<keel::f64>(i + 1));
+                    ic[i] = static_cast<keel::f64>(uVals.size());
                     continue;
                 }
-                auto it = lastIdx.find(p[i]);
-                if (it != lastIdx.end() && it->second == i) {
-                    // This is the value's LAST occurrence — emit it here.
-                    // But only once (multiple values could share the same pos).
-                    if (!seen.count(p[i])) {
-                        seen[p[i]] = true;
-                        posByVal[p[i]] = uVals.size();
+                if (const keel::usize *li = lastIdx.get(p[i]); li && *li == i) {
+                    if (seen.insert(p[i])) {
+                        posByVal.put(p[i], uVals.size());
                         uVals.push_back(p[i]);
-                        iaVec.push_back(static_cast<double>(i + 1));
+                        iaVec.push_back(static_cast<keel::f64>(i + 1));
                     }
                 }
             }
-            // Fill ic: each element points at its value's position in uVals.
-            for (size_t i = 0; i < n; ++i) {
-                if (std::isnan(p[i])) continue;    // already filled above
-                auto it = posByVal.find(p[i]);
-                if (it != posByVal.end())
-                    ic[i] = static_cast<double>(it->second + 1);
+            for (keel::usize i = 0; i < n; ++i) {
+                if (keel::is_nan(p[i])) continue;
+                if (const keel::usize *pv = posByVal.get(p[i]))
+                    ic[i] = static_cast<keel::f64>(*pv + 1);
             }
         } else {
             // 'stable' (default): first-occurrence order.
-            for (size_t i = 0; i < n; ++i) {
-                if (std::isnan(p[i])) {
-                    uVals.push_back(std::nan(""));
-                    iaVec.push_back(static_cast<double>(i + 1));
-                    ic[i] = static_cast<double>(uVals.size());
+            for (keel::usize i = 0; i < n; ++i) {
+                if (keel::is_nan(p[i])) {
+                    uVals.push_back(keel::Limits<keel::f64>::quiet_nan());
+                    iaVec.push_back(static_cast<keel::f64>(i + 1));
+                    ic[i] = static_cast<keel::f64>(uVals.size());
                 } else {
-                    auto it = posByVal.find(p[i]);
-                    if (it == posByVal.end()) {
-                        posByVal.emplace(p[i], uVals.size());
+                    auto res = posByVal.try_insert(p[i], uVals.size());
+                    if (res.inserted) {
                         uVals.push_back(p[i]);
-                        iaVec.push_back(static_cast<double>(i + 1));
-                        ic[i] = static_cast<double>(uVals.size());
+                        iaVec.push_back(static_cast<keel::f64>(i + 1));
+                        ic[i] = static_cast<keel::f64>(uVals.size());
                     } else {
-                        ic[i] = static_cast<double>(it->second + 1);
+                        ic[i] = static_cast<keel::f64>(*res.value + 1);
                     }
                 }
             }
         }
-        auto cOut  = Value::matrix(1, uVals.size(), ValueType::DOUBLE, mr);
-        auto iaRow = Value::matrix(1, iaVec.size(), ValueType::DOUBLE, mr);
+        auto cOut  = Value::matrix(1, uVals.size(), ValueType::DOUBLE, alloc);
+        auto iaRow = Value::matrix(1, iaVec.size(), ValueType::DOUBLE, alloc);
         std::copy(uVals.begin(), uVals.end(), cOut.doubleDataMut());
         std::copy(iaVec.begin(), iaVec.end(), iaRow.doubleDataMut());
-        auto icRow = Value::matrix(1, n, ValueType::DOUBLE, mr);
+        auto icRow = Value::matrix(1, n, ValueType::DOUBLE, alloc);
         std::copy(ic.begin(), ic.end(), icRow.doubleDataMut());
         return std::make_tuple(std::move(cOut), std::move(iaRow), std::move(icRow));
     }
 
-    ScratchArena scratch(mr);
-    std::pmr::unordered_map<double, size_t, DoubleHashEq0> firstIdx(&scratch);
+    keel::ArenaTemp scratch = keel::get_scratch(alloc);
+    keel::HashMap<keel::f64, keel::usize, DoubleHashEq0> firstIdx(scratch.allocator());
     firstIdx.reserve(n / 2 + 1);
-    auto nanIdxOrder = ScratchVec<size_t>(&scratch);
-    const double *p = x.doubleData();
-    for (size_t i = 0; i < n; ++i) {
-        if (std::isnan(p[i])) {
+    keel::Array<keel::usize> nanIdxOrder(scratch.allocator());
+    const keel::f64 *p = x.doubleData();
+    for (keel::usize i = 0; i < n; ++i) {
+        if (keel::is_nan(p[i])) {
             nanIdxOrder.push_back(i);
         } else if (last) {
-            firstIdx[p[i]] = i;            // 'last': keep the last occurrence
+            firstIdx.put(p[i], i);         // 'last': keep the last occurrence
         } else {
-            firstIdx.try_emplace(p[i], i); // default: keep the first occurrence
+            firstIdx.try_insert(p[i], i);  // default: keep the first occurrence
         }
     }
 
-    auto sorted = ScratchVec<IndexedVal>(&scratch);
+    keel::Array<IndexedVal> sorted(scratch.allocator());
     sorted.reserve(firstIdx.size() + nanIdxOrder.size());
-    for (const auto &kv : firstIdx)
-        sorted.push_back({kv.first, kv.second});
+    for (const auto &entry : firstIdx)
+        sorted.push_back({entry.key, entry.value});
     std::sort(sorted.begin(), sorted.end(),
               [](const IndexedVal &a, const IndexedVal &b) {
                   return a.v < b.v;
               });
-    for (size_t idx : nanIdxOrder)
-        sorted.push_back({std::nan(""), idx});
+    for (keel::usize idx : nanIdxOrder)
+        sorted.push_back({keel::Limits<keel::f64>::quiet_nan(), idx});
 
-    std::pmr::unordered_map<double, size_t, DoubleHashEq0> rankByValue(&scratch);
+    keel::HashMap<keel::f64, keel::usize, DoubleHashEq0> rankByValue(scratch.allocator());
     rankByValue.reserve(firstIdx.size());
-    const size_t nanRankBase = sorted.size() - nanIdxOrder.size();
-    for (size_t r = 0; r < nanRankBase; ++r)
-        rankByValue[sorted[r].v] = r;
+    const keel::usize nanRankBase = sorted.size() - nanIdxOrder.size();
+    for (keel::usize r = 0; r < nanRankBase; ++r)
+        rankByValue.put(sorted[r].v, r);
 
-    auto ic = ScratchVec<double>(n, &scratch);
-    size_t nanSeen = 0;
-    for (size_t i = 0; i < n; ++i) {
-        if (std::isnan(p[i])) {
-            ic[i] = static_cast<double>(nanRankBase + nanSeen + 1);
+    keel::Array<keel::f64> ic(n, scratch.allocator());
+    keel::usize nanSeen = 0;
+    for (keel::usize i = 0; i < n; ++i) {
+        if (keel::is_nan(p[i])) {
+            ic[i] = static_cast<keel::f64>(nanRankBase + nanSeen + 1);
             ++nanSeen;
         } else {
-            ic[i] = static_cast<double>(rankByValue[p[i]] + 1);
+            ic[i] = static_cast<keel::f64>(*rankByValue.get(p[i]) + 1);
         }
     }
 
-    auto cOut = Value::matrix(1, sorted.size(), ValueType::DOUBLE, mr);
-    auto iaRow = Value::matrix(1, sorted.size(), ValueType::DOUBLE, mr);
-    for (size_t i = 0; i < sorted.size(); ++i) {
+    auto cOut = Value::matrix(1, sorted.size(), ValueType::DOUBLE, alloc);
+    auto iaRow = Value::matrix(1, sorted.size(), ValueType::DOUBLE, alloc);
+    for (keel::usize i = 0; i < sorted.size(); ++i) {
         cOut.doubleDataMut()[i]  = sorted[i].v;
-        iaRow.doubleDataMut()[i] = static_cast<double>(sorted[i].origIdx + 1);
+        iaRow.doubleDataMut()[i] = static_cast<keel::f64>(sorted[i].origIdx + 1);
     }
-    auto icRow = Value::matrix(1, n, ValueType::DOUBLE, mr);
+    auto icRow = Value::matrix(1, n, ValueType::DOUBLE, alloc);
     std::copy(ic.begin(), ic.end(), icRow.doubleDataMut());
 
     return std::make_tuple(std::move(cOut), std::move(iaRow), std::move(icRow));
@@ -215,405 +205,373 @@ uniqueWithIndices(const Value &x, bool stable, bool last,
 
 // ── unique with 'rows' flag ────────────────────────────────────────
 
-Value uniqueRows(const Value &x, bool stable, std::pmr::memory_resource *mr)
+Value uniqueRows(const Value &x, bool stable, keel::Allocator *alloc)
 {
     validateUniqueRowsInput(x, "unique");
-    const size_t rows = x.dims().rows();
-    const size_t cols = x.dims().cols();
-    if (rows == 0) return emptyRowsResult(cols, mr);
+    const keel::usize rows = x.dims().rows();
+    const keel::usize cols = x.dims().cols();
+    if (rows == 0) return emptyRowsResult(cols, alloc);
 
-    const double *src = x.doubleData();
-    ScratchArena scratch(mr);
+    const keel::f64 *src = x.doubleData();
+    keel::ArenaTemp scratch = keel::get_scratch(alloc);
 
     if (stable) {
-        // 'rows','stable': keep the first occurrence of each distinct row in
-        // appearance order (NaN-containing rows are each distinct — NaN never
-        // equals itself — so they are always kept, interleaved in place).
-        std::pmr::unordered_map<RowKey, size_t, RowKeyHash, RowKeyEq> seen(&scratch);
+        keel::HashMap<RowKey, keel::usize, RowKeyHash, RowKeyEq> seen(scratch.allocator());
         seen.reserve(rows);
-        auto uniqRows = ScratchVec<size_t>(&scratch);
-        for (size_t r = 0; r < rows; ++r) {
+        keel::Array<keel::usize> uniqRows(scratch.allocator());
+        for (keel::usize r = 0; r < rows; ++r) {
             if (rowHasNan(src, cols, rows, r)) {
                 uniqRows.push_back(r);
-            } else if (seen.try_emplace(extractRow(src, cols, rows, r, &scratch), r).second) {
+            } else if (seen.try_insert(extractRow(src, cols, rows, r, scratch.allocator()), r).inserted) {
                 uniqRows.push_back(r);
             }
         }
-        return numkit::ops::collectRowsByIndex(x, uniqRows.data(), uniqRows.size(), mr);
+        return numkit::ops::collectRowsByIndex(x, uniqRows.data(), uniqRows.size(), alloc);
     }
 
-    std::pmr::unordered_map<RowKey, size_t, RowKeyHash, RowKeyEq> firstIdx(&scratch);
+    keel::HashMap<RowKey, keel::usize, RowKeyHash, RowKeyEq> firstIdx(scratch.allocator());
     firstIdx.reserve(rows);
-    auto nanRows = ScratchVec<size_t>(&scratch);
-    for (size_t r = 0; r < rows; ++r) {
+    keel::Array<keel::usize> nanRows(scratch.allocator());
+    for (keel::usize r = 0; r < rows; ++r) {
         if (rowHasNan(src, cols, rows, r)) {
             nanRows.push_back(r);
         } else {
-            firstIdx.try_emplace(extractRow(src, cols, rows, r, &scratch), r);
+            firstIdx.try_insert(extractRow(src, cols, rows, r, scratch.allocator()), r);
         }
     }
 
-    auto uniqRows = ScratchVec<size_t>(&scratch);
+    keel::Array<keel::usize> uniqRows(scratch.allocator());
     uniqRows.reserve(firstIdx.size() + nanRows.size());
-    for (const auto &kv : firstIdx) uniqRows.push_back(kv.second);
+    for (const auto &entry : firstIdx) uniqRows.push_back(entry.value);
     std::sort(uniqRows.begin(), uniqRows.end(),
-              [src, cols, rows](size_t a, size_t b) {
+              [src, cols, rows](keel::usize a, keel::usize b) {
                   return rowLexCmp(src, cols, rows, a, b) < 0;
               });
-    uniqRows.insert(uniqRows.end(), nanRows.begin(), nanRows.end());
+    uniqRows.append(nanRows);
 
-    return numkit::ops::collectRowsByIndex(x, uniqRows.data(), uniqRows.size(), mr);
+    return numkit::ops::collectRowsByIndex(x, uniqRows.data(), uniqRows.size(), alloc);
 }
 
 std::tuple<Value, Value, Value>
 uniqueRowsWithIndices(const Value &x, bool stable, bool last,
-                      std::pmr::memory_resource *mr)
+                      keel::Allocator *alloc)
 {
     validateUniqueRowsInput(x, "unique");
-    const size_t rows = x.dims().rows();
-    const size_t cols = x.dims().cols();
+    const keel::usize rows = x.dims().rows();
+    const keel::usize cols = x.dims().cols();
     if (rows == 0) {
-        return std::make_tuple(emptyRowsResult(cols, mr),
-                               emptyRow(mr), emptyRow(mr));
+        return std::make_tuple(emptyRowsResult(cols, alloc),
+                               emptyRow(alloc), emptyRow(alloc));
     }
 
-    const double *src = x.doubleData();
-    ScratchArena scratch(mr);
+    const keel::f64 *src = x.doubleData();
+    keel::ArenaTemp scratch = keel::get_scratch(alloc);
 
     if (stable) {
-        // 'rows','stable': first occurrences in appearance order. ia indexes
-        // those first occurrences; ic maps every row back to its unique entry.
-        // NaN-containing rows are each distinct (kept in place).
-        std::pmr::unordered_map<RowKey, size_t, RowKeyHash, RowKeyEq> posByKey(&scratch);
-        std::pmr::unordered_map<size_t, size_t> posByNanRow(&scratch);
+        keel::HashMap<RowKey, keel::usize, RowKeyHash, RowKeyEq> posByKey(scratch.allocator());
+        keel::HashMap<keel::usize, keel::usize> posByNanRow(scratch.allocator());
         posByKey.reserve(rows);
-        auto uniqRows = ScratchVec<size_t>(&scratch);
-        for (size_t r = 0; r < rows; ++r) {
+        keel::Array<keel::usize> uniqRows(scratch.allocator());
+        for (keel::usize r = 0; r < rows; ++r) {
             if (rowHasNan(src, cols, rows, r)) {
-                posByNanRow[r] = uniqRows.size();
+                posByNanRow.put(r, uniqRows.size());
                 uniqRows.push_back(r);
-            } else if (posByKey.try_emplace(extractRow(src, cols, rows, r, &scratch),
-                                            uniqRows.size()).second) {
+            } else if (posByKey.try_insert(extractRow(src, cols, rows, r, scratch.allocator()),
+                                           uniqRows.size()).inserted) {
                 uniqRows.push_back(r);
             }
         }
 
-        auto icRow = Value::matrix(rows, 1, ValueType::DOUBLE, mr);
-        double *ic = icRow.doubleDataMut();
-        for (size_t r = 0; r < rows; ++r) {
-            const size_t pos = rowHasNan(src, cols, rows, r)
-                ? posByNanRow[r]
-                : posByKey[extractRow(src, cols, rows, r, &scratch)];
-            ic[r] = static_cast<double>(pos + 1);
+        auto icRow = Value::matrix(rows, 1, ValueType::DOUBLE, alloc);
+        keel::f64 *ic = icRow.doubleDataMut();
+        for (keel::usize r = 0; r < rows; ++r) {
+            const keel::usize pos = rowHasNan(src, cols, rows, r)
+                ? *posByNanRow.get(r)
+                : *posByKey.get(extractRow(src, cols, rows, r, scratch.allocator()));
+            ic[r] = static_cast<keel::f64>(pos + 1);
         }
 
-        auto iaCol = Value::matrix(uniqRows.size(), 1, ValueType::DOUBLE, mr);
-        double *ia = iaCol.doubleDataMut();
-        for (size_t i = 0; i < uniqRows.size(); ++i)
-            ia[i] = static_cast<double>(uniqRows[i] + 1);
+        auto iaCol = Value::matrix(uniqRows.size(), 1, ValueType::DOUBLE, alloc);
+        keel::f64 *ia = iaCol.doubleDataMut();
+        for (keel::usize i = 0; i < uniqRows.size(); ++i)
+            ia[i] = static_cast<keel::f64>(uniqRows[i] + 1);
 
         return std::make_tuple(
-            numkit::ops::collectRowsByIndex(x, uniqRows.data(), uniqRows.size(), mr),
+            numkit::ops::collectRowsByIndex(x, uniqRows.data(), uniqRows.size(), alloc),
             std::move(iaCol), std::move(icRow));
     }
 
-    std::pmr::unordered_map<RowKey, size_t, RowKeyHash, RowKeyEq> firstIdx(&scratch);
+    keel::HashMap<RowKey, keel::usize, RowKeyHash, RowKeyEq> firstIdx(scratch.allocator());
     firstIdx.reserve(rows);
-    auto nanRowOrder = ScratchVec<size_t>(&scratch);
-    for (size_t r = 0; r < rows; ++r) {
+    keel::Array<keel::usize> nanRowOrder(scratch.allocator());
+    for (keel::usize r = 0; r < rows; ++r) {
         if (rowHasNan(src, cols, rows, r)) {
             nanRowOrder.push_back(r);
         } else if (last) {
-            firstIdx[extractRow(src, cols, rows, r, &scratch)] = r;  // 'last'
+            firstIdx.put(extractRow(src, cols, rows, r, scratch.allocator()), r);
         } else {
-            firstIdx.try_emplace(extractRow(src, cols, rows, r, &scratch), r);
+            firstIdx.try_insert(extractRow(src, cols, rows, r, scratch.allocator()), r);
         }
     }
 
-    auto uniqRows = ScratchVec<size_t>(&scratch);
+    keel::Array<keel::usize> uniqRows(scratch.allocator());
     uniqRows.reserve(firstIdx.size() + nanRowOrder.size());
-    for (const auto &kv : firstIdx) uniqRows.push_back(kv.second);
+    for (const auto &entry : firstIdx) uniqRows.push_back(entry.value);
     std::sort(uniqRows.begin(), uniqRows.end(),
-              [src, cols, rows](size_t a, size_t b) {
+              [src, cols, rows](keel::usize a, keel::usize b) {
                   return rowLexCmp(src, cols, rows, a, b) < 0;
               });
-    const size_t nanRankBase = uniqRows.size();
-    uniqRows.insert(uniqRows.end(), nanRowOrder.begin(), nanRowOrder.end());
+    const keel::usize nanRankBase = uniqRows.size();
+    uniqRows.append(nanRowOrder);
 
-    std::pmr::unordered_map<RowKey, size_t, RowKeyHash, RowKeyEq> rankByKey(&scratch);
+    keel::HashMap<RowKey, keel::usize, RowKeyHash, RowKeyEq> rankByKey(scratch.allocator());
     rankByKey.reserve(nanRankBase);
-    for (size_t r = 0; r < nanRankBase; ++r)
-        rankByKey[extractRow(src, cols, rows, uniqRows[r], &scratch)] = r;
+    for (keel::usize r = 0; r < nanRankBase; ++r)
+        rankByKey.put(extractRow(src, cols, rows, uniqRows[r], scratch.allocator()), r);
 
-    auto icRow = Value::matrix(rows, 1, ValueType::DOUBLE, mr);
-    double *ic = icRow.doubleDataMut();
-    size_t nanSeen = 0;
-    for (size_t r = 0; r < rows; ++r) {
+    auto icRow = Value::matrix(rows, 1, ValueType::DOUBLE, alloc);
+    keel::f64 *ic = icRow.doubleDataMut();
+    keel::usize nanSeen = 0;
+    for (keel::usize r = 0; r < rows; ++r) {
         if (rowHasNan(src, cols, rows, r)) {
-            ic[r] = static_cast<double>(nanRankBase + nanSeen + 1);
+            ic[r] = static_cast<keel::f64>(nanRankBase + nanSeen + 1);
             ++nanSeen;
         } else {
-            ic[r] = static_cast<double>(rankByKey[extractRow(src, cols, rows, r, &scratch)] + 1);
+            ic[r] = static_cast<keel::f64>(*rankByKey.get(extractRow(src, cols, rows, r, scratch.allocator())) + 1);
         }
     }
 
-    auto iaCol = Value::matrix(uniqRows.size(), 1, ValueType::DOUBLE, mr);
-    double *ia = iaCol.doubleDataMut();
-    for (size_t i = 0; i < uniqRows.size(); ++i)
-        ia[i] = static_cast<double>(uniqRows[i] + 1);
+    auto iaCol = Value::matrix(uniqRows.size(), 1, ValueType::DOUBLE, alloc);
+    keel::f64 *ia = iaCol.doubleDataMut();
+    for (keel::usize i = 0; i < uniqRows.size(); ++i)
+        ia[i] = static_cast<keel::f64>(uniqRows[i] + 1);
 
-    return std::make_tuple(numkit::ops::collectRowsByIndex(x, uniqRows.data(), uniqRows.size(), mr),
+    return std::make_tuple(numkit::ops::collectRowsByIndex(x, uniqRows.data(), uniqRows.size(), alloc),
                            std::move(iaCol), std::move(icRow));
 }
 
 // ── ismember ───────────────────────────────────────────────────────
 
-// ── complex ismember ───────────────────────────────────────────────
-// MATLAB ismember supports complex: membership is EXACT equality (real AND
-// imag equal); Locb is the LOWEST 1-based index in B of a match (0 if none).
-// A NaN component never matches. Reals compared against complex are treated
-// as z+0i. Triggered whenever either operand is COMPLEX.
-struct CxKey { double re, im; bool operator==(const CxKey &o) const { return re == o.re && im == o.im; } };
-struct CxKeyHash {
-    std::size_t operator()(const CxKey &k) const {
-        const double r = (k.re == 0.0) ? 0.0 : k.re;   // -0 and +0 hash alike
-        const double i = (k.im == 0.0) ? 0.0 : k.im;
-        std::uint64_t br, bi;
-        std::memcpy(&br, &r, sizeof(br));
-        std::memcpy(&bi, &i, sizeof(bi));
-        return std::hash<std::uint64_t>{}(br) ^ (std::hash<std::uint64_t>{}(bi) * 0x9e3779b97f4a7c15ULL);
-    }
-};
-inline Complex elemAsComplex(const Value &v, std::size_t k)
+inline keel::c64 elemAsComplex(const Value &v, keel::usize k)
 {
     return (v.type() == ValueType::COMPLEX) ? v.complexData()[k]
-                                            : Complex(v.elemAsDouble(k), 0.0);
+                                            : keel::c64(v.elemAsDouble(k), 0.0);
 }
-std::pair<Value, Value>
-ismemberComplex(const Value &a, const Value &b, bool wantLoc, std::pmr::memory_resource *mr)
-{
-    const std::size_t na = a.numel(), nb = b.numel();
-    Value tf = createLike(a, ValueType::LOGICAL, mr);
-    Value loc;
-    double *lo = nullptr;
-    if (wantLoc) { loc = createLike(a, ValueType::DOUBLE, mr); lo = loc.doubleDataMut(); }
-    if (na == 0) return {std::move(tf), std::move(loc)};
-    uint8_t *out = tf.logicalDataMut();
 
-    ScratchArena scratch(mr);
-    std::pmr::unordered_map<CxKey, double, CxKeyHash> idxB(&scratch);
+std::pair<Value, Value>
+ismemberComplex(const Value &a, const Value &b, bool wantLoc, keel::Allocator *alloc)
+{
+    const keel::usize na = a.numel(), nb = b.numel();
+    Value tf = createLike(a, ValueType::LOGICAL, alloc);
+    Value loc;
+    keel::f64 *lo = nullptr;
+    if (wantLoc) { loc = createLike(a, ValueType::DOUBLE, alloc); lo = loc.doubleDataMut(); }
+    if (na == 0) return {std::move(tf), std::move(loc)};
+    keel::u8 *out = tf.logicalDataMut();
+
+    keel::ArenaTemp scratch = keel::get_scratch(alloc);
+    keel::HashMap<keel::c64, keel::f64> idxB(scratch.allocator());
     idxB.reserve(nb);
-    for (std::size_t i = 0; i < nb; ++i) {
-        const Complex z = elemAsComplex(b, i);
-        if (std::isnan(z.real()) || std::isnan(z.imag())) continue;
-        idxB.emplace(CxKey{z.real(), z.imag()}, static_cast<double>(i + 1)); // lowest index wins
+    for (keel::usize i = 0; i < nb; ++i) {
+        const keel::c64 z = elemAsComplex(b, i);
+        if (keel::is_nan(z.real()) || keel::is_nan(z.imag())) continue;
+        idxB.try_insert(z, static_cast<keel::f64>(i + 1)); // lowest index wins
     }
-    for (std::size_t i = 0; i < na; ++i) {
-        const Complex z = elemAsComplex(a, i);
-        if (std::isnan(z.real()) || std::isnan(z.imag())) { out[i] = 0; if (lo) lo[i] = 0.0; continue; }
-        auto it = idxB.find(CxKey{z.real(), z.imag()});
-        const bool found = (it != idxB.end());
-        out[i] = found ? 1 : 0;
-        if (lo) lo[i] = found ? it->second : 0.0;
+    for (keel::usize i = 0; i < na; ++i) {
+        const keel::c64 z = elemAsComplex(a, i);
+        if (keel::is_nan(z.real()) || keel::is_nan(z.imag())) { out[i] = 0; if (lo) lo[i] = 0.0; continue; }
+        const keel::f64 *hit = idxB.get(z);
+        out[i] = hit ? 1 : 0;
+        if (lo) lo[i] = hit ? *hit : 0.0;
     }
     return {std::move(tf), std::move(loc)};
 }
 
-// Complex set operations (C output only, matching nk's real setops which
-// produce just C — ia/ib are not implemented for real either). Equality is
-// EXACT (re&im); ordering is |z| then angle ('sorted', default); 'stable'
-// keeps first-occurrence order (A then, for union, B). A NaN component is
-// skipped (matches the real setops). Reals vs complex compare as z+0i.
 enum class CxSetOp { Intersect, Union, Diff };
 Value complexSetOp(const Value &a, const Value &b, CxSetOp op, bool stable,
-                   std::pmr::memory_resource *mr)
+                   keel::Allocator *alloc)
 {
-    ScratchArena scratch(mr);
-    std::pmr::unordered_set<CxKey, CxKeyHash> setB(&scratch);
+    keel::ArenaTemp scratch = keel::get_scratch(alloc);
+    keel::HashSet<keel::c64> setB(scratch.allocator());
     setB.reserve(b.numel());
-    for (std::size_t i = 0; i < b.numel(); ++i) {
-        const Complex z = elemAsComplex(b, i);
-        if (std::isnan(z.real()) || std::isnan(z.imag())) continue;
-        setB.insert(CxKey{z.real(), z.imag()});
+    for (keel::usize i = 0; i < b.numel(); ++i) {
+        const keel::c64 z = elemAsComplex(b, i);
+        if (keel::is_nan(z.real()) || keel::is_nan(z.imag())) continue;
+        setB.insert(z);
     }
-    std::pmr::unordered_set<CxKey, CxKeyHash> seen(&scratch);
+    keel::HashSet<keel::c64> seen(scratch.allocator());
     seen.reserve(a.numel() + b.numel());
-    auto out = ScratchVec<Complex>(&scratch);
+    keel::Array<keel::c64> out(scratch.allocator());
 
-    auto consider = [&](Complex z) {
-        if (std::isnan(z.real()) || std::isnan(z.imag())) return;   // skip NaN (as real setops do)
-        const CxKey k{z.real(), z.imag()};
-        const bool inB = setB.count(k) != 0;
+    auto consider = [&](keel::c64 z) {
+        if (keel::is_nan(z.real()) || keel::is_nan(z.imag())) return;
+        const bool inB = setB.contains(z);
         bool keep = (op == CxSetOp::Union) ? true
                   : (op == CxSetOp::Intersect) ? inB
-                                               : !inB;            // Diff
-        if (keep && seen.insert(k).second) out.push_back(z);
+                                               : !inB;
+        if (keep && seen.insert(z)) out.push_back(z);
     };
-    for (std::size_t i = 0; i < a.numel(); ++i) consider(elemAsComplex(a, i));
+    for (keel::usize i = 0; i < a.numel(); ++i) consider(elemAsComplex(a, i));
     if (op == CxSetOp::Union)
-        for (std::size_t i = 0; i < b.numel(); ++i) consider(elemAsComplex(b, i));
+        for (keel::usize i = 0; i < b.numel(); ++i) consider(elemAsComplex(b, i));
 
     if (!stable)
         std::stable_sort(out.begin(), out.end(),
-                         [](Complex x, Complex y) { return cxUniqLess(x, y); });
+                         [](keel::c64 x, keel::c64 y) { return cxUniqLess(x, y); });
 
-    auto r = Value::matrix(1, out.size(), ValueType::COMPLEX, mr);
+    auto r = Value::matrix(1, out.size(), ValueType::COMPLEX, alloc);
     if (!out.empty())
         std::copy(out.begin(), out.end(), r.complexDataMut());
     return r;
 }
 
-Value ismember(const Value &a, const Value &b, std::pmr::memory_resource *mr)
+Value ismember(const Value &a, const Value &b, keel::Allocator *alloc)
 {
     if (a.type() == ValueType::COMPLEX || b.type() == ValueType::COMPLEX)
-        return ismemberComplex(a, b, /*wantLoc=*/false, mr).first;
-    const size_t na = a.numel();
-    const size_t nb = b.numel();
+        return ismemberComplex(a, b, /*wantLoc=*/false, alloc).first;
+    const keel::usize na = a.numel();
+    const keel::usize nb = b.numel();
 
-    auto r = createLike(a, ValueType::LOGICAL, mr);
+    auto r = createLike(a, ValueType::LOGICAL, alloc);
     if (na == 0) return r;
     if (nb == 0) {
-        std::fill(r.logicalDataMut(), r.logicalDataMut() + na, std::uint8_t{0});
+        std::fill(r.logicalDataMut(), r.logicalDataMut() + na, keel::u8{0});
         return r;
     }
 
-    ScratchArena scratch(mr);
-    std::pmr::unordered_set<double, DoubleHashEq0> setB(&scratch);
+    keel::ArenaTemp scratch = keel::get_scratch(alloc);
+    keel::HashSet<keel::f64, DoubleHashEq0> setB(scratch.allocator());
     setB.reserve(nb);
-    const double *pb = b.doubleData();
-    for (size_t i = 0; i < nb; ++i)
-        if (!std::isnan(pb[i])) setB.insert(pb[i]);
+    const keel::f64 *pb = b.doubleData();
+    for (keel::usize i = 0; i < nb; ++i)
+        if (!keel::is_nan(pb[i])) setB.insert(pb[i]);
 
-    const double *pa = a.doubleData();
-    uint8_t *out = r.logicalDataMut();
-    for (size_t i = 0; i < na; ++i) {
-        const double v = pa[i];
-        out[i] = (!std::isnan(v) && setB.count(v) != 0) ? 1 : 0;
+    const keel::f64 *pa = a.doubleData();
+    keel::u8 *out = r.logicalDataMut();
+    for (keel::usize i = 0; i < na; ++i) {
+        const keel::f64 v = pa[i];
+        out[i] = (!keel::is_nan(v) && setB.contains(v)) ? 1 : 0;
     }
     return r;
 }
 
 // ── union / intersect / setdiff ────────────────────────────────────
 
-Value setUnion(const Value &a, const Value &b, bool stable, std::pmr::memory_resource *mr)
+Value setUnion(const Value &a, const Value &b, bool stable, keel::Allocator *alloc)
 {
     if (a.type() == ValueType::COMPLEX || b.type() == ValueType::COMPLEX)
-        return complexSetOp(a, b, CxSetOp::Union, stable, mr);
-    ScratchArena scratch(mr);
+        return complexSetOp(a, b, CxSetOp::Union, stable, alloc);
+    keel::ArenaTemp scratch = keel::get_scratch(alloc);
     if (stable) {
-        // MATLAB 'stable': unique(A) in A-order, then B's new values in
-        // B-order (first occurrence wins).
-        std::pmr::unordered_set<double, DoubleHashEq0> seen(&scratch);
-        auto out = ScratchVec<double>(&scratch);
+        keel::HashSet<keel::f64, DoubleHashEq0> seen(scratch.allocator());
+        keel::Array<keel::f64> out(scratch.allocator());
         out.reserve(a.numel() + b.numel());
-        const double *pa = a.doubleData();
-        for (size_t i = 0; i < a.numel(); ++i)
-            if (!std::isnan(pa[i]) && seen.insert(pa[i]).second) out.push_back(pa[i]);
-        const double *pbS = b.doubleData();
-        for (size_t i = 0; i < b.numel(); ++i)
-            if (!std::isnan(pbS[i]) && seen.insert(pbS[i]).second) out.push_back(pbS[i]);
-        return rowFromVec(out.data(), out.size(), mr);
+        const keel::f64 *pa = a.doubleData();
+        for (keel::usize i = 0; i < a.numel(); ++i)
+            if (!keel::is_nan(pa[i]) && seen.insert(pa[i])) out.push_back(pa[i]);
+        const keel::f64 *pbS = b.doubleData();
+        for (keel::usize i = 0; i < b.numel(); ++i)
+            if (!keel::is_nan(pbS[i]) && seen.insert(pbS[i])) out.push_back(pbS[i]);
+        return rowFromVec(out.data(), out.size(), alloc);
     }
-    auto s = hashSetNoNaN(a, &scratch);
-    const double *pb = b.doubleData();
-    for (size_t i = 0; i < b.numel(); ++i)
-        if (!std::isnan(pb[i])) s.insert(pb[i]);
-    ScratchVec<double> out(s.begin(), s.end(), &scratch);
+    auto s = hashSetNoNaN(a, scratch.allocator());
+    const keel::f64 *pb = b.doubleData();
+    for (keel::usize i = 0; i < b.numel(); ++i)
+        if (!keel::is_nan(pb[i])) s.insert(pb[i]);
+    keel::Array<keel::f64> out(scratch.allocator());
+    out.reserve(s.size());
+    for (keel::f64 v : s) out.push_back(v);
     std::sort(out.begin(), out.end());
-    return rowFromVec(out.data(), out.size(), mr);
+    return rowFromVec(out.data(), out.size(), alloc);
 }
 
-Value setIntersect(const Value &a, const Value &b, bool stable, std::pmr::memory_resource *mr)
+Value setIntersect(const Value &a, const Value &b, bool stable, keel::Allocator *alloc)
 {
     if (a.type() == ValueType::COMPLEX || b.type() == ValueType::COMPLEX)
-        return complexSetOp(a, b, CxSetOp::Intersect, stable, mr);
+        return complexSetOp(a, b, CxSetOp::Intersect, stable, alloc);
     if (stable) {
-        // MATLAB 'stable': values present in BOTH, in A-order (first
-        // occurrence wins).
-        ScratchArena scr(mr);
-        auto setB = hashSetNoNaN(b, &scr);
-        std::pmr::unordered_set<double, DoubleHashEq0> seen(&scr);
-        auto out = ScratchVec<double>(&scr);
-        const double *pa = a.doubleData();
-        for (size_t i = 0; i < a.numel(); ++i) {
-            const double v = pa[i];
-            if (!std::isnan(v) && setB.count(v) && seen.insert(v).second)
+        keel::ArenaTemp scr = keel::get_scratch(alloc);
+        auto setB = hashSetNoNaN(b, scr.allocator());
+        keel::HashSet<keel::f64, DoubleHashEq0> seen(scr.allocator());
+        keel::Array<keel::f64> out(scr.allocator());
+        const keel::f64 *pa = a.doubleData();
+        for (keel::usize i = 0; i < a.numel(); ++i) {
+            const keel::f64 v = pa[i];
+            if (!keel::is_nan(v) && setB.contains(v) && seen.insert(v))
                 out.push_back(v);
         }
-        return rowFromVec(out.data(), out.size(), mr);
+        return rowFromVec(out.data(), out.size(), alloc);
     }
     const bool aSmaller = a.numel() <= b.numel();
     const Value &small = aSmaller ? a : b;
     const Value &large = aSmaller ? b : a;
 
-    ScratchArena scratch(mr);
-    auto smallSet = hashSetNoNaN(small, &scratch);
-    std::pmr::unordered_set<double, DoubleHashEq0> seenInLarge(&scratch);
+    keel::ArenaTemp scratch = keel::get_scratch(alloc);
+    auto smallSet = hashSetNoNaN(small, scratch.allocator());
+    keel::HashSet<keel::f64, DoubleHashEq0> seenInLarge(scratch.allocator());
     seenInLarge.reserve(smallSet.size());
-    auto out = ScratchVec<double>(&scratch);
+    keel::Array<keel::f64> out(scratch.allocator());
     out.reserve(smallSet.size());
 
-    const double *pl = large.doubleData();
-    for (size_t i = 0; i < large.numel(); ++i) {
-        const double v = pl[i];
-        if (std::isnan(v)) continue;
-        if (smallSet.count(v) && seenInLarge.insert(v).second)
+    const keel::f64 *pl = large.doubleData();
+    for (keel::usize i = 0; i < large.numel(); ++i) {
+        const keel::f64 v = pl[i];
+        if (keel::is_nan(v)) continue;
+        if (smallSet.contains(v) && seenInLarge.insert(v))
             out.push_back(v);
     }
     std::sort(out.begin(), out.end());
-    return rowFromVec(out.data(), out.size(), mr);
+    return rowFromVec(out.data(), out.size(), alloc);
 }
 
-Value setDiff(const Value &a, const Value &b, bool stable, std::pmr::memory_resource *mr)
+Value setDiff(const Value &a, const Value &b, bool stable, keel::Allocator *alloc)
 {
     if (a.type() == ValueType::COMPLEX || b.type() == ValueType::COMPLEX)
-        return complexSetOp(a, b, CxSetOp::Diff, stable, mr);
-    ScratchArena scratch(mr);
-    auto setB = hashSetNoNaN(b, &scratch);
-    std::pmr::unordered_set<double, DoubleHashEq0> seen(&scratch);
+        return complexSetOp(a, b, CxSetOp::Diff, stable, alloc);
+    keel::ArenaTemp scratch = keel::get_scratch(alloc);
+    auto setB = hashSetNoNaN(b, scratch.allocator());
+    keel::HashSet<keel::f64, DoubleHashEq0> seen(scratch.allocator());
     seen.reserve(a.numel() / 2 + 1);
-    auto out = ScratchVec<double>(&scratch);
+    keel::Array<keel::f64> out(scratch.allocator());
     out.reserve(a.numel());
-    const double *pa = a.doubleData();
-    // This loop already walks A in order keeping first occurrences, so for
-    // 'stable' we simply skip the final sort.
-    for (size_t i = 0; i < a.numel(); ++i) {
-        const double v = pa[i];
-        if (std::isnan(v)) continue;
-        if (setB.count(v) == 0 && seen.insert(v).second)
+    const keel::f64 *pa = a.doubleData();
+    for (keel::usize i = 0; i < a.numel(); ++i) {
+        const keel::f64 v = pa[i];
+        if (keel::is_nan(v)) continue;
+        if (!setB.contains(v) && seen.insert(v))
             out.push_back(v);
     }
     if (!stable) std::sort(out.begin(), out.end());
-    return rowFromVec(out.data(), out.size(), mr);
+    return rowFromVec(out.data(), out.size(), alloc);
 }
 
 // ── histcounts / discretize ────────────────────────────────────────
 
-Value histcounts(const Value &x, const Value &edges, std::pmr::memory_resource *mr)
+Value histcounts(const Value &x, const Value &edges, keel::Allocator *mr)
 {
     validateEdges(edges, "histcounts");
-    const size_t nBins = edges.numel() - 1;
+    const keel::usize nBins = edges.numel() - 1;
     auto r = Value::matrix(1, nBins, ValueType::DOUBLE, mr);
     double *dst = r.doubleDataMut();
     std::fill(dst, dst + nBins, 0.0);
 
     const double *e = edges.doubleData();
     const double *p = x.doubleData();
-    const size_t n = x.numel();
+    const keel::usize n = x.numel();
 
     double step;
     if (edgesAreUniform(e, edges.numel(), step)) {
         const double e0 = e[0];
         const double eN = e[nBins];
         const double invStep = 1.0 / step;
-        for (size_t i = 0; i < n; ++i) {
+        for (keel::usize i = 0; i < n; ++i) {
             const double v = p[i];
             if (v >= e0 && v <= eN) {
-                size_t bin;
+                keel::usize bin;
                 if (v == eN) {
                     bin = nBins - 1;          // last bin is right-closed
                 } else {
-                    bin = static_cast<size_t>((v - e0) * invStep);
+                    bin = static_cast<keel::usize>((v - e0) * invStep);
                     if (bin >= nBins) bin = nBins - 1;  // FP rounding guard
                 }
                 dst[bin] += 1.0;
@@ -625,24 +583,24 @@ Value histcounts(const Value &x, const Value &edges, std::pmr::memory_resource *
     // Irregular-edges path. Inline bounds check + upper_bound.
     const double e0  = e[0];
     const double eN  = e[nBins];
-    const size_t nE  = edges.numel();
+    const keel::usize nE  = edges.numel();
     if (nBins <= 8) {
-        for (size_t i = 0; i < n; ++i) {
+        for (keel::usize i = 0; i < n; ++i) {
             const double v = p[i];
             if (!(v >= e0 && v <= eN)) continue;
             if (v == eN) { dst[nBins - 1] += 1.0; continue; }
-            size_t k = 0;
+            keel::usize k = 0;
             while (k + 1 < nBins && e[k + 1] <= v) ++k;
             dst[k] += 1.0;
         }
     } else {
-        for (size_t i = 0; i < n; ++i) {
+        for (keel::usize i = 0; i < n; ++i) {
             const double v = p[i];
             if (!(v >= e0 && v <= eN)) continue;
             if (v == eN) { dst[nBins - 1] += 1.0; continue; }
-            size_t lo = 0, hi = nE;
+            keel::usize lo = 0, hi = nE;
             while (lo < hi) {
-                const size_t mid = lo + (hi - lo) / 2;
+                const keel::usize mid = lo + (hi - lo) / 2;
                 if (e[mid] <= v) lo = mid + 1;
                 else hi = mid;
             }
@@ -652,12 +610,12 @@ Value histcounts(const Value &x, const Value &edges, std::pmr::memory_resource *
     return r;
 }
 
-Value histcounts(const Value &x, const Value &edges, HistNorm norm, std::pmr::memory_resource *mr)
+Value histcounts(const Value &x, const Value &edges, HistNorm norm, keel::Allocator *mr)
 {
     Value counts = histcounts(x, edges, mr);   // raw count row vector
     if (norm == HistNorm::Count) return counts;
 
-    const size_t nBins = counts.numel();
+    const keel::usize nBins = counts.numel();
     double *c = counts.doubleDataMut();
     const double N = static_cast<double>(x.numel());
     const double *e = edges.doubleData();
@@ -666,23 +624,23 @@ Value histcounts(const Value &x, const Value &edges, HistNorm norm, std::pmr::me
     case HistNorm::Count:
         break;                              // handled above
     case HistNorm::Probability:
-        if (N > 0) for (size_t i = 0; i < nBins; ++i) c[i] /= N;
+        if (N > 0) for (keel::usize i = 0; i < nBins; ++i) c[i] /= N;
         break;
     case HistNorm::CountDensity:
-        for (size_t i = 0; i < nBins; ++i) c[i] /= (e[i + 1] - e[i]);
+        for (keel::usize i = 0; i < nBins; ++i) c[i] /= (e[i + 1] - e[i]);
         break;
     case HistNorm::Pdf:
         if (N > 0)
-            for (size_t i = 0; i < nBins; ++i) c[i] /= (N * (e[i + 1] - e[i]));
+            for (keel::usize i = 0; i < nBins; ++i) c[i] /= (N * (e[i + 1] - e[i]));
         break;
     case HistNorm::CumCount: {
         double acc = 0.0;
-        for (size_t i = 0; i < nBins; ++i) { acc += c[i]; c[i] = acc; }
+        for (keel::usize i = 0; i < nBins; ++i) { acc += c[i]; c[i] = acc; }
         break;
     }
     case HistNorm::Cdf: {
         double acc = 0.0;
-        for (size_t i = 0; i < nBins; ++i) {
+        for (keel::usize i = 0; i < nBins; ++i) {
             acc += c[i];
             c[i] = (N > 0) ? acc / N : 0.0;
         }
@@ -722,7 +680,7 @@ void appendColon(std::vector<double> &e, double lo, double step, double hi)
 std::vector<double> linspaceEdges(double a, double b, long nbins)
 {
     if (nbins < 1) nbins = 1;
-    std::vector<double> e(static_cast<std::size_t>(nbins) + 1);
+    std::vector<double> e(static_cast<keel::usize>(nbins) + 1);
     for (long i = 0; i <= nbins; ++i)
         e[i] = a + (b - a) * (static_cast<double>(i) / static_cast<double>(nbins));
     e[0] = a; e[nbins] = b;
@@ -731,7 +689,7 @@ std::vector<double> linspaceEdges(double a, double b, long nbins)
 
 double sampleStd(const std::vector<double> &x)
 {
-    const std::size_t n = x.size();
+    const keel::usize n = x.size();
     if (n < 2) return 0.0;
     double mean = 0.0;
     for (double v : x) mean += v;
@@ -745,7 +703,7 @@ double sampleStd(const std::vector<double> &x)
 // sorted samples placed at percentiles 100*((1:n)-0.5)/n.
 double iqrMatlab(std::vector<double> x)
 {
-    const std::size_t n = x.size();
+    const keel::usize n = x.size();
     if (n == 0) return 0.0;
     std::sort(x.begin(), x.end());
     auto prc = [&](double p) -> double {
@@ -753,7 +711,7 @@ double iqrMatlab(std::vector<double> x)
         const double pos = p / 100.0 * static_cast<double>(n) - 0.5;  // 0-based
         if (pos <= 0.0) return x.front();
         if (pos >= static_cast<double>(n - 1)) return x.back();
-        const std::size_t lo = static_cast<std::size_t>(std::floor(pos));
+        const keel::usize lo = static_cast<keel::usize>(std::floor(pos));
         const double frac = pos - static_cast<double>(lo);
         return x[lo] + frac * (x[lo + 1] - x[lo]);
     };
@@ -766,7 +724,7 @@ std::vector<double> niceEdges(double leftEdge, double binWidth,
 {
     if (nbins < 1) nbins = 1;
     if (!std::isfinite(binWidth)) return linspaceEdges(leftEdge, rightEdge, nbins);
-    std::vector<double> e(static_cast<std::size_t>(nbins) + 1);
+    std::vector<double> e(static_cast<keel::usize>(nbins) + 1);
     e[0] = leftEdge;
     for (long i = 1; i < nbins; ++i) e[i] = leftEdge + static_cast<double>(i) * binWidth;
     e[nbins] = rightEdge;
@@ -921,15 +879,15 @@ std::vector<double> applyMethod(HistBinMethod m, const std::vector<double> &xc,
 } // namespace
 
 Value histcountsAutoEdges(const Value &x, const HistBinSpec &spec,
-                          std::pmr::memory_resource *mr)
+                          keel::Allocator *mr)
 {
     // Finite-data extremes (MATLAB excludes Inf/NaN from the range).
-    const std::size_t nx = x.numel();
+    const keel::usize nx = x.numel();
     std::vector<double> xc;
     xc.reserve(nx);
     bool any = false;
     double dmin = 0.0, dmax = 0.0;
-    for (std::size_t k = 0; k < nx; ++k) {
+    for (keel::usize k = 0; k < nx; ++k) {
         const double v = x.elemAsDouble(k);
         if (!std::isfinite(v)) continue;
         xc.push_back(v);
@@ -943,7 +901,7 @@ Value histcountsAutoEdges(const Value &x, const HistBinSpec &spec,
         const double lo = spec.limLo, hi = spec.limHi;
         if (spec.hasNumBins) {
             const long n = std::max(1L, static_cast<long>(spec.numBins));
-            edges.resize(static_cast<std::size_t>(n) + 1);
+            edges.resize(static_cast<keel::usize>(n) + 1);
             const double w = (hi - lo) / static_cast<double>(n);
             for (long i = 0; i < n; ++i) edges[i] = lo + static_cast<double>(i) * w;
             edges[n] = hi;
@@ -963,7 +921,7 @@ Value histcountsAutoEdges(const Value &x, const HistBinSpec &spec,
         }
     } else if (spec.hasNumBins) {
         const long n = std::max(1L, static_cast<long>(spec.numBins));
-        if (!any) { edges.resize(static_cast<std::size_t>(n) + 1);
+        if (!any) { edges.resize(static_cast<keel::usize>(n) + 1);
                     for (long i = 0; i <= n; ++i) edges[i] = static_cast<double>(i); }
         else edges = binpicker(dmin, dmax, true, static_cast<double>(n),
                                (dmax - dmin) / static_cast<double>(n));
@@ -985,7 +943,7 @@ Value histcountsAutoEdges(const Value &x, const HistBinSpec &spec,
                     leftEdge = dmin;
                 }
             }
-            edges.resize(static_cast<std::size_t>(nbins) + 1);
+            edges.resize(static_cast<keel::usize>(nbins) + 1);
             for (long i = 0; i <= nbins; ++i) edges[i] = leftEdge + static_cast<double>(i) * binWidth;
             if (edges.back() < dmax) edges.back() = dmax;
         }
@@ -1003,29 +961,29 @@ Value histcountsAutoEdges(const Value &x, const HistBinSpec &spec,
     return e;
 }
 
-Value discretize(const Value &x, const Value &edges, std::pmr::memory_resource *mr)
+Value discretize(const Value &x, const Value &edges, keel::Allocator *mr)
 {
     validateEdges(edges, "discretize");
     auto r = createLike(x, ValueType::DOUBLE, mr);
     const double *e = edges.doubleData();
     const double *p = x.doubleData();
     double *dst = r.doubleDataMut();
-    const size_t n = x.numel();
-    const size_t nBins = edges.numel() - 1;
+    const keel::usize n = x.numel();
+    const keel::usize nBins = edges.numel() - 1;
 
     double step;
     if (edgesAreUniform(e, edges.numel(), step)) {
         const double e0 = e[0];
         const double eN = e[nBins];
         const double invStep = 1.0 / step;
-        for (size_t i = 0; i < n; ++i) {
+        for (keel::usize i = 0; i < n; ++i) {
             const double v = p[i];
             if (v >= e0 && v <= eN) {
-                size_t bin;
+                keel::usize bin;
                 if (v == eN) {
                     bin = nBins - 1;
                 } else {
-                    bin = static_cast<size_t>((v - e0) * invStep);
+                    bin = static_cast<keel::usize>((v - e0) * invStep);
                     if (bin >= nBins) bin = nBins - 1;
                 }
                 dst[i] = static_cast<double>(bin + 1); // 1-based
@@ -1038,24 +996,24 @@ Value discretize(const Value &x, const Value &edges, std::pmr::memory_resource *
 
     const double e0 = e[0];
     const double eN = e[nBins];
-    const size_t nE = edges.numel();
+    const keel::usize nE = edges.numel();
     if (nBins <= 8) {
-        for (size_t i = 0; i < n; ++i) {
+        for (keel::usize i = 0; i < n; ++i) {
             const double v = p[i];
             if (!(v >= e0 && v <= eN)) { dst[i] = std::nan(""); continue; }
             if (v == eN) { dst[i] = static_cast<double>(nBins); continue; }
-            size_t k = 0;
+            keel::usize k = 0;
             while (k + 1 < nBins && e[k + 1] <= v) ++k;
             dst[i] = static_cast<double>(k + 1); // 1-based
         }
     } else {
-        for (size_t i = 0; i < n; ++i) {
+        for (keel::usize i = 0; i < n; ++i) {
             const double v = p[i];
             if (!(v >= e0 && v <= eN)) { dst[i] = std::nan(""); continue; }
             if (v == eN) { dst[i] = static_cast<double>(nBins); continue; }
-            size_t lo = 0, hi = nE;
+            keel::usize lo = 0, hi = nE;
             while (lo < hi) {
-                const size_t mid = lo + (hi - lo) / 2;
+                const keel::usize mid = lo + (hi - lo) / 2;
                 if (e[mid] <= v) lo = mid + 1;
                 else hi = mid;
             }
@@ -1071,14 +1029,14 @@ Value discretize(const Value &x, const Value &edges, std::pmr::memory_resource *
 // e[k] <= v < e[k+1]; nE-1 when v == e[nE-1] (last bin = exact equal to
 // last edge). Returns SIZE_MAX when v is NaN or outside [e[0], e[nE-1]].
 
-Value histc(const Value &x, const Value &edges, std::pmr::memory_resource *mr)
+Value histc(const Value &x, const Value &edges, keel::Allocator *mr)
 {
     validateEdges(edges, "histc");
-    const std::size_t nE = edges.numel();
+    const keel::usize nE = edges.numel();
     const double *e = edges.doubleData();
 
-    const std::size_t rows = static_cast<std::size_t>(x.dims().rows());
-    const std::size_t cols = x.numel() == 0 ? 0 : x.numel() / std::max<std::size_t>(rows, 1);
+    const keel::usize rows = static_cast<keel::usize>(x.dims().rows());
+    const keel::usize cols = x.numel() == 0 ? 0 : x.numel() / std::max<keel::usize>(rows, 1);
     const double *p = x.doubleData();
 
     // Row vector -> count along the row, return a 1 × nE row. Otherwise
@@ -1087,21 +1045,21 @@ Value histc(const Value &x, const Value &edges, std::pmr::memory_resource *mr)
         Value r = Value::matrix(1, nE, ValueType::DOUBLE, mr);
         double *dst = r.doubleDataMut();
         std::fill(dst, dst + nE, 0.0);
-        const std::size_t n = x.numel();
-        for (std::size_t i = 0; i < n; ++i) {
-            const std::size_t b = histcBin(p[i], e, nE);
+        const keel::usize n = x.numel();
+        for (keel::usize i = 0; i < n; ++i) {
+            const keel::usize b = histcBin(p[i], e, nE);
             if (b != SIZE_MAX) dst[b] += 1.0;
         }
         return r;
     }
 
-    const std::size_t H = rows, W = cols;
+    const keel::usize H = rows, W = cols;
     Value r = Value::matrix(nE, W, ValueType::DOUBLE, mr);
     double *dst = r.doubleDataMut();
     std::fill(dst, dst + nE * W, 0.0);
-    for (std::size_t c = 0; c < W; ++c)
-        for (std::size_t i = 0; i < H; ++i) {
-            const std::size_t b = histcBin(p[c * H + i], e, nE);
+    for (keel::usize c = 0; c < W; ++c)
+        for (keel::usize i = 0; i < H; ++i) {
+            const keel::usize b = histcBin(p[c * H + i], e, nE);
             if (b != SIZE_MAX) dst[c * nE + b] += 1.0;
         }
     return r;
@@ -1116,72 +1074,70 @@ Value histc(const Value &x, const Value &edges, std::pmr::memory_resource *mr)
 // `union` / `intersect`. The tolerant variants do an O(N²) sweep — fine
 // for the typical cell sizes (≤ 1e4) where these get called.
 
-Value setxor(const Value &a, const Value &b, std::pmr::memory_resource *mr)
+Value setxor(const Value &a, const Value &b, keel::Allocator *alloc)
 {
-    // Symmetric difference: { x : x ∈ A xor x ∈ B }.
-    if (a.numel() == 0 && b.numel() == 0) return emptyRow(mr);
+    // Symmetric difference: { x : x in A xor x in B }.
+    if (a.numel() == 0 && b.numel() == 0) return emptyRow(alloc);
 
-    ScratchArena scratch(mr);
-    std::pmr::unordered_set<double, DoubleHashEq0> sa(&scratch), sb(&scratch);
+    keel::ArenaTemp scratch = keel::get_scratch(alloc);
+    keel::HashSet<keel::f64, DoubleHashEq0> sa(scratch.allocator()), sb(scratch.allocator());
     sa.reserve(a.numel());
     sb.reserve(b.numel());
-    for (size_t i = 0; i < a.numel(); ++i) sa.insert(a.doubleData()[i]);
-    for (size_t i = 0; i < b.numel(); ++i) sb.insert(b.doubleData()[i]);
+    for (keel::usize i = 0; i < a.numel(); ++i) sa.insert(a.doubleData()[i]);
+    for (keel::usize i = 0; i < b.numel(); ++i) sb.insert(b.doubleData()[i]);
 
-    auto out = ScratchVec<double>(&scratch);
+    keel::Array<keel::f64> out(scratch.allocator());
     out.reserve(sa.size() + sb.size());
-    for (double v : sa) if (!sb.count(v)) out.push_back(v);
-    for (double v : sb) if (!sa.count(v)) out.push_back(v);
+    for (keel::f64 v : sa) if (!sb.contains(v)) out.push_back(v);
+    for (keel::f64 v : sb) if (!sa.contains(v)) out.push_back(v);
     std::sort(out.begin(), out.end());
-    return rowFromVec(out.data(), out.size(), mr);
+    return rowFromVec(out.data(), out.size(), alloc);
 }
 
-Value allunique(const Value &x, std::pmr::memory_resource *mr)
+Value allunique(const Value &x, keel::Allocator *alloc)
 {
-    const size_t n = x.numel();
-    if (n <= 1) return Value::logicalScalar(true, mr);
-    ScratchArena scratch(mr);
-    std::pmr::unordered_set<double, DoubleHashEq0> seen(&scratch);
+    const keel::usize n = x.numel();
+    if (n <= 1) return Value::logicalScalar(true, alloc);
+    keel::ArenaTemp scratch = keel::get_scratch(alloc);
+    keel::HashSet<keel::f64, DoubleHashEq0> seen(scratch.allocator());
     seen.reserve(n);
-    const double *p = x.doubleData();
-    for (size_t i = 0; i < n; ++i) {
-        // NaN compares unequal to itself; MATLAB treats two NaNs as
-        // distinct in allunique, so we let them all pass through.
-        if (std::isnan(p[i])) continue;
-        if (!seen.insert(p[i]).second)
-            return Value::logicalScalar(false, mr);
+    const keel::f64 *p = x.doubleData();
+    for (keel::usize i = 0; i < n; ++i) {
+        if (keel::is_nan(p[i])) continue;
+        if (!seen.insert(p[i]))
+            return Value::logicalScalar(false, alloc);
     }
-    return Value::logicalScalar(true, mr);
+    return Value::logicalScalar(true, alloc);
 }
 
-Value numunique(const Value &x, std::pmr::memory_resource *mr)
+Value numunique(const Value &x, keel::Allocator *alloc)
 {
-    const size_t n = x.numel();
-    if (n == 0) return Value::scalar(0.0, mr);
-    ScratchArena scratch(mr);
-    std::pmr::unordered_set<double, DoubleHashEq0> seen(&scratch);
+    const keel::usize n = x.numel();
+    if (n == 0) return Value::scalar(0.0, alloc);
+    keel::ArenaTemp scratch = keel::get_scratch(alloc);
+    keel::HashSet<keel::f64, DoubleHashEq0> seen(scratch.allocator());
     seen.reserve(n);
-    size_t nanCount = 0;
-    const double *p = x.doubleData();
-    for (size_t i = 0; i < n; ++i) {
-        if (std::isnan(p[i])) ++nanCount;
+    keel::usize nanCount = 0;
+    const keel::f64 *p = x.doubleData();
+    for (keel::usize i = 0; i < n; ++i) {
+        if (keel::is_nan(p[i])) ++nanCount;
         else seen.insert(p[i]);
     }
-    return Value::scalar(static_cast<double>(seen.size() + nanCount), mr);
+    return Value::scalar(static_cast<keel::f64>(seen.size() + nanCount), alloc);
 }
 
 
-Value ismembertol(const Value &a, const Value &s, double tol, std::pmr::memory_resource *mr)
+Value ismembertol(const Value &a, const Value &s, double tol, keel::Allocator *mr)
 {
     // Returns logical of size(a). For each a[i], true if there exists
     // s[j] with |a[i] - s[j]| ≤ tol * max(1, |a|, |s|). Naive O(|a||s|).
     auto r = createLike(a, ValueType::LOGICAL, mr);
-    const size_t na = a.numel(), ns = s.numel();
+    const keel::usize na = a.numel(), ns = s.numel();
     const double *pa = a.doubleData();
     const double *ps = s.doubleData();
-    for (size_t i = 0; i < na; ++i) {
+    for (keel::usize i = 0; i < na; ++i) {
         bool hit = false;
-        for (size_t j = 0; j < ns; ++j) {
+        for (keel::usize j = 0; j < ns; ++j) {
             if (nearlyEqualTol(pa[i], ps[j], tol)) { hit = true; break; }
         }
         r.logicalDataMut()[i] = hit ? 1 : 0;
@@ -1189,7 +1145,7 @@ Value ismembertol(const Value &a, const Value &s, double tol, std::pmr::memory_r
     return r;
 }
 
-Value uniquetol(const Value &x, double tol, std::pmr::memory_resource *mr)
+Value uniquetol(const Value &x, double tol, keel::Allocator *mr)
 {
     // MATLAB convention (doc uniquetol): two values u and v are within
     // tolerance iff
@@ -1203,17 +1159,17 @@ Value uniquetol(const Value &x, double tol, std::pmr::memory_resource *mr)
     // Per-pair relative scaling (the previous nk behaviour) gave
     // wildly different cluster counts on dense inputs because the
     // scale shifted with each comparison.
-    const size_t n = x.numel();
+    const keel::usize n = x.numel();
     if (n == 0) return emptyRow(mr);
-    ScratchArena scratch(mr);
-    auto vals = ScratchVec<double>(&scratch);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    auto vals = keel::Array<double>(scratch.allocator());
     vals.reserve(n);
     const double *p = x.doubleData();
     double dataScale = 0.0;
-    for (size_t i = 0; i < n; ++i) {
+    for (keel::usize i = 0; i < n; ++i) {
         vals.push_back(p[i]);
         if (!std::isnan(p[i])) {
-            const double m = std::abs(p[i]);
+            const double m = keel::abs(p[i]);
             if (m > dataScale) dataScale = m;
         }
     }
@@ -1224,7 +1180,7 @@ Value uniquetol(const Value &x, double tol, std::pmr::memory_resource *mr)
                   return a < b;
               });
     const double tolAbs = tol * dataScale;
-    auto out = ScratchVec<double>(&scratch);
+    auto out = keel::Array<double>(scratch.allocator());
     out.reserve(n);
     for (double v : vals) {
         if (std::isnan(v)) {
@@ -1233,7 +1189,7 @@ Value uniquetol(const Value &x, double tol, std::pmr::memory_resource *mr)
             continue;
         }
         if (out.empty() || std::isnan(out.back())
-            || std::abs(v - out.back()) > tolAbs) {
+            || keel::abs(v - out.back()) > tolAbs) {
             out.push_back(v);
         }
     }

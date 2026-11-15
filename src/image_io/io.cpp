@@ -2,6 +2,9 @@
 //
 // Image I/O facade (imread, imwrite, imfinfo) backed by keel::image.
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/ref.h>
 #include <numkit/image/io/io.hpp>
 #include <numkit/value/error.hpp>
 #include <numkit/value/value.hpp>
@@ -42,8 +45,8 @@ std::string formatStringFromKeel(keel::ImageFormat fmt) {
     return {};
 }
 
-Value readGifViaKeel(const std::uint8_t *data, std::size_t len,
-                     std::pmr::memory_resource *mr) {
+Value readGifViaKeel(const keel::u8 *data, keel::usize len,
+                     keel::Allocator *mr) {
     keel::ImageDecodeOptions opts;
     opts.expand_indexed = false;
     auto res = keel::decode_gif(keel::ArrayRef<keel::u8>(data, len), opts);
@@ -52,13 +55,13 @@ Value readGifViaKeel(const std::uint8_t *data, std::size_t len,
                     0, 0, "imread", "", "numkit:imread:gif");
     }
     const auto &img = res.value();
-    const std::size_t H = img.height;
-    const std::size_t W = img.width;
+    const keel::usize H = img.height;
+    const keel::usize W = img.width;
     Value out = Value::matrix(H, W, ValueType::UINT8, mr);
     auto *dst = out.uint8DataMut();
     const auto *src = img.pixels.data();
-    for (std::size_t r = 0; r < H; ++r) {
-        for (std::size_t c = 0; c < W; ++c) {
+    for (keel::usize r = 0; r < H; ++r) {
+        for (keel::usize c = 0; c < W; ++c) {
             dst[c * H + r] = src[r * W + c];
         }
     }
@@ -77,9 +80,9 @@ const char *colorTypeFromChannels(int c) {
 
 } // anonymous namespace
 
-Value imreadFromBytes(const std::string &bytes, std::pmr::memory_resource *mr) {
-    const auto *data = reinterpret_cast<const std::uint8_t *>(bytes.data());
-    const std::size_t len = bytes.size();
+Value imreadFromBytes(const std::string &bytes, keel::Allocator *mr) {
+    const auto *data = reinterpret_cast<const keel::u8 *>(bytes.data());
+    const keel::usize len = bytes.size();
 
     if (len == 0) {
         throw Error("imread: empty image buffer",
@@ -89,7 +92,7 @@ Value imreadFromBytes(const std::string &bytes, std::pmr::memory_resource *mr) {
     const keel::ImageFormat fmt = keel::sniff_image_format(keel::ArrayRef<keel::u8>(data, len));
     switch (fmt) {
         case keel::ImageFormat::Png:  return readPng(data, len, mr);
-        case keel::ImageFormat::Tiff: return readTiff(std::vector<std::uint8_t>(bytes.begin(), bytes.end()), 1u, mr);
+        case keel::ImageFormat::Tiff: return readTiff(std::vector<keel::u8>(bytes.begin(), bytes.end()), 1u, mr);
         case keel::ImageFormat::Jpeg: return readJpeg(data, len, mr);
         case keel::ImageFormat::Bmp:  return readBmp(data, len, mr);
         case keel::ImageFormat::Gif:  return readGifViaKeel(data, len, mr);
@@ -108,7 +111,7 @@ Value imreadFromBytes(const std::string &bytes, std::pmr::memory_resource *mr) {
                 0, 0, "imread", "", "numkit:imread:unknownFormat");
 }
 
-Value imread(const std::string &path, std::pmr::memory_resource *mr) {
+Value imread(const std::string &path, keel::Allocator *mr) {
     std::ifstream f(path, std::ios::binary);
     if (!f) {
         throw Error("imread: failed to load '" + path + "' - can't open",
@@ -120,7 +123,7 @@ Value imread(const std::string &path, std::pmr::memory_resource *mr) {
 }
 
 std::string imwriteToBytes(const Value &A, const std::string &ext,
-                           std::pmr::memory_resource * /*mr*/) {
+                           keel::Allocator * /*mr*/) {
     if (ext == "png") {
         return writePngToBytes(A, 6);
     }
@@ -146,7 +149,7 @@ std::string imwriteToBytes(const Value &A, const std::string &ext,
                 0, 0, "imwrite", "", "numkit:imwrite:ext");
 }
 
-void imwrite(const Value &A, const std::string &path, std::pmr::memory_resource *mr) {
+void imwrite(const Value &A, const std::string &path, keel::Allocator *mr) {
     const std::string ext = lowerExt(path);
     if (ext == "tif" || ext == "tiff") {
         writeTiff(A, path, "none", /*appendMode=*/false);
@@ -166,12 +169,12 @@ void imwrite(const Value &A, const std::string &path, std::pmr::memory_resource 
 }
 
 Value imfinfoFromBytes(const std::string &bytes, const std::string &filename,
-                       std::pmr::memory_resource *mr) {
-    const auto *data = reinterpret_cast<const std::uint8_t *>(bytes.data());
-    const std::size_t len = bytes.size();
+                       keel::Allocator *mr) {
+    const auto *data = reinterpret_cast<const keel::u8 *>(bytes.data());
+    const keel::usize len = bytes.size();
 
-    std::uint32_t W = 0, H = 0;
-    std::uint16_t bits = 8, channels = 1;
+    keel::u32 W = 0, H = 0;
+    keel::u16 bits = 8, channels = 1;
     std::string fmt = formatStringFromKeel(
         keel::sniff_image_format(keel::ArrayRef<keel::u8>(data, len)));
     if (fmt.empty()) fmt = lowerExt(filename);
@@ -181,7 +184,7 @@ Value imfinfoFromBytes(const std::string &bytes, const std::string &filename,
         ok = peekPng(data, len, W, H, bits, channels);
     } else if (fmt == "tif" || fmt == "tiff") {
         fmt = "tif";
-        std::vector<std::uint8_t> buf(bytes.begin(), bytes.end());
+        std::vector<keel::u8> buf(bytes.begin(), bytes.end());
         peekTiff(buf, W, H, bits, channels);
         ok = true;
     } else if (fmt == "jpg" || fmt == "jpeg") {
@@ -221,7 +224,7 @@ Value imfinfoFromBytes(const std::string &bytes, const std::string &filename,
     return s;
 }
 
-Value imfinfo(const std::string &path, std::pmr::memory_resource *mr) {
+Value imfinfo(const std::string &path, keel::Allocator *mr) {
     std::ifstream f(path, std::ios::binary);
     if (!f) {
         throw Error("imfinfo: failed to read '" + path + "' - can't open",

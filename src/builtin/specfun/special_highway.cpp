@@ -18,6 +18,8 @@
 // erfc/gamma (which need expk anyway). Parity vs the scalar reference is
 // checked in toolboxes/builtin/tests/simd_parity_test.cpp.
 
+#include <keel/core.h>
+#include <keel/memory.h>
 #include <numkit/builtin/specfun.hpp>
 
 #include <numkit/value/value.hpp>
@@ -204,10 +206,10 @@ HWY_INLINE V expk(D d, DD<V> a)
     return u;
 }
 
-void ErfLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_t n)
+void ErfLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, keel::usize n)
 {
     const hn::ScalableTag<double> d;
-    const std::size_t N = hn::Lanes(d);
+    const keel::usize N = hn::Lanes(d);
     using V = decltype(hn::Zero(d));
 
     // SLEEF xerf_u1 â€” two coefficient sets, selected per lane by |x| <= 2.5.
@@ -234,7 +236,7 @@ void ErfLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_
     const V negOne = hn::Set(d, -1.0);
     const V c2spi  = hn::Set(d, 1.12837916709551262756245475959); // 2/sqrt(pi)
 
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i + N <= n; i += N) {
         V a    = hn::LoadU(d, in + i);
         V absx = hn::Abs(a);
@@ -293,7 +295,7 @@ namespace numkit::builtin {
 
 HWY_EXPORT(ErfLoop);
 
-Value erf(const Value &x, std::pmr::memory_resource *mr)
+Value erf(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex() || x.isScalar() || x.type() != ValueType::DOUBLE)
         return unaryDouble(x, [](double v) { return std::erf(v); }, mr);
@@ -304,7 +306,7 @@ Value erf(const Value &x, std::pmr::memory_resource *mr)
     const double *in  = x.doubleData();
     double       *out = r.doubleDataMut();
     numkit::detail::parallel_for(x.numel(), numkit::detail::kTranscendentalThreshold,
-        [=](std::size_t s, std::size_t e) {
+        [=](keel::usize s, keel::usize e) {
             HWY_DYNAMIC_DISPATCH(ErfLoop)(in + s, out + s, e - s);
         });
     return r;

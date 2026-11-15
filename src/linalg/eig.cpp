@@ -13,6 +13,13 @@
 //   - schur_sym          (== eig for symmetric A)
 //   - sylvester_sym      (simultaneous diagonalisation)
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/ref.h>
+#include <keel/arena.h>
+#include <keel/array.h>
+#include <keel/complex.h>
+#include <keel/math.h>
 #include <numkit/linalg/eig.hpp>
 #include "linalg_detail.hpp"
 
@@ -26,12 +33,9 @@
 // live in eig_reg.cpp.
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
-#include <numkit/value/scratch.hpp>
-#include <numkit/value/span.hpp>
 
 #include <algorithm>
 #include <cmath>
-#include <complex>
 #include <cstdio>
 #include <limits>
 #include <string>
@@ -44,14 +48,14 @@ namespace numkit::linalg {
 // Characteristic polynomial + general eig via roots
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-Value poly_of_matrix(const Value &A, std::pmr::memory_resource *mr)
+Value poly_of_matrix(const Value &A, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "poly");
     if (A.dims().ndim() != 2)
         throw Error("poly: input must be a 2D matrix",
                     0, 0, "poly", "", "numkit:poly:notMatrix");
-    const std::size_t m = static_cast<std::size_t>(A.dims().dim(0));
-    const std::size_t n = static_cast<std::size_t>(A.dims().dim(1));
+    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
+    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
     if (m != n)
         throw Error("poly: matrix must be square (use poly(roots) for vector input)",
                     0, 0, "poly", "", "numkit:poly:notSquare");
@@ -63,14 +67,14 @@ Value poly_of_matrix(const Value &A, std::pmr::memory_resource *mr)
     }
 
     Value evals = eig_general_values(A, mr);
-    ScratchArena scratch(mr);
-    ScratchVec<Complex> coeff(n + 1, Complex(0.0, 0.0), &scratch);
-    coeff[0] = Complex(1.0, 0.0);
-    for (std::size_t k = 0; k < n; ++k) {
-        const Complex lam = evals.isComplex()
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<keel::c64> coeff(n + 1, keel::c64(0.0, 0.0), scratch.allocator());
+    coeff[0] = keel::c64(1.0, 0.0);
+    for (keel::usize k = 0; k < n; ++k) {
+        const keel::c64 lam = evals.isComplex()
                                 ? evals.complexData()[k]
-                                : Complex(evals.elemAsDouble(k), 0.0);
-        for (std::size_t j = k + 1; j >= 1; --j) {
+                                : keel::c64(evals.elemAsDouble(k), 0.0);
+        for (keel::usize j = k + 1; j >= 1; --j) {
             coeff[j] -= lam * coeff[j - 1];
         }
     }
@@ -78,14 +82,14 @@ Value poly_of_matrix(const Value &A, std::pmr::memory_resource *mr)
     if (!A.isComplex()) {
         auto out = Value::matrix(1, n + 1, ValueType::DOUBLE, mr);
         double *c = out.doubleDataMut();
-        for (std::size_t j = 0; j <= n; ++j)
+        for (keel::usize j = 0; j <= n; ++j)
             c[j] = coeff[j].real();
         return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
     }
 
     auto out = Value::complexMatrix(1, n + 1, mr);
-    Complex *c = out.complexDataMut();
-    for (std::size_t j = 0; j <= n; ++j)
+    keel::c64 *c = out.complexDataMut();
+    for (keel::usize j = 0; j <= n; ++j)
         c[j] = coeff[j];
     if (wantSingle) out.setSingleComplex(true);
     return detail::narrow_if_real(out, mr);
@@ -94,34 +98,34 @@ Value poly_of_matrix(const Value &A, std::pmr::memory_resource *mr)
 static bool isHermitianComplexApprox(const Value &A, double tol = 1e-10)
 {
     if (A.dims().ndim() != 2 || !A.isComplex()) return false;
-    const std::size_t m = static_cast<std::size_t>(A.dims().dim(0));
-    const std::size_t n = static_cast<std::size_t>(A.dims().dim(1));
+    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
+    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
     if (m != n) return false;
-    const Complex *ad = A.complexData();
+    const keel::c64 *ad = A.complexData();
     double aMax = 1.0;
-    for (std::size_t idx = 0; idx < n * n; ++idx) {
-        const double v = std::abs(ad[idx]);
+    for (keel::usize idx = 0; idx < n * n; ++idx) {
+        const double v = keel::abs(ad[idx]);
         if (v > aMax) aMax = v;
     }
     const double thresh = tol * aMax;
-    for (std::size_t i = 0; i < n; ++i) {
+    for (keel::usize i = 0; i < n; ++i) {
         if (std::fabs(ad[i + i * n].imag()) > thresh) return false;
-        for (std::size_t j = i + 1; j < n; ++j) {
-            if (std::abs(ad[i + j * n] - std::conj(ad[j + i * n])) > thresh)
+        for (keel::usize j = i + 1; j < n; ++j) {
+            if (keel::abs(ad[i + j * n] - keel::conj(ad[j + i * n])) > thresh)
                 return false;
         }
     }
     return true;
 }
 
-Value eig_general_values(const Value &A, std::pmr::memory_resource *mr)
+Value eig_general_values(const Value &A, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "eig");
     if (A.dims().ndim() != 2)
         throw Error("eig: input must be a 2D matrix",
                     0, 0, "eig", "", "numkit:eig:notMatrix");
-    const std::size_t n = static_cast<std::size_t>(A.dims().dim(0));
-    if (n != static_cast<std::size_t>(A.dims().dim(1)))
+    const keel::usize n = static_cast<keel::usize>(A.dims().dim(0));
+    if (n != static_cast<keel::usize>(A.dims().dim(1)))
         throw Error("eig: matrix must be square",
                     0, 0, "eig", "", "numkit:eig:notSquare");
     if (n == 0) return Value::matrix(0, 1, A.type(), mr);
@@ -135,25 +139,25 @@ Value eig_general_values(const Value &A, std::pmr::memory_resource *mr)
         auto out = Value::matrix(n, 1, ValueType::DOUBLE, mr);
         double *od = out.doubleDataMut();
         if (T.isComplex()) {
-            const Complex *td = T.complexData();
-            for (std::size_t i = 0; i < n; ++i) od[i] = td[i + i * n].real();
+            const keel::c64 *td = T.complexData();
+            for (keel::usize i = 0; i < n; ++i) od[i] = td[i + i * n].real();
         } else {
             const double *td = T.doubleData();
-            for (std::size_t i = 0; i < n; ++i) od[i] = td[i + i * n];
+            for (keel::usize i = 0; i < n; ++i) od[i] = td[i + i * n];
         }
         std::sort(od, od + n);
         return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
     }
 
     auto out = Value::complexMatrix(n, 1, mr);
-    Complex *o = out.complexDataMut();
+    keel::c64 *o = out.complexDataMut();
 
     if (T.isComplex()) {
-        const Complex *td = T.complexData();
-        for (std::size_t i = 0; i < n; ++i) o[i] = td[i + i * n];
+        const keel::c64 *td = T.complexData();
+        for (keel::usize i = 0; i < n; ++i) o[i] = td[i + i * n];
     } else {
         const double *td = T.doubleData();
-        std::size_t i = 0;
+        keel::usize i = 0;
         while (i < n) {
             if (i + 1 < n && td[(i + 1) + i * n] != 0.0) {
                 double a = td[i + i * n];
@@ -165,11 +169,11 @@ Value eig_general_values(const Value &A, std::pmr::memory_resource *mr)
                 double disc = tr * tr - 4.0 * det;
                 double re = 0.5 * tr;
                 double im = 0.5 * std::sqrt(std::max(0.0, -disc));
-                o[i] = Complex(re, im);
-                o[i + 1] = Complex(re, -im);
+                o[i] = keel::c64(re, im);
+                o[i + 1] = keel::c64(re, -im);
                 i += 2;
             } else {
-                o[i] = Complex(td[i + i * n], 0.0);
+                o[i] = keel::c64(td[i + i * n], 0.0);
                 i += 1;
             }
         }
@@ -178,14 +182,14 @@ Value eig_general_values(const Value &A, std::pmr::memory_resource *mr)
 }
 
 std::tuple<Value, Value>
-eig_general_VD(const Value &A, std::pmr::memory_resource *mr)
+eig_general_VD(const Value &A, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "eig");
     if (A.dims().ndim() != 2)
         throw Error("eig: input must be a 2D matrix",
                     0, 0, "eig", "", "numkit:eig:notMatrix");
-    const std::size_t n = static_cast<std::size_t>(A.dims().dim(0));
-    if (n != static_cast<std::size_t>(A.dims().dim(1)))
+    const keel::usize n = static_cast<keel::usize>(A.dims().dim(0));
+    if (n != static_cast<keel::usize>(A.dims().dim(1)))
         throw Error("eig: matrix must be square",
                     0, 0, "eig", "", "numkit:eig:notSquare");
     if (n == 0) {
@@ -200,45 +204,45 @@ eig_general_VD(const Value &A, std::pmr::memory_resource *mr)
     Value A_c = Aw.isComplex() ? Aw : Value::complexMatrix(n, n, mr);
     if (!Aw.isComplex()) {
         const double *ad = Aw.doubleData();
-        Complex *acd = A_c.complexDataMut();
-        for (std::size_t i = 0; i < n * n; ++i) acd[i] = Complex(ad[i], 0.0);
+        keel::c64 *acd = A_c.complexDataMut();
+        for (keel::usize i = 0; i < n * n; ++i) acd[i] = keel::c64(ad[i], 0.0);
     }
 
     auto [U, T] = schur_general(A_c, mr);
 
-    ScratchArena scratch(mr);
-    ScratchVec<Complex> Tc(n * n, &scratch);
-    ScratchVec<Complex> Uc(n * n, &scratch);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<keel::c64> Tc(n * n, scratch.allocator());
+    keel::Array<keel::c64> Uc(n * n, scratch.allocator());
 
     if (T.isComplex()) {
         std::copy(T.complexData(), T.complexData() + n * n, Tc.begin());
     } else {
         const double *td = T.doubleData();
-        for (size_t i = 0; i < n * n; ++i) Tc[i] = Complex(td[i], 0.0);
+        for (keel::usize i = 0; i < n * n; ++i) Tc[i] = keel::c64(td[i], 0.0);
     }
 
     if (U.isComplex()) {
         std::copy(U.complexData(), U.complexData() + n * n, Uc.begin());
     } else {
         const double *ud = U.doubleData();
-        for (size_t i = 0; i < n * n; ++i) Uc[i] = Complex(ud[i], 0.0);
+        for (keel::usize i = 0; i < n * n; ++i) Uc[i] = keel::c64(ud[i], 0.0);
     }
 
     if (isHermitianComplexApprox(Aw)) {
-        ScratchVec<std::size_t> order(n, &scratch);
-        for (std::size_t i = 0; i < n; ++i) order[i] = i;
-        std::sort(order.begin(), order.end(), [&](std::size_t a, std::size_t b) {
+        keel::Array<keel::usize> order(n, scratch.allocator());
+        for (keel::usize i = 0; i < n; ++i) order[i] = i;
+        std::sort(order.begin(), order.end(), [&](keel::usize a, keel::usize b) {
             return Tc[a + a * n].real() < Tc[b + b * n].real();
         });
         auto Vout = Value::complexMatrix(n, n, mr);
         auto Dout = Value::matrix(n, n, ValueType::DOUBLE, mr);
-        Complex *Vd = Vout.complexDataMut();
+        keel::c64 *Vd = Vout.complexDataMut();
         double *Dd = Dout.doubleDataMut();
         std::fill(Dd, Dd + n * n, 0.0);
-        for (std::size_t k = 0; k < n; ++k) {
-            const std::size_t src = order[k];
+        for (keel::usize k = 0; k < n; ++k) {
+            const keel::usize src = order[k];
             Dd[k + k * n] = Tc[src + src * n].real();
-            for (std::size_t i = 0; i < n; ++i)
+            for (keel::usize i = 0; i < n; ++i)
                 Vd[i + k * n] = Uc[i + src * n];
         }
         return std::make_tuple(
@@ -247,49 +251,49 @@ eig_general_VD(const Value &A, std::pmr::memory_resource *mr)
     }
 
     double tMax = 0.0;
-    for (std::size_t i = 0; i < n * n; ++i)
-        tMax = std::max(tMax, std::abs(Tc[i]));
+    for (keel::usize i = 0; i < n * n; ++i)
+        tMax = std::max(tMax, keel::abs(Tc[i]));
     const double eps = std::numeric_limits<double>::epsilon();
     const double backTol = 64.0 * static_cast<double>(n) * eps * std::max(1.0, tMax);
     const double smin = std::max(eps * std::max(1.0, tMax),
                                  std::numeric_limits<double>::min() * (static_cast<double>(n) / eps));
 
-    ScratchVec<Complex> Yc(n * n, Complex(0.0, 0.0), &scratch);
+    keel::Array<keel::c64> Yc(n * n, keel::c64(0.0, 0.0), scratch.allocator());
 
-    for (std::size_t k = 0; k < n; ++k) {
-        Complex lam = Tc[k + k * n];
-        Yc[k + k * n] = Complex(1.0, 0.0);
+    for (keel::usize k = 0; k < n; ++k) {
+        keel::c64 lam = Tc[k + k * n];
+        Yc[k + k * n] = keel::c64(1.0, 0.0);
         double maxY = 1.0;
         for (std::intptr_t i = static_cast<std::intptr_t>(k) - 1; i >= 0; --i) {
-            const std::size_t ui = static_cast<std::size_t>(i);
-            Complex sum(0.0, 0.0);
-            for (std::size_t j = ui + 1; j <= k; ++j) {
+            const keel::usize ui = static_cast<keel::usize>(i);
+            keel::c64 sum(0.0, 0.0);
+            for (keel::usize j = ui + 1; j <= k; ++j) {
                 sum += Tc[ui + j * n] * Yc[j + k * n];
             }
-            Complex denom = Tc[ui + ui * n] - lam;
-            if (std::abs(denom) <= backTol && std::abs(sum) <= backTol * maxY) {
+            keel::c64 denom = Tc[ui + ui * n] - lam;
+            if (keel::abs(denom) <= backTol && keel::abs(sum) <= backTol * maxY) {
                 // Diagonalizable repeated eigenvalue: free coordinate -> keep independent from col ui
-                Yc[ui + k * n] = Complex(0.0, 0.0);
+                Yc[ui + k * n] = keel::c64(0.0, 0.0);
             } else {
-                if (std::abs(denom) < smin) denom = Complex(smin, 0.0);
+                if (keel::abs(denom) < smin) denom = keel::c64(smin, 0.0);
                 Yc[ui + k * n] = -sum / denom;
-                maxY = std::max(maxY, std::abs(Yc[ui + k * n]));
+                maxY = std::max(maxY, keel::abs(Yc[ui + k * n]));
             }
         }
     }
 
     auto Vout = Value::complexMatrix(n, n, mr);
     auto Dout = Value::complexMatrix(n, n, mr);
-    Complex *Vd = Vout.complexDataMut();
-    Complex *Dd = Dout.complexDataMut();
-    std::fill(Dd, Dd + n * n, Complex(0.0, 0.0));
+    keel::c64 *Vd = Vout.complexDataMut();
+    keel::c64 *Dd = Dout.complexDataMut();
+    std::fill(Dd, Dd + n * n, keel::c64(0.0, 0.0));
 
-    for (std::size_t k = 0; k < n; ++k) {
+    for (keel::usize k = 0; k < n; ++k) {
         Dd[k + k * n] = Tc[k + k * n];
         double norm_sq = 0.0;
-        for (std::size_t i = 0; i < n; ++i) {
-            Complex s(0.0, 0.0);
-            for (std::size_t j = 0; j <= k; ++j) {
+        for (keel::usize i = 0; i < n; ++i) {
+            keel::c64 s(0.0, 0.0);
+            for (keel::usize j = 0; j <= k; ++j) {
                 s += Uc[i + j * n] * Yc[j + k * n];
             }
             Vd[i + k * n] = s;
@@ -297,7 +301,7 @@ eig_general_VD(const Value &A, std::pmr::memory_resource *mr)
         }
         double norm = std::sqrt(norm_sq);
         if (norm > 0.0) {
-            for (std::size_t i = 0; i < n; ++i)
+            for (keel::usize i = 0; i < n; ++i)
                 Vd[i + k * n] /= norm;
         }
     }
@@ -311,43 +315,43 @@ eig_general_VD(const Value &A, std::pmr::memory_resource *mr)
     // V(:, k) narrows to real double (bugs: linalg/eig-real-spectrum-complex-typing).
     if (!Aw.isComplex()) {
         double aMax = 0.0;
-        for (std::size_t i = 0; i < n * n; ++i)
-            aMax = std::max(aMax, std::abs(A_c.complexData()[i].real()));
+        for (keel::usize i = 0; i < n * n; ++i)
+            aMax = std::max(aMax, keel::abs(A_c.complexData()[i].real()));
         const double tol = 64.0 * static_cast<double>(n) *
                            std::numeric_limits<double>::epsilon() * (1.0 + aMax);
         bool real_spectrum = true;
-        for (std::size_t k = 0; k < n; ++k) {
-            if (std::abs(Dd[k + k * n].imag()) <= tol) {
-                Dd[k + k * n] = Complex(Dd[k + k * n].real(), 0.0);
+        for (keel::usize k = 0; k < n; ++k) {
+            if (keel::abs(Dd[k + k * n].imag()) <= tol) {
+                Dd[k + k * n] = keel::c64(Dd[k + k * n].real(), 0.0);
                 // Find largest-magnitude component of V(:, k) and rotate out its phase.
-                std::size_t iMax = 0;
+                keel::usize iMax = 0;
                 double maxAbs = 0.0;
-                for (std::size_t i = 0; i < n; ++i) {
-                    double a = std::abs(Vd[i + k * n]);
+                for (keel::usize i = 0; i < n; ++i) {
+                    double a = keel::abs(Vd[i + k * n]);
                     if (a > maxAbs) {
                         maxAbs = a;
                         iMax = i;
                     }
                 }
                 if (maxAbs > 0.0) {
-                    Complex phase = std::conj(Vd[iMax + k * n]) / maxAbs;
+                    keel::c64 phase = keel::conj(Vd[iMax + k * n]) / maxAbs;
                     double colImax = 0.0;
-                    for (std::size_t i = 0; i < n; ++i) {
-                        Complex rotated = Vd[i + k * n] * phase;
+                    for (keel::usize i = 0; i < n; ++i) {
+                        keel::c64 rotated = Vd[i + k * n] * phase;
                         Vd[i + k * n] = rotated;
-                        colImax = std::max(colImax, std::abs(rotated.imag()));
+                        colImax = std::max(colImax, keel::abs(rotated.imag()));
                     }
                     if (colImax <= 1e3 * tol) {
                         double rNormSq = 0.0;
-                        for (std::size_t i = 0; i < n; ++i) {
+                        for (keel::usize i = 0; i < n; ++i) {
                             double re = Vd[i + k * n].real();
-                            Vd[i + k * n] = Complex(re, 0.0);
+                            Vd[i + k * n] = keel::c64(re, 0.0);
                             rNormSq += re * re;
                         }
                         double rNorm = std::sqrt(rNormSq);
                         if (rNorm > 0.0) {
-                            for (std::size_t i = 0; i < n; ++i)
-                                Vd[i + k * n] = Complex(Vd[i + k * n].real() / rNorm, 0.0);
+                            for (keel::usize i = 0; i < n; ++i)
+                                Vd[i + k * n] = keel::c64(Vd[i + k * n].real() / rNorm, 0.0);
                         }
                     }
                 }
@@ -356,12 +360,12 @@ eig_general_VD(const Value &A, std::pmr::memory_resource *mr)
             }
         }
         double vImax = 0.0;
-        for (std::size_t i = 0; i < n * n; ++i)
-            vImax = std::max(vImax, std::abs(Vd[i].imag()));
+        for (keel::usize i = 0; i < n * n; ++i)
+            vImax = std::max(vImax, keel::abs(Vd[i].imag()));
         if (real_spectrum && vImax <= 1e3 * tol) {
             auto Vr = Value::matrix(n, n, ValueType::DOUBLE, mr);
             auto Dr = Value::matrix(n, n, ValueType::DOUBLE, mr);
-            for (std::size_t i = 0; i < n * n; ++i) {
+            for (keel::usize i = 0; i < n * n; ++i) {
                 Vr.doubleDataMut()[i] = Vd[i].real();
                 Dr.doubleDataMut()[i] = Dd[i].real();
             }
@@ -383,21 +387,21 @@ eig_general_VD(const Value &A, std::pmr::memory_resource *mr)
 namespace {
 
 // // Classical Jacobi for SYMMETRIC A (used for small n <= 16).
-void jacobiSymInplace(double *A, std::size_t n, double *V,
-                      std::size_t maxSweeps, double tol)
+void jacobiSymInplace(double *A, keel::usize n, double *V,
+                      keel::usize maxSweeps, double tol)
 {
     std::fill(V, V + n * n, 0.0);
-    for (std::size_t i = 0; i < n; ++i) V[i + i * n] = 1.0;
+    for (keel::usize i = 0; i < n; ++i) V[i + i * n] = 1.0;
     if (n <= 1) return;
 
     double diagSq = 0.0;
-    for (std::size_t i = 0; i < n; ++i)
+    for (keel::usize i = 0; i < n; ++i)
         diagSq += A[i + i * n] * A[i + i * n];
 
     auto offSum = [&]() {
         double s = 0.0;
-        for (std::size_t p = 0; p + 1 < n; ++p)
-            for (std::size_t q = p + 1; q < n; ++q)
+        for (keel::usize p = 0; p + 1 < n; ++p)
+            for (keel::usize q = p + 1; q < n; ++q)
                 s += A[p + q * n] * A[p + q * n];
         return s;
     };
@@ -406,10 +410,10 @@ void jacobiSymInplace(double *A, std::size_t n, double *V,
     const double scaleSq = std::max(1.0, diagSq + 2.0 * offSum());
     const double convTolSq = (tol * tol) * scaleSq;
 
-    for (std::size_t sweep = 0; sweep < maxSweeps; ++sweep) {
+    for (keel::usize sweep = 0; sweep < maxSweeps; ++sweep) {
         if (offSum() < convTolSq) break;
-        for (std::size_t p = 0; p + 1 < n; ++p) {
-            for (std::size_t q = p + 1; q < n; ++q) {
+        for (keel::usize p = 0; p + 1 < n; ++p) {
+            for (keel::usize q = p + 1; q < n; ++q) {
                 const double Apq = A[p + q * n];
                 const double App = A[p + p * n];
                 const double Aqq = A[q + q * n];
@@ -434,9 +438,9 @@ void jacobiSymInplace(double *A, std::size_t n, double *V,
                 A[q + q * n] = s * s * App + 2.0 * c * s * Apq + c * c * Aqq;
                 A[p + q * n] = 0.0;
                 A[q + p * n] = 0.0;
-                for (std::size_t r = 0; r < n; ++r) {
+                for (keel::usize r = 0; r < n; ++r) {
                     if (r == p || r == q) continue;
-                    auto get = [&](std::size_t a, std::size_t b) -> double & {
+                    auto get = [&](keel::usize a, keel::usize b) -> double & {
                         return (a < b) ? A[a + b * n] : A[b + a * n];
                     };
                     const double Arp = get(r, p);
@@ -444,7 +448,7 @@ void jacobiSymInplace(double *A, std::size_t n, double *V,
                     get(r, p) = c * Arp - s * Arq;
                     get(r, q) = s * Arp + c * Arq;
                 }
-                for (std::size_t r = 0; r < n; ++r) {
+                for (keel::usize r = 0; r < n; ++r) {
                     const double Vrp = V[r + p * n];
                     const double Vrq = V[r + q * n];
                     V[r + p * n] = c * Vrp - s * Vrq;
@@ -455,8 +459,8 @@ void jacobiSymInplace(double *A, std::size_t n, double *V,
     }
 
     // Mirror upper triangle into lower for clean output.
-    for (std::size_t p = 0; p + 1 < n; ++p)
-        for (std::size_t q = p + 1; q < n; ++q)
+    for (keel::usize p = 0; p + 1 < n; ++p)
+        for (keel::usize q = p + 1; q < n; ++q)
             A[q + p * n] = A[p + q * n];
 }
 
@@ -464,21 +468,21 @@ void jacobiSymInplace(double *A, std::size_t n, double *V,
 // for real symmetric matrices (O(n^3) direct reduction, used for n > 16).
 // Input: V holds a copy of A (n x n, column-major).
 // Output: d[0..n-1] holds the eigenvalues, V holds the orthonormal eigenvectors.
-void symTridiagQL(double *V, std::size_t n, double *d, ScratchArena &scratch)
+void symTridiagQL(double *V, keel::usize n, double *d, const keel::ArenaTemp &scratch)
 {
-    ScratchVec<double> e(n, 0.0, &scratch);
+    keel::Array<double> e(n, 0.0, scratch.allocator());
 
-    for (std::size_t i = n - 1; i >= 1; --i) {
-        const std::size_t l = i - 1;
+    for (keel::usize i = n - 1; i >= 1; --i) {
+        const keel::usize l = i - 1;
         double h = 0.0;
         double scale = 0.0;
         if (l > 0) {
-            for (std::size_t k = 0; k <= l; ++k)
+            for (keel::usize k = 0; k <= l; ++k)
                 scale += std::fabs(V[i + k * n]);
             if (scale == 0.0) {
                 e[i] = V[i + l * n];
             } else {
-                for (std::size_t k = 0; k <= l; ++k) {
+                for (keel::usize k = 0; k <= l; ++k) {
                     V[i + k * n] /= scale;
                     h += V[i + k * n] * V[i + k * n];
                 }
@@ -488,22 +492,22 @@ void symTridiagQL(double *V, std::size_t n, double *d, ScratchArena &scratch)
                 h -= f * g;
                 V[i + l * n] = f - g;
                 f = 0.0;
-                for (std::size_t j = 0; j <= l; ++j) {
+                for (keel::usize j = 0; j <= l; ++j) {
                     V[j + i * n] = V[i + j * n] / h;
                     g = 0.0;
-                    for (std::size_t k = 0; k <= j; ++k)
+                    for (keel::usize k = 0; k <= j; ++k)
                         g += V[j + k * n] * V[i + k * n];
-                    for (std::size_t k = j + 1; k <= l; ++k)
+                    for (keel::usize k = j + 1; k <= l; ++k)
                         g += V[k + j * n] * V[i + k * n];
                     e[j] = g / h;
                     f += e[j] * V[i + j * n];
                 }
                 const double hh = f / (h + h);
-                for (std::size_t j = 0; j <= l; ++j) {
+                for (keel::usize j = 0; j <= l; ++j) {
                     f = V[i + j * n];
                     g = e[j] - hh * f;
                     e[j] = g;
-                    for (std::size_t k = 0; k <= j; ++k)
+                    for (keel::usize k = 0; k <= j; ++k)
                         V[j + k * n] -= (f * e[k] + g * V[i + k * n]);
                 }
             }
@@ -515,32 +519,32 @@ void symTridiagQL(double *V, std::size_t n, double *d, ScratchArena &scratch)
 
     d[0] = 0.0;
     e[0] = 0.0;
-    for (std::size_t i = 0; i < n; ++i) {
+    for (keel::usize i = 0; i < n; ++i) {
         if (d[i] != 0.0) {
-            for (std::size_t j = 0; j < i; ++j) {
+            for (keel::usize j = 0; j < i; ++j) {
                 double g = 0.0;
-                for (std::size_t k = 0; k < i; ++k)
+                for (keel::usize k = 0; k < i; ++k)
                     g += V[i + k * n] * V[k + j * n];
-                for (std::size_t k = 0; k < i; ++k)
+                for (keel::usize k = 0; k < i; ++k)
                     V[k + j * n] -= g * V[k + i * n];
             }
         }
         d[i] = V[i + i * n];
         V[i + i * n] = 1.0;
-        for (std::size_t j = 0; j < i; ++j) {
+        for (keel::usize j = 0; j < i; ++j) {
             V[j + i * n] = 0.0;
             V[i + j * n] = 0.0;
         }
     }
 
-    for (std::size_t i = 1; i < n; ++i)
+    for (keel::usize i = 1; i < n; ++i)
         e[i - 1] = e[i];
     e[n - 1] = 0.0;
 
     const double eps = std::numeric_limits<double>::epsilon();
-    for (std::size_t l = 0; l < n; ++l) {
-        std::size_t iter = 0;
-        std::size_t m = l;
+    for (keel::usize l = 0; l < n; ++l) {
+        keel::usize iter = 0;
+        keel::usize m = l;
         for (;;) {
             for (m = l; m + 1 < n; ++m) {
                 const double dd = std::fabs(d[m]) + std::fabs(d[m + 1]);
@@ -556,8 +560,8 @@ void symTridiagQL(double *V, std::size_t n, double *d, ScratchArena &scratch)
             g = d[m] - d[l] + e[l] / (g + (g >= 0.0 ? r : -r));
             double s = 1.0, c = 1.0, p = 0.0;
             bool underflow = false;
-            for (std::size_t ii = m; ii > l; --ii) {
-                const std::size_t i = ii - 1;
+            for (keel::usize ii = m; ii > l; --ii) {
+                const keel::usize i = ii - 1;
                 const double f = s * e[i];
                 const double b = c * e[i];
                 r = std::hypot(f, g);
@@ -577,7 +581,7 @@ void symTridiagQL(double *V, std::size_t n, double *d, ScratchArena &scratch)
                 g = c * r - b;
                 double *vi1 = V + (i + 1) * n;
                 double *vi  = V + i * n;
-                for (std::size_t k = 0; k < n; ++k) {
+                for (keel::usize k = 0; k < n; ++k) {
                     const double t = vi1[k];
                     vi1[k] = s * vi[k] + c * t;
                     vi[k]  = c * vi[k] - s * t;
@@ -607,17 +611,17 @@ bool isSymmetricApprox(const Value &A, double tol)
     // parts, and the complex-Schur route handles them.
     if (A.isComplex()) return false;
     if (!A.isNumeric() && !A.isLogical() && !A.isChar()) return false;
-    const std::size_t m = static_cast<std::size_t>(A.dims().dim(0));
-    const std::size_t n = static_cast<std::size_t>(A.dims().dim(1));
+    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
+    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
     if (m != n) return false;
     double aMax = 1.0;
-    for (std::size_t idx = 0; idx < n * n; ++idx) {
+    for (keel::usize idx = 0; idx < n * n; ++idx) {
         const double v = std::fabs(A.elemAsDouble(idx));
         if (v > aMax) aMax = v;
     }
     const double thresh = tol * aMax;
-    for (std::size_t i = 0; i < n; ++i)
-        for (std::size_t j = i + 1; j < n; ++j) {
+    for (keel::usize i = 0; i < n; ++i)
+        for (keel::usize j = i + 1; j < n; ++j) {
             const double aij = A.elemAsDouble(i + j * m);
             const double aji = A.elemAsDouble(j + i * m);
             const double d = std::fabs(aij - aji);
@@ -627,14 +631,14 @@ bool isSymmetricApprox(const Value &A, double tol)
 }
 
 std::tuple<Value, Value>
-eig_symmetric(const Value &A, std::pmr::memory_resource *mr)
+eig_symmetric(const Value &A, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "eig");
     if (A.dims().ndim() != 2)
         throw Error("eig: input must be a 2D matrix",
                     0, 0, "eig", "", "numkit:eig:notMatrix");
-    const std::size_t m = static_cast<std::size_t>(A.dims().dim(0));
-    const std::size_t n = static_cast<std::size_t>(A.dims().dim(1));
+    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
+    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
     if (m != n)
         throw Error("eig: matrix must be square",
                     0, 0, "eig", "", "numkit:eig:notSquare");
@@ -651,16 +655,16 @@ eig_symmetric(const Value &A, std::pmr::memory_resource *mr)
     const bool wantSingle = (A.type() == ValueType::SINGLE);
     Value Aw = detail::widenSingleToDouble(A, mr);
 
-    ScratchArena scratch(mr);
-    ScratchVec<double> V_work(n * n, &scratch);
-    ScratchVec<double> evals(n, &scratch);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<double> V_work(n * n, scratch.allocator());
+    keel::Array<double> evals(n, scratch.allocator());
 
     if (n <= 16) {
-        ScratchVec<double> A_work(n * n, &scratch);
+        keel::Array<double> A_work(n * n, scratch.allocator());
         std::copy(Aw.doubleData(), Aw.doubleData() + n * n, A_work.begin());
         jacobiSymInplace(A_work.data(), n, V_work.data(),
                          /*maxSweeps=*/64, /*tol=*/1e-13);
-        for (std::size_t i = 0; i < n; ++i)
+        for (keel::usize i = 0; i < n; ++i)
             evals[i] = A_work[i + i * n];
     } else {
         std::copy(Aw.doubleData(), Aw.doubleData() + n * n, V_work.begin());
@@ -669,13 +673,13 @@ eig_symmetric(const Value &A, std::pmr::memory_resource *mr)
 
     // Sort eigenvalues ASCENDING using LAPACK dsteqr selection sort
     // (matches LAPACK's exact permutation on repeated eigenvalues).
-    ScratchVec<std::size_t> order(n, &scratch);
-    for (std::size_t i = 0; i < n; ++i) order[i] = i;
-    for (std::size_t ii = 1; ii < n; ++ii) {
-        std::size_t i = ii - 1;
-        std::size_t k = i;
+    keel::Array<keel::usize> order(n, scratch.allocator());
+    for (keel::usize i = 0; i < n; ++i) order[i] = i;
+    for (keel::usize ii = 1; ii < n; ++ii) {
+        keel::usize i = ii - 1;
+        keel::usize k = i;
         double p = evals[order[i]];
-        for (std::size_t j = ii; j < n; ++j) {
+        for (keel::usize j = ii; j < n; ++j) {
             if (evals[order[j]] < p) {
                 k = j;
                 p = evals[order[j]];
@@ -689,10 +693,10 @@ eig_symmetric(const Value &A, std::pmr::memory_resource *mr)
     double *V = Vout.doubleDataMut();
     double *D = Dout.doubleDataMut();
     std::fill(D, D + n * n, 0.0);
-    for (std::size_t k = 0; k < n; ++k) {
-        const std::size_t src = order[k];
+    for (keel::usize k = 0; k < n; ++k) {
+        const keel::usize src = order[k];
         D[k + k * n] = evals[src];
-        for (std::size_t i = 0; i < n; ++i)
+        for (keel::usize i = 0; i < n; ++i)
             V[i + k * n] = V_work[i + src * n];
     }
     return std::make_tuple(
@@ -700,16 +704,16 @@ eig_symmetric(const Value &A, std::pmr::memory_resource *mr)
         detail::narrowDoubleToSingleIf(Dout, wantSingle, mr));
 }
 
-Value eig_values(const Value &A, std::pmr::memory_resource *mr)
+Value eig_values(const Value &A, keel::Allocator *mr)
 {
     const bool wantSingle = (A.type() == ValueType::SINGLE);
     Value Aw = detail::widenSingleToDouble(A, mr);
     auto [V, D] = eig_symmetric(Aw, mr);
-    const std::size_t n = static_cast<std::size_t>(D.dims().dim(0));
+    const keel::usize n = static_cast<keel::usize>(D.dims().dim(0));
     auto out = Value::matrix(n, 1, ValueType::DOUBLE, mr);
     const double *Ddata = D.doubleData();
     double *o = out.doubleDataMut();
-    for (std::size_t i = 0; i < n; ++i) o[i] = Ddata[i + i * n];
+    for (keel::usize i = 0; i < n; ++i) o[i] = Ddata[i + i * n];
     return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
 
@@ -718,105 +722,105 @@ namespace {
 // Upper-triangular Cholesky factor R (stored column-major, R(k, j) at R[k + j*n] for k <= j)
 // such that R^T * R = M (i.e. L = R^T is the lower Cholesky factor).
 // Storing R in column-major order makes column j of R (= row j of L) contiguous in memory!
-bool tryCholeskyUpper(const double *M, std::size_t n, double *R)
+bool tryCholeskyUpper(const double *M, keel::usize n, double *R)
 {
     double diagMax = 0.0;
-    for (std::size_t i = 0; i < n; ++i)
+    for (keel::usize i = 0; i < n; ++i)
         diagMax = std::max(diagMax, std::fabs(M[i + i * n]));
     if (!(diagMax > 0.0)) return false;
     const double tol = 1e-12 * diagMax;
 
-    std::vector<std::size_t> firstNz(n, 0);
-    for (std::size_t j = 0; j < n; ++j) {
+    std::vector<keel::usize> firstNz(n, 0);
+    for (keel::usize j = 0; j < n; ++j) {
         const double *mj = M + j * n;
-        std::size_t fnz = j;
-        for (std::size_t i = 0; i < j; ++i) {
+        keel::usize fnz = j;
+        for (keel::usize i = 0; i < j; ++i) {
             if (mj[i] != 0.0) { fnz = i; break; }
         }
         firstNz[j] = fnz;
     }
 
-    for (std::size_t j = 0; j < n; ++j) {
+    for (keel::usize j = 0; j < n; ++j) {
         double *rj = R + j * n;
-        const std::size_t fnzJ = firstNz[j];
-        for (std::size_t i = 0; i < fnzJ; ++i)
+        const keel::usize fnzJ = firstNz[j];
+        for (keel::usize i = 0; i < fnzJ; ++i)
             rj[i] = 0.0;
-        for (std::size_t i = fnzJ; i < j; ++i) {
+        for (keel::usize i = fnzJ; i < j; ++i) {
             const double *ri = R + i * n;
             double s = M[i + j * n];
-            const std::size_t kStart = std::max(firstNz[i], fnzJ);
-            for (std::size_t k = kStart; k < i; ++k)
+            const keel::usize kStart = std::max(firstNz[i], fnzJ);
+            for (keel::usize k = kStart; k < i; ++k)
                 s -= ri[k] * rj[k];
             rj[i] = s / ri[i];
         }
         double sum = 0.0;
-        for (std::size_t k = fnzJ; k < j; ++k)
+        for (keel::usize k = fnzJ; k < j; ++k)
             sum += rj[k] * rj[k];
         const double d = M[j + j * n] - sum;
         if (!(d > tol)) return false;
         rj[j] = std::sqrt(d);
-        for (std::size_t i = j + 1; i < n; ++i)
+        for (keel::usize i = j + 1; i < n; ++i)
             rj[i] = 0.0;
     }
     return true;
 }
 
 // Compute C = R^-T * M * R^-1 (where R^T * R = B, so L = R^T) using contiguous column dot products.
-void formSymmetricReduced(const double *M, const double *R, std::size_t n,
-                          double *C, ScratchArena &scratch)
+void formSymmetricReduced(const double *M, const double *R, keel::usize n,
+                          double *C, const keel::ArenaTemp &scratch)
 {
-    ScratchVec<double> Y(n * n, &scratch);
+    keel::Array<double> Y(n * n, scratch.allocator());
     // Solve R^T * Y = M  (for each column col of M, y_i = (M(i,col) - sum_{k<i} R(k,i)*y_k) / R(i,i))
-    for (std::size_t col = 0; col < n; ++col) {
+    for (keel::usize col = 0; col < n; ++col) {
         double *ycol = Y.data() + col * n;
         const double *mcol = M + col * n;
-        for (std::size_t i = 0; i < n; ++i) {
+        for (keel::usize i = 0; i < n; ++i) {
             const double *ri = R + i * n;
             double s = mcol[i];
-            for (std::size_t k = 0; k < i; ++k)
+            for (keel::usize k = 0; k < i; ++k)
                 s -= ri[k] * ycol[k];
             ycol[i] = s / ri[i];
         }
     }
     // Transpose Y into C temporarily so rows of Y become contiguous columns: Yt(k, r) = Y(r, k)
-    ScratchVec<double> Yt(n * n, &scratch);
-    for (std::size_t col = 0; col < n; ++col) {
+    keel::Array<double> Yt(n * n, scratch.allocator());
+    for (keel::usize col = 0; col < n; ++col) {
         const double *ycol = Y.data() + col * n;
-        for (std::size_t row = 0; row < n; ++row)
+        for (keel::usize row = 0; row < n; ++row)
             Yt[col + row * n] = ycol[row];
     }
     // Solve R^T * c_r = Y(r, :)^T for i = 0..r (upper triangle of symmetric C only!)
-    for (std::size_t r = 0; r < n; ++r) {
+    for (keel::usize r = 0; r < n; ++r) {
         double *cr = C + r * n;
         const double *ytr = Yt.data() + r * n;
-        for (std::size_t i = 0; i <= r; ++i) {
+        for (keel::usize i = 0; i <= r; ++i) {
             const double *ri = R + i * n;
             double s = ytr[i];
-            for (std::size_t k = 0; k < i; ++k)
+            for (keel::usize k = 0; k < i; ++k)
                 s -= ri[k] * cr[k];
             cr[i] = s / ri[i];
         }
     }
     // Mirror upper triangle of C to lower triangle.
-    for (std::size_t r = 0; r < n; ++r) {
-        for (std::size_t i = 0; i < r; ++i)
+    for (keel::usize r = 0; r < n; ++r) {
+        for (keel::usize i = 0; i < r; ++i)
             C[r + i * n] = C[i + r * n];
     }
 }
 
 // Solve R * V = Q (i.e. L^T * V = Q) by back-substitution with contiguous column operations.
-void backsolveR(const double *R, const double *Q, std::size_t n, double *V)
+void backsolveR(const double *R, const double *Q, keel::usize n, double *V)
 {
     std::copy(Q, Q + n * n, V);
-    for (std::size_t col = 0; col < n; ++col) {
+    for (keel::usize col = 0; col < n; ++col) {
         double *vcol = V + col * n;
-        for (std::size_t ii = n; ii > 0; --ii) {
-            const std::size_t i = ii - 1;
+        for (keel::usize ii = n; ii > 0; --ii) {
+            const keel::usize i = ii - 1;
             const double *ri = R + i * n;
             const double vii = vcol[i] / ri[i];
             vcol[i] = vii;
             if (vii != 0.0) {
-                for (std::size_t k = 0; k < i; ++k)
+                for (keel::usize k = 0; k < i; ++k)
                     vcol[k] -= ri[k] * vii;
             }
         }
@@ -826,16 +830,16 @@ void backsolveR(const double *R, const double *Q, std::size_t n, double *V)
 } // anonymous namespace
 
 std::tuple<Value, Value>
-eig_generalized_VD(const Value &A, const Value &B, std::pmr::memory_resource *mr)
+eig_generalized_VD(const Value &A, const Value &B, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "eig");
     detail::requireDoubleInput(B, "eig", "B");
     if (A.dims().ndim() != 2 || B.dims().ndim() != 2)
         throw Error("eig: inputs must be 2D matrices", 0, 0, "eig", "", "numkit:eig:notMatrix");
-    const std::size_t n = static_cast<std::size_t>(A.dims().dim(0));
-    if (n != static_cast<std::size_t>(A.dims().dim(1)) ||
-        n != static_cast<std::size_t>(B.dims().dim(0)) ||
-        n != static_cast<std::size_t>(B.dims().dim(1)))
+    const keel::usize n = static_cast<keel::usize>(A.dims().dim(0));
+    if (n != static_cast<keel::usize>(A.dims().dim(1)) ||
+        n != static_cast<keel::usize>(B.dims().dim(0)) ||
+        n != static_cast<keel::usize>(B.dims().dim(1)))
         throw Error("eig: A and B must be square matrices of the same size",
                     0, 0, "eig", "", "numkit:eig:notSquare");
 
@@ -850,8 +854,8 @@ eig_generalized_VD(const Value &A, const Value &B, std::pmr::memory_resource *mr
 
     if (!Aw.isComplex() && !Bw.isComplex() &&
         isSymmetricApprox(Aw, 1e-8) && isSymmetricApprox(Bw, 1e-8)) {
-        ScratchArena scratch(mr);
-        ScratchVec<double> L(n * n, &scratch);
+        keel::ArenaTemp scratch = keel::get_scratch(mr);
+        keel::Array<double> L(n * n, scratch.allocator());
 
         // Case 1: B is symmetric positive definite -> standard Cholesky reduction
         // (R^-T A R^-1) Q = Q D, V = R^-1 Q (B-orthonormal: V' * B * V = I).
@@ -873,36 +877,36 @@ eig_generalized_VD(const Value &A, const Value &B, std::pmr::memory_resource *mr
             auto Cval = Value::matrix(n, n, ValueType::DOUBLE, mr);
             formSymmetricReduced(Bw.doubleData(), L.data(), n, Cval.doubleDataMut(), scratch);
             auto [Q, Dmu] = eig_symmetric(Cval, mr);
-            ScratchVec<double> Vraw(n * n, &scratch);
+            keel::Array<double> Vraw(n * n, scratch.allocator());
             backsolveR(L.data(), Q.doubleData(), n, Vraw.data());
 
             const double *dmu = Dmu.doubleData();
             double muMax = 0.0;
-            for (std::size_t j = 0; j < n; ++j)
+            for (keel::usize j = 0; j < n; ++j)
                 muMax = std::max(muMax, std::fabs(dmu[j + j * n]));
             const double muTol = 1e-11 * std::max(1.0, muMax);
 
-            ScratchVec<double> lam(n, &scratch);
-            ScratchVec<std::size_t> order(n, &scratch);
-            for (std::size_t j = 0; j < n; ++j) {
+            keel::Array<double> lam(n, scratch.allocator());
+            keel::Array<keel::usize> order(n, scratch.allocator());
+            for (keel::usize j = 0; j < n; ++j) {
                 order[j] = j;
                 const double mu = dmu[j + j * n];
                 lam[j] = (std::fabs(mu) > muTol) ? (1.0 / mu)
                                                  : std::numeric_limits<double>::infinity();
                 // Normalize column j so its largest-magnitude component is +1.0 (LAPACK/QZ convention).
-                std::size_t iMax = 0;
+                keel::usize iMax = 0;
                 double maxAbs = 0.0;
-                for (std::size_t i = 0; i < n; ++i) {
+                for (keel::usize i = 0; i < n; ++i) {
                     const double a = std::fabs(Vraw[i + j * n]);
                     if (a > maxAbs) { maxAbs = a; iMax = i; }
                 }
                 if (maxAbs > 0.0) {
                     const double scale = Vraw[iMax + j * n];
-                    for (std::size_t i = 0; i < n; ++i)
+                    for (keel::usize i = 0; i < n; ++i)
                         Vraw[i + j * n] /= scale;
                 }
             }
-            std::sort(order.begin(), order.end(), [&](std::size_t a, std::size_t b) {
+            std::sort(order.begin(), order.end(), [&](keel::usize a, keel::usize b) {
                 return lam[a] < lam[b];
             });
 
@@ -911,10 +915,10 @@ eig_generalized_VD(const Value &A, const Value &B, std::pmr::memory_resource *mr
             double *vd = V.doubleDataMut();
             double *dd = D.doubleDataMut();
             std::fill(dd, dd + n * n, 0.0);
-            for (std::size_t col = 0; col < n; ++col) {
-                const std::size_t src = order[col];
+            for (keel::usize col = 0; col < n; ++col) {
+                const keel::usize src = order[col];
                 dd[col + col * n] = lam[src];
-                for (std::size_t row = 0; row < n; ++row)
+                for (keel::usize row = 0; row < n; ++row)
                     vd[row + col * n] = Vraw[row + src * n];
             }
             return std::make_tuple(
@@ -930,18 +934,18 @@ eig_generalized_VD(const Value &A, const Value &B, std::pmr::memory_resource *mr
     auto [AA, BB, Q, Z] = qz(Aw, Bw, mr);
     (void)Q;
 
-    ScratchArena scratch(mr);
-    ScratchVec<Complex> AAc(n * n, &scratch);
-    ScratchVec<Complex> BBc(n * n, &scratch);
-    ScratchVec<Complex> Zc(n * n, &scratch);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<keel::c64> AAc(n * n, scratch.allocator());
+    keel::Array<keel::c64> BBc(n * n, scratch.allocator());
+    keel::Array<keel::c64> Zc(n * n, scratch.allocator());
 
-    auto copyToComplex = [&](const Value &src, ScratchVec<Complex> &dst) {
+    auto copyToComplex = [&](const Value &src, keel::Array<keel::c64> &dst) {
         if (src.isComplex()) {
             std::copy(src.complexData(), src.complexData() + n * n, dst.begin());
         } else {
             const double *sd = src.doubleData();
-            for (std::size_t i = 0; i < n * n; ++i)
-                dst[i] = Complex(sd[i], 0.0);
+            for (keel::usize i = 0; i < n * n; ++i)
+                dst[i] = keel::c64(sd[i], 0.0);
         }
     };
     copyToComplex(AA, AAc);
@@ -949,9 +953,9 @@ eig_generalized_VD(const Value &A, const Value &B, std::pmr::memory_resource *mr
     copyToComplex(Z, Zc);
 
     double aMax = 0.0, bMax = 0.0;
-    for (std::size_t i = 0; i < n * n; ++i) {
-        aMax = std::max(aMax, std::abs(AAc[i]));
-        bMax = std::max(bMax, std::abs(BBc[i]));
+    for (keel::usize i = 0; i < n * n; ++i) {
+        aMax = std::max(aMax, keel::abs(AAc[i]));
+        bMax = std::max(bMax, keel::abs(BBc[i]));
     }
     const double eps = std::numeric_limits<double>::epsilon();
     const double abScale = std::max(1.0, std::max(aMax, bMax));
@@ -961,63 +965,63 @@ eig_generalized_VD(const Value &A, const Value &B, std::pmr::memory_resource *mr
     const double bZeroTol = 64.0 * static_cast<double>(n) * eps * std::max(1.0, bMax);
     const double aZeroTol = 64.0 * static_cast<double>(n) * eps * std::max(1.0, aMax);
 
-    ScratchVec<Complex> Yc(n * n, Complex(0.0, 0.0), &scratch);
-    for (std::size_t k = 0; k < n; ++k) {
-        Complex alpha = AAc[k + k * n];
-        Complex beta = BBc[k + k * n];
-        const double pairScale = std::max(std::abs(alpha), std::abs(beta));
+    keel::Array<keel::c64> Yc(n * n, keel::c64(0.0, 0.0), scratch.allocator());
+    for (keel::usize k = 0; k < n; ++k) {
+        keel::c64 alpha = AAc[k + k * n];
+        keel::c64 beta = BBc[k + k * n];
+        const double pairScale = std::max(keel::abs(alpha), keel::abs(beta));
         if (pairScale > 0.0) {
             alpha /= pairScale;
             beta /= pairScale;
         }
-        Yc[k + k * n] = Complex(1.0, 0.0);
+        Yc[k + k * n] = keel::c64(1.0, 0.0);
         double maxY = 1.0;
         for (std::intptr_t i = static_cast<std::intptr_t>(k) - 1; i >= 0; --i) {
-            const std::size_t ui = static_cast<std::size_t>(i);
-            Complex sum(0.0, 0.0);
-            for (std::size_t j = ui + 1; j <= k; ++j) {
-                const Complex mij = beta * AAc[ui + j * n] - alpha * BBc[ui + j * n];
+            const keel::usize ui = static_cast<keel::usize>(i);
+            keel::c64 sum(0.0, 0.0);
+            for (keel::usize j = ui + 1; j <= k; ++j) {
+                const keel::c64 mij = beta * AAc[ui + j * n] - alpha * BBc[ui + j * n];
                 sum += mij * Yc[j + k * n];
             }
-            Complex denom = beta * AAc[ui + ui * n] - alpha * BBc[ui + ui * n];
-            if (std::abs(denom) <= backTol && std::abs(sum) <= backTol * maxY) {
-                Yc[ui + k * n] = Complex(0.0, 0.0);
+            keel::c64 denom = beta * AAc[ui + ui * n] - alpha * BBc[ui + ui * n];
+            if (keel::abs(denom) <= backTol && keel::abs(sum) <= backTol * maxY) {
+                Yc[ui + k * n] = keel::c64(0.0, 0.0);
             } else {
-                if (std::abs(denom) < smin) denom = Complex(smin, 0.0);
+                if (keel::abs(denom) < smin) denom = keel::c64(smin, 0.0);
                 Yc[ui + k * n] = -sum / denom;
-                maxY = std::max(maxY, std::abs(Yc[ui + k * n]));
+                maxY = std::max(maxY, keel::abs(Yc[ui + k * n]));
             }
         }
     }
 
     auto Vout = Value::complexMatrix(n, n, mr);
     auto Dout = Value::complexMatrix(n, n, mr);
-    Complex *Vd = Vout.complexDataMut();
-    Complex *Dd = Dout.complexDataMut();
-    std::fill(Dd, Dd + n * n, Complex(0.0, 0.0));
+    keel::c64 *Vd = Vout.complexDataMut();
+    keel::c64 *Dd = Dout.complexDataMut();
+    std::fill(Dd, Dd + n * n, keel::c64(0.0, 0.0));
 
-    for (std::size_t k = 0; k < n; ++k) {
-        const Complex alpha = AAc[k + k * n];
-        const Complex beta = BBc[k + k * n];
-        if (std::abs(beta) > bZeroTol) {
+    for (keel::usize k = 0; k < n; ++k) {
+        const keel::c64 alpha = AAc[k + k * n];
+        const keel::c64 beta = BBc[k + k * n];
+        if (keel::abs(beta) > bZeroTol) {
             Dd[k + k * n] = alpha / beta;
-        } else if (std::abs(alpha) > aZeroTol) {
-            Dd[k + k * n] = Complex(std::numeric_limits<double>::infinity(), 0.0);
+        } else if (keel::abs(alpha) > aZeroTol) {
+            Dd[k + k * n] = keel::c64(std::numeric_limits<double>::infinity(), 0.0);
         } else {
-            Dd[k + k * n] = Complex(std::numeric_limits<double>::quiet_NaN(), 0.0);
+            Dd[k + k * n] = keel::c64(std::numeric_limits<double>::quiet_NaN(), 0.0);
         }
 
         double normSq = 0.0;
-        for (std::size_t i = 0; i < n; ++i) {
-            Complex s(0.0, 0.0);
-            for (std::size_t j = 0; j <= k; ++j)
+        for (keel::usize i = 0; i < n; ++i) {
+            keel::c64 s(0.0, 0.0);
+            for (keel::usize j = 0; j <= k; ++j)
                 s += Zc[i + j * n] * Yc[j + k * n];
             Vd[i + k * n] = s;
             normSq += detail::abs_sq(s);
         }
         const double norm = std::sqrt(normSq);
         if (norm > 0.0) {
-            for (std::size_t i = 0; i < n; ++i)
+            for (keel::usize i = 0; i < n; ++i)
                 Vd[i + k * n] /= norm;
         }
     }
@@ -1025,37 +1029,37 @@ eig_generalized_VD(const Value &A, const Value &B, std::pmr::memory_resource *mr
     if (!Aw.isComplex() && !Bw.isComplex()) {
         const double imagTol = 64.0 * static_cast<double>(n) * eps * (1.0 + abScale);
         bool realSpectrum = true;
-        for (std::size_t k = 0; k < n; ++k) {
-            const Complex dkk = Dd[k + k * n];
+        for (keel::usize k = 0; k < n; ++k) {
+            const keel::c64 dkk = Dd[k + k * n];
             const bool isRealEig = !std::isfinite(dkk.real()) ||
-                                   (std::abs(dkk.imag()) <= imagTol * std::max(1.0, std::abs(dkk.real())));
+                                   (keel::abs(dkk.imag()) <= imagTol * std::max(1.0, keel::abs(dkk.real())));
             if (isRealEig) {
-                Dd[k + k * n] = Complex(dkk.real(), 0.0);
-                std::size_t iMax = 0;
+                Dd[k + k * n] = keel::c64(dkk.real(), 0.0);
+                keel::usize iMax = 0;
                 double maxAbs = 0.0;
-                for (std::size_t i = 0; i < n; ++i) {
-                    const double a = std::abs(Vd[i + k * n]);
+                for (keel::usize i = 0; i < n; ++i) {
+                    const double a = keel::abs(Vd[i + k * n]);
                     if (a > maxAbs) { maxAbs = a; iMax = i; }
                 }
                 if (maxAbs > 0.0) {
-                    const Complex phase = std::conj(Vd[iMax + k * n]) / maxAbs;
+                    const keel::c64 phase = keel::conj(Vd[iMax + k * n]) / maxAbs;
                     double colImax = 0.0;
-                    for (std::size_t i = 0; i < n; ++i) {
-                        const Complex rotated = Vd[i + k * n] * phase;
+                    for (keel::usize i = 0; i < n; ++i) {
+                        const keel::c64 rotated = Vd[i + k * n] * phase;
                         Vd[i + k * n] = rotated;
-                        colImax = std::max(colImax, std::abs(rotated.imag()));
+                        colImax = std::max(colImax, keel::abs(rotated.imag()));
                     }
                     if (colImax <= 1e3 * imagTol) {
                         double rNormSq = 0.0;
-                        for (std::size_t i = 0; i < n; ++i) {
+                        for (keel::usize i = 0; i < n; ++i) {
                             const double re = Vd[i + k * n].real();
-                            Vd[i + k * n] = Complex(re, 0.0);
+                            Vd[i + k * n] = keel::c64(re, 0.0);
                             rNormSq += re * re;
                         }
                         const double rNorm = std::sqrt(rNormSq);
                         if (rNorm > 0.0) {
-                            for (std::size_t i = 0; i < n; ++i)
-                                Vd[i + k * n] = Complex(Vd[i + k * n].real() / rNorm, 0.0);
+                            for (keel::usize i = 0; i < n; ++i)
+                                Vd[i + k * n] = keel::c64(Vd[i + k * n].real() / rNorm, 0.0);
                         }
                     }
                 }
@@ -1064,12 +1068,12 @@ eig_generalized_VD(const Value &A, const Value &B, std::pmr::memory_resource *mr
             }
         }
         double vImax = 0.0;
-        for (std::size_t i = 0; i < n * n; ++i)
-            vImax = std::max(vImax, std::abs(Vd[i].imag()));
+        for (keel::usize i = 0; i < n * n; ++i)
+            vImax = std::max(vImax, keel::abs(Vd[i].imag()));
         if (realSpectrum && vImax <= 1e3 * imagTol) {
             auto Vr = Value::matrix(n, n, ValueType::DOUBLE, mr);
             auto Dr = Value::matrix(n, n, ValueType::DOUBLE, mr);
-            for (std::size_t i = 0; i < n * n; ++i) {
+            for (keel::usize i = 0; i < n * n; ++i) {
                 Vr.doubleDataMut()[i] = Vd[i].real();
                 Dr.doubleDataMut()[i] = Dd[i].real();
             }
@@ -1084,37 +1088,37 @@ eig_generalized_VD(const Value &A, const Value &B, std::pmr::memory_resource *mr
         detail::narrowDoubleToSingleIf(detail::narrow_if_real(Dout, mr), wantSingle, mr));
 }
 
-Value eig_generalized_values(const Value &A, const Value &B, std::pmr::memory_resource *mr)
+Value eig_generalized_values(const Value &A, const Value &B, keel::Allocator *mr)
 {
     auto [V, D] = eig_generalized_VD(A, B, mr);
     (void)V;
-    const std::size_t n = static_cast<std::size_t>(D.dims().dim(0));
+    const keel::usize n = static_cast<keel::usize>(D.dims().dim(0));
     if (D.isComplex()) {
         auto out = Value::complexMatrix(n, 1, mr);
-        const Complex *dd = D.complexData();
-        Complex *od = out.complexDataMut();
-        for (std::size_t i = 0; i < n; ++i) od[i] = dd[i + i * n];
+        const keel::c64 *dd = D.complexData();
+        keel::c64 *od = out.complexDataMut();
+        for (keel::usize i = 0; i < n; ++i) od[i] = dd[i + i * n];
         return out;
     }
     const bool wantSingle = (D.type() == ValueType::SINGLE);
     auto out = Value::matrix(n, 1, ValueType::DOUBLE, mr);
-    for (std::size_t i = 0; i < n; ++i)
+    for (keel::usize i = 0; i < n; ++i)
         out.doubleDataMut()[i] = D.elemAsDouble(i + i * n);
     return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
 
-bool try_eigs_generalized_smallestabs(const Value &A, const Value &B, std::size_t k,
+bool try_eigs_generalized_smallestabs(const Value &A, const Value &B, keel::usize k,
                                       Value &Vout, Value &Dout,
-                                      std::pmr::memory_resource *mr)
+                                      keel::Allocator *mr)
 {
     if (A.isComplex() || B.isComplex() || A.dims().ndim() != 2 || B.dims().ndim() != 2)
         return false;
-    const std::size_t n = static_cast<std::size_t>(A.dims().dim(0));
+    const keel::usize n = static_cast<keel::usize>(A.dims().dim(0));
     if (n == 0 || k == 0 || k > n)
         return false;
-    if (n != static_cast<std::size_t>(A.dims().dim(1)) ||
-        n != static_cast<std::size_t>(B.dims().dim(0)) ||
-        n != static_cast<std::size_t>(B.dims().dim(1)))
+    if (n != static_cast<keel::usize>(A.dims().dim(1)) ||
+        n != static_cast<keel::usize>(B.dims().dim(0)) ||
+        n != static_cast<keel::usize>(B.dims().dim(1)))
         return false;
 
     const bool wantSingle = (A.type() == ValueType::SINGLE || B.type() == ValueType::SINGLE);
@@ -1127,29 +1131,29 @@ bool try_eigs_generalized_smallestabs(const Value &A, const Value &B, std::size_
     const double *bd = Bw.doubleData();
 
     // Compute skyline envelope of A so upper Cholesky R_A and triangular solves exploit banded structure.
-    std::vector<std::size_t> aFirstNz(n, 0);
-    for (std::size_t j = 0; j < n; ++j) {
+    std::vector<keel::usize> aFirstNz(n, 0);
+    for (keel::usize j = 0; j < n; ++j) {
         const double *aj = ad + j * n;
-        std::size_t fnz = j;
-        for (std::size_t i = 0; i < j; ++i) {
+        keel::usize fnz = j;
+        for (keel::usize i = 0; i < j; ++i) {
             if (aj[i] != 0.0) { fnz = i; break; }
         }
         aFirstNz[j] = fnz;
     }
 
-    ScratchArena scratch(mr);
-    ScratchVec<double> RA(n * n, &scratch);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<double> RA(n * n, scratch.allocator());
     if (!tryCholeskyUpper(ad, n, RA.data()))
         return false;
 
     // Precompute column non-zero spans of B for fast B * z.
-    std::vector<std::size_t> bFirst(n, 0), bLast(n, 0);
+    std::vector<keel::usize> bFirst(n, 0), bLast(n, 0);
     bool bDiagAllPos = true;
-    for (std::size_t j = 0; j < n; ++j) {
+    for (keel::usize j = 0; j < n; ++j) {
         const double *bj = bd + j * n;
         if (!(bj[j] > 0.0)) bDiagAllPos = false;
-        std::size_t fnz = n, lnz = 0;
-        for (std::size_t i = 0; i < n; ++i) {
+        keel::usize fnz = n, lnz = 0;
+        for (keel::usize i = 0; i < n; ++i) {
             if (bj[i] != 0.0) {
                 if (fnz == n) fnz = i;
                 lnz = i + 1;
@@ -1161,37 +1165,37 @@ bool try_eigs_generalized_smallestabs(const Value &A, const Value &B, std::size_
 
     const double *R = RA.data();
     auto solveRT = [&](const double *rhs, double *y) {
-        for (std::size_t i = 0; i < n; ++i) {
+        for (keel::usize i = 0; i < n; ++i) {
             const double *ri = R + i * n;
             double s = rhs[i];
-            const std::size_t kStart = aFirstNz[i];
-            for (std::size_t k = kStart; k < i; ++k)
+            const keel::usize kStart = aFirstNz[i];
+            for (keel::usize k = kStart; k < i; ++k)
                 s -= ri[k] * y[k];
             y[i] = s / ri[i];
         }
     };
     auto solveR = [&](const double *rhs, double *x) {
         std::copy(rhs, rhs + n, x);
-        for (std::size_t ii = n; ii > 0; --ii) {
-            const std::size_t i = ii - 1;
+        for (keel::usize ii = n; ii > 0; --ii) {
+            const keel::usize i = ii - 1;
             const double *ri = R + i * n;
             const double xi = x[i] / ri[i];
             x[i] = xi;
             if (xi != 0.0) {
-                const std::size_t kStart = aFirstNz[i];
-                for (std::size_t k = kStart; k < i; ++k)
+                const keel::usize kStart = aFirstNz[i];
+                for (keel::usize k = kStart; k < i; ++k)
                     x[k] -= ri[k] * xi;
             }
         }
     };
     auto matvecB = [&](const double *z, double *u) {
         std::fill(u, u + n, 0.0);
-        for (std::size_t j = 0; j < n; ++j) {
+        for (keel::usize j = 0; j < n; ++j) {
             const double zj = z[j];
             if (zj == 0.0) continue;
-            const std::size_t f = bFirst[j], l = bLast[j];
+            const keel::usize f = bFirst[j], l = bLast[j];
             const double *bj = bd + j * n;
-            for (std::size_t i = f; i < l; ++i)
+            for (keel::usize i = f; i < l; ++i)
                 u[i] += bj[i] * zj;
         }
     };
@@ -1199,32 +1203,32 @@ bool try_eigs_generalized_smallestabs(const Value &A, const Value &B, std::size_
     // Lanczos iteration on symmetric operator H = R_A^-T * B * R_A^-1.
     // Eigenvalues mu of H satisfy A v = (1/mu) B v with v = R_A^-1 q,
     // so largest |mu| of H correspond to smallest |lambda| = 1/|mu| of (A, B).
-    const std::size_t m = std::min(n, std::max(3 * k + 24, static_cast<std::size_t>(64)));
-    ScratchVec<double> Q(n * m, &scratch);
-    ScratchVec<double> alpha(m, &scratch);
-    ScratchVec<double> beta(m, &scratch);
-    ScratchVec<double> zBuf(n, &scratch);
-    ScratchVec<double> uBuf(n, &scratch);
-    ScratchVec<double> wBuf(n, &scratch);
+    const keel::usize m = std::min(n, std::max(3 * k + 24, static_cast<keel::usize>(64)));
+    keel::Array<double> Q(n * m, scratch.allocator());
+    keel::Array<double> alpha(m, scratch.allocator());
+    keel::Array<double> beta(m, scratch.allocator());
+    keel::Array<double> zBuf(n, scratch.allocator());
+    keel::Array<double> uBuf(n, scratch.allocator());
+    keel::Array<double> wBuf(n, scratch.allocator());
 
     // Deterministic starting vector with pseudo-random components to avoid symmetry orthogonality traps.
     double *q0 = Q.data();
-    std::uint64_t seed = 0x9E3779B97F4A7C15ULL;
+    keel::u64 seed = 0x9E3779B97F4A7C15ULL;
     double norm0 = 0.0;
-    for (std::size_t i = 0; i < n; ++i) {
+    for (keel::usize i = 0; i < n; ++i) {
         seed ^= seed >> 12;
         seed ^= seed << 25;
         seed ^= seed >> 27;
-        const double val = static_cast<double>( static_cast<std::int64_t>(seed * 0x2545F4914F6CDD1DULL) )
+        const double val = static_cast<double>( static_cast<keel::i64>(seed * 0x2545F4914F6CDD1DULL) )
                            * (1.0 / 9223372036854775808.0);
         q0[i] = val;
         norm0 += val * val;
     }
     norm0 = std::sqrt(norm0);
-    for (std::size_t i = 0; i < n; ++i) q0[i] /= norm0;
+    for (keel::usize i = 0; i < n; ++i) q0[i] /= norm0;
 
-    std::size_t mActual = 0;
-    for (std::size_t j = 0; j < m; ++j) {
+    keel::usize mActual = 0;
+    for (keel::usize j = 0; j < m; ++j) {
         const double *qj = Q.data() + j * n;
         // w = H * qj = R_A^-T * (B * (R_A^-1 * qj))
         solveR(qj, zBuf.data());
@@ -1232,21 +1236,21 @@ bool try_eigs_generalized_smallestabs(const Value &A, const Value &B, std::size_
         solveRT(uBuf.data(), wBuf.data());
 
         double aj = 0.0;
-        for (std::size_t i = 0; i < n; ++i) aj += qj[i] * wBuf[i];
+        for (keel::usize i = 0; i < n; ++i) aj += qj[i] * wBuf[i];
         alpha[j] = aj;
 
         // Two-pass DGKS full reorthogonalization against Q(:, 0..j)
         for (int pass = 0; pass < 2; ++pass) {
-            for (std::size_t r = 0; r <= j; ++r) {
+            for (keel::usize r = 0; r <= j; ++r) {
                 const double *qr = Q.data() + r * n;
                 double dot = 0.0;
-                for (std::size_t i = 0; i < n; ++i) dot += qr[i] * wBuf[i];
-                for (std::size_t i = 0; i < n; ++i) wBuf[i] -= dot * qr[i];
+                for (keel::usize i = 0; i < n; ++i) dot += qr[i] * wBuf[i];
+                for (keel::usize i = 0; i < n; ++i) wBuf[i] -= dot * qr[i];
             }
         }
 
         double bnorm = 0.0;
-        for (std::size_t i = 0; i < n; ++i) bnorm += wBuf[i] * wBuf[i];
+        for (keel::usize i = 0; i < n; ++i) bnorm += wBuf[i] * wBuf[i];
         bnorm = std::sqrt(bnorm);
         beta[j] = bnorm;
         mActual = j + 1;
@@ -1255,23 +1259,23 @@ bool try_eigs_generalized_smallestabs(const Value &A, const Value &B, std::size_
             double *qNext = Q.data() + (j + 1) * n;
             if (bnorm > 1e-14) {
                 const double invB = 1.0 / bnorm;
-                for (std::size_t i = 0; i < n; ++i) qNext[i] = wBuf[i] * invB;
+                for (keel::usize i = 0; i < n; ++i) qNext[i] = wBuf[i] * invB;
             } else {
                 // Invariant subspace reached; generate a new orthogonal direction.
-                for (std::size_t i = 0; i < n; ++i) qNext[i] = ((i + j) % 2 == 0) ? 1.0 : -1.0;
+                for (keel::usize i = 0; i < n; ++i) qNext[i] = ((i + j) % 2 == 0) ? 1.0 : -1.0;
                 for (int pass = 0; pass < 2; ++pass) {
-                    for (std::size_t r = 0; r <= j; ++r) {
+                    for (keel::usize r = 0; r <= j; ++r) {
                         const double *qr = Q.data() + r * n;
                         double dot = 0.0;
-                        for (std::size_t i = 0; i < n; ++i) dot += qr[i] * qNext[i];
-                        for (std::size_t i = 0; i < n; ++i) qNext[i] -= dot * qr[i];
+                        for (keel::usize i = 0; i < n; ++i) dot += qr[i] * qNext[i];
+                        for (keel::usize i = 0; i < n; ++i) qNext[i] -= dot * qr[i];
                     }
                 }
                 double nrm = 0.0;
-                for (std::size_t i = 0; i < n; ++i) nrm += qNext[i] * qNext[i];
+                for (keel::usize i = 0; i < n; ++i) nrm += qNext[i] * qNext[i];
                 nrm = std::sqrt(nrm);
                 if (nrm <= 1e-14) break;
-                for (std::size_t i = 0; i < n; ++i) qNext[i] /= nrm;
+                for (keel::usize i = 0; i < n; ++i) qNext[i] /= nrm;
             }
         }
     }
@@ -1279,37 +1283,37 @@ bool try_eigs_generalized_smallestabs(const Value &A, const Value &B, std::size_
     if (mActual < k) return false;
 
     // Solve the mActual x mActual symmetric tridiagonal eigenproblem T * S = S * diag(mu).
-    ScratchVec<double> S(mActual * mActual, &scratch);
+    keel::Array<double> S(mActual * mActual, scratch.allocator());
     std::fill(S.data(), S.data() + mActual * mActual, 0.0);
-    for (std::size_t i = 0; i < mActual; ++i) {
+    for (keel::usize i = 0; i < mActual; ++i) {
         S[i + i * mActual] = alpha[i];
         if (i + 1 < mActual) {
             S[(i + 1) + i * mActual] = beta[i];
             S[i + (i + 1) * mActual] = beta[i];
         }
     }
-    ScratchVec<double> dTrid(mActual, &scratch);
+    keel::Array<double> dTrid(mActual, scratch.allocator());
     symTridiagQL(S.data(), mActual, dTrid.data(), scratch);
 
     // Pick the k Ritz pairs with largest |mu| (which map to smallest |lambda| = 1/|mu|).
     double muMax = 0.0;
-    for (std::size_t i = 0; i < mActual; ++i)
+    for (keel::usize i = 0; i < mActual; ++i)
         muMax = std::max(muMax, std::fabs(dTrid[i]));
     const double muTol = 1e-12 * std::max(1.0, muMax);
 
-    std::vector<std::size_t> idx(mActual);
-    for (std::size_t i = 0; i < mActual; ++i) idx[i] = i;
-    std::sort(idx.begin(), idx.end(), [&](std::size_t a, std::size_t b) {
+    std::vector<keel::usize> idx(mActual);
+    for (keel::usize i = 0; i < mActual; ++i) idx[i] = i;
+    std::sort(idx.begin(), idx.end(), [&](keel::usize a, keel::usize b) {
         return std::fabs(dTrid[a]) > std::fabs(dTrid[b]);
     });
     idx.resize(k);
 
     // Sort selected k eigenvalues in ascending algebraic order of lambda = 1/mu (matching MATLAB eigs).
-    auto lambdaOf = [&](std::size_t r) {
+    auto lambdaOf = [&](keel::usize r) {
         const double mu = dTrid[r];
         return (std::fabs(mu) > muTol) ? (1.0 / mu) : std::numeric_limits<double>::infinity();
     };
-    std::sort(idx.begin(), idx.end(), [&](std::size_t a, std::size_t b) {
+    std::sort(idx.begin(), idx.end(), [&](keel::usize a, keel::usize b) {
         return lambdaOf(a) < lambdaOf(b);
     });
 
@@ -1319,18 +1323,18 @@ bool try_eigs_generalized_smallestabs(const Value &A, const Value &B, std::size_
     double *dd = D.doubleDataMut();
     std::fill(dd, dd + k * k, 0.0);
 
-    for (std::size_t col = 0; col < k; ++col) {
-        const std::size_t r = idx[col];
+    for (keel::usize col = 0; col < k; ++col) {
+        const keel::usize r = idx[col];
         const double mu = dTrid[r];
         dd[col + col * k] = lambdaOf(r);
 
         // Compute y = Q(:, 0..mActual-1) * S(:, r)
         const double *sr = S.data() + r * mActual;
         std::fill(zBuf.data(), zBuf.data() + n, 0.0);
-        for (std::size_t j = 0; j < mActual; ++j) {
+        for (keel::usize j = 0; j < mActual; ++j) {
             const double sj = sr[j];
             const double *qj = Q.data() + j * n;
-            for (std::size_t i = 0; i < n; ++i)
+            for (keel::usize i = 0; i < n; ++i)
                 zBuf[i] += qj[i] * sj;
         }
         // Solve R_A * v_col = y
@@ -1343,22 +1347,22 @@ bool try_eigs_generalized_smallestabs(const Value &A, const Value &B, std::size_
         if (bDiagAllPos && mu > muTol) {
             matvecB(vcol, uBuf.data());
             double bNormSq = 0.0;
-            for (std::size_t i = 0; i < n; ++i) bNormSq += vcol[i] * uBuf[i];
+            for (keel::usize i = 0; i < n; ++i) bNormSq += vcol[i] * uBuf[i];
             if (bNormSq > 0.0) {
                 const double invNorm = 1.0 / std::sqrt(bNormSq);
-                for (std::size_t i = 0; i < n; ++i) vcol[i] *= invNorm;
+                for (keel::usize i = 0; i < n; ++i) vcol[i] *= invNorm;
             }
         } else {
             // Indefinite/singular B (e.g. buckling): normalize so largest-magnitude entry is +1.0.
-            std::size_t iMax = 0;
+            keel::usize iMax = 0;
             double maxAbs = 0.0;
-            for (std::size_t i = 0; i < n; ++i) {
+            for (keel::usize i = 0; i < n; ++i) {
                 const double a = std::fabs(vcol[i]);
                 if (a > maxAbs) { maxAbs = a; iMax = i; }
             }
             if (maxAbs > 0.0) {
                 const double scale = vcol[iMax];
-                for (std::size_t i = 0; i < n; ++i) vcol[i] /= scale;
+                for (keel::usize i = 0; i < n; ++i) vcol[i] /= scale;
             }
         }
     }
@@ -1376,20 +1380,20 @@ namespace {
 
 // In-place Hessenberg reduction via Householder reflectors.
 template <typename T>
-void hessReduceInplace(T *A, std::size_t n, T *P,
-                       std::pmr::memory_resource *mr)
+void hessReduceInplace(T *A, keel::usize n, T *P,
+                       keel::Allocator *mr)
 {
     std::fill(P, P + n * n, T(0));
-    for (std::size_t i = 0; i < n; ++i) P[i + i * n] = T(1);
+    for (keel::usize i = 0; i < n; ++i) P[i + i * n] = T(1);
     if (n < 3) return;
 
-    ScratchArena scratch(mr);
-    ScratchVec<T> v_storage(n, &scratch);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<T> v_storage(n, scratch.allocator());
     T *v = v_storage.data();
 
-    for (std::size_t k = 0; k + 2 < n; ++k) {
+    for (keel::usize k = 0; k + 2 < n; ++k) {
         double norm_sq = 0.0;
-        for (std::size_t i = k + 1; i < n; ++i)
+        for (keel::usize i = k + 1; i < n; ++i)
             norm_sq += detail::abs_sq(A[i + k * n]);
         if (norm_sq == 0.0) continue;
         const T xk = A[k + 1 + k * n];
@@ -1397,7 +1401,7 @@ void hessReduceInplace(T *A, std::size_t n, T *P,
 
         T alpha;
         if constexpr (detail::is_complex_v<T>) {
-            const double abs_xk = std::abs(xk);
+            const double abs_xk = keel::abs(xk);
             const T phase = (abs_xk > 0.0) ? (xk / abs_xk) : T(1.0, 0.0);
             alpha = -phase * norm;
         } else {
@@ -1405,62 +1409,62 @@ void hessReduceInplace(T *A, std::size_t n, T *P,
         }
 
         v[k + 1] = xk - alpha;
-        for (std::size_t i = k + 2; i < n; ++i) v[i] = A[i + k * n];
+        for (keel::usize i = k + 2; i < n; ++i) v[i] = A[i + k * n];
         double v_norm_sq = 0.0;
-        for (std::size_t i = k + 1; i < n; ++i) v_norm_sq += detail::abs_sq(v[i]);
+        for (keel::usize i = k + 1; i < n; ++i) v_norm_sq += detail::abs_sq(v[i]);
         if (v_norm_sq == 0.0) continue;
         const T tau = T(2.0 / v_norm_sq);
 
-        for (std::size_t j = k; j < n; ++j) {
+        for (keel::usize j = k; j < n; ++j) {
             T dot = T(0);
-            for (std::size_t i = k + 1; i < n; ++i) {
+            for (keel::usize i = k + 1; i < n; ++i) {
                 if constexpr (detail::is_complex_v<T>) {
-                    dot += std::conj(v[i]) * A[i + j * n];
+                    dot += keel::conj(v[i]) * A[i + j * n];
                 } else {
                     dot += v[i] * A[i + j * n];
                 }
             }
             const T s = tau * dot;
-            for (std::size_t i = k + 1; i < n; ++i)
+            for (keel::usize i = k + 1; i < n; ++i)
                 A[i + j * n] -= s * v[i];
         }
-        for (std::size_t i = 0; i < n; ++i) {
+        for (keel::usize i = 0; i < n; ++i) {
             T dot = T(0);
-            for (std::size_t j = k + 1; j < n; ++j)
+            for (keel::usize j = k + 1; j < n; ++j)
                 dot += A[i + j * n] * v[j];
             const T s = tau * dot;
-            for (std::size_t j = k + 1; j < n; ++j) {
+            for (keel::usize j = k + 1; j < n; ++j) {
                 if constexpr (detail::is_complex_v<T>) {
-                    A[i + j * n] -= s * std::conj(v[j]);
+                    A[i + j * n] -= s * keel::conj(v[j]);
                 } else {
                     A[i + j * n] -= s * v[j];
                 }
             }
         }
-        for (std::size_t i = 0; i < n; ++i) {
+        for (keel::usize i = 0; i < n; ++i) {
             T dot = T(0);
-            for (std::size_t j = k + 1; j < n; ++j)
+            for (keel::usize j = k + 1; j < n; ++j)
                 dot += P[i + j * n] * v[j];
             const T s = tau * dot;
-            for (std::size_t j = k + 1; j < n; ++j) {
+            for (keel::usize j = k + 1; j < n; ++j) {
                 if constexpr (detail::is_complex_v<T>) {
-                    P[i + j * n] -= s * std::conj(v[j]);
+                    P[i + j * n] -= s * keel::conj(v[j]);
                 } else {
                     P[i + j * n] -= s * v[j];
                 }
             }
         }
         A[k + 1 + k * n] = alpha;
-        for (std::size_t i = k + 2; i < n; ++i)
+        for (keel::usize i = k + 2; i < n; ++i)
             A[i + k * n] = T(0);
     }
 }
 
-void complexSchurQR(Complex *H, Complex *Z, std::size_t n)
+void complexSchurQR(keel::c64 *H, keel::c64 *Z, keel::usize n)
 {
     if (n < 2) return;
-    auto h = [&](std::size_t i, std::size_t j) -> Complex & { return H[i + j * n]; };
-    auto z = [&](std::size_t i, std::size_t j) -> Complex & { return Z[i + j * n]; };
+    auto h = [&](keel::usize i, keel::usize j) -> keel::c64 & { return H[i + j * n]; };
+    auto z = [&](keel::usize i, keel::usize j) -> keel::c64 & { return Z[i + j * n]; };
 
     const double eps = std::numeric_limits<double>::epsilon();
     const int N = static_cast<int>(n);
@@ -1471,10 +1475,10 @@ void complexSchurQR(Complex *H, Complex *Z, std::size_t n)
     while (p > 0) {
         int l = p;
         while (l > 0) {
-            double s = std::abs(h(l - 1, l - 1)) + std::abs(h(l, l));
+            double s = keel::abs(h(l - 1, l - 1)) + keel::abs(h(l, l));
             if (s == 0.0) s = 1.0;
-            if (std::abs(h(l, l - 1)) <= eps * s) {
-                h(l, l - 1) = Complex(0.0, 0.0);
+            if (keel::abs(h(l, l - 1)) <= eps * s) {
+                h(l, l - 1) = keel::c64(0.0, 0.0);
                 break;
             }
             --l;
@@ -1485,58 +1489,58 @@ void complexSchurQR(Complex *H, Complex *Z, std::size_t n)
                         0, 0, "eig", "", "numkit:eig:qrNoConverge");
 
         // Wilkinson shift from trailing 2x2 block: H[p-1..p, p-1..p]
-        Complex a = h(p - 1, p - 1);
-        Complex b = h(p - 1, p);
-        Complex c_blk = h(p, p - 1);
-        Complex d = h(p, p);
+        keel::c64 a = h(p - 1, p - 1);
+        keel::c64 b = h(p - 1, p);
+        keel::c64 c_blk = h(p, p - 1);
+        keel::c64 d = h(p, p);
 
-        Complex tr = a + d;
-        Complex det = a * d - b * c_blk;
-        Complex disc = std::sqrt(tr * tr - 4.0 * det);
+        keel::c64 tr = a + d;
+        keel::c64 det = a * d - b * c_blk;
+        keel::c64 disc = keel::sqrt(tr * tr - 4.0 * det);
 
-        Complex mu1 = 0.5 * (tr + disc);
-        Complex mu2 = 0.5 * (tr - disc);
+        keel::c64 mu1 = 0.5 * (tr + disc);
+        keel::c64 mu2 = 0.5 * (tr - disc);
 
-        Complex shift = (std::abs(mu1 - d) < std::abs(mu2 - d)) ? mu1 : mu2;
+        keel::c64 shift = (keel::abs(mu1 - d) < keel::abs(mu2 - d)) ? mu1 : mu2;
 
         if (iter % 30 == 0) {
-            shift += Complex(std::abs(c_blk), std::abs(h(p - 1, std::max(0, p - 2))));
+            shift += keel::c64(keel::abs(c_blk), keel::abs(h(p - 1, std::max(0, p - 2))));
         }
 
         for (int k = l; k < p; ++k) {
-            Complex f = (k == l) ? (h(k, k) - shift) : h(k, k - 1);
+            keel::c64 f = (k == l) ? (h(k, k) - shift) : h(k, k - 1);
             // k > l chases the BULGE created by the previous right rotation:
             // it sits at h(k+1, k-1), NOT at h(k+1, k). Reading the wrong
             // column built a Givens that never annihilated the bulge â€” the
             // iteration budget ran out and the forced triangularisation
             // emitted garbage eigenvalues (bugs: linalg/eig-vector-selection-ahp).
-            Complex g = (k == l) ? h(k + 1, k) : h(k + 1, k - 1);
+            keel::c64 g = (k == l) ? h(k + 1, k) : h(k + 1, k - 1);
 
             double norm = std::sqrt(detail::abs_sq(f) + detail::abs_sq(g));
             if (norm == 0.0) continue;
 
-            double c = std::abs(f) / norm;
-            Complex phase = (std::abs(f) > 0.0) ? (f / std::abs(f)) : Complex(1.0, 0.0);
-            Complex s = phase * std::conj(g) / norm;
+            double c = keel::abs(f) / norm;
+            keel::c64 phase = (keel::abs(f) > 0.0) ? (f / keel::abs(f)) : keel::c64(1.0, 0.0);
+            keel::c64 s = phase * keel::conj(g) / norm;
 
             int col0 = (k > 0) ? (k - 1) : 0;
             for (int j = col0; j < N; ++j) {
-                Complex hk = h(k, j);
-                Complex hk1 = h(k + 1, j);
+                keel::c64 hk = h(k, j);
+                keel::c64 hk1 = h(k + 1, j);
                 h(k, j)     = c * hk + s * hk1;
-                h(k + 1, j) = -std::conj(s) * hk + c * hk1;
+                h(k + 1, j) = -keel::conj(s) * hk + c * hk1;
             }
             int row1 = std::min(k + 2, N - 1);
             for (int i = 0; i <= row1; ++i) {
-                Complex hk = h(i, k);
-                Complex hk1 = h(i, k + 1);
-                h(i, k)     = c * hk + std::conj(s) * hk1;
+                keel::c64 hk = h(i, k);
+                keel::c64 hk1 = h(i, k + 1);
+                h(i, k)     = c * hk + keel::conj(s) * hk1;
                 h(i, k + 1) = -s * hk + c * hk1;
             }
             for (int i = 0; i < N; ++i) {
-                Complex zk = z(i, k);
-                Complex zk1 = z(i, k + 1);
-                z(i, k)     = c * zk + std::conj(s) * zk1;
+                keel::c64 zk = z(i, k);
+                keel::c64 zk1 = z(i, k + 1);
+                z(i, k)     = c * zk + keel::conj(s) * zk1;
                 z(i, k + 1) = -s * zk + c * zk1;
             }
         }
@@ -1544,20 +1548,20 @@ void complexSchurQR(Complex *H, Complex *Z, std::size_t n)
 
     for (int j = 0; j + 1 < N; ++j)
         for (int i = j + 1; i < N; ++i)
-            h(static_cast<std::size_t>(i), static_cast<std::size_t>(j)) = Complex(0.0, 0.0);
+            h(static_cast<keel::usize>(i), static_cast<keel::usize>(j)) = keel::c64(0.0, 0.0);
 }
 
 } // anonymous namespace
 
 std::tuple<Value, Value>
-hess(const Value &A, std::pmr::memory_resource *mr)
+hess(const Value &A, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "hess");
     if (A.dims().ndim() != 2)
         throw Error("hess: input must be a 2D matrix",
                     0, 0, "hess", "", "numkit:hess:notMatrix");
-    const std::size_t m = static_cast<std::size_t>(A.dims().dim(0));
-    const std::size_t n = static_cast<std::size_t>(A.dims().dim(1));
+    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
+    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
     if (m != n)
         throw Error("hess: matrix must be square",
                     0, 0, "hess", "", "numkit:hess:notSquare");
@@ -1585,7 +1589,7 @@ hess(const Value &A, std::pmr::memory_resource *mr)
         detail::narrowDoubleToSingleIf(Hout, wantSingle, mr));
 }
 
-Value hess_H_only(const Value &A, std::pmr::memory_resource *mr)
+Value hess_H_only(const Value &A, keel::Allocator *mr)
 {
     auto [P, H] = hess(A, mr);
     return H;
@@ -1596,7 +1600,7 @@ Value hess_H_only(const Value &A, std::pmr::memory_resource *mr)
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 std::tuple<Value, Value>
-schur_sym(const Value &A, std::pmr::memory_resource *mr)
+schur_sym(const Value &A, keel::Allocator *mr)
 {
     // For symmetric A, Schur decomposition is the same as eig. The schur
     // gate voices this entry (not eig) for non-float inputs and shape
@@ -1605,8 +1609,8 @@ schur_sym(const Value &A, std::pmr::memory_resource *mr)
     if (A.dims().ndim() != 2)
         throw Error("schur: input must be a 2D matrix",
                     0, 0, "schur", "", "numkit:schur:notMatrix");
-    const std::size_t n = static_cast<std::size_t>(A.dims().dim(0));
-    if (n != static_cast<std::size_t>(A.dims().dim(1)))
+    const keel::usize n = static_cast<keel::usize>(A.dims().dim(0));
+    if (n != static_cast<keel::usize>(A.dims().dim(1)))
         throw Error("schur: matrix must be square",
                     0, 0, "schur", "", "numkit:schur:notSquare");
     return eig_symmetric(A, mr);
@@ -1619,19 +1623,19 @@ namespace {
 // On exit H is the real (quasi-upper-triangular) Schur form T â€” 1Ã—1 blocks for
 // real eigenvalues, 2Ã—2 blocks for complex-conjugate pairs â€” and A == ZÂ·TÂ·Záµ€.
 // Classical bulge-chasing implicit double-shift QR (Golub & Van Loan Â§7.5).
-void francisSchur(double *H, double *Z, std::size_t n)
+void francisSchur(double *H, double *Z, keel::usize n)
 {
     if (n < 3) return;   // <=2x2 is already (quasi-)triangular
-    auto h = [&](std::size_t i, std::size_t j) -> double & { return H[i + j * n]; };
-    auto z = [&](std::size_t i, std::size_t j) -> double & { return Z[i + j * n]; };
+    auto h = [&](keel::usize i, keel::usize j) -> double & { return H[i + j * n]; };
+    auto z = [&](keel::usize i, keel::usize j) -> double & { return Z[i + j * n]; };
     const double eps = std::numeric_limits<double>::epsilon();
     const int    N   = static_cast<int>(n);
 
     double hnorm = 0.0;
-    for (std::size_t j = 0; j < n; ++j) {
+    for (keel::usize j = 0; j < n; ++j) {
         double colSum = 0.0;
-        const std::size_t iEnd = std::min(n, j + 2);
-        for (std::size_t i = 0; i < iEnd; ++i)
+        const keel::usize iEnd = std::min(n, j + 2);
+        for (keel::usize i = 0; i < iEnd; ++i)
             colSum += std::fabs(h(i, j));
         if (colSum > hnorm) hnorm = colSum;
     }
@@ -1718,7 +1722,7 @@ void francisSchur(double *H, double *Z, std::size_t n)
     // Zero the numerical dust strictly below the quasi-triangular structure.
     for (int j = 0; j + 2 < N; ++j)
         for (int i = j + 2; i < N; ++i)
-            h(static_cast<std::size_t>(i), static_cast<std::size_t>(j)) = 0.0;
+            h(static_cast<keel::usize>(i), static_cast<keel::usize>(j)) = 0.0;
 }
 
 // Standardize every 2Ã—2 diagonal block of the (quasi-triangular) Schur form:
@@ -1726,11 +1730,11 @@ void francisSchur(double *H, double *Z, std::size_t n)
 // similarity (accumulated into Z); a complex-conjugate pair is left as a valid
 // 2Ã—2 block. LAPACK dlanv2 logic. Also covers the n==2 input that francisSchur
 // skips. H/Z column-major, nÃ—n.
-void standardizeSchur2x2(double *H, double *Z, std::size_t n)
+void standardizeSchur2x2(double *H, double *Z, keel::usize n)
 {
     if (n < 2) return;
-    auto h = [&](std::size_t i, std::size_t j) -> double & { return H[i + j * n]; };
-    auto z = [&](std::size_t i, std::size_t j) -> double & { return Z[i + j * n]; };
+    auto h = [&](keel::usize i, keel::usize j) -> double & { return H[i + j * n]; };
+    auto z = [&](keel::usize i, keel::usize j) -> double & { return Z[i + j * n]; };
     const int N = static_cast<int>(n);
 
     for (int k = 0; k + 1 < N; ++k) {
@@ -1785,14 +1789,14 @@ void standardizeSchur2x2(double *H, double *Z, std::size_t n)
 
 // General (nonsymmetric) real/complex Schur: A = UÂ·TÂ·Uáµ€, U unitary, T upper-triangular.
 std::tuple<Value, Value>
-schur_general(const Value &A, std::pmr::memory_resource *mr)
+schur_general(const Value &A, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "schur");
     if (A.dims().ndim() != 2)
         throw Error("schur: input must be a 2D matrix",
                     0, 0, "schur", "", "numkit:schur:notMatrix");
-    const std::size_t n = static_cast<std::size_t>(A.dims().dim(0));
-    if (n != static_cast<std::size_t>(A.dims().dim(1)))
+    const keel::usize n = static_cast<keel::usize>(A.dims().dim(0));
+    if (n != static_cast<keel::usize>(A.dims().dim(1)))
         throw Error("schur: matrix must be square",
                     0, 0, "schur", "", "numkit:schur:notSquare");
     if (A.isComplex()) {
@@ -1824,13 +1828,13 @@ schur_general(const Value &A, std::pmr::memory_resource *mr)
 }
 
 Value sylvester_sym(const Value &A, const Value &B, const Value &C,
-                    std::pmr::memory_resource *mr)
+                    keel::Allocator *mr)
 {
     if (A.dims().ndim() != 2 || B.dims().ndim() != 2 || C.dims().ndim() != 2)
         throw Error("sylvester: A, B, C must be 2D matrices",
                     0, 0, "sylvester", "", "numkit:sylvester:notMatrix");
-    const std::size_t n = static_cast<std::size_t>(A.dims().dim(0));
-    const std::size_t m = static_cast<std::size_t>(B.dims().dim(0));
+    const keel::usize n = static_cast<keel::usize>(A.dims().dim(0));
+    const keel::usize m = static_cast<keel::usize>(B.dims().dim(0));
     if (A.dims().dim(0) != A.dims().dim(1))
         throw Error("sylvester: A must be square",
                     0, 0, "sylvester", "", "numkit:sylvester:badA");
@@ -1858,30 +1862,30 @@ Value sylvester_sym(const Value &A, const Value &B, const Value &C,
     const double *Dbd = Db.doubleData();
     const double *Cd  = Cw.doubleData();
 
-    ScratchArena scratch(mr);
-    ScratchVec<double> Y(n * m, &scratch);
-    ScratchVec<double> tmp(n * m, &scratch);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<double> Y(n * m, scratch.allocator());
+    keel::Array<double> tmp(n * m, scratch.allocator());
     // tmp = Va' * C
-    for (std::size_t i = 0; i < n; ++i)
-        for (std::size_t j = 0; j < m; ++j) {
+    for (keel::usize i = 0; i < n; ++i)
+        for (keel::usize j = 0; j < m; ++j) {
             double s = 0.0;
-            for (std::size_t k = 0; k < n; ++k)
+            for (keel::usize k = 0; k < n; ++k)
                 s += Vad[k + i * n] * Cd[k + j * n];
             tmp[i + j * n] = s;
         }
     // Y = tmp * Vb
-    for (std::size_t i = 0; i < n; ++i)
-        for (std::size_t j = 0; j < m; ++j) {
+    for (keel::usize i = 0; i < n; ++i)
+        for (keel::usize j = 0; j < m; ++j) {
             double s = 0.0;
-            for (std::size_t k = 0; k < m; ++k)
+            for (keel::usize k = 0; k < m; ++k)
                 s += tmp[i + k * n] * Vbd[k + j * m];
             Y[i + j * n] = s;
         }
 
     // y_ij /= (d_a_i + d_b_j)
-    for (std::size_t i = 0; i < n; ++i) {
+    for (keel::usize i = 0; i < n; ++i) {
         const double dai = Dad[i + i * n];
-        for (std::size_t j = 0; j < m; ++j) {
+        for (keel::usize j = 0; j < m; ++j) {
             const double dbj = Dbd[j + j * m];
             const double denom = dai + dbj;
             if (std::fabs(denom) < 1e-300)
@@ -1894,18 +1898,18 @@ Value sylvester_sym(const Value &A, const Value &B, const Value &C,
     auto out = Value::matrix(n, m, ValueType::DOUBLE, mr);
     double *X = out.doubleDataMut();
     // tmp = Va * Y
-    for (std::size_t i = 0; i < n; ++i)
-        for (std::size_t j = 0; j < m; ++j) {
+    for (keel::usize i = 0; i < n; ++i)
+        for (keel::usize j = 0; j < m; ++j) {
             double s = 0.0;
-            for (std::size_t k = 0; k < n; ++k)
+            for (keel::usize k = 0; k < n; ++k)
                 s += Vad[i + k * n] * Y[k + j * n];
             tmp[i + j * n] = s;
         }
     // X = tmp * Vb'
-    for (std::size_t i = 0; i < n; ++i)
-        for (std::size_t j = 0; j < m; ++j) {
+    for (keel::usize i = 0; i < n; ++i)
+        for (keel::usize j = 0; j < m; ++j) {
             double s = 0.0;
-            for (std::size_t k = 0; k < m; ++k)
+            for (keel::usize k = 0; k < m; ++k)
                 s += tmp[i + k * n] * Vbd[j + k * m];
             X[i + j * n] = s;
         }
@@ -1930,11 +1934,11 @@ namespace {
 // where Bi = inv(Ak) * Ai. Eigenvalues of L equal the polynomial
 // eigenvalues; right eigenvectors have Kronecker structure
 // [x; Î» x; Î»Â² x; â€¦; Î»^{k-1} x], so the first n rows yield x.
-Value buildCompanion(Span<const Value> coeffs, std::pmr::memory_resource *mr)
+Value buildCompanion(keel::ArrayRef<Value> coeffs, keel::Allocator *mr)
 {
-    const std::size_t k = coeffs.size() - 1;          // degree
-    const std::size_t n = static_cast<std::size_t>(coeffs[0].dims().dim(0));
-    const std::size_t N = k * n;
+    const keel::usize k = coeffs.size() - 1;          // degree
+    const keel::usize n = static_cast<keel::usize>(coeffs[0].dims().dim(0));
+    const keel::usize N = k * n;
 
     // B = inv(Ak) * Ai  for i = 0..k-1.
     // Compute via la_solve once per i â€” cheaper than forming inv(Ak)
@@ -1947,10 +1951,10 @@ Value buildCompanion(Span<const Value> coeffs, std::pmr::memory_resource *mr)
     std::fill(Ld, Ld + N * N, 0.0);
 
     // Upper-diagonal blocks: L[i*n .. (i+1)*n - 1, (i+1)*n .. (i+2)*n - 1] = I.
-    for (std::size_t i = 0; i + 1 < k; ++i) {
-        for (std::size_t r = 0; r < n; ++r) {
-            const std::size_t row = i * n + r;
-            const std::size_t col = (i + 1) * n + r;
+    for (keel::usize i = 0; i + 1 < k; ++i) {
+        for (keel::usize r = 0; r < n; ++r) {
+            const keel::usize row = i * n + r;
+            const keel::usize col = (i + 1) * n + r;
             Ld[row + col * N] = 1.0;
         }
     }
@@ -1958,42 +1962,42 @@ Value buildCompanion(Span<const Value> coeffs, std::pmr::memory_resource *mr)
     // Bottom row of blocks: -Ak_inv * Ai for i = 0..k-1.
     // Compute block product directly into L.
     const double *Akid = Ak_inv.doubleData();
-    for (std::size_t i = 0; i < k; ++i) {
+    for (keel::usize i = 0; i < k; ++i) {
         Value Ai_w = detail::widenSingleToDouble(coeffs[i], mr);
         const double *Aid = Ai_w.doubleData();
-        for (std::size_t r = 0; r < n; ++r)
-            for (std::size_t c = 0; c < n; ++c) {
+        for (keel::usize r = 0; r < n; ++r)
+            for (keel::usize c = 0; c < n; ++c) {
                 double s = 0.0;
-                for (std::size_t p = 0; p < n; ++p)
+                for (keel::usize p = 0; p < n; ++p)
                     s += Akid[r + p * n] * Aid[p + c * n];
-                const std::size_t row = (k - 1) * n + r;
-                const std::size_t col = i * n + c;
+                const keel::usize row = (k - 1) * n + r;
+                const keel::usize col = i * n + c;
                 Ld[row + col * N] = -s;
             }
     }
     return L;
 }
 
-bool anySingleCoeffs(Span<const Value> coeffs)
+bool anySingleCoeffs(keel::ArrayRef<Value> coeffs)
 {
     for (const auto &c : coeffs)
         if (c.type() == ValueType::SINGLE) return true;
     return false;
 }
 
-void validatePolyeigCoeffs(Span<const Value> coeffs)
+void validatePolyeigCoeffs(keel::ArrayRef<Value> coeffs)
 {
     if (coeffs.size() < 2)
         throw Error("polyeig: requires at least 2 coefficient matrices (A0, A1, ...)",
                     0, 0, "polyeig", "", "numkit:polyeig:nargin");
-    const std::size_t n = static_cast<std::size_t>(coeffs[0].dims().dim(0));
-    if (n != static_cast<std::size_t>(coeffs[0].dims().dim(1)))
+    const keel::usize n = static_cast<keel::usize>(coeffs[0].dims().dim(0));
+    if (n != static_cast<keel::usize>(coeffs[0].dims().dim(1)))
         throw Error("polyeig: coefficient matrices must be square",
                     0, 0, "polyeig", "", "numkit:polyeig:notSquare");
-    for (std::size_t i = 1; i < coeffs.size(); ++i) {
+    for (keel::usize i = 1; i < coeffs.size(); ++i) {
         if (coeffs[i].dims().ndim() != 2
-            || static_cast<std::size_t>(coeffs[i].dims().dim(0)) != n
-            || static_cast<std::size_t>(coeffs[i].dims().dim(1)) != n)
+            || static_cast<keel::usize>(coeffs[i].dims().dim(0)) != n
+            || static_cast<keel::usize>(coeffs[i].dims().dim(1)) != n)
             throw Error("polyeig: all coefficient matrices must be n Ã— n with matching n",
                         0, 0, "polyeig", "", "numkit:polyeig:shapeMismatch");
     }
@@ -2001,7 +2005,7 @@ void validatePolyeigCoeffs(Span<const Value> coeffs)
 
 } // anonymous namespace
 
-Value polyeig_values(Span<const Value> coeffs, std::pmr::memory_resource *mr)
+Value polyeig_values(keel::ArrayRef<Value> coeffs, keel::Allocator *mr)
 {
     validatePolyeigCoeffs(coeffs);
     Value L = buildCompanion(coeffs, mr);
@@ -2012,12 +2016,12 @@ Value polyeig_values(Span<const Value> coeffs, std::pmr::memory_resource *mr)
 }
 
 std::tuple<Value, Value>
-polyeig_VE(Span<const Value> coeffs, std::pmr::memory_resource *mr)
+polyeig_VE(keel::ArrayRef<Value> coeffs, keel::Allocator *mr)
 {
     validatePolyeigCoeffs(coeffs);
-    const std::size_t k = coeffs.size() - 1;
-    const std::size_t n = static_cast<std::size_t>(coeffs[0].dims().dim(0));
-    const std::size_t N = k * n;
+    const keel::usize k = coeffs.size() - 1;
+    const keel::usize n = static_cast<keel::usize>(coeffs[0].dims().dim(0));
+    const keel::usize N = k * n;
 
     Value L = buildCompanion(coeffs, mr);
     auto [V_big, D_big] = eig_general_VD(L, mr);   // throws on complex eigvals
@@ -2029,9 +2033,9 @@ polyeig_VE(Span<const Value> coeffs, std::pmr::memory_resource *mr)
     const double *Vbd = V_big.doubleData();
     const double *Dbd = D_big.doubleData();
 
-    for (std::size_t j = 0; j < N; ++j) {
+    for (keel::usize j = 0; j < N; ++j) {
         ed[j] = Dbd[j + j * N];
-        for (std::size_t r = 0; r < n; ++r)
+        for (keel::usize r = 0; r < n; ++r)
             Vd[r + j * n] = Vbd[r + j * N];
     }
     const bool wantSingle = anySingleCoeffs(coeffs);
@@ -2045,33 +2049,33 @@ polyeig_VE(Span<const Value> coeffs, std::pmr::memory_resource *mr)
 // in their stored order (no sorting)
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-Value ordeig(const Value &T, std::pmr::memory_resource *mr)
+Value ordeig(const Value &T, keel::Allocator *mr)
 {
     detail::requireDoubleInput(T, "ordeig", "T");
     if (T.dims().ndim() != 2)
         throw Error("ordeig: T must be a 2D matrix",
                     0, 0, "ordeig", "", "numkit:ordeig:notMatrix");
-    const std::size_t n = static_cast<std::size_t>(T.dims().dim(0));
-    if (n != static_cast<std::size_t>(T.dims().dim(1)))
+    const keel::usize n = static_cast<keel::usize>(T.dims().dim(0));
+    if (n != static_cast<keel::usize>(T.dims().dim(1)))
         throw Error("ordeig: T must be square",
                     0, 0, "ordeig", "", "numkit:ordeig:notSquare");
     if (n == 0)
         return Value::matrix(0, 1, T.type(), mr);
 
     if (T.isComplex()) {
-        const Complex *Tc = T.complexData();
+        const keel::c64 *Tc = T.complexData();
         bool any_complex = false;
-        for (std::size_t i = 0; i < n; ++i)
+        for (keel::usize i = 0; i < n; ++i)
             if (Tc[i + i * n].imag() != 0.0) { any_complex = true; break; }
         if (any_complex) {
             auto out = Value::matrix(n, 1, ValueType::COMPLEX, mr);
-            Complex *od = out.complexDataMut();
-            for (std::size_t i = 0; i < n; ++i) od[i] = Tc[i + i * n];
+            keel::c64 *od = out.complexDataMut();
+            for (keel::usize i = 0; i < n; ++i) od[i] = Tc[i + i * n];
             return out;
         }
         auto out = Value::matrix(n, 1, ValueType::DOUBLE, mr);
         double *od = out.doubleDataMut();
-        for (std::size_t i = 0; i < n; ++i) od[i] = Tc[i + i * n].real();
+        for (keel::usize i = 0; i < n; ++i) od[i] = Tc[i + i * n].real();
         return out;
     }
 
@@ -2083,10 +2087,10 @@ Value ordeig(const Value &T, std::pmr::memory_resource *mr)
     // T(i+1, i)). Eigenvalues from them are complex conjugate pairs.
     // Real diagonal entries pass through.
     bool any_complex = false;
-    std::vector<Complex> out_complex;
+    std::vector<keel::c64> out_complex;
     out_complex.reserve(n);
 
-    std::size_t i = 0;
+    keel::usize i = 0;
     while (i < n) {
         const double sub = (i + 1 < n) ? Td[(i + 1) + i * n] : 0.0;
         if (std::fabs(sub) <= 1e-14 * (1.0 + std::fabs(Td[i + i * n]))) {
@@ -2118,13 +2122,13 @@ Value ordeig(const Value &T, std::pmr::memory_resource *mr)
 
     if (any_complex) {
         auto out = Value::matrix(n, 1, ValueType::COMPLEX, mr);
-        Complex *od = out.complexDataMut();
-        for (std::size_t k = 0; k < n; ++k) od[k] = out_complex[k];
+        keel::c64 *od = out.complexDataMut();
+        for (keel::usize k = 0; k < n; ++k) od[k] = out_complex[k];
         return out;
     }
     auto out = Value::matrix(n, 1, ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
-    for (std::size_t k = 0; k < n; ++k) od[k] = out_complex[k].real();
+    for (keel::usize k = 0; k < n; ++k) od[k] = out_complex[k].real();
     return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
 

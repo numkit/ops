@@ -4,6 +4,7 @@
 // when NUMKIT_WITH_SIMD=OFF; the Highway-dispatched variant lives in
 // isfinite_highway.cpp.
 
+#include <keel/core.h>
 #include "isfinite.hpp"
 
 #include <cmath>
@@ -12,21 +13,21 @@
 
 namespace numkit::builtin::detail {
 
-void doubleIsNaNLoop(const double *in, uint8_t *out, std::size_t n)
+void doubleIsNaNLoop(const double *in, keel::u8 *out, keel::usize n)
 {
-    for (std::size_t i = 0; i < n; ++i)
+    for (keel::usize i = 0; i < n; ++i)
         out[i] = std::isnan(in[i]) ? 1 : 0;
 }
 
-void doubleIsInfLoop(const double *in, uint8_t *out, std::size_t n)
+void doubleIsInfLoop(const double *in, keel::u8 *out, keel::usize n)
 {
-    for (std::size_t i = 0; i < n; ++i)
+    for (keel::usize i = 0; i < n; ++i)
         out[i] = std::isinf(in[i]) ? 1 : 0;
 }
 
-void doubleIsFiniteLoop(const double *in, uint8_t *out, std::size_t n)
+void doubleIsFiniteLoop(const double *in, keel::u8 *out, keel::usize n)
 {
-    for (std::size_t i = 0; i < n; ++i)
+    for (keel::usize i = 0; i < n; ++i)
         out[i] = std::isfinite(in[i]) ? 1 : 0;
 }
 

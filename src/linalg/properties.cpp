@@ -7,6 +7,12 @@
 // nk/linalg/decompositions.hpp. inv / rcond use the la_solve
 // kernel still living in toolboxes/builtin.
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/arena.h>
+#include <keel/array.h>
+#include <keel/complex.h>
+#include <keel/math.h>
 #include <numkit/linalg/properties.hpp>
 #include "linalg_detail.hpp"
 
@@ -20,8 +26,6 @@
 // live in properties_reg.cpp.
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
-#include <numkit/value/scratch.hpp>
-#include <numkit/value/span.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -35,15 +39,15 @@ namespace {
 // Solve A_buf (mÃ—n column-major) against B_buf (mÃ—nrhs col-major) and
 // write the result (nÃ—nrhs) into outX. Returns false on singular /
 // rank-deficient / wide A.
-bool laSolveWrap(const double *A_buf, std::size_t m, std::size_t n,
-                 const double *B_buf, std::size_t nrhs, double *outX,
-                 std::pmr::memory_resource *mr)
+bool laSolveWrap(const double *A_buf, keel::usize m, keel::usize n,
+                 const double *B_buf, keel::usize nrhs, double *outX,
+                 keel::Allocator *mr)
 {
     return numkit::ops::la_solve(A_buf, m, n, B_buf, nrhs, outX, mr);
 }
 
 // Default tolerance for rank-cutoff: max(m,n) * eps(sigma_max).
-double defaultRankTol(std::size_t m, std::size_t n, double sigma_max, bool isSingle = false)
+double defaultRankTol(keel::usize m, keel::usize n, double sigma_max, bool isSingle = false)
 {
     const double eps = isSingle
         ? static_cast<double>(std::numeric_limits<float>::epsilon())
@@ -54,19 +58,19 @@ double defaultRankTol(std::size_t m, std::size_t n, double sigma_max, bool isSin
 // 1-norm of a column-major M×N matrix: max column sum of |a_ij|.
 // Used by rcond and condest.
 template <typename T>
-double matrix_one_norm(const T *A, size_t M, size_t N)
+double matrix_one_norm(const T *A, keel::usize M, keel::usize N)
 {
     if (M == 0 || N == 0) return 0.0;
     double maxv = 0.0;
-    for (size_t j = 0; j < N; ++j) {
+    for (keel::usize j = 0; j < N; ++j) {
         double s = 0.0;
-        for (size_t i = 0; i < M; ++i) s += std::abs(A[i + j * M]);
+        for (keel::usize i = 0; i < M; ++i) s += keel::abs(A[i + j * M]);
         if (s > maxv) maxv = s;
     }
     return maxv;
 }
 
-double value_one_norm(const Value &A, size_t M, size_t N)
+double value_one_norm(const Value &A, keel::usize M, keel::usize N)
 {
     if (A.isComplex())
         return matrix_one_norm(A.complexData(), M, N);
@@ -77,28 +81,28 @@ double value_one_norm(const Value &A, size_t M, size_t N)
 
 } // anonymous namespace
 
-Value inv(const Value &A, std::pmr::memory_resource *mr)
+Value inv(const Value &A, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "inv");
     if (A.dims().ndim() != 2)
         throw Error("inv: input must be a 2D matrix",
                     0, 0, "inv", "", "numkit:inv:notMatrix");
-    const std::size_t m = static_cast<std::size_t>(A.dims().dim(0));
-    const std::size_t n = static_cast<std::size_t>(A.dims().dim(1));
+    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
+    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
     if (m != n)
         throw Error("inv: matrix must be square",
                     0, 0, "inv", "", "numkit:inv:notSquare");
     if (m == 0)
         return Value::matrix(0, 0, A.type(), mr);
 
-    ScratchArena scratch(mr);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
     if (A.isComplex()) {
-        ScratchVec<detail::Complex> I_buf(n * n, 0.0, &scratch);
-        for (std::size_t i = 0; i < n; ++i) I_buf[i + i * n] = detail::Complex(1.0, 0.0);
+        keel::Array<keel::c64> I_buf(n * n, 0.0, scratch.allocator());
+        for (keel::usize i = 0; i < n; ++i) I_buf[i + i * n] = keel::c64(1.0, 0.0);
         Value out = Value::complexMatrix(n, n, mr);
         if (!numkit::ops::la_solve(A.complexData(), n, n, I_buf.data(), n, out.complexDataMut(), mr)) {
             const double inf = std::numeric_limits<double>::infinity();
-            for (std::size_t i = 0; i < n * n; ++i) out.complexDataMut()[i] = detail::Complex(inf, 0.0);
+            for (keel::usize i = 0; i < n * n; ++i) out.complexDataMut()[i] = keel::c64(inf, 0.0);
         }
         return detail::narrow_if_real(out, mr);
     }
@@ -106,8 +110,8 @@ Value inv(const Value &A, std::pmr::memory_resource *mr)
     const bool wantSingle = A.type() == ValueType::SINGLE;
     Value Aw = detail::widenSingleToDouble(A, mr);
 
-    ScratchVec<double> I_buf(n * n, 0.0, &scratch);
-    for (std::size_t i = 0; i < n; ++i) I_buf[i + i * n] = 1.0;
+    keel::Array<double> I_buf(n * n, 0.0, scratch.allocator());
+    for (keel::usize i = 0; i < n; ++i) I_buf[i + i * n] = 1.0;
 
     Value out = Value::matrix(n, n, ValueType::DOUBLE, mr);
     if (!numkit::ops::la_solve(Aw.doubleData(), n, n, I_buf.data(), n, out.doubleDataMut(), mr)) {
@@ -117,7 +121,7 @@ Value inv(const Value &A, std::pmr::memory_resource *mr)
     return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
 
-Value trace(const Value &A, std::pmr::memory_resource *mr)
+Value trace(const Value &A, keel::Allocator *mr)
 {
     const ValueType t = A.type();
     if (t != ValueType::DOUBLE && t != ValueType::COMPLEX
@@ -130,36 +134,36 @@ Value trace(const Value &A, std::pmr::memory_resource *mr)
     if (A.dims().ndim() != 2)
         throw Error("trace: input must be a 2D matrix",
                     0, 0, "trace", "", "numkit:trace:notMatrix");
-    const std::size_t m = static_cast<std::size_t>(A.dims().dim(0));
-    const std::size_t n = static_cast<std::size_t>(A.dims().dim(1));
-    const std::size_t k = std::min(m, n);
+    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
+    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
+    const keel::usize k = std::min(m, n);
     if (A.isComplex()) {
-        Complex s{0.0, 0.0};
-        const Complex *p = A.complexData();
-        for (std::size_t i = 0; i < k; ++i)
+        keel::c64 s{0.0, 0.0};
+        const keel::c64 *p = A.complexData();
+        for (keel::usize i = 0; i < k; ++i)
             s += p[i + i * m];
         return numkit::narrowComplex(Value::complexScalar(s, mr), mr);
     }
     double s = 0.0;
     if (t == ValueType::DOUBLE) {
         const double *p = A.doubleData();
-        for (std::size_t i = 0; i < k; ++i)
+        for (keel::usize i = 0; i < k; ++i)
             s += p[i + i * m];
     } else {
-        for (std::size_t i = 0; i < k; ++i)
+        for (keel::usize i = 0; i < k; ++i)
             s += A.elemAsDouble(i + i * m);
     }
     return detail::narrowDoubleToSingleIf(Value::scalar(s, mr), t == ValueType::SINGLE, mr);
 }
 
-Value det(const Value &A, std::pmr::memory_resource *mr)
+Value det(const Value &A, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "det");
     if (A.dims().ndim() != 2)
         throw Error("det: input must be a 2D matrix",
                     0, 0, "det", "", "numkit:det:notMatrix");
-    const std::size_t m = static_cast<std::size_t>(A.dims().dim(0));
-    const std::size_t n = static_cast<std::size_t>(A.dims().dim(1));
+    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
+    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
     if (m != n)
         throw Error("det: matrix must be square",
                     0, 0, "det", "", "numkit:det:notSquare");
@@ -167,74 +171,74 @@ Value det(const Value &A, std::pmr::memory_resource *mr)
     if (m == 0)
         return detail::narrowDoubleToSingleIf(Value::scalar(1.0, mr), wantSingle, mr);
 
-    ScratchArena scratch(mr);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
     if (A.isComplex()) {
-        ScratchVec<detail::Complex> A_buf(m * n, &scratch);
+        keel::Array<keel::c64> A_buf(m * n, scratch.allocator());
         std::copy(A.complexData(), A.complexData() + m * n, A_buf.begin());
-        ScratchVec<std::int32_t> piv(n, &scratch);
+        keel::Array<keel::i32> piv(n, scratch.allocator());
         if (!numkit::ops::lu_factor_inplace(A_buf.data(), n, piv.data(), n, n))
             return Value::scalar(0.0, mr);
 
         int sign = 1;
-        for (std::size_t k = 0; k < n; ++k) {
-            if (piv[k] != static_cast<std::int32_t>(k)) {
+        for (keel::usize k = 0; k < n; ++k) {
+            if (piv[k] != static_cast<keel::i32>(k)) {
                 sign = -sign;
             }
         }
-        detail::Complex prod = static_cast<double>(sign);
-        for (std::size_t i = 0; i < n; ++i)
+        keel::c64 prod = static_cast<double>(sign);
+        for (keel::usize i = 0; i < n; ++i)
             prod *= A_buf[i + i * n];
 
         return detail::narrow_if_real(Value::complexScalar(prod, mr), mr);
     }
 
     Value Aw = detail::widenSingleToDouble(A, mr);
-    ScratchVec<double> A_buf(m * n, &scratch);
+    keel::Array<double> A_buf(m * n, scratch.allocator());
     std::copy(Aw.doubleData(), Aw.doubleData() + m * n, A_buf.begin());
-    ScratchVec<std::int32_t> piv(n, &scratch);
+    keel::Array<keel::i32> piv(n, scratch.allocator());
     if (!numkit::ops::lu_factor_inplace(A_buf.data(), n, piv.data(), n, n))
         return detail::narrowDoubleToSingleIf(Value::scalar(0.0, mr), wantSingle, mr);
 
     int sign = 1;
-    for (std::size_t k = 0; k < n; ++k) {
-        if (piv[k] != static_cast<std::int32_t>(k)) {
+    for (keel::usize k = 0; k < n; ++k) {
+        if (piv[k] != static_cast<keel::i32>(k)) {
             sign = -sign;
         }
     }
 
     long double prod = static_cast<long double>(sign);
-    for (std::size_t i = 0; i < n; ++i)
+    for (keel::usize i = 0; i < n; ++i)
         prod *= static_cast<long double>(A_buf[i + i * n]);
     return detail::narrowDoubleToSingleIf(Value::scalar(static_cast<double>(prod), mr), wantSingle, mr);
 }
 
-Value rank_of(const Value &A, double tol, std::pmr::memory_resource *mr)
+Value rank_of(const Value &A, double tol, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "rank");
     detail::require2DMatrix(A, "rank", "A", "pagesvd");
     const bool isSingle = A.type() == ValueType::SINGLE;
     Value Aw = detail::widenSingleToDouble(A, mr);
     auto sv = svd_values(Aw, mr);
-    const std::size_t k = sv.numel();
+    const keel::usize k = sv.numel();
     const double *s = sv.doubleData();
     if (k == 0) return Value::scalar(0.0, mr);
     const double sigma_max = s[0];
-    const std::size_t m = static_cast<std::size_t>(A.dims().dim(0));
-    const std::size_t n = static_cast<std::size_t>(A.dims().dim(1));
+    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
+    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
     const double cutoff = (tol < 0.0) ? defaultRankTol(m, n, sigma_max, isSingle) : tol;
     int r = 0;
-    for (std::size_t i = 0; i < k; ++i)
+    for (keel::usize i = 0; i < k; ++i)
         if (s[i] > cutoff) ++r;
     return Value::scalar(static_cast<double>(r), mr);
 }
 
-Value cond_2norm(const Value &A, std::pmr::memory_resource *mr)
+Value cond_2norm(const Value &A, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "cond");
     const bool wantSingle = A.type() == ValueType::SINGLE;
     Value Aw = detail::widenSingleToDouble(A, mr);
     auto sv = svd_values(Aw, mr);
-    const std::size_t k = sv.numel();
+    const keel::usize k = sv.numel();
     if (k == 0)
         return detail::narrowDoubleToSingleIf(Value::scalar(std::numeric_limits<double>::quiet_NaN(), mr), wantSingle, mr);
     const double *s = sv.doubleData();
@@ -245,7 +249,7 @@ Value cond_2norm(const Value &A, std::pmr::memory_resource *mr)
     return detail::narrowDoubleToSingleIf(Value::scalar(sigma_max / sigma_min, mr), wantSingle, mr);
 }
 
-Value cond_pnorm(const Value &A, int p_kind, std::pmr::memory_resource *mr)
+Value cond_pnorm(const Value &A, int p_kind, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "cond");
     if (p_kind == 2) return cond_2norm(A, mr);
@@ -253,8 +257,8 @@ Value cond_pnorm(const Value &A, int p_kind, std::pmr::memory_resource *mr)
     if (A.dims().ndim() != 2)
         throw Error("cond: input must be a 2D matrix",
                     0, 0, "cond", "", "numkit:cond:notMatrix");
-    const std::size_t m = static_cast<std::size_t>(A.dims().dim(0));
-    const std::size_t n = static_cast<std::size_t>(A.dims().dim(1));
+    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
+    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
     if (m != n)
         throw Error("cond: matrix must be square for non-2-norm forms",
                     0, 0, "cond", "", "numkit:cond:notSquare");
@@ -289,7 +293,7 @@ Value cond_pnorm(const Value &A, int p_kind, std::pmr::memory_resource *mr)
     return detail::narrowDoubleToSingleIf(Value::scalar(an * in, mr), wantSingle, mr);
 }
 
-Value normest(const Value &A, std::pmr::memory_resource *mr)
+Value normest(const Value &A, keel::Allocator *mr)
 {
     const ValueType t = A.type();
     if (t != ValueType::DOUBLE && t != ValueType::COMPLEX
@@ -306,14 +310,14 @@ Value normest(const Value &A, std::pmr::memory_resource *mr)
     return detail::narrowDoubleToSingleIf(Value::scalar(sv.doubleData()[0], mr), wantSingle, mr);
 }
 
-Value rcond(const Value &A, std::pmr::memory_resource *mr)
+Value rcond(const Value &A, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "rcond");
     if (A.dims().is3D())
         throw Error("rcond: input must be 2D",
                     0, 0, "rcond", "", "numkit:rcond:Not2D");
-    const size_t M = A.dims().rows();
-    const size_t N = A.dims().cols();
+    const keel::usize M = A.dims().rows();
+    const keel::usize N = A.dims().cols();
     if (M != N)
         throw Error("rcond: matrix must be square",
                     0, 0, "rcond", "", "numkit:rcond:NotSquare");
@@ -337,14 +341,14 @@ Value rcond(const Value &A, std::pmr::memory_resource *mr)
     return detail::narrowDoubleToSingleIf(Value::scalar(1.0 / (anorm * inv_norm), mr), wantSingle, mr);
 }
 
-Value condest(const Value &A, std::pmr::memory_resource *mr)
+Value condest(const Value &A, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "condest");
     if (A.dims().is3D())
         throw Error("condest: input must be 2D",
                     0, 0, "condest", "", "numkit:condest:Not2D");
-    const size_t M = A.dims().rows();
-    const size_t N = A.dims().cols();
+    const keel::usize M = A.dims().rows();
+    const keel::usize N = A.dims().cols();
     if (M != N)
         throw Error("condest: matrix must be square",
                     0, 0, "condest", "", "numkit:condest:NotSquare");
@@ -368,14 +372,14 @@ Value condest(const Value &A, std::pmr::memory_resource *mr)
     return detail::narrowDoubleToSingleIf(Value::scalar(anorm * inv_norm, mr), wantSingle, mr);
 }
 
-Value condeig(const Value &A, std::pmr::memory_resource *mr)
+Value condeig(const Value &A, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "condeig");
     if (A.dims().ndim() != 2)
         throw Error("condeig: input must be a 2D matrix",
                     0, 0, "condeig", "", "numkit:condeig:notMatrix");
-    const std::size_t m = static_cast<std::size_t>(A.dims().dim(0));
-    const std::size_t n = static_cast<std::size_t>(A.dims().dim(1));
+    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
+    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
     if (m != n)
         throw Error("condeig: matrix must be square",
                     0, 0, "condeig", "", "numkit:condeig:notSquare");
@@ -390,8 +394,8 @@ Value condeig(const Value &A, std::pmr::memory_resource *mr)
         auto isSymmetric = [&]() -> bool {
             const double *p = Aw.doubleData();
             const double tol = 1e-10;
-            for (std::size_t i = 0; i < n; ++i)
-                for (std::size_t j = i + 1; j < n; ++j) {
+            for (keel::usize i = 0; i < n; ++i)
+                for (keel::usize j = i + 1; j < n; ++j) {
                     const double d = std::fabs(p[i + j * n] - p[j + i * n]);
                     const double s = std::max(std::fabs(p[i + j * n]),
                                                std::fabs(p[j + i * n]));
@@ -402,46 +406,46 @@ Value condeig(const Value &A, std::pmr::memory_resource *mr)
         if (isSymmetric()) {
             auto out = Value::matrix(n, 1, ValueType::DOUBLE, mr);
             double *o = out.doubleDataMut();
-            for (std::size_t i = 0; i < n; ++i) o[i] = 1.0;
+            for (keel::usize i = 0; i < n; ++i) o[i] = 1.0;
             return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
         }
     }
 
     auto [V, D] = eig_general_VD(Aw, mr);
 
-    ScratchArena scratch(mr);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
     auto out = Value::matrix(n, 1, ValueType::DOUBLE, mr);
     double *s = out.doubleDataMut();
 
     if (V.isComplex()) {
-        ScratchVec<Complex> V_buf(n * n, &scratch);
-        ScratchVec<Complex> I_buf(n * n, Complex(0.0, 0.0), &scratch);
+        keel::Array<keel::c64> V_buf(n * n, scratch.allocator());
+        keel::Array<keel::c64> I_buf(n * n, keel::c64(0.0, 0.0), scratch.allocator());
         std::copy(V.complexData(), V.complexData() + n * n, V_buf.begin());
-        for (std::size_t i = 0; i < n; ++i) I_buf[i + i * n] = Complex(1.0, 0.0);
+        for (keel::usize i = 0; i < n; ++i) I_buf[i + i * n] = keel::c64(1.0, 0.0);
 
-        ScratchVec<Complex> Vinv(n * n, &scratch);
+        keel::Array<keel::c64> Vinv(n * n, scratch.allocator());
         if (!numkit::ops::la_solve(V_buf.data(), n, n, I_buf.data(), n,
-                                   Vinv.data(), &scratch))
+                                   Vinv.data(), scratch.allocator()))
             throw Error("condeig: right eigenvector matrix is singular",
                         0, 0, "condeig", "", "numkit:condeig:singular");
 
-        const Complex *vd = V.complexData();
-        for (std::size_t i = 0; i < n; ++i) {
+        const keel::c64 *vd = V.complexData();
+        for (keel::usize i = 0; i < n; ++i) {
             double v_norm = 0.0;
-            for (std::size_t k = 0; k < n; ++k)
-                v_norm += std::norm(vd[k + i * n]);
+            for (keel::usize k = 0; k < n; ++k)
+                v_norm += keel::norm(vd[k + i * n]);
             v_norm = std::sqrt(v_norm);
 
             double w_norm = 0.0;
-            for (std::size_t k = 0; k < n; ++k)
-                w_norm += std::norm(Vinv[i + k * n]);
+            for (keel::usize k = 0; k < n; ++k)
+                w_norm += keel::norm(Vinv[i + k * n]);
             w_norm = std::sqrt(w_norm);
 
-            Complex dot(0.0, 0.0);
-            for (std::size_t k = 0; k < n; ++k)
+            keel::c64 dot(0.0, 0.0);
+            for (keel::usize k = 0; k < n; ++k)
                 dot += Vinv[i + k * n] * vd[k + i * n];
 
-            const double abs_dot = std::abs(dot);
+            const double abs_dot = keel::abs(dot);
             if (abs_dot < 1e-300) {
                 s[i] = std::numeric_limits<double>::infinity();
             } else {
@@ -451,33 +455,33 @@ Value condeig(const Value &A, std::pmr::memory_resource *mr)
         return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
     }
 
-    ScratchVec<double> V_buf(n * n, &scratch);
-    ScratchVec<double> I_buf(n * n, 0.0, &scratch);
+    keel::Array<double> V_buf(n * n, scratch.allocator());
+    keel::Array<double> I_buf(n * n, 0.0, scratch.allocator());
     std::copy(V.doubleData(), V.doubleData() + n * n, V_buf.begin());
-    for (std::size_t i = 0; i < n; ++i) I_buf[i + i * n] = 1.0;
+    for (keel::usize i = 0; i < n; ++i) I_buf[i + i * n] = 1.0;
 
-    ScratchVec<double> Vinv(n * n, &scratch);
+    keel::Array<double> Vinv(n * n, scratch.allocator());
     if (!numkit::ops::la_solve(V_buf.data(), n, n, I_buf.data(), n,
-                                            Vinv.data(), &scratch))
+                                            Vinv.data(), scratch.allocator()))
         throw Error("condeig: right eigenvector matrix is singular",
                     0, 0, "condeig", "", "numkit:condeig:singular");
 
     const double *vd = V.doubleData();
-    for (std::size_t i = 0; i < n; ++i) {
+    for (keel::usize i = 0; i < n; ++i) {
         double v_norm = 0.0;
-        for (std::size_t k = 0; k < n; ++k)
+        for (keel::usize k = 0; k < n; ++k)
             v_norm += vd[k + i * n] * vd[k + i * n];
         v_norm = std::sqrt(v_norm);
 
         double w_norm = 0.0;
-        for (std::size_t k = 0; k < n; ++k) {
+        for (keel::usize k = 0; k < n; ++k) {
             const double w_k = Vinv[i + k * n];
             w_norm += w_k * w_k;
         }
         w_norm = std::sqrt(w_norm);
 
         double dot = 0.0;
-        for (std::size_t k = 0; k < n; ++k)
+        for (keel::usize k = 0; k < n; ++k)
             dot += Vinv[i + k * n] * vd[k + i * n];
 
         if (std::fabs(dot) < 1e-300) {

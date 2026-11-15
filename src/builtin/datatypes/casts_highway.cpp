@@ -13,6 +13,7 @@
 // the same lane count as double â€” that's a 1:1 lane count, no
 // demote needed.
 
+#include <keel/core.h>
 #include "casts.hpp"
 
 #include <numkit/ops/parallel_for.hpp>
@@ -60,16 +61,16 @@ inline T saturate_cast_scalar(double v)
 //   4. Clamp to [target_min, target_max]
 //   5. ConvertTo<int64> (or DemoteTo for narrow)
 
-void DoubleToInt32Loop(const double *HWY_RESTRICT in, int32_t *HWY_RESTRICT out, std::size_t n)
+void DoubleToInt32Loop(const double *HWY_RESTRICT in, keel::i32 *HWY_RESTRICT out, keel::usize n)
 {
     const hn::ScalableTag<double>  d;
-    const hn::ScalableTag<int32_t> di;
-    const hn::Rebind<int32_t, decltype(d)> di_rebind;
+    const hn::ScalableTag<keel::i32> di;
+    const hn::Rebind<keel::i32, decltype(d)> di_rebind;
     const auto zero = hn::Zero(d);
-    const auto lo   = hn::Set(d, static_cast<double>(std::numeric_limits<int32_t>::min()));
-    const auto hi   = hn::Set(d, static_cast<double>(std::numeric_limits<int32_t>::max()));
-    const std::size_t N = hn::Lanes(d);
-    std::size_t i = 0;
+    const auto lo   = hn::Set(d, static_cast<double>(std::numeric_limits<keel::i32>::min()));
+    const auto hi   = hn::Set(d, static_cast<double>(std::numeric_limits<keel::i32>::max()));
+    const keel::usize N = hn::Lanes(d);
+    keel::usize i = 0;
     for (; i + N <= n; i += N) {
         auto v = hn::LoadU(d, in + i);
         v = hn::IfThenElse(hn::IsNaN(v), zero, v);
@@ -78,18 +79,18 @@ void DoubleToInt32Loop(const double *HWY_RESTRICT in, int32_t *HWY_RESTRICT out,
         auto vi = hn::DemoteTo(di_rebind, v);
         hn::StoreU(vi, di_rebind, out + i);
     }
-    for (; i < n; ++i) out[i] = saturate_cast_scalar<int32_t>(in[i]);
+    for (; i < n; ++i) out[i] = saturate_cast_scalar<keel::i32>(in[i]);
 }
 
-void DoubleToUInt32Loop(const double *HWY_RESTRICT in, uint32_t *HWY_RESTRICT out, std::size_t n)
+void DoubleToUInt32Loop(const double *HWY_RESTRICT in, keel::u32 *HWY_RESTRICT out, keel::usize n)
 {
     const hn::ScalableTag<double>  d;
-    const hn::Rebind<uint32_t, decltype(d)> du_rebind;
+    const hn::Rebind<keel::u32, decltype(d)> du_rebind;
     const auto zero = hn::Zero(d);
     const auto lo   = hn::Set(d, 0.0);
-    const auto hi   = hn::Set(d, static_cast<double>(std::numeric_limits<uint32_t>::max()));
-    const std::size_t N = hn::Lanes(d);
-    std::size_t i = 0;
+    const auto hi   = hn::Set(d, static_cast<double>(std::numeric_limits<keel::u32>::max()));
+    const keel::usize N = hn::Lanes(d);
+    keel::usize i = 0;
     for (; i + N <= n; i += N) {
         auto v = hn::LoadU(d, in + i);
         v = hn::IfThenElse(hn::IsNaN(v), zero, v);
@@ -99,21 +100,21 @@ void DoubleToUInt32Loop(const double *HWY_RESTRICT in, uint32_t *HWY_RESTRICT ou
         auto vi = hn::DemoteTo(du_rebind, v);
         hn::StoreU(vi, du_rebind, out + i);
     }
-    for (; i < n; ++i) out[i] = saturate_cast_scalar<uint32_t>(in[i]);
+    for (; i < n; ++i) out[i] = saturate_cast_scalar<keel::u32>(in[i]);
 }
 
-void DoubleToInt64Loop(const double *HWY_RESTRICT in, int64_t *HWY_RESTRICT out, std::size_t n)
+void DoubleToInt64Loop(const double *HWY_RESTRICT in, keel::i64 *HWY_RESTRICT out, keel::usize n)
 {
     const hn::ScalableTag<double>  d;
-    const hn::ScalableTag<int64_t> di;
+    const hn::ScalableTag<keel::i64> di;
     const auto zero = hn::Zero(d);
     // int64 range exceeds double-exact precision; saturation bounds
     // are still meaningful for clamping but inputs above 2^53 lose
     // representability â€” same as MATLAB.
-    const auto lo   = hn::Set(d, static_cast<double>(std::numeric_limits<int64_t>::min()));
-    const auto hi   = hn::Set(d, static_cast<double>(std::numeric_limits<int64_t>::max()));
-    const std::size_t N = hn::Lanes(d);
-    std::size_t i = 0;
+    const auto lo   = hn::Set(d, static_cast<double>(std::numeric_limits<keel::i64>::min()));
+    const auto hi   = hn::Set(d, static_cast<double>(std::numeric_limits<keel::i64>::max()));
+    const keel::usize N = hn::Lanes(d);
+    keel::usize i = 0;
     for (; i + N <= n; i += N) {
         auto v = hn::LoadU(d, in + i);
         v = hn::IfThenElse(hn::IsNaN(v), zero, v);
@@ -122,36 +123,36 @@ void DoubleToInt64Loop(const double *HWY_RESTRICT in, int64_t *HWY_RESTRICT out,
         auto vi = hn::ConvertTo(di, v);
         hn::StoreU(vi, di, out + i);
     }
-    for (; i < n; ++i) out[i] = saturate_cast_scalar<int64_t>(in[i]);
+    for (; i < n; ++i) out[i] = saturate_cast_scalar<keel::i64>(in[i]);
 }
 
-void DoubleToUInt64Loop(const double *HWY_RESTRICT in, uint64_t *HWY_RESTRICT out, std::size_t n)
+void DoubleToUInt64Loop(const double *HWY_RESTRICT in, keel::u64 *HWY_RESTRICT out, keel::usize n)
 {
     // Highway has no doubleâ†’uint64 ConvertTo on all targets; fall
     // back to scalar saturate_cast for this size. Still benefits
     // from straight-line code (no virtual dispatch through Value).
-    for (std::size_t i = 0; i < n; ++i) out[i] = saturate_cast_scalar<uint64_t>(in[i]);
+    for (keel::usize i = 0; i < n; ++i) out[i] = saturate_cast_scalar<keel::u64>(in[i]);
 }
 
-void DoubleToInt16Loop(const double *HWY_RESTRICT in, int16_t *HWY_RESTRICT out, std::size_t n)
+void DoubleToInt16Loop(const double *HWY_RESTRICT in, keel::i16 *HWY_RESTRICT out, keel::usize n)
 {
     // double â†’ int32 â†’ int16 (two demote steps, 4x lane width)
-    for (std::size_t i = 0; i < n; ++i) out[i] = saturate_cast_scalar<int16_t>(in[i]);
+    for (keel::usize i = 0; i < n; ++i) out[i] = saturate_cast_scalar<keel::i16>(in[i]);
 }
 
-void DoubleToUInt16Loop(const double *HWY_RESTRICT in, uint16_t *HWY_RESTRICT out, std::size_t n)
+void DoubleToUInt16Loop(const double *HWY_RESTRICT in, keel::u16 *HWY_RESTRICT out, keel::usize n)
 {
-    for (std::size_t i = 0; i < n; ++i) out[i] = saturate_cast_scalar<uint16_t>(in[i]);
+    for (keel::usize i = 0; i < n; ++i) out[i] = saturate_cast_scalar<keel::u16>(in[i]);
 }
 
-void DoubleToInt8Loop(const double *HWY_RESTRICT in, int8_t *HWY_RESTRICT out, std::size_t n)
+void DoubleToInt8Loop(const double *HWY_RESTRICT in, keel::i8 *HWY_RESTRICT out, keel::usize n)
 {
-    for (std::size_t i = 0; i < n; ++i) out[i] = saturate_cast_scalar<int8_t>(in[i]);
+    for (keel::usize i = 0; i < n; ++i) out[i] = saturate_cast_scalar<keel::i8>(in[i]);
 }
 
-void DoubleToUInt8Loop(const double *HWY_RESTRICT in, uint8_t *HWY_RESTRICT out, std::size_t n)
+void DoubleToUInt8Loop(const double *HWY_RESTRICT in, keel::u8 *HWY_RESTRICT out, keel::usize n)
 {
-    for (std::size_t i = 0; i < n; ++i) out[i] = saturate_cast_scalar<uint8_t>(in[i]);
+    for (keel::usize i = 0; i < n; ++i) out[i] = saturate_cast_scalar<keel::u8>(in[i]);
 }
 
 } // namespace HWY_NAMESPACE
@@ -171,28 +172,28 @@ HWY_EXPORT(DoubleToUInt16Loop);
 HWY_EXPORT(DoubleToInt8Loop);
 HWY_EXPORT(DoubleToUInt8Loop);
 
-void doubleToInt8 (const double *in, int8_t   *out, std::size_t n) {
+void doubleToInt8 (const double *in, keel::i8   *out, keel::usize n) {
     HWY_DYNAMIC_DISPATCH(DoubleToInt8Loop)(in, out, n);
 }
-void doubleToInt16(const double *in, int16_t  *out, std::size_t n) {
+void doubleToInt16(const double *in, keel::i16  *out, keel::usize n) {
     HWY_DYNAMIC_DISPATCH(DoubleToInt16Loop)(in, out, n);
 }
-void doubleToInt32(const double *in, int32_t  *out, std::size_t n) {
+void doubleToInt32(const double *in, keel::i32  *out, keel::usize n) {
     HWY_DYNAMIC_DISPATCH(DoubleToInt32Loop)(in, out, n);
 }
-void doubleToInt64(const double *in, int64_t  *out, std::size_t n) {
+void doubleToInt64(const double *in, keel::i64  *out, keel::usize n) {
     HWY_DYNAMIC_DISPATCH(DoubleToInt64Loop)(in, out, n);
 }
-void doubleToUInt8 (const double *in, uint8_t  *out, std::size_t n) {
+void doubleToUInt8 (const double *in, keel::u8  *out, keel::usize n) {
     HWY_DYNAMIC_DISPATCH(DoubleToUInt8Loop)(in, out, n);
 }
-void doubleToUInt16(const double *in, uint16_t *out, std::size_t n) {
+void doubleToUInt16(const double *in, keel::u16 *out, keel::usize n) {
     HWY_DYNAMIC_DISPATCH(DoubleToUInt16Loop)(in, out, n);
 }
-void doubleToUInt32(const double *in, uint32_t *out, std::size_t n) {
+void doubleToUInt32(const double *in, keel::u32 *out, keel::usize n) {
     HWY_DYNAMIC_DISPATCH(DoubleToUInt32Loop)(in, out, n);
 }
-void doubleToUInt64(const double *in, uint64_t *out, std::size_t n) {
+void doubleToUInt64(const double *in, keel::u64 *out, keel::usize n) {
     HWY_DYNAMIC_DISPATCH(DoubleToUInt64Loop)(in, out, n);
 }
 

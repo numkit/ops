@@ -1,10 +1,11 @@
 // src/builtin/src/ops/unary_ops_detail.hpp
 #pragma once
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/complex.h>
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
-#include <numkit/value/scratch.hpp>
-#include <numkit/value/span.hpp>
 #include <numkit/ops/reductions.hpp>
 
 #include <algorithm>
@@ -13,7 +14,6 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
-#include <memory_resource>
 #include <numeric>
 #include <string>
 #include <tuple>
@@ -28,54 +28,54 @@ namespace numkit::builtin {
 
 namespace {
 
-inline int8_t saturateNeg(int8_t v) {
-    if (v == std::numeric_limits<int8_t>::min()) return std::numeric_limits<int8_t>::max();
-    return static_cast<int8_t>(-v);
+inline keel::i8 saturateNeg(keel::i8 v) {
+    if (v == std::numeric_limits<keel::i8>::min()) return std::numeric_limits<keel::i8>::max();
+    return static_cast<keel::i8>(-v);
 }
-inline int16_t saturateNeg(int16_t v) {
-    if (v == std::numeric_limits<int16_t>::min()) return std::numeric_limits<int16_t>::max();
-    return static_cast<int16_t>(-v);
+inline keel::i16 saturateNeg(keel::i16 v) {
+    if (v == std::numeric_limits<keel::i16>::min()) return std::numeric_limits<keel::i16>::max();
+    return static_cast<keel::i16>(-v);
 }
-inline int32_t saturateNeg(int32_t v) {
-    if (v == std::numeric_limits<int32_t>::min()) return std::numeric_limits<int32_t>::max();
-    return static_cast<int32_t>(-v);
+inline keel::i32 saturateNeg(keel::i32 v) {
+    if (v == std::numeric_limits<keel::i32>::min()) return std::numeric_limits<keel::i32>::max();
+    return static_cast<keel::i32>(-v);
 }
-inline int64_t saturateNeg(int64_t v) {
-    if (v == std::numeric_limits<int64_t>::min()) return std::numeric_limits<int64_t>::max();
-    return static_cast<int64_t>(-v);
+inline keel::i64 saturateNeg(keel::i64 v) {
+    if (v == std::numeric_limits<keel::i64>::min()) return std::numeric_limits<keel::i64>::max();
+    return static_cast<keel::i64>(-v);
 }
 
 inline Value transpose2D(const Value &x, bool conjugate, const char *fnName,
-                         std::pmr::memory_resource *p)
+                         keel::Allocator *p)
 {
     if (x.dims().is3D())
         throw Error("transpose is not defined for N-D arrays",
                      0, 0, fnName, "", "numkit:transpose:3DInput");
-    const size_t rows = x.dims().rows(), cols = x.dims().cols();
+    const keel::usize rows = x.dims().rows(), cols = x.dims().cols();
     const ValueType t = x.type();
 
     if (t == ValueType::COMPLEX) {
         if (x.isScalar()) {
-            auto r = Value::complexScalar(conjugate ? std::conj(x.toComplex())
+            auto r = Value::complexScalar(conjugate ? keel::conj(x.toComplex())
                                                     : x.toComplex(), p);
             if (x.isSingleComplex()) r.setSingleComplex(true);
             return r;
         }
         auto r = Value::complexMatrix(cols, rows, p);
         if (x.isSingleComplex()) r.setSingleComplex(true);
-        Complex *dst = r.complexDataMut();
-        for (size_t i = 0; i < rows; ++i)
-            for (size_t j = 0; j < cols; ++j) {
-                const Complex v = x.complexElem(i, j);
-                dst[i * cols + j] = conjugate ? std::conj(v) : v;
+        keel::c64 *dst = r.complexDataMut();
+        for (keel::usize i = 0; i < rows; ++i)
+            for (keel::usize j = 0; j < cols; ++j) {
+                const keel::c64 v = x.complexElem(i, j);
+                dst[i * cols + j] = conjugate ? keel::conj(v) : v;
             }
         return r;
     }
 
     if (t == ValueType::CELL) {
         auto r = Value::cell(cols, rows, p);
-        for (size_t i = 0; i < rows; ++i)
-            for (size_t j = 0; j < cols; ++j)
+        for (keel::usize i = 0; i < rows; ++i)
+            for (keel::usize j = 0; j < cols; ++j)
                 r.cellAt(i * cols + j) = x.cellAt(j * rows + i);
         return r;
     }
@@ -87,8 +87,8 @@ inline Value transpose2D(const Value &x, bool conjugate, const char *fnName,
         if (x.isScalar())
             return x;
         auto r = Value::stringArray(cols, rows, p);
-        for (size_t i = 0; i < rows; ++i)
-            for (size_t j = 0; j < cols; ++j)
+        for (keel::usize i = 0; i < rows; ++i)
+            for (keel::usize j = 0; j < cols; ++j)
                 r.stringElemSet(i * cols + j, x.stringElem(j * rows + i));
         return r;
     }
@@ -99,8 +99,8 @@ inline Value transpose2D(const Value &x, bool conjugate, const char *fnName,
         auto r = Value::structArray(cols, rows, p);
         for (const auto &fn : x.fieldNamesInOrder())
             r.setFieldAll(fn, Value());
-        for (size_t i = 0; i < rows; ++i)
-            for (size_t j = 0; j < cols; ++j)
+        for (keel::usize i = 0; i < rows; ++i)
+            for (keel::usize j = 0; j < cols; ++j)
                 r.structArrayElem(i * cols + j) = x.structArrayElem(j * rows + i);
         return r;
     }
@@ -111,12 +111,12 @@ inline Value transpose2D(const Value &x, bool conjugate, const char *fnName,
 
     if (t == ValueType::DOUBLE && x.isScalar())
         return Value::scalar(x.toScalar(), p);
-    const size_t es = elementSize(t);
+    const keel::usize es = elementSize(t);
     auto r = Value::matrix(cols, rows, t, p);
     const char *src = static_cast<const char *>(x.rawData());
     char *dst = static_cast<char *>(r.rawDataMut());
-    for (size_t i = 0; i < rows; ++i)
-        for (size_t j = 0; j < cols; ++j)
+    for (keel::usize i = 0; i < rows; ++i)
+        for (keel::usize j = 0; j < cols; ++j)
             std::memcpy(dst + (i * cols + j) * es,
                         src + (j * rows + i) * es, es);
     return r;

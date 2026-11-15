@@ -78,7 +78,7 @@ if(NOT TARGET keel::keel)
     FetchContent_Declare(
         keel
         GIT_REPOSITORY https://github.com/keelcpp/keel.git
-        GIT_TAG        042c102203a5d07389a1e974b0a9c342503519c6
+        GIT_TAG        ca7fb3ed8f781d0b7af113422cdaa70a6da6eae4
     )
     FetchContent_MakeAvailable(keel)
 endif()
@@ -93,7 +93,7 @@ if(NOT TARGET keel::compress)
     FetchContent_Declare(
         keel_compress
         GIT_REPOSITORY https://github.com/keelcpp/compress.git
-        GIT_TAG        529578dc5b99987dc2cc5d6d6ddd928eaa6f4943
+        GIT_TAG        e426c71ed8d267e488119272c0e066e1da2f720e
     )
     FetchContent_MakeAvailable(keel_compress)
 endif()
@@ -108,7 +108,7 @@ if(NOT TARGET keel::image)
     FetchContent_Declare(
         keel_image
         GIT_REPOSITORY https://github.com/keelcpp/image.git
-        GIT_TAG        62b1ea9831703433000f97814be05c7cb4c7627a
+        GIT_TAG        bfbbf3bd9daa8890880e28381932d6307aefde2c
     )
     FetchContent_MakeAvailable(keel_image)
 endif()
@@ -123,7 +123,7 @@ if(NOT TARGET keel::fft)
     FetchContent_Declare(
         keel_fft
         GIT_REPOSITORY https://github.com/keelcpp/fft.git
-        GIT_TAG        a3534db710b993bd15e3634252bb1bfc7eba9852
+        GIT_TAG        91357427ef2492fda4d1906add6bcd3fe2d3c260
     )
     FetchContent_MakeAvailable(keel_fft)
 endif()

@@ -13,8 +13,9 @@
 
 #pragma once
 
-#include <memory_resource>
-#include <numkit/value/span.hpp>
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/ref.h>
 #include <numkit/value/value.hpp>
 
 #include <numkit/ops/rng_context.hpp>
@@ -25,26 +26,26 @@ namespace numkit::ops {
 
 // ── Real-valued random (uniform / standard-normal) ───────────────────
 // `pages == 0` → 2-D matrix. Output is DOUBLE.
-Value rand(RngContext &rng, size_t rows, size_t cols = 1,
-           size_t pages = 0, std::pmr::memory_resource *mr = nullptr);
-Value randn(RngContext &rng, size_t rows, size_t cols = 1,
-            size_t pages = 0, std::pmr::memory_resource *mr = nullptr);
-Value randND(RngContext &rng, Span<const size_t> dims,
-             std::pmr::memory_resource *mr = nullptr);
-Value randnND(RngContext &rng, Span<const size_t> dims,
-              std::pmr::memory_resource *mr = nullptr);
+Value rand(RngContext &rng, keel::usize rows, keel::usize cols = 1,
+           keel::usize pages = 0, keel::Allocator *mr = nullptr);
+Value randn(RngContext &rng, keel::usize rows, keel::usize cols = 1,
+            keel::usize pages = 0, keel::Allocator *mr = nullptr);
+Value randND(RngContext &rng, keel::ArrayRef<keel::usize> dims,
+             keel::Allocator *mr = nullptr);
+Value randnND(RngContext &rng, keel::ArrayRef<keel::usize> dims,
+              keel::Allocator *mr = nullptr);
 
 // ── Integer random ───────────────────────────────────────────────────
-Value randi(RngContext &rng, int64_t imax, std::pmr::memory_resource *mr = nullptr);
-Value randi(RngContext &rng, int64_t imax, size_t rows, size_t cols,
-            size_t pages = 0, std::pmr::memory_resource *mr = nullptr);
-Value randi(RngContext &rng, int64_t imin, int64_t imax, size_t rows, size_t cols,
-            size_t pages = 0, std::pmr::memory_resource *mr = nullptr);
+Value randi(RngContext &rng, keel::i64 imax, keel::Allocator *mr = nullptr);
+Value randi(RngContext &rng, keel::i64 imax, keel::usize rows, keel::usize cols,
+            keel::usize pages = 0, keel::Allocator *mr = nullptr);
+Value randi(RngContext &rng, keel::i64 imin, keel::i64 imax, keel::usize rows, keel::usize cols,
+            keel::usize pages = 0, keel::Allocator *mr = nullptr);
 
 // ── Permutations ─────────────────────────────────────────────────────
-Value randperm(RngContext &rng, size_t n, std::pmr::memory_resource *mr = nullptr);
-Value randperm(RngContext &rng, size_t n, size_t k,
-               std::pmr::memory_resource *mr = nullptr);
+Value randperm(RngContext &rng, keel::usize n, keel::Allocator *mr = nullptr);
+Value randperm(RngContext &rng, keel::usize n, keel::usize k,
+               keel::Allocator *mr = nullptr);
 
 // rng() control (seed / shuffle / state save+restore) lives on RngContext
 // itself — see rng_context.hpp.

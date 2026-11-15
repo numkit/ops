@@ -7,7 +7,8 @@
 
 #pragma once
 
-#include <memory_resource>
+#include <keel/core.h>
+#include <keel/memory.h>
 #include <string>
 #include <numkit/value/value.hpp>
 
@@ -22,19 +23,19 @@ namespace numkit::linalg {
 /// LU for square `A`, Householder QR for tall `A` (least-squares).
 /// Backs `mldivide` / `\` â€” but `mldivide` lives in toolboxes/builtin (it's
 /// the operator implementation). This is the user-facing `linsolve()`.
-Value linsolve(const Value &A, const Value &B, std::pmr::memory_resource *mr = nullptr);
+Value linsolve(const Value &A, const Value &B, keel::Allocator *mr = nullptr);
 
 /// @brief Minimum-norm least-squares solution (`X = lsqminnorm(A, B)`).
 ///
 /// Computes `pinv(A, tol) Â· B`. Full-rank A collapses to A\B; rank-
 /// deficient A returns the unique min-norm solution.
-Value lsqminnorm(const Value &A, const Value &B, bool have_tol, double tol_user,
-                 std::pmr::memory_resource *mr = nullptr);
+Value lsqminnorm(const Value &A, const Value &B, bool have_tol, keel::f64 tol_user,
+                 keel::Allocator *mr = nullptr);
 
 /// @brief Result of @ref lsqnonneg_impl.
 struct NnlsResult {
     Value x;             ///< Non-negative solution column.
-    double resnorm;      ///< Squared 2-norm of the residual `â€–CÂ·x âˆ’ dâ€–Â²`.
+    keel::f64 resnorm;      ///< Squared 2-norm of the residual `â€–CÂ·x âˆ’ dâ€–Â²`.
     Value residual;      ///< Residual column `d âˆ’ CÂ·x`.
     int exitflag;        ///< 1 on convergence.
     int iterations;      ///< Outer-loop iteration count.
@@ -47,7 +48,7 @@ struct NnlsResult {
 /// Lawson-Hanson active-set NNLS: minimises `â€–CÂ·x âˆ’ dâ€–â‚‚` subject to
 /// `x â‰¥ 0`. Returns the full @ref NnlsResult for the multi-output forms.
 NnlsResult lsqnonneg_impl(const Value &C, const Value &d,
-                          std::pmr::memory_resource *mr = nullptr);
+                          keel::Allocator *mr = nullptr);
 
 
 /// @}

@@ -3,10 +3,10 @@
 // Phase 2b compute/register split — see project_layering_refactor memory.
 #pragma once
 
+#include <keel/memory.h>
+#include <keel/complex.h>
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
-#include <numkit/value/scratch.hpp>
-#include <numkit/value/span.hpp>
 #include <numkit/ops/helpers.hpp>
 #include <numkit/ops/reductions.hpp>  // engine-free numkit::builtin::detail dim-infra (ops re-export)
 
@@ -16,7 +16,6 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
-#include <memory_resource>
 #include <numeric>
 #include <string>
 #include <tuple>
@@ -37,7 +36,7 @@ using namespace numkit::ops;
 // loop; other numeric types → fall through to unaryDouble (which calls
 // Value::elemAsDouble per element).
 template <typename ScalarOp, typename SimdOp>
-Value roundLikeDispatch(const Value &x, ScalarOp scalar, SimdOp simdLoop, std::pmr::memory_resource *mr)
+Value roundLikeDispatch(const Value &x, ScalarOp scalar, SimdOp simdLoop, keel::Allocator *mr)
 {
     // floor/ceil/round/fix are the IDENTITY on integer-typed values; MATLAB
     // keeps the integer class. (The double path below would throw on integer
@@ -48,8 +47,8 @@ Value roundLikeDispatch(const Value &x, ScalarOp scalar, SimdOp simdLoop, std::p
         // MATLAB applies floor/ceil/round/fix component-wise to re and im
         // (e.g. floor(3+4.7i) = 3+4i). Checked before isScalar — toScalar()
         // rejects a complex scalar.
-        auto cxOp = [&scalar](Complex z) {
-            return Complex(scalar(z.real()), scalar(z.imag()));
+        auto cxOp = [&scalar](keel::c64 z) {
+            return keel::c64(scalar(z.real()), scalar(z.imag()));
         };
         if (x.isScalar())
             return Value::complexScalar(cxOp(x.toComplex()), mr);
@@ -83,6 +82,6 @@ inline double roundNScalar(double v, int n, bool significant)
 } // namespace
 
 // round(x,n)/round(x,n,'significant') worker (def in rounding.cpp, external).
-Value roundN(const Value &x, int n, bool significant, std::pmr::memory_resource *mr);
+Value roundN(const Value &x, int n, bool significant, keel::Allocator *mr);
 
 } // namespace numkit::builtin

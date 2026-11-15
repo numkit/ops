@@ -7,7 +7,7 @@
 
 #pragma once
 
-#include <memory_resource>
+#include <keel/memory.h>
 #include <numkit/value/value.hpp>
 
 namespace numkit::linalg {
@@ -29,7 +29,7 @@ struct BalanceResult {
 /// Parlett-Reinsch (1969). v1 implements only the scaling phase
 /// (permutation phase deferred; behaves like `balance(A, 'noperm')`).
 BalanceResult balance_impl(const Value &A, bool noperm,
-                           std::pmr::memory_resource *mr = nullptr);
+                           keel::Allocator *mr = nullptr);
 
 
 /// @}

@@ -2,6 +2,9 @@
 //
 // Reference scalar implementations of trig family for numkit::builtin.
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/complex.h>
 #include <numkit/builtin/elfun.hpp>
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
@@ -9,14 +12,13 @@
 #include "sinpi_kernel.hpp"
 
 #include <cmath>
-#include <complex>
 
 namespace numkit::builtin {
 
 namespace {
 
 template <typename ScalarOp, typename ComplexOp>
-Value unaryRealDoubleHint(const Value &x, Value *hint, ScalarOp scalarOp, ComplexOp complexOp, std::pmr::memory_resource *mr)
+Value unaryRealDoubleHint(const Value &x, Value *hint, ScalarOp scalarOp, ComplexOp complexOp, keel::Allocator *mr)
 {
     if (x.isComplex())
         return unaryComplex(x, complexOp, mr);
@@ -28,7 +30,7 @@ Value unaryRealDoubleHint(const Value &x, Value *hint, ScalarOp scalarOp, Comple
         Value r = std::move(*hint);
         const double *in  = x.doubleData();
         double       *out = r.doubleDataMut();
-        for (size_t i = 0; i < x.numel(); ++i)
+        for (keel::usize i = 0; i < x.numel(); ++i)
             out[i] = scalarOp(in[i]);
         return r;
     }
@@ -108,173 +110,173 @@ inline double cospi_scalar_p(double x) { return detail::cospi_kernel(x); }
 
 } // namespace
 
-Value sin(const Value &x, Value *hint, std::pmr::memory_resource *mr)
+Value sin(const Value &x, Value *hint, keel::Allocator *mr)
 {
-    return unaryRealDoubleHint(x, hint, [](double v) { return std::sin(v); }, [](const Complex &c) { return std::sin(c); }, mr);
+    return unaryRealDoubleHint(x, hint, [](double v) { return std::sin(v); }, [](const keel::c64 &c) { return keel::sin(c); }, mr);
 }
 
-Value cos(const Value &x, Value *hint, std::pmr::memory_resource *mr)
+Value cos(const Value &x, Value *hint, keel::Allocator *mr)
 {
-    return unaryRealDoubleHint(x, hint, [](double v) { return std::cos(v); }, [](const Complex &c) { return std::cos(c); }, mr);
+    return unaryRealDoubleHint(x, hint, [](double v) { return std::cos(v); }, [](const keel::c64 &c) { return keel::cos(c); }, mr);
 }
 
-Value tan(const Value &x, std::pmr::memory_resource *mr)
+Value tan(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
-        return unaryComplex(x, [](const Complex &c) { return std::tan(c); }, mr);
+        return unaryComplex(x, [](const keel::c64 &c) { return keel::tan(c); }, mr);
     return unaryDouble(x, [](double v) { return std::tan(v); }, mr);
 }
 
-Value sinh(const Value &x, std::pmr::memory_resource *mr)
+Value sinh(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
-        return unaryComplex(x, [](const Complex &c) { return std::sinh(c); }, mr);
+        return unaryComplex(x, [](const keel::c64 &c) { return keel::sinh(c); }, mr);
     return unaryDouble(x, [](double v) { return std::sinh(v); }, mr);
 }
 
-Value cosh(const Value &x, std::pmr::memory_resource *mr)
+Value cosh(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
-        return unaryComplex(x, [](const Complex &c) { return std::cosh(c); }, mr);
+        return unaryComplex(x, [](const keel::c64 &c) { return keel::cosh(c); }, mr);
     return unaryDouble(x, [](double v) { return std::cosh(v); }, mr);
 }
 
-Value tanh(const Value &x, std::pmr::memory_resource *mr)
+Value tanh(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
-        return unaryComplex(x, [](const Complex &c) { return std::tanh(c); }, mr);
+        return unaryComplex(x, [](const keel::c64 &c) { return keel::tanh(c); }, mr);
     return unaryDouble(x, [](double v) { return std::tanh(v); }, mr);
 }
 
-Value asin(const Value &x, std::pmr::memory_resource *mr)
+Value asin(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
-        return unaryComplex(x, [](const Complex &c) { return std::asin(c); }, mr);
+        return unaryComplex(x, [](const keel::c64 &c) { return keel::asin(c); }, mr);
     // Real out-of-domain generates complex result in MATLAB semantics
-    for (size_t i = 0; i < x.numel(); ++i) {
+    for (keel::usize i = 0; i < x.numel(); ++i) {
         double v = x.elemAsDouble(i);
         if (v < -1.0 || v > 1.0) {
-            return unaryComplex(x, [](const Complex &c) { return std::asin(c); }, mr);
+            return unaryComplex(x, [](const keel::c64 &c) { return keel::asin(c); }, mr);
         }
     }
     return unaryDouble(x, [](double v) { return std::asin(v); }, mr);
 }
 
-Value acos(const Value &x, std::pmr::memory_resource *mr)
+Value acos(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
-        return unaryComplex(x, [](const Complex &c) { return std::acos(c); }, mr);
-    for (size_t i = 0; i < x.numel(); ++i) {
+        return unaryComplex(x, [](const keel::c64 &c) { return keel::acos(c); }, mr);
+    for (keel::usize i = 0; i < x.numel(); ++i) {
         double v = x.elemAsDouble(i);
         if (v < -1.0 || v > 1.0) {
-            return unaryComplex(x, [](const Complex &c) { return std::acos(c); }, mr);
+            return unaryComplex(x, [](const keel::c64 &c) { return keel::acos(c); }, mr);
         }
     }
     return unaryDouble(x, [](double v) { return std::acos(v); }, mr);
 }
 
-Value atan(const Value &x, std::pmr::memory_resource *mr)
+Value atan(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
-        return unaryComplex(x, [](const Complex &c) { return std::atan(c); }, mr);
+        return unaryComplex(x, [](const keel::c64 &c) { return keel::atan(c); }, mr);
     return unaryDouble(x, [](double v) { return std::atan(v); }, mr);
 }
 
-Value atan2(const Value &y, const Value &x, std::pmr::memory_resource *mr)
+Value atan2(const Value &y, const Value &x, keel::Allocator *mr)
 {
     return elementwiseDouble(y, x, [](double yy, double xx) { return std::atan2(yy, xx); }, mr);
 }
 
-Value asinh(const Value &x, std::pmr::memory_resource *mr)
+Value asinh(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
-        return unaryComplex(x, [](const Complex &c) { return std::asinh(c); }, mr);
+        return unaryComplex(x, [](const keel::c64 &c) { return keel::asinh(c); }, mr);
     return unaryDouble(x, [](double v) { return std::asinh(v); }, mr);
 }
 
-Value acosh(const Value &x, std::pmr::memory_resource *mr)
+Value acosh(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
-        return unaryComplex(x, [](const Complex &c) { return std::acosh(c); }, mr);
-    for (size_t i = 0; i < x.numel(); ++i) {
+        return unaryComplex(x, [](const keel::c64 &c) { return keel::acosh(c); }, mr);
+    for (keel::usize i = 0; i < x.numel(); ++i) {
         if (x.elemAsDouble(i) < 1.0) {
-            return unaryComplex(x, [](const Complex &c) { return std::acosh(c); }, mr);
+            return unaryComplex(x, [](const keel::c64 &c) { return keel::acosh(c); }, mr);
         }
     }
     return unaryDouble(x, [](double v) { return std::acosh(v); }, mr);
 }
 
-Value atanh(const Value &x, std::pmr::memory_resource *mr)
+Value atanh(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
-        return unaryComplex(x, [](const Complex &c) { return std::atanh(c); }, mr);
-    for (size_t i = 0; i < x.numel(); ++i) {
+        return unaryComplex(x, [](const keel::c64 &c) { return keel::atanh(c); }, mr);
+    for (keel::usize i = 0; i < x.numel(); ++i) {
         double v = x.elemAsDouble(i);
         if (v < -1.0 || v > 1.0) {
-            return unaryComplex(x, [](const Complex &c) { return std::atanh(c); }, mr);
+            return unaryComplex(x, [](const keel::c64 &c) { return keel::atanh(c); }, mr);
         }
     }
     return unaryDouble(x, [](double v) { return std::atanh(v); }, mr);
 }
 
-Value sind(const Value &x, std::pmr::memory_resource *mr)
+Value sind(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
-        return unaryComplex(x, [](const Complex &c) { return std::sin(c * kDeg2Rad_p); }, mr);
+        return unaryComplex(x, [](const keel::c64 &c) { return keel::sin(c * kDeg2Rad_p); }, mr);
     return unaryDouble(x, [](double v) { return sind_scalar_p(v); }, mr);
 }
 
-Value cosd(const Value &x, std::pmr::memory_resource *mr)
+Value cosd(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
-        return unaryComplex(x, [](const Complex &c) { return std::cos(c * kDeg2Rad_p); }, mr);
+        return unaryComplex(x, [](const keel::c64 &c) { return keel::cos(c * kDeg2Rad_p); }, mr);
     return unaryDouble(x, [](double v) { return cosd_scalar_p(v); }, mr);
 }
 
-Value tand(const Value &x, std::pmr::memory_resource *mr)
+Value tand(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
-        return unaryComplex(x, [](const Complex &c) { return std::tan(c * kDeg2Rad_p); }, mr);
+        return unaryComplex(x, [](const keel::c64 &c) { return keel::tan(c * kDeg2Rad_p); }, mr);
     return unaryDouble(x, [](double v) { return tand_scalar_p(v); }, mr);
 }
 
-Value asind(const Value &x, std::pmr::memory_resource *mr)
+Value asind(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
-        return unaryComplex(x, [](const Complex &c) { return std::asin(c) * kRad2Deg_p; }, mr);
+        return unaryComplex(x, [](const keel::c64 &c) { return keel::asin(c) * kRad2Deg_p; }, mr);
     return unaryDouble(x, [](double v) { return asind_scalar_p(v); }, mr);
 }
 
-Value acosd(const Value &x, std::pmr::memory_resource *mr)
+Value acosd(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
-        return unaryComplex(x, [](const Complex &c) { return std::acos(c) * kRad2Deg_p; }, mr);
+        return unaryComplex(x, [](const keel::c64 &c) { return keel::acos(c) * kRad2Deg_p; }, mr);
     return unaryDouble(x, [](double v) { return acosd_scalar_p(v); }, mr);
 }
 
-Value atand(const Value &x, std::pmr::memory_resource *mr)
+Value atand(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
-        return unaryComplex(x, [](const Complex &c) { return std::atan(c) * kRad2Deg_p; }, mr);
+        return unaryComplex(x, [](const keel::c64 &c) { return keel::atan(c) * kRad2Deg_p; }, mr);
     return unaryDouble(x, [](double v) { return atand_scalar_p(v); }, mr);
 }
 
-Value atan2d(const Value &y, const Value &x, std::pmr::memory_resource *mr)
+Value atan2d(const Value &y, const Value &x, keel::Allocator *mr)
 {
     return elementwiseDouble(y, x, [](double yy, double xx) { return atan2d_scalar_p(yy, xx); }, mr);
 }
 
-Value sinpi(const Value &x, std::pmr::memory_resource *mr)
+Value sinpi(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
-        return unaryComplex(x, [](const Complex &c) { return std::sin(kPi_p * c); }, mr);
+        return unaryComplex(x, [](const keel::c64 &c) { return keel::sin(kPi_p * c); }, mr);
     return unaryDouble(x, [](double v) { return sinpi_scalar_p(v); }, mr);
 }
 
-Value cospi(const Value &x, std::pmr::memory_resource *mr)
+Value cospi(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
-        return unaryComplex(x, [](const Complex &c) { return std::cos(kPi_p * c); }, mr);
+        return unaryComplex(x, [](const keel::c64 &c) { return keel::cos(kPi_p * c); }, mr);
     return unaryDouble(x, [](double v) { return cospi_scalar_p(v); }, mr);
 }
 

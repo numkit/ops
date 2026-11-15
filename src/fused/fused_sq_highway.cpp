@@ -9,6 +9,7 @@
 // real squares is never negative, so fusedSqrtSumSq needs no complex/domain
 // handling. NaN/Inf propagate through the plain IEEE ops as per-op.
 
+#include <keel/core.h>
 #include <numkit/ops/fused/fused_kernels.hpp>
 #include <numkit/ops/parallel_for.hpp>
 
@@ -30,11 +31,11 @@ namespace hn = hwy::HWY_NAMESPACE;
 // loop-invariant branch → the affine path is unchanged). The square is a plain
 // Mul (no FMA) either way, so each form is bit-identical to its per-op spelling.
 void SqAffineImpl(const double *x, double p0, double p1, bool divide,
-                  double *out, std::size_t n) {
+                  double *out, keel::usize n) {
     const hn::ScalableTag<double> d;
-    const std::size_t L = hn::Lanes(d);
+    const keel::usize L = hn::Lanes(d);
     const auto vp0 = hn::Set(d, p0), vp1 = hn::Set(d, p1);
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i + L <= n; i += L) {
         const auto xv = hn::LoadU(d, x + i);
         const auto v = divide ? hn::Div(hn::Sub(xv, vp0), vp1)
@@ -47,10 +48,10 @@ void SqAffineImpl(const double *x, double p0, double p1, bool divide,
     }
 }
 
-void SqDiffImpl(const double *x, const double *y, double *out, std::size_t n) {
+void SqDiffImpl(const double *x, const double *y, double *out, keel::usize n) {
     const hn::ScalableTag<double> d;
-    const std::size_t L = hn::Lanes(d);
-    std::size_t i = 0;
+    const keel::usize L = hn::Lanes(d);
+    keel::usize i = 0;
     for (; i + L <= n; i += L) {
         const auto v = hn::Sub(hn::LoadU(d, x + i), hn::LoadU(d, y + i));
         hn::StoreU(hn::Mul(v, v), d, out + i);
@@ -61,10 +62,10 @@ void SqDiffImpl(const double *x, const double *y, double *out, std::size_t n) {
     }
 }
 
-void SqrtSumSqImpl(const double *x, const double *y, double *out, std::size_t n) {
+void SqrtSumSqImpl(const double *x, const double *y, double *out, keel::usize n) {
     const hn::ScalableTag<double> d;
-    const std::size_t L = hn::Lanes(d);
-    std::size_t i = 0;
+    const keel::usize L = hn::Lanes(d);
+    keel::usize i = 0;
     for (; i + L <= n; i += L) {
         const auto vx = hn::LoadU(d, x + i), vy = hn::LoadU(d, y + i);
         hn::StoreU(hn::Sqrt(hn::Add(hn::Mul(vx, vx), hn::Mul(vy, vy))), d, out + i);
@@ -84,7 +85,7 @@ HWY_EXPORT(SqDiffImpl);
 HWY_EXPORT(SqrtSumSqImpl);
 
 void fusedSqAffine(const double *x, double scale, double offset,
-                   double *out, std::size_t n) {
+                   double *out, keel::usize n) {
     if (n == 0) return;
     // Small native arrays delegate to the shared scalar kernel (fused_scalar.cpp)
     // rather than an inline loop: one body shared with the portable fallback
@@ -95,39 +96,39 @@ void fusedSqAffine(const double *x, double scale, double offset,
         fusedSqAffineScalar(x, scale, offset, out, n);
         return;
     }
-    detail::parallel_for(n, std::size_t{1} << 16, [=](std::size_t s, std::size_t e) {
+    detail::parallel_for(n, keel::usize{1} << 16, [=](keel::usize s, keel::usize e) {
         HWY_DYNAMIC_DISPATCH(SqAffineImpl)(x + s, scale, offset, /*divide=*/false,
                                            out + s, e - s);
     });
 }
 
 void fusedSqShiftDiv(const double *x, double sub, double div,
-                     double *out, std::size_t n) {
+                     double *out, keel::usize n) {
     if (n == 0) return;
     if (n < numkit::detail::kSimdInlineThreshold) {   // delegate (see fusedSqAffine)
         fusedSqShiftDivScalar(x, sub, div, out, n);
         return;
     }
-    detail::parallel_for(n, std::size_t{1} << 16, [=](std::size_t s, std::size_t e) {
+    detail::parallel_for(n, keel::usize{1} << 16, [=](keel::usize s, keel::usize e) {
         HWY_DYNAMIC_DISPATCH(SqAffineImpl)(x + s, sub, div, /*divide=*/true,
                                            out + s, e - s);
     });
 }
 
-void fusedSqDiff(const double *x, const double *y, double *out, std::size_t n) {
+void fusedSqDiff(const double *x, const double *y, double *out, keel::usize n) {
     if (n == 0) return;
     if (n < numkit::detail::kSimdInlineThreshold) {   // delegate (see fusedSqAffine)
         fusedSqDiffScalar(x, y, out, n);
         return;
     }
-    detail::parallel_for(n, std::size_t{1} << 16, [=](std::size_t s, std::size_t e) {
+    detail::parallel_for(n, keel::usize{1} << 16, [=](keel::usize s, keel::usize e) {
         HWY_DYNAMIC_DISPATCH(SqDiffImpl)(x + s, y + s, out + s, e - s);
     });
 }
 
-void fusedSqrtSumSq(const double *x, const double *y, double *out, std::size_t n) {
+void fusedSqrtSumSq(const double *x, const double *y, double *out, keel::usize n) {
     if (n == 0) return;
-    detail::parallel_for(n, std::size_t{1} << 16, [=](std::size_t s, std::size_t e) {
+    detail::parallel_for(n, keel::usize{1} << 16, [=](keel::usize s, keel::usize e) {
         HWY_DYNAMIC_DISPATCH(SqrtSumSqImpl)(x + s, y + s, out + s, e - s);
     });
 }

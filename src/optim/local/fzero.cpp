@@ -7,18 +7,21 @@
 // just marshal Value<->double and call them. All three accept a numkit::FnHandle
 // objective (no Engine dependency); the engine adapters live in bundle.
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/ref.h>
+#include <keel/arena.h>
 #include <numkit/optim/local/fzero.hpp>
 
 #include <numkit/ops/root_solve.hpp>
 #include <numkit/value/error.hpp>
-#include <numkit/value/scratch.hpp>
 
 #include <cmath>
 #include <utility>
 
 namespace numkit::optim {
 
-Value fzero(FnHandle fn, double x0, std::pmr::memory_resource *mr)
+Value fzero(FnHandle fn, double x0, keel::Allocator *mr)
 {
     if (!std::isfinite(x0))
         throw Error("fzero: x0 must be finite", 0, 0, "fzero", "", "numkit:fzero:badX0");
@@ -28,7 +31,7 @@ Value fzero(FnHandle fn, double x0, std::pmr::memory_resource *mr)
     return Value::scalar(ops::brent(fn, a, b, mr), mr);
 }
 
-Value fzero(FnHandle fn, double a, double b, std::pmr::memory_resource *mr)
+Value fzero(FnHandle fn, double a, double b, keel::Allocator *mr)
 {
     if (!std::isfinite(a) || !std::isfinite(b) || a >= b)
         throw Error("fzero: interval [a, b] must satisfy a < b and be finite", 0, 0, "fzero", "",
@@ -36,7 +39,7 @@ Value fzero(FnHandle fn, double a, double b, std::pmr::memory_resource *mr)
     return Value::scalar(ops::brent(fn, a, b, mr), mr);
 }
 
-Value fminbnd(FnHandle fn, double lo, double hi, double tol, std::pmr::memory_resource *mr)
+Value fminbnd(FnHandle fn, double lo, double hi, double tol, keel::Allocator *mr)
 {
     if (!std::isfinite(lo) || !std::isfinite(hi) || lo >= hi)
         throw Error("fminbnd: lo < hi must be finite", 0, 0, "fminbnd", "",
@@ -45,17 +48,17 @@ Value fminbnd(FnHandle fn, double lo, double hi, double tol, std::pmr::memory_re
     return Value::scalar(ops::brentMin(fn, lo, hi, tol, mr), mr);
 }
 
-Value fminsearch(FnHandle fn, Span<const double> x0, double tol, std::pmr::memory_resource *mr)
+Value fminsearch(FnHandle fn, keel::ArrayRef<double> x0, double tol, keel::Allocator *mr)
 {
-    const std::size_t n = x0.size();
+    const keel::usize n = x0.size();
     if (n == 0)
         throw Error("fminsearch: x0 must be non-empty", 0, 0, "fminsearch", "",
                     "numkit:fminsearch:badX0");
     if (!(tol > 0)) tol = 1e-4;
-    ScratchArena scratch(mr);
-    auto         best = ops::nelderMead(fn, x0.data(), n, tol, &scratch);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    auto         best = ops::nelderMead(fn, x0.data(), n, tol, scratch.allocator());
     Value        r    = Value::matrix(n, 1, ValueType::DOUBLE, mr);
-    for (std::size_t i = 0; i < n; ++i) r.doubleDataMut()[i] = best[i];
+    for (keel::usize i = 0; i < n; ++i) r.doubleDataMut()[i] = best[i];
     return r;
 }
 

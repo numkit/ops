@@ -10,6 +10,7 @@
 // rem stays scalar â€” it needs an exact fmod that Highway has no primitive
 // for; the a - trunc(a/b)*b approximation drifts from std::fmod.
 
+#include <keel/core.h>
 #include "mod_simd.hpp"
 
 #include <cmath>
@@ -36,35 +37,35 @@ HWY_INLINE V ModVec(D d, V va, V vb)
 }
 
 void ModLoopVV(const double *HWY_RESTRICT a, const double *HWY_RESTRICT b,
-               double *HWY_RESTRICT out, std::size_t n)
+               double *HWY_RESTRICT out, keel::usize n)
 {
     const hn::ScalableTag<double> d;
-    const std::size_t N = hn::Lanes(d);
-    std::size_t i = 0;
+    const keel::usize N = hn::Lanes(d);
+    keel::usize i = 0;
     for (; i + N <= n; i += N)
         hn::StoreU(ModVec(d, hn::LoadU(d, a + i), hn::LoadU(d, b + i)), d, out + i);
     for (; i < n; ++i) out[i] = (b[i] != 0) ? a[i] - std::floor(a[i] / b[i]) * b[i] : a[i];
 }
 
 void ModLoopVS(const double *HWY_RESTRICT a, double s,
-               double *HWY_RESTRICT out, std::size_t n)
+               double *HWY_RESTRICT out, keel::usize n)
 {
     const hn::ScalableTag<double> d;
-    const std::size_t N = hn::Lanes(d);
+    const keel::usize N = hn::Lanes(d);
     const auto vs = hn::Set(d, s);
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i + N <= n; i += N)
         hn::StoreU(ModVec(d, hn::LoadU(d, a + i), vs), d, out + i);
     for (; i < n; ++i) out[i] = (s != 0) ? a[i] - std::floor(a[i] / s) * s : a[i];
 }
 
 void ModLoopSV(double s, const double *HWY_RESTRICT b,
-               double *HWY_RESTRICT out, std::size_t n)
+               double *HWY_RESTRICT out, keel::usize n)
 {
     const hn::ScalableTag<double> d;
-    const std::size_t N = hn::Lanes(d);
+    const keel::usize N = hn::Lanes(d);
     const auto vs = hn::Set(d, s);
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i + N <= n; i += N)
         hn::StoreU(ModVec(d, vs, hn::LoadU(d, b + i)), d, out + i);
     for (; i < n; ++i) out[i] = (b[i] != 0) ? s - std::floor(s / b[i]) * b[i] : s;
@@ -85,17 +86,17 @@ HWY_EXPORT(ModLoopSV);
 // Serial SIMD (no parallel_for): mod is memory-bandwidth bound, and on
 // Arrow Lake the worker-dispatch overhead loses to the single-threaded
 // SIMD loop at these array sizes (matches the project's threading note).
-void modLoopVV(const double *a, const double *b, double *out, std::size_t n)
+void modLoopVV(const double *a, const double *b, double *out, keel::usize n)
 {
     HWY_DYNAMIC_DISPATCH(ModLoopVV)(a, b, out, n);
 }
 
-void modLoopVS(const double *a, double scalar, double *out, std::size_t n)
+void modLoopVS(const double *a, double scalar, double *out, keel::usize n)
 {
     HWY_DYNAMIC_DISPATCH(ModLoopVS)(a, scalar, out, n);
 }
 
-void modLoopSV(double scalar, const double *b, double *out, std::size_t n)
+void modLoopSV(double scalar, const double *b, double *out, keel::usize n)
 {
     HWY_DYNAMIC_DISPATCH(ModLoopSV)(scalar, b, out, n);
 }

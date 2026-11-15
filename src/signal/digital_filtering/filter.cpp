@@ -1,10 +1,15 @@
 // toolboxes/signal/src/digital_filtering/filter.cpp
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/arena.h>
+#include <keel/array.h>
+#include <keel/complex.h>
+#include <keel/math.h>
 #include <numkit/signal/digital_filtering/filter.hpp>
 
 #include <numkit/value/value.hpp>
 #include <numkit/value/value_type.hpp>
-#include <numkit/value/scratch.hpp>
 #include <numkit/value/error.hpp>
 
 #include <numkit/ops/helpers.hpp>
@@ -12,7 +17,6 @@
 
 #include <algorithm>
 #include <cstring>
-#include <memory_resource>
 
 namespace numkit::signal {
 
@@ -22,14 +26,14 @@ namespace numkit::signal {
 // Value-level marshalling helpers below stay in signal.
 
 // Gather a Value into a Complex buffer (real element -> Complex(v, 0)).
-ScratchVec<Complex> toComplexBuf(const Value &v, size_t n, std::pmr::memory_resource *mr)
+keel::Array<keel::c64> toComplexBuf(const Value &v, keel::usize n, keel::Allocator *mr)
 {
-    ScratchVec<Complex> out(n, mr);
+    keel::Array<keel::c64> out(n, mr);
     if (v.isComplex()) {
-        const Complex *c = v.complexData();
-        for (size_t i = 0; i < n; ++i) out[i] = c[i];
+        const keel::c64 *c = v.complexData();
+        for (keel::usize i = 0; i < n; ++i) out[i] = c[i];
     } else {
-        for (size_t i = 0; i < n; ++i) out[i] = Complex(v.elemAsDouble(i), 0.0);
+        for (keel::usize i = 0; i < n; ++i) out[i] = keel::c64(v.elemAsDouble(i), 0.0);
     }
     return out;
 }
@@ -40,7 +44,7 @@ ScratchVec<Complex> toComplexBuf(const Value &v, size_t n, std::pmr::memory_reso
 // have size 1, so their combined stride is 1) and the whole buffer splits
 // cleanly into numel/L such runs. Returns L; for a scalar/empty input it
 // returns numel (a single — possibly empty — run).
-size_t firstNonSingletonExtent(const Value &x)
+keel::usize firstNonSingletonExtent(const Value &x)
 {
     const Dims &d = x.dims();
     const int nd = d.ndim();
@@ -102,7 +106,7 @@ FilterPlan filter_argcheck(const Value &b, const Value &a, const Value &x,
 
     // a(1) != 0 — complex inputs report through the complex view.
     if (a.isComplex()) {
-        if (a.complexData()[0] == Complex(0.0, 0.0))
+        if (a.complexData()[0] == keel::c64(0.0, 0.0))
             throw Error("filter: first denominator coefficient a(1) must "
                         "be non-zero (got 0).",
                         0, 0, "filter", "", "numkit:filter:zeroLead");
@@ -123,7 +127,7 @@ FilterPlan filter_argcheck(const Value &b, const Value &a, const Value &x,
     p.stateLen = std::max(p.nb, p.na) - 1;
 
     if (hasZi) {
-        const size_t ziLen = zi.numel();
+        const keel::usize ziLen = zi.numel();
         const bool perSignal = p.nSig > 1 && ziLen == p.stateLen * p.nSig;
         if (!(ziLen == p.stateLen || perSignal))
             throw Error(
@@ -142,85 +146,85 @@ FilterPlan filter_argcheck(const Value &b, const Value &a, const Value &x,
 // it — its cost is one write per state element).
 static FilterState runFilter(const FilterPlan &p, const Value &b,
                              const Value &a, const Value &x, const Value &zi,
-                             std::pmr::memory_resource *mr)
+                             keel::Allocator *mr)
 {
     const bool hasZi = zi.numel() > 0;
-    const size_t zfCols = (p.nSig > 0) ? p.nSig : 1;
+    const keel::usize zfCols = (p.nSig > 0) ? p.nSig : 1;
 
     if (p.complex) {
-        ScratchArena cs(mr);
-        auto bc = toComplexBuf(b, p.nb, &cs);
-        auto ac = toComplexBuf(a, p.na, &cs);
-        auto xc = toComplexBuf(x, p.nx, &cs);
-        const Complex a0 = ac[0];
-        for (size_t i = 0; i < p.nb; ++i) bc[i] /= a0;
-        for (size_t i = 0; i < p.na; ++i) ac[i] /= a0;
-        ScratchVec<Complex> zic = hasZi ? toComplexBuf(zi, zi.numel(), &cs)
-                                        : ScratchVec<Complex>(0, &cs);
-        const Complex *ziPtr = hasZi ? zic.data() : nullptr;
-        const size_t ziLen = hasZi ? zi.numel() : 0;
+        keel::ArenaTemp cs = keel::get_scratch(mr);
+        auto bc = toComplexBuf(b, p.nb, cs.allocator());
+        auto ac = toComplexBuf(a, p.na, cs.allocator());
+        auto xc = toComplexBuf(x, p.nx, cs.allocator());
+        const keel::c64 a0 = ac[0];
+        for (keel::usize i = 0; i < p.nb; ++i) bc[i] /= a0;
+        for (keel::usize i = 0; i < p.na; ++i) ac[i] /= a0;
+        keel::Array<keel::c64> zic = hasZi ? toComplexBuf(zi, zi.numel(), cs.allocator())
+                                        : keel::Array<keel::c64>(0, cs.allocator());
+        const keel::c64 *ziPtr = hasZi ? zic.data() : nullptr;
+        const keel::usize ziLen = hasZi ? zi.numel() : 0;
         const bool ziPerSig = hasZi && p.stateLen > 0 && p.nSig > 1
                               && ziLen == p.stateLen * p.nSig;
 
         Value rc = createLike(x, ValueType::COMPLEX, mr);
-        Complex *yc = rc.complexDataMut();
+        keel::c64 *yc = rc.complexDataMut();
         Value zfv = Value::matrix(p.stateLen, zfCols, ValueType::COMPLEX, mr);
-        Complex *zfData = zfv.complexDataMut();
-        for (size_t i = 0; i < p.stateLen * zfCols; ++i)
-            zfData[i] = Complex(0.0, 0.0);
+        keel::c64 *zfData = zfv.complexDataMut();
+        for (keel::usize i = 0; i < p.stateLen * zfCols; ++i)
+            zfData[i] = keel::c64(0.0, 0.0);
         // Empty input: the "final state" is just the seed zi (or zeros).
         if (p.nSig == 0 && hasZi && p.stateLen)
-            for (size_t i = 0; i < p.stateLen && i < ziLen; ++i)
+            for (keel::usize i = 0; i < p.stateLen && i < ziLen; ++i)
                 zfData[i] = ziPtr[i];
-        for (size_t s = 0; s < p.nSig; ++s) {
-            const Complex *ziRun = nullptr;
-            size_t ziRunLen = 0;
+        for (keel::usize s = 0; s < p.nSig; ++s) {
+            const keel::c64 *ziRun = nullptr;
+            keel::usize ziRunLen = 0;
             if (hasZi) {
                 ziRun    = ziPerSig ? ziPtr + s * p.stateLen : ziPtr;
                 ziRunLen = ziPerSig ? p.stateLen : ziLen;
             }
-            ScratchVec<Complex> zf(p.stateLen, &cs);
+            keel::Array<keel::c64> zf(p.stateLen, cs.allocator());
             auto out = applyFilterDf2tComplex(bc.data(), p.nb, ac.data(),
                                               p.na, xc.data() + s * p.sigLen,
                                               p.sigLen, ziRun, ziRunLen,
-                                              p.stateLen ? zf.data() : nullptr, &cs);
-            for (size_t i = 0; i < p.sigLen; ++i)
+                                              p.stateLen ? zf.data() : nullptr, cs.allocator());
+            for (keel::usize i = 0; i < p.sigLen; ++i)
                 yc[s * p.sigLen + i] = out[i];
             if (p.stateLen)
-                for (size_t i = 0; i < p.stateLen; ++i)
+                for (keel::usize i = 0; i < p.stateLen; ++i)
                     zfData[s * p.stateLen + i] = zf[i];
         }
         return {std::move(rc), std::move(zfv)};
     }
 
-    ScratchArena scratch(mr);
-    auto bn = ScratchVec<double>(p.nb, &scratch);
-    auto an = ScratchVec<double>(p.na, &scratch);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    auto bn = keel::Array<double>(p.nb, scratch.allocator());
+    auto an = keel::Array<double>(p.na, scratch.allocator());
     const double a0 = a.elemAsDouble(0);
-    for (size_t i = 0; i < p.nb; ++i) bn[i] = b.elemAsDouble(i) / a0;
-    for (size_t i = 0; i < p.na; ++i) an[i] = a.elemAsDouble(i) / a0;
+    for (keel::usize i = 0; i < p.nb; ++i) bn[i] = b.elemAsDouble(i) / a0;
+    for (keel::usize i = 0; i < p.na; ++i) an[i] = a.elemAsDouble(i) / a0;
 
     // Logical/integer inputs are legal filter inputs — materialize the
     // non-double ones so the kernel sees contiguous double runs.
-    ScratchVec<double> xmat(0, &scratch);
+    keel::Array<double> xmat(0, scratch.allocator());
     const double *xd = nullptr;
     if (x.type() == ValueType::DOUBLE) {
         xd = x.doubleData();
     } else {
-        xmat = ScratchVec<double>(p.nx, &scratch);
-        for (size_t i = 0; i < p.nx; ++i) xmat[i] = x.elemAsDouble(i);
+        xmat = keel::Array<double>(p.nx, scratch.allocator());
+        for (keel::usize i = 0; i < p.nx; ++i) xmat[i] = x.elemAsDouble(i);
         xd = xmat.data();
     }
-    ScratchVec<double> zimat(0, &scratch);
+    keel::Array<double> zimat(0, scratch.allocator());
     const double *ziPtr = nullptr;
-    size_t ziLen = 0;
+    keel::usize ziLen = 0;
     if (hasZi) {
         ziLen = zi.numel();
         if (zi.type() == ValueType::DOUBLE) {
             ziPtr = zi.doubleData();
         } else {
-            zimat = ScratchVec<double>(ziLen, &scratch);
-            for (size_t i = 0; i < ziLen; ++i) zimat[i] = zi.elemAsDouble(i);
+            zimat = keel::Array<double>(ziLen, scratch.allocator());
+            for (keel::usize i = 0; i < ziLen; ++i) zimat[i] = zi.elemAsDouble(i);
             ziPtr = zimat.data();
         }
     }
@@ -231,22 +235,22 @@ static FilterState runFilter(const FilterPlan &p, const Value &b,
     double *y = r.doubleDataMut();
     Value zfv = Value::matrix(p.stateLen, zfCols, ValueType::DOUBLE, mr);
     double *zfData = zfv.doubleDataMut();
-    for (size_t i = 0; i < p.stateLen * zfCols; ++i) zfData[i] = 0.0;
+    for (keel::usize i = 0; i < p.stateLen * zfCols; ++i) zfData[i] = 0.0;
     if (p.nSig == 0 && hasZi && p.stateLen)
-        for (size_t i = 0; i < p.stateLen && i < ziLen; ++i)
+        for (keel::usize i = 0; i < p.stateLen && i < ziLen; ++i)
             zfData[i] = ziPtr[i];
-    for (size_t s = 0; s < p.nSig; ++s) {
+    for (keel::usize s = 0; s < p.nSig; ++s) {
         const double *ziRun = nullptr;
-        size_t ziRunLen = 0;
+        keel::usize ziRunLen = 0;
         if (hasZi) {
             ziRun    = ziPerSig ? ziPtr + s * p.stateLen : ziPtr;
             ziRunLen = ziPerSig ? p.stateLen : ziLen;
         }
-        ScratchVec<double> zf(p.stateLen, &scratch);
+        keel::Array<double> zf(p.stateLen, scratch.allocator());
         auto out = applyFilterDf2t(bn.data(), p.nb, an.data(), p.na,
                                    xd + s * p.sigLen, p.sigLen,
                                    ziRun, ziRunLen,
-                                   p.stateLen ? zf.data() : nullptr, &scratch);
+                                   p.stateLen ? zf.data() : nullptr, scratch.allocator());
         std::memcpy(y + s * p.sigLen, out.data(), p.sigLen * sizeof(double));
         if (p.stateLen)
             std::memcpy(zfData + s * p.stateLen, zf.data(),
@@ -256,27 +260,27 @@ static FilterState runFilter(const FilterPlan &p, const Value &b,
 }
 
 Value filter(const Value &b, const Value &a, const Value &x,
-             std::pmr::memory_resource *mr)
+             keel::Allocator *mr)
 {
     const FilterPlan p = filter_argcheck(b, a, x, Value());
     return runFilter(p, b, a, x, Value(), mr).y;
 }
 
 FilterState filter(const Value &b, const Value &a, const Value &x,
-                   const Value &zi, std::pmr::memory_resource *mr)
+                   const Value &zi, keel::Allocator *mr)
 {
     const FilterPlan p = filter_argcheck(b, a, x, zi);
     return runFilter(p, b, a, x, zi, mr);
 }
 
-Value filtfilt(const Value &b, const Value &a, const Value &x, std::pmr::memory_resource *mr)
+Value filtfilt(const Value &b, const Value &a, const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex()) {
-        const size_t nx = x.numel();
+        const keel::usize nx = x.numel();
         const auto *xd = x.complexData();
         Value xRe = Value::matrix(x.dims().rows(), x.dims().cols(), ValueType::DOUBLE, mr);
         Value xIm = Value::matrix(x.dims().rows(), x.dims().cols(), ValueType::DOUBLE, mr);
-        for (size_t i = 0; i < nx; ++i) {
+        for (keel::usize i = 0; i < nx; ++i) {
             xRe.doubleDataMut()[i] = xd[i].real();
             xIm.doubleDataMut()[i] = xd[i].imag();
         }
@@ -284,11 +288,11 @@ Value filtfilt(const Value &b, const Value &a, const Value &x, std::pmr::memory_
         Value yIm = filtfilt(b, a, xIm, mr);
         Value out = Value::matrix(x.dims().rows(), x.dims().cols(), ValueType::COMPLEX, mr);
         auto *od = out.complexDataMut();
-        for (size_t i = 0; i < nx; ++i)
-            od[i] = std::complex<double>(yRe.doubleData()[i], yIm.doubleData()[i]);
+        for (keel::usize i = 0; i < nx; ++i)
+            od[i] = keel::c64(yRe.doubleData()[i], yIm.doubleData()[i]);
         return out;
     }
-    const size_t nb = b.numel(), na = a.numel(), nx = x.numel();
+    const keel::usize nb = b.numel(), na = a.numel(), nx = x.numel();
     const double *bd = b.doubleData();
     const double *ad = a.doubleData();
     const double *xd = x.doubleData();
@@ -298,36 +302,36 @@ Value filtfilt(const Value &b, const Value &a, const Value &x, std::pmr::memory_
         throw Error("filtfilt: a(1) must be nonzero",
                      0, 0, "filtfilt", "", "numkit:filtfilt:zeroLead");
 
-    ScratchArena scratch(mr);
-    auto bn = ScratchVec<double>(nb, &scratch);
-    auto an = ScratchVec<double>(na, &scratch);
-    for (size_t i = 0; i < nb; ++i)
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    auto bn = keel::Array<double>(nb, scratch.allocator());
+    auto an = keel::Array<double>(na, scratch.allocator());
+    for (keel::usize i = 0; i < nb; ++i)
         bn[i] = bd[i] / a0;
-    for (size_t i = 0; i < na; ++i)
+    for (keel::usize i = 0; i < na; ++i)
         an[i] = ad[i] / a0;
 
-    const size_t nfilt = std::max(nb, na);
-    const size_t stateLen = (nfilt > 0) ? (nfilt - 1) : 0;
+    const keel::usize nfilt = std::max(nb, na);
+    const keel::usize stateLen = (nfilt > 0) ? (nfilt - 1) : 0;
 
     // Steady-state step-response initial conditions zi: solve (I - A)*zi = rhs
     // where rhs[k] = b[k+1] - b[0]*a[k+1]. The companion/DF2T system telescopes:
     //   (1 + sum_{k=1..m} a[k]) * zi[0] = sum_{k=0..m-1} rhs[k]
     //   zi[k+1] = zi[k] + a[k+1]*zi[0] - rhs[k].
-    auto zi = ScratchVec<double>(stateLen, &scratch);
+    auto zi = keel::Array<double>(stateLen, scratch.allocator());
     if (stateLen > 0) {
-        auto rhs = ScratchVec<double>(stateLen, &scratch);
+        auto rhs = keel::Array<double>(stateLen, scratch.allocator());
         double sumRhs = 0.0;
         double sumA = 1.0;
-        for (size_t k = 0; k < stateLen; ++k) {
+        for (keel::usize k = 0; k < stateLen; ++k) {
             const double bk1 = (k + 1 < nb) ? bn[k + 1] : 0.0;
             const double ak1 = (k + 1 < na) ? an[k + 1] : 0.0;
             rhs[k] = bk1 - bn[0] * ak1;
             sumRhs += rhs[k];
             sumA += ak1;
         }
-        if (std::abs(sumA) > 1e-14) {
+        if (keel::abs(sumA) > 1e-14) {
             zi[0] = sumRhs / sumA;
-            for (size_t k = 0; k + 1 < stateLen; ++k) {
+            for (keel::usize k = 0; k + 1 < stateLen; ++k) {
                 const double ak1 = (k + 1 < na) ? an[k + 1] : 0.0;
                 zi[k + 1] = zi[k] + ak1 * zi[0] - rhs[k];
             }
@@ -335,35 +339,35 @@ Value filtfilt(const Value &b, const Value &a, const Value &x, std::pmr::memory_
     }
 
     // Edge-reflect padding, length 3 * (nfilt - 1) on each side (capped at nx - 1)
-    size_t nEdge = 3 * stateLen;
+    keel::usize nEdge = 3 * stateLen;
     if (nx > 0 && nEdge >= nx)
         nEdge = nx - 1;
     else if (nx == 0)
         nEdge = 0;
 
-    const size_t extLen = nx + 2 * nEdge;
-    auto ext = ScratchVec<double>(extLen, &scratch);
-    for (size_t i = 0; i < nEdge; ++i)
+    const keel::usize extLen = nx + 2 * nEdge;
+    auto ext = keel::Array<double>(extLen, scratch.allocator());
+    for (keel::usize i = 0; i < nEdge; ++i)
         ext[i] = 2.0 * xd[0] - xd[nEdge - i];
-    for (size_t i = 0; i < nx; ++i)
+    for (keel::usize i = 0; i < nx; ++i)
         ext[nEdge + i] = xd[i];
-    for (size_t i = 0; i < nEdge; ++i)
+    for (keel::usize i = 0; i < nEdge; ++i)
         ext[nEdge + nx + i] = 2.0 * xd[nx - 1] - xd[nx - 2 - i];
 
-    auto ziScaled = ScratchVec<double>(stateLen, &scratch);
+    auto ziScaled = keel::Array<double>(stateLen, scratch.allocator());
     if (stateLen > 0 && extLen > 0) {
-        for (size_t k = 0; k < stateLen; ++k)
+        for (keel::usize k = 0; k < stateLen; ++k)
             ziScaled[k] = zi[k] * ext[0];
     }
     auto fwd = applyFilterDf2t(bn.data(), nb, an.data(), na, ext.data(), extLen,
-                               stateLen > 0 ? ziScaled.data() : nullptr, stateLen, nullptr, &scratch);
+                               stateLen > 0 ? ziScaled.data() : nullptr, stateLen, nullptr, scratch.allocator());
     std::reverse(fwd.begin(), fwd.end());
     if (stateLen > 0 && !fwd.empty()) {
-        for (size_t k = 0; k < stateLen; ++k)
+        for (keel::usize k = 0; k < stateLen; ++k)
             ziScaled[k] = zi[k] * fwd[0];
     }
     auto bwd = applyFilterDf2t(bn.data(), nb, an.data(), na, fwd.data(), fwd.size(),
-                               stateLen > 0 ? ziScaled.data() : nullptr, stateLen, nullptr, &scratch);
+                               stateLen > 0 ? ziScaled.data() : nullptr, stateLen, nullptr, scratch.allocator());
     std::reverse(bwd.begin(), bwd.end());
 
     auto r = createLike(x, ValueType::DOUBLE, mr);

@@ -10,7 +10,8 @@
 
 #pragma once
 
-#include <memory_resource>
+#include <keel/core.h>
+#include <keel/memory.h>
 #include <numkit/value/value.hpp>
 
 namespace numkit::ode {
@@ -34,8 +35,8 @@ namespace numkit::ode {
 ///   BDF, MaxOrder, Jacobian, JPattern.
 ///
 /// Unknown names throw `m:odeset:badName`. Unset names default to `[]`.
-Value odeset(const Value *args, std::size_t nargs,
-             std::pmr::memory_resource *mr = nullptr);
+Value odeset(const Value *args, keel::usize nargs,
+             keel::Allocator *mr = nullptr);
 
 /// @brief Read a single field from an ODE options struct
 /// (`val = odeget(opts, 'Name'[, default])`).
@@ -43,7 +44,7 @@ Value odeset(const Value *args, std::size_t nargs,
 /// Returns the value of `Name` from `opts`, or `default` (or `[]`) if
 /// unset. Case-insensitive name lookup.
 Value odeget(const Value &opts, const Value &name,
-             const Value &default_v, std::pmr::memory_resource *mr = nullptr);
+             const Value &default_v, keel::Allocator *mr = nullptr);
 
 
 /// @}

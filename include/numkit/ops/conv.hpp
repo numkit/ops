@@ -11,26 +11,27 @@
 
 #pragma once
 
-#include <numkit/value/scratch.hpp>
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/array.h>
 #include <cstddef>
-#include <memory_resource>
 
 namespace numkit::ops {
 
 // Full linear convolution: out[k] = Σ_{i+j=k} a[i]·b[j], length na+nb-1.
 // Both inputs are real double buffers; the result is returned on the arena `mr`.
 // O(na·nb) — the caller (conv/xcorr) picks direct vs FFT by cost.
-ScratchVec<double> convDirect(const double *a, std::size_t na,
-                              const double *b, std::size_t nb,
-                              std::pmr::memory_resource *mr = nullptr);
+keel::Array<keel::f64> convDirect(const keel::f64 *a, keel::usize na,
+                              const keel::f64 *b, keel::usize nb,
+                              keel::Allocator *mr = nullptr);
 
 // Direct 2-D "full" convolution into a caller-allocated buffer. A is M×N
 // (column-major), B is P×Q (column-major); `out` must be sized (M+P-1)×(N+Q-1)
 // column-major and is zeroed then accumulated by the kernel. O(M·N·P·Q) — the
 // time-domain core of signal conv2/filter2/convn. No allocation, no mr.
-void conv2Direct(const double *A, std::size_t M, std::size_t N,
-                 const double *B, std::size_t P, std::size_t Q,
-                 double *out);
+void conv2Direct(const keel::f64 *A, keel::usize M, keel::usize N,
+                 const keel::f64 *B, keel::usize P, keel::usize Q,
+                 keel::f64 *out);
 
 } // namespace numkit::ops

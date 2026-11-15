@@ -3,6 +3,12 @@
 // Miscellaneous linalg utilities: rref + planerot.
 // Migrated 2026-05-25 from toolboxes/builtin/src/language/arrays/linalg_extras.cpp.
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/arena.h>
+#include <keel/array.h>
+#include <keel/complex.h>
+#include <keel/math.h>
 #include <numkit/linalg/misc.hpp>
 
 #include "linalg_detail.hpp"
@@ -11,8 +17,6 @@
 // builtins (CallContext wrappers) live in misc_reg.cpp.
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
-#include <numkit/value/scratch.hpp>
-#include <numkit/value/span.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -23,21 +27,21 @@ namespace numkit::linalg {
 namespace {
 
 template <typename T>
-double matrix_inf_norm(const T *A, size_t M, size_t N)
+double matrix_inf_norm(const T *A, keel::usize M, keel::usize N)
 {
     if (M == 0 || N == 0) return 0.0;
     double maxv = 0.0;
-    for (size_t i = 0; i < M; ++i) {
+    for (keel::usize i = 0; i < M; ++i) {
         double s = 0.0;
-        for (size_t j = 0; j < N; ++j) s += std::abs(A[i + j * M]);
+        for (keel::usize j = 0; j < N; ++j) s += keel::abs(A[i + j * M]);
         if (s > maxv) maxv = s;
     }
     return maxv;
 }
 
 template <typename T>
-void rref_kernel(T *B, size_t M, size_t N, bool have_tol, double tol_user,
-                 ScratchVec<double> &jb_buf, bool isSingle = false)
+void rref_kernel(T *B, keel::usize M, keel::usize N, bool have_tol, double tol_user,
+                 keel::Array<double> &jb_buf, bool isSingle = false)
 {
     double tol = tol_user;
     if (!have_tol) {
@@ -58,35 +62,35 @@ void rref_kernel(T *B, size_t M, size_t N, bool have_tol, double tol_user,
         }
     }
 
-    size_t i = 0;
-    for (size_t j = 0; j < N && i < M; ++j) {
-        size_t piv_row = i;
-        double piv_val = std::abs(B[i + j * M]);
-        for (size_t k = i + 1; k < M; ++k) {
-            double v = std::abs(B[k + j * M]);
+    keel::usize i = 0;
+    for (keel::usize j = 0; j < N && i < M; ++j) {
+        keel::usize piv_row = i;
+        double piv_val = keel::abs(B[i + j * M]);
+        for (keel::usize k = i + 1; k < M; ++k) {
+            double v = keel::abs(B[k + j * M]);
             if (v > piv_val) { piv_val = v; piv_row = k; }
         }
 
         if (piv_val <= tol) {
-            for (size_t k = i; k < M; ++k) B[k + j * M] = T(0.0);
+            for (keel::usize k = i; k < M; ++k) B[k + j * M] = T(0.0);
             continue;
         }
 
         if (piv_row != i) {
-            for (size_t jj = 0; jj < N; ++jj) {
+            for (keel::usize jj = 0; jj < N; ++jj) {
                 std::swap(B[i + jj * M], B[piv_row + jj * M]);
             }
         }
 
         T piv = B[i + j * M];
-        for (size_t jj = 0; jj < N; ++jj) B[i + jj * M] /= piv;
+        for (keel::usize jj = 0; jj < N; ++jj) B[i + jj * M] /= piv;
         B[i + j * M] = T(1.0);
 
-        for (size_t k = 0; k < M; ++k) {
+        for (keel::usize k = 0; k < M; ++k) {
             if (k == i) continue;
             T f = B[k + j * M];
             if (f == T(0.0)) continue;
-            for (size_t jj = 0; jj < N; ++jj) {
+            for (keel::usize jj = 0; jj < N; ++jj) {
                 B[k + jj * M] -= f * B[i + jj * M];
             }
             B[k + j * M] = T(0.0);
@@ -101,7 +105,7 @@ void rref_kernel(T *B, size_t M, size_t N, bool have_tol, double tol_user,
 
 // rref: Gauss-Jordan elimination with partial pivoting and tolerance gate.
 std::pair<Value, Value>
-rref(const Value &A, bool have_tol, double tol_user, std::pmr::memory_resource *mr)
+rref(const Value &A, bool have_tol, double tol_user, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "rref");
     if (A.dims().is3D())
@@ -109,8 +113,8 @@ rref(const Value &A, bool have_tol, double tol_user, std::pmr::memory_resource *
                     0, 0, "rref", "", "numkit:rref:Not2D");
 
     const bool wantSingle = (A.type() == ValueType::SINGLE);
-    const size_t M = A.dims().rows();
-    const size_t N = A.dims().cols();
+    const keel::usize M = A.dims().rows();
+    const keel::usize N = A.dims().cols();
     if (M == 0 || N == 0) {
         Value R = Value::matrix(M, N, wantSingle ? ValueType::SINGLE : ValueType::DOUBLE, mr);
         Value jb = Value::matrix(1, 0, ValueType::DOUBLE, mr);
@@ -118,11 +122,11 @@ rref(const Value &A, bool have_tol, double tol_user, std::pmr::memory_resource *
     }
 
     const Value Aw = detail::widenSingleToDouble(A, mr);
-    ScratchArena scratch(mr);
-    ScratchVec<double> jb_buf(0, &scratch);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<double> jb_buf(0, scratch.allocator());
 
     if (Aw.isComplex()) {
-        ScratchVec<Complex> B(M * N, &scratch);
+        keel::Array<keel::c64> B(M * N, scratch.allocator());
         std::copy(Aw.complexData(), Aw.complexData() + M * N, B.begin());
         rref_kernel(B.data(), M, N, have_tol, tol_user, jb_buf, wantSingle);
 
@@ -138,7 +142,7 @@ rref(const Value &A, bool have_tol, double tol_user, std::pmr::memory_resource *
     }
 
     Value R = Value::matrix(M, N, ValueType::DOUBLE, mr);
-    ScratchVec<double> B(M * N, &scratch);
+    keel::Array<double> B(M * N, scratch.allocator());
     std::copy(Aw.doubleData(), Aw.doubleData() + M * N, B.begin());
     rref_kernel(B.data(), M, N, have_tol, tol_user, jb_buf, wantSingle);
 
@@ -153,7 +157,7 @@ rref(const Value &A, bool have_tol, double tol_user, std::pmr::memory_resource *
 
 // planerot: G * [x; y] = [r; 0] where r = hypot(x, y).
 std::pair<Value, Value>
-planerot(const Value &xy, std::pmr::memory_resource *mr)
+planerot(const Value &xy, keel::Allocator *mr)
 {
     if (xy.dims().is3D() || xy.numel() != 2)
         throw Error("planerot: input must be a 2-element vector",

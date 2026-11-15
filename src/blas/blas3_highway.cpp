@@ -1,9 +1,10 @@
+#include <keel/core.h>
+#include <keel/complex.h>
 #include <numkit/ops/blas.hpp>
 #include <numkit/ops/parallel_for.hpp>
 
 #include <algorithm>
 #include <cmath>
-#include <complex>
 #include <vector>
 #include <atomic>
 
@@ -18,24 +19,24 @@ namespace HWY_NAMESPACE {
 
 namespace hn = hwy::HWY_NAMESPACE;
 
-void GemmDoubleKernel(std::size_t m, std::size_t n, std::size_t k,
-                      double alpha, const double *A, std::size_t lda,
-                      const double *B, std::size_t ldb,
-                      double beta, double *C, std::size_t ldc)
+void GemmDoubleKernel(keel::usize m, keel::usize n, keel::usize k,
+                      double alpha, const double *A, keel::usize lda,
+                      const double *B, keel::usize ldb,
+                      double beta, double *C, keel::usize ldc)
 {
     if (m == 0 || n == 0) return;
 
     // Handle beta scaling when k == 0 or alpha == 0
     if (k == 0 || alpha == 0.0) {
         if (beta == 0.0) {
-            for (std::size_t j = 0; j < n; ++j) {
-                for (std::size_t i = 0; i < m; ++i) {
+            for (keel::usize j = 0; j < n; ++j) {
+                for (keel::usize i = 0; i < m; ++i) {
                     C[i + j * ldc] = 0.0;
                 }
             }
         } else if (beta != 1.0) {
-            for (std::size_t j = 0; j < n; ++j) {
-                for (std::size_t i = 0; i < m; ++i) {
+            for (keel::usize j = 0; j < n; ++j) {
+                for (keel::usize i = 0; i < m; ++i) {
                     C[i + j * ldc] *= beta;
                 }
             }
@@ -45,61 +46,61 @@ void GemmDoubleKernel(std::size_t m, std::size_t n, std::size_t k,
     }
 
     const hn::ScalableTag<double> d;
-    const std::size_t N = hn::Lanes(d);
+    const keel::usize N = hn::Lanes(d);
 
     // BLIS blocking parameters
-    constexpr std::size_t mr_vec = 2;              // 2 vector rows (2 * N)
-    const std::size_t mr = mr_vec * N;              // e.g. 8 doubles for AVX2, 16 for AVX-512
-    constexpr std::size_t nr = 6;                   // 6 columns
-    constexpr std::size_t kc_block = 256;           // L2-resident A-panel width
-    constexpr std::size_t mc_block = 256;           // L2-resident A-panel height
-    constexpr std::size_t nc_block = 2048;          // L3-resident B-panel width
+    constexpr keel::usize mr_vec = 2;              // 2 vector rows (2 * N)
+    const keel::usize mr = mr_vec * N;              // e.g. 8 doubles for AVX2, 16 for AVX-512
+    constexpr keel::usize nr = 6;                   // 6 columns
+    constexpr keel::usize kc_block = 256;           // L2-resident A-panel width
+    constexpr keel::usize mc_block = 256;           // L2-resident A-panel height
+    constexpr keel::usize nc_block = 2048;          // L3-resident B-panel width
 
     // Zero-allocation stack-based fast path for small matrices (m, n, k <= 64)
     if (m <= 64 && n <= 64 && k <= 64) {
         alignas(64) double A_pack[144 * 64 + 64];
         alignas(64) double B_pack[144 * 64 + 64];
 
-        const std::size_t mc = m;
-        const std::size_t nc = n;
-        const std::size_t kc = k;
+        const keel::usize mc = m;
+        const keel::usize nc = n;
+        const keel::usize kc = k;
 
         // Pack B (kc x nc) into row-panels of width nr
-        for (std::size_t jr = 0; jr < nc; jr += nr) {
-            std::size_t cur_nr = std::min(nr, nc - jr);
+        for (keel::usize jr = 0; jr < nc; jr += nr) {
+            keel::usize cur_nr = std::min(nr, nc - jr);
             double *b_p = B_pack + jr * kc;
-            for (std::size_t kk = 0; kk < kc; ++kk) {
-                for (std::size_t c = 0; c < cur_nr; ++c) {
+            for (keel::usize kk = 0; kk < kc; ++kk) {
+                for (keel::usize c = 0; c < cur_nr; ++c) {
                     b_p[kk * nr + c] = B[kk + (jr + c) * ldb];
                 }
-                for (std::size_t c = cur_nr; c < nr; ++c) {
+                for (keel::usize c = cur_nr; c < nr; ++c) {
                     b_p[kk * nr + c] = 0.0;
                 }
             }
         }
 
         // Pack A (mc x kc) into column-panels of height mr
-        for (std::size_t ii = 0; ii < mc; ii += mr) {
-            std::size_t cur_mr = std::min(mr, mc - ii);
+        for (keel::usize ii = 0; ii < mc; ii += mr) {
+            keel::usize cur_mr = std::min(mr, mc - ii);
             double *a_p = A_pack + ii * kc;
-            for (std::size_t kk = 0; kk < kc; ++kk) {
+            for (keel::usize kk = 0; kk < kc; ++kk) {
                 const double *a_col = A + ii + kk * lda;
-                for (std::size_t r = 0; r < cur_mr; ++r) {
+                for (keel::usize r = 0; r < cur_mr; ++r) {
                     a_p[kk * mr + r] = a_col[r];
                 }
-                for (std::size_t r = cur_mr; r < mr; ++r) {
+                for (keel::usize r = cur_mr; r < mr; ++r) {
                     a_p[kk * mr + r] = 0.0;
                 }
             }
         }
 
         // SIMD Highway Kernel over C
-        for (std::size_t jr = 0; jr < nc; jr += nr) {
-            std::size_t cur_nr = std::min(nr, nc - jr);
+        for (keel::usize jr = 0; jr < nc; jr += nr) {
+            keel::usize cur_nr = std::min(nr, nc - jr);
             const double *b_p_tile = B_pack + jr * kc;
 
-            for (std::size_t ir = 0; ir < mc; ir += mr) {
-                std::size_t cur_mr = std::min(mr, mc - ir);
+            for (keel::usize ir = 0; ir < mc; ir += mr) {
+                keel::usize cur_mr = std::min(mr, mc - ir);
                 const double *a_p = A_pack + ir * kc;
                 double *c_ptr = C + ir + jr * ldc;
 
@@ -107,7 +108,7 @@ void GemmDoubleKernel(std::size_t m, std::size_t n, std::size_t k,
                     auto c00 = hn::Zero(d), c01 = hn::Zero(d), c02 = hn::Zero(d), c03 = hn::Zero(d), c04 = hn::Zero(d), c05 = hn::Zero(d);
                     auto c10 = hn::Zero(d), c11 = hn::Zero(d), c12 = hn::Zero(d), c13 = hn::Zero(d), c14 = hn::Zero(d), c15 = hn::Zero(d);
 
-                    for (std::size_t kk = 0; kk < kc; ++kk) {
+                    for (keel::usize kk = 0; kk < kc; ++kk) {
                         auto a0 = hn::LoadU(d, a_p + kk * mr + 0 * N);
                         auto a1 = hn::LoadU(d, a_p + kk * mr + 1 * N);
 
@@ -151,12 +152,12 @@ void GemmDoubleKernel(std::size_t m, std::size_t n, std::size_t k,
                     STORE_COL_FAST(5, c05, c15);
                     #undef STORE_COL_FAST
                 } else {
-                    for (std::size_t c = 0; c < cur_nr; ++c) {
+                    for (keel::usize c = 0; c < cur_nr; ++c) {
                         double *col_c = c_ptr + c * ldc;
                         const double *b_col = b_p_tile + c;
-                        for (std::size_t r = 0; r < cur_mr; ++r) {
+                        for (keel::usize r = 0; r < cur_mr; ++r) {
                             double acc = 0.0;
-                            for (std::size_t kk = 0; kk < kc; ++kk) {
+                            for (keel::usize kk = 0; kk < kc; ++kk) {
                                 acc += a_p[kk * mr + r] * b_col[kk * nr];
                             }
                             if (beta == 0.0) {
@@ -175,23 +176,23 @@ void GemmDoubleKernel(std::size_t m, std::size_t n, std::size_t k,
     }
 
     // Threshold for FLOPs: 2 * m * n * k >= 8,000,000 (n >= 160 for square GEMM)
-    const std::size_t total_flops = 2 * m * n * k;
-    constexpr std::size_t kGemmParallelFlopThreshold = 1'000'000;
+    const keel::usize total_flops = 2 * m * n * k;
+    constexpr keel::usize kGemmParallelFlopThreshold = 1'000'000;
 
     // Determinism note: FP summation order within a C tile is fixed by the
     // microkernel; parallelism across independent jc column blocks of C does
     // not change per-element floating point summation order or results.
-    const std::size_t p_thresh = (total_flops >= kGemmParallelFlopThreshold) ? std::size_t{1} : n + 1;
+    const keel::usize p_thresh = (total_flops >= kGemmParallelFlopThreshold) ? keel::usize{1} : n + 1;
 
-    std::atomic<std::size_t> active_threads{0};
+    std::atomic<keel::usize> active_threads{0};
 
     // Limit threads for small n to avoid redundant packing of A
-    int max_threads = static_cast<int>(std::max<std::size_t>(1, n / 16));
+    int max_threads = static_cast<int>(std::max<keel::usize>(1, n / 16));
 
-    numkit::detail::parallel_for(n, p_thresh, [&](std::size_t jc_start, std::size_t jc_end) {
+    numkit::detail::parallel_for(n, p_thresh, [&](keel::usize jc_start, keel::usize jc_end) {
         active_threads.fetch_add(1, std::memory_order_relaxed);
-        const std::size_t mc_padded = ((mc_block + mr - 1) / mr) * mr;
-        constexpr std::size_t nc_padded = ((nc_block + nr - 1) / nr) * nr;
+        const keel::usize mc_padded = ((mc_block + mr - 1) / mr) * mr;
+        constexpr keel::usize nc_padded = ((nc_block + nr - 1) / nr) * nr;
         // Zero-allocation thread_local static packing buffers (persisted per thread)
         thread_local static std::vector<double> A_pack(mc_padded * kc_block + 64, 0.0);
         thread_local static std::vector<double> B_pack(kc_block * nc_padded + 64, 0.0);
@@ -200,52 +201,52 @@ void GemmDoubleKernel(std::size_t m, std::size_t n, std::size_t k,
         if (B_pack.size() < kc_block * nc_padded + 64)
             B_pack.resize(kc_block * nc_padded + 64, 0.0);
 
-        for (std::size_t jc = jc_start; jc < jc_end; jc += nc_block) {
-            std::size_t nc = std::min(nc_block, jc_end - jc);
+        for (keel::usize jc = jc_start; jc < jc_end; jc += nc_block) {
+            keel::usize nc = std::min(nc_block, jc_end - jc);
 
-            for (std::size_t pc = 0; pc < k; pc += kc_block) {
-                std::size_t kc = std::min(kc_block, k - pc);
+            for (keel::usize pc = 0; pc < k; pc += kc_block) {
+                keel::usize kc = std::min(kc_block, k - pc);
                 double current_beta = (pc == 0) ? beta : 1.0;
 
                 // Pack B panel ONCE per (jc, pc) tile
-                for (std::size_t jr = 0; jr < nc; jr += nr) {
-                    std::size_t cur_nr = std::min(nr, nc - jr);
+                for (keel::usize jr = 0; jr < nc; jr += nr) {
+                    keel::usize cur_nr = std::min(nr, nc - jr);
                     double *b_p = B_pack.data() + jr * kc;
-                    for (std::size_t kk = 0; kk < kc; ++kk) {
-                        for (std::size_t c = 0; c < cur_nr; ++c) {
+                    for (keel::usize kk = 0; kk < kc; ++kk) {
+                        for (keel::usize c = 0; c < cur_nr; ++c) {
                             b_p[kk * nr + c] = B[(pc + kk) + (jc + jr + c) * ldb];
                         }
-                        for (std::size_t c = cur_nr; c < nr; ++c) {
+                        for (keel::usize c = cur_nr; c < nr; ++c) {
                             b_p[kk * nr + c] = 0.0;
                         }
                     }
                 }
 
-                for (std::size_t ic = 0; ic < m; ic += mc_block) {
-                    std::size_t mc = std::min(mc_block, m - ic);
+                for (keel::usize ic = 0; ic < m; ic += mc_block) {
+                    keel::usize mc = std::min(mc_block, m - ic);
 
                     // Pack A block (mc x kc) into column-panels of height mr
-                    for (std::size_t ii = 0; ii < mc; ii += mr) {
-                        std::size_t cur_mr = std::min(mr, mc - ii);
+                    for (keel::usize ii = 0; ii < mc; ii += mr) {
+                        keel::usize cur_mr = std::min(mr, mc - ii);
                         double *a_p = A_pack.data() + ii * kc;
-                        for (std::size_t kk = 0; kk < kc; ++kk) {
+                        for (keel::usize kk = 0; kk < kc; ++kk) {
                             const double *a_col = A + (ic + ii) + (pc + kk) * lda;
-                            for (std::size_t r = 0; r < cur_mr; ++r) {
+                            for (keel::usize r = 0; r < cur_mr; ++r) {
                                 a_p[kk * mr + r] = a_col[r];
                             }
-                            for (std::size_t r = cur_mr; r < mr; ++r) {
+                            for (keel::usize r = cur_mr; r < mr; ++r) {
                                 a_p[kk * mr + r] = 0.0;
                             }
                         }
                     }
 
                     // Microkernel loop over jr (width nr) and ir (height mr)
-                    for (std::size_t jr = 0; jr < nc; jr += nr) {
-                        std::size_t cur_nr = std::min(nr, nc - jr);
+                    for (keel::usize jr = 0; jr < nc; jr += nr) {
+                        keel::usize cur_nr = std::min(nr, nc - jr);
                         const double *b_p_tile = B_pack.data() + jr * kc;
 
-                        for (std::size_t ir = 0; ir < mc; ir += mr) {
-                            std::size_t cur_mr = std::min(mr, mc - ir);
+                        for (keel::usize ir = 0; ir < mc; ir += mr) {
+                            keel::usize cur_mr = std::min(mr, mc - ir);
                             const double *a_p = A_pack.data() + ir * kc;
                             double *c_ptr = C + (ic + ir) + (jc + jr) * ldc;
 
@@ -254,7 +255,7 @@ void GemmDoubleKernel(std::size_t m, std::size_t n, std::size_t k,
                                 auto c00 = hn::Zero(d), c01 = hn::Zero(d), c02 = hn::Zero(d), c03 = hn::Zero(d), c04 = hn::Zero(d), c05 = hn::Zero(d);
                                 auto c10 = hn::Zero(d), c11 = hn::Zero(d), c12 = hn::Zero(d), c13 = hn::Zero(d), c14 = hn::Zero(d), c15 = hn::Zero(d);
 
-                                for (std::size_t kk = 0; kk < kc; ++kk) {
+                                for (keel::usize kk = 0; kk < kc; ++kk) {
                                     auto a0 = hn::LoadU(d, a_p + kk * mr + 0 * N);
                                     auto a1 = hn::LoadU(d, a_p + kk * mr + 1 * N);
 
@@ -299,12 +300,12 @@ void GemmDoubleKernel(std::size_t m, std::size_t n, std::size_t k,
                                 #undef STORE_COL
                             } else {
                                 // Scalar edge kernel for tail tiles
-                                for (std::size_t c = 0; c < cur_nr; ++c) {
+                                for (keel::usize c = 0; c < cur_nr; ++c) {
                                     double *col_c = c_ptr + c * ldc;
                                     const double *b_col = b_p_tile + c;
-                                    for (std::size_t r = 0; r < cur_mr; ++r) {
+                                    for (keel::usize r = 0; r < cur_mr; ++r) {
                                         double acc = 0.0;
-                                        for (std::size_t kk = 0; kk < kc; ++kk) {
+                                        for (keel::usize kk = 0; kk < kc; ++kk) {
                                             acc += a_p[kk * mr + r] * b_col[kk * nr];
                                         }
                                         if (current_beta == 0.0) {
@@ -327,37 +328,35 @@ void GemmDoubleKernel(std::size_t m, std::size_t n, std::size_t k,
 
 
 
-void GemmComplexKernel(std::size_t m, std::size_t n, std::size_t k,
-                       std::complex<double> alpha, const std::complex<double> *A, std::size_t lda,
-                       const std::complex<double> *B, std::size_t ldb,
-                       std::complex<double> beta, std::complex<double> *C, std::size_t ldc)
+void GemmComplexKernel(keel::usize m, keel::usize n, keel::usize k,
+                       keel::c64 alpha, const keel::c64 *A, keel::usize lda,
+                       const keel::c64 *B, keel::usize ldb,
+                       keel::c64 beta, keel::c64 *C, keel::usize ldc)
 {
-    using Complex = std::complex<double>;
+if (m == 0 || n == 0) return;
 
-    if (m == 0 || n == 0) return;
-
-    if (k == 0 || alpha == Complex(0.0, 0.0)) {
-        if (beta == Complex(0.0, 0.0)) {
-            for (std::size_t j = 0; j < n; ++j) {
-                for (std::size_t i = 0; i < m; ++i) C[i + j * ldc] = Complex(0.0, 0.0);
+    if (k == 0 || alpha == keel::c64(0.0, 0.0)) {
+        if (beta == keel::c64(0.0, 0.0)) {
+            for (keel::usize j = 0; j < n; ++j) {
+                for (keel::usize i = 0; i < m; ++i) C[i + j * ldc] = keel::c64(0.0, 0.0);
             }
-        } else if (beta != Complex(1.0, 0.0)) {
-            for (std::size_t j = 0; j < n; ++j) {
-                for (std::size_t i = 0; i < m; ++i) C[i + j * ldc] *= beta;
+        } else if (beta != keel::c64(1.0, 0.0)) {
+            for (keel::usize j = 0; j < n; ++j) {
+                for (keel::usize i = 0; i < m; ++i) C[i + j * ldc] *= beta;
             }
         }
         return;
     }
 
     const hn::ScalableTag<double> d;
-    const std::size_t N = hn::Lanes(d);
+    const keel::usize N = hn::Lanes(d);
 
-    constexpr std::size_t mr_vec = 2;
-    const std::size_t mr = mr_vec * N;
-    constexpr std::size_t nr = 6;
-    constexpr std::size_t kc_block = 256;
-    constexpr std::size_t mc_block = 256;
-    constexpr std::size_t nc_block = 2048;
+    constexpr keel::usize mr_vec = 2;
+    const keel::usize mr = mr_vec * N;
+    constexpr keel::usize nr = 6;
+    constexpr keel::usize kc_block = 256;
+    constexpr keel::usize mc_block = 256;
+    constexpr keel::usize nc_block = 2048;
 
     // Zero-allocation stack-based fast path for small complex matrices (m, n, k <= 64)
     if (m <= 64 && n <= 64 && k <= 64) {
@@ -366,22 +365,22 @@ void GemmComplexKernel(std::size_t m, std::size_t n, std::size_t k,
         alignas(64) double Br_pack[144 * 64 + 64];
         alignas(64) double Bi_pack[144 * 64 + 64];
 
-        const std::size_t mc = m;
-        const std::size_t nc = n;
-        const std::size_t kc = k;
+        const keel::usize mc = m;
+        const keel::usize nc = n;
+        const keel::usize kc = k;
 
         // Pack B real/imag
-        for (std::size_t jr = 0; jr < nc; jr += nr) {
-            std::size_t cur_nr = std::min(nr, nc - jr);
+        for (keel::usize jr = 0; jr < nc; jr += nr) {
+            keel::usize cur_nr = std::min(nr, nc - jr);
             double *br_p = Br_pack + jr * kc;
             double *bi_p = Bi_pack + jr * kc;
-            for (std::size_t kk = 0; kk < kc; ++kk) {
-                for (std::size_t c = 0; c < cur_nr; ++c) {
-                    Complex b_val = B[kk + (jr + c) * ldb];
+            for (keel::usize kk = 0; kk < kc; ++kk) {
+                for (keel::usize c = 0; c < cur_nr; ++c) {
+                    keel::c64 b_val = B[kk + (jr + c) * ldb];
                     br_p[kk * nr + c] = b_val.real();
                     bi_p[kk * nr + c] = b_val.imag();
                 }
-                for (std::size_t c = cur_nr; c < nr; ++c) {
+                for (keel::usize c = cur_nr; c < nr; ++c) {
                     br_p[kk * nr + c] = 0.0;
                     bi_p[kk * nr + c] = 0.0;
                 }
@@ -389,17 +388,17 @@ void GemmComplexKernel(std::size_t m, std::size_t n, std::size_t k,
         }
 
         // Pack A real/imag
-        for (std::size_t ii = 0; ii < mc; ii += mr) {
-            std::size_t cur_mr = std::min(mr, mc - ii);
+        for (keel::usize ii = 0; ii < mc; ii += mr) {
+            keel::usize cur_mr = std::min(mr, mc - ii);
             double *ar_p = Ar_pack + ii * kc;
             double *ai_p = Ai_pack + ii * kc;
-            for (std::size_t kk = 0; kk < kc; ++kk) {
-                const Complex *a_col = A + ii + kk * lda;
-                for (std::size_t r = 0; r < cur_mr; ++r) {
+            for (keel::usize kk = 0; kk < kc; ++kk) {
+                const keel::c64 *a_col = A + ii + kk * lda;
+                for (keel::usize r = 0; r < cur_mr; ++r) {
                     ar_p[kk * mr + r] = a_col[r].real();
                     ai_p[kk * mr + r] = a_col[r].imag();
                 }
-                for (std::size_t r = cur_mr; r < mr; ++r) {
+                for (keel::usize r = cur_mr; r < mr; ++r) {
                     ar_p[kk * mr + r] = 0.0;
                     ai_p[kk * mr + r] = 0.0;
                 }
@@ -407,16 +406,16 @@ void GemmComplexKernel(std::size_t m, std::size_t n, std::size_t k,
         }
 
         // SIMD 4M Kernel
-        for (std::size_t jr = 0; jr < nc; jr += nr) {
-            std::size_t cur_nr = std::min(nr, nc - jr);
+        for (keel::usize jr = 0; jr < nc; jr += nr) {
+            keel::usize cur_nr = std::min(nr, nc - jr);
             const double *br_p_tile = Br_pack + jr * kc;
             const double *bi_p_tile = Bi_pack + jr * kc;
 
-            for (std::size_t ir = 0; ir < mc; ir += mr) {
-                std::size_t cur_mr = std::min(mr, mc - ir);
+            for (keel::usize ir = 0; ir < mc; ir += mr) {
+                keel::usize cur_mr = std::min(mr, mc - ir);
                 const double *ar_p = Ar_pack + ir * kc;
                 const double *ai_p = Ai_pack + ir * kc;
-                Complex *c_ptr = C + ir + jr * ldc;
+                keel::c64 *c_ptr = C + ir + jr * ldc;
 
                 if (cur_mr == mr && cur_nr == nr) {
                     auto cr00 = hn::Zero(d), cr01 = hn::Zero(d), cr02 = hn::Zero(d), cr03 = hn::Zero(d), cr04 = hn::Zero(d), cr05 = hn::Zero(d);
@@ -424,7 +423,7 @@ void GemmComplexKernel(std::size_t m, std::size_t n, std::size_t k,
                     auto ci00 = hn::Zero(d), ci01 = hn::Zero(d), ci02 = hn::Zero(d), ci03 = hn::Zero(d), ci04 = hn::Zero(d), ci05 = hn::Zero(d);
                     auto ci10 = hn::Zero(d), ci11 = hn::Zero(d), ci12 = hn::Zero(d), ci13 = hn::Zero(d), ci14 = hn::Zero(d), ci15 = hn::Zero(d);
 
-                    for (std::size_t kk = 0; kk < kc; ++kk) {
+                    for (keel::usize kk = 0; kk < kc; ++kk) {
                         auto ar0 = hn::LoadU(d, ar_p + kk * mr + 0 * N);
                         auto ar1 = hn::LoadU(d, ar_p + kk * mr + 1 * N);
                         auto ai0 = hn::LoadU(d, ai_p + kk * mr + 0 * N);
@@ -461,7 +460,7 @@ void GemmComplexKernel(std::size_t m, std::size_t n, std::size_t k,
 
                     #define STORE_COMPLEX_COL_FAST(col_idx, cr0, cr1, ci0, ci1) \
                     { \
-                        Complex *col_c = c_ptr + col_idx * ldc; \
+                        keel::c64 *col_c = c_ptr + col_idx * ldc; \
                         auto yr0 = hn::Mul(cr0, v_alpha_r); \
                         yr0 = hn::NegMulAdd(ci0, v_alpha_i, yr0); \
                         auto yr1 = hn::Mul(cr1, v_alpha_r); \
@@ -475,16 +474,16 @@ void GemmComplexKernel(std::size_t m, std::size_t n, std::size_t k,
                         hn::StoreU(yr1, d, buf_r1); \
                         hn::StoreU(yi0, d, buf_i0); \
                         hn::StoreU(yi1, d, buf_i1); \
-                        for (std::size_t r = 0; r < N; ++r) { \
-                            Complex c_val = Complex(buf_r0[r], buf_i0[r]); \
-                            if (beta != Complex(0.0, 0.0)) { \
+                        for (keel::usize r = 0; r < N; ++r) { \
+                            keel::c64 c_val = keel::c64(buf_r0[r], buf_i0[r]); \
+                            if (beta != keel::c64(0.0, 0.0)) { \
                                 c_val += col_c[r + 0 * N] * beta; \
                             } \
                             col_c[r + 0 * N] = c_val; \
                         } \
-                        for (std::size_t r = 0; r < N; ++r) { \
-                            Complex c_val = Complex(buf_r1[r], buf_i1[r]); \
-                            if (beta != Complex(0.0, 0.0)) { \
+                        for (keel::usize r = 0; r < N; ++r) { \
+                            keel::c64 c_val = keel::c64(buf_r1[r], buf_i1[r]); \
+                            if (beta != keel::c64(0.0, 0.0)) { \
                                 c_val += col_c[r + 1 * N] * beta; \
                             } \
                             col_c[r + 1 * N] = c_val; \
@@ -499,18 +498,18 @@ void GemmComplexKernel(std::size_t m, std::size_t n, std::size_t k,
                     STORE_COMPLEX_COL_FAST(5, cr05, cr15, ci05, ci15);
                     #undef STORE_COMPLEX_COL_FAST
                 } else {
-                    for (std::size_t c = 0; c < cur_nr; ++c) {
-                        Complex *col_c = c_ptr + c * ldc;
+                    for (keel::usize c = 0; c < cur_nr; ++c) {
+                        keel::c64 *col_c = c_ptr + c * ldc;
                         const double *br_col = br_p_tile + c;
                         const double *bi_col = bi_p_tile + c;
-                        for (std::size_t r = 0; r < cur_mr; ++r) {
-                            Complex acc(0.0, 0.0);
-                            for (std::size_t kk = 0; kk < kc; ++kk) {
-                                Complex a_val(ar_p[kk * mr + r], ai_p[kk * mr + r]);
-                                Complex b_val(br_col[kk * nr], bi_col[kk * nr]);
+                        for (keel::usize r = 0; r < cur_mr; ++r) {
+                            keel::c64 acc(0.0, 0.0);
+                            for (keel::usize kk = 0; kk < kc; ++kk) {
+                                keel::c64 a_val(ar_p[kk * mr + r], ai_p[kk * mr + r]);
+                                keel::c64 b_val(br_col[kk * nr], bi_col[kk * nr]);
                                 acc += a_val * b_val;
                             }
-                            if (beta == Complex(0.0, 0.0)) {
+                            if (beta == keel::c64(0.0, 0.0)) {
                                 col_c[r] = alpha * acc;
                             } else {
                                 col_c[r] = beta * col_c[r] + alpha * acc;
@@ -523,16 +522,16 @@ void GemmComplexKernel(std::size_t m, std::size_t n, std::size_t k,
         return;
     }
 
-    const std::size_t total_flops = 8 * m * n * k;
-    constexpr std::size_t kGemmParallelFlopThreshold = 1'000'000;
-    const std::size_t p_thresh = (total_flops >= kGemmParallelFlopThreshold) ? std::size_t{1} : n + 1;
+    const keel::usize total_flops = 8 * m * n * k;
+    constexpr keel::usize kGemmParallelFlopThreshold = 1'000'000;
+    const keel::usize p_thresh = (total_flops >= kGemmParallelFlopThreshold) ? keel::usize{1} : n + 1;
 
     // Limit threads for small n to avoid redundant packing of A
-    int max_threads = static_cast<int>(std::max<std::size_t>(1, n / 16));
+    int max_threads = static_cast<int>(std::max<keel::usize>(1, n / 16));
 
-    numkit::detail::parallel_for(n, p_thresh, [=](std::size_t jc_start, std::size_t jc_end) {
-        const std::size_t mc_padded = ((mc_block + mr - 1) / mr) * mr;
-        constexpr std::size_t nc_padded = ((nc_block + nr - 1) / nr) * nr;
+    numkit::detail::parallel_for(n, p_thresh, [=](keel::usize jc_start, keel::usize jc_end) {
+        const keel::usize mc_padded = ((mc_block + mr - 1) / mr) * mr;
+        constexpr keel::usize nc_padded = ((nc_block + nr - 1) / nr) * nr;
         thread_local static std::vector<double> Ar_pack(mc_padded * kc_block + 64, 0.0);
         thread_local static std::vector<double> Ai_pack(mc_padded * kc_block + 64, 0.0);
         thread_local static std::vector<double> Br_pack(kc_block * nc_padded + 64, 0.0);
@@ -546,62 +545,62 @@ void GemmComplexKernel(std::size_t m, std::size_t n, std::size_t k,
             Bi_pack.resize(kc_block * nc_padded + 64, 0.0);
         }
 
-        for (std::size_t jc = jc_start; jc < jc_end; jc += nc_block) {
-            std::size_t nc = std::min(nc_block, jc_end - jc);
+        for (keel::usize jc = jc_start; jc < jc_end; jc += nc_block) {
+            keel::usize nc = std::min(nc_block, jc_end - jc);
 
-            for (std::size_t pc = 0; pc < k; pc += kc_block) {
-                std::size_t kc = std::min(kc_block, k - pc);
-                Complex current_beta = (pc == 0) ? beta : Complex(1.0, 0.0);
+            for (keel::usize pc = 0; pc < k; pc += kc_block) {
+                keel::usize kc = std::min(kc_block, k - pc);
+                keel::c64 current_beta = (pc == 0) ? beta : keel::c64(1.0, 0.0);
 
                 // Pack B real and imaginary blocks ONCE per (jc, pc) tile
-                for (std::size_t jr = 0; jr < nc; jr += nr) {
-                    std::size_t cur_nr = std::min(nr, nc - jr);
+                for (keel::usize jr = 0; jr < nc; jr += nr) {
+                    keel::usize cur_nr = std::min(nr, nc - jr);
                     double *br_p = Br_pack.data() + jr * kc;
                     double *bi_p = Bi_pack.data() + jr * kc;
-                    for (std::size_t kk = 0; kk < kc; ++kk) {
-                        for (std::size_t c = 0; c < cur_nr; ++c) {
-                            Complex b_val = B[(pc + kk) + (jc + jr + c) * ldb];
+                    for (keel::usize kk = 0; kk < kc; ++kk) {
+                        for (keel::usize c = 0; c < cur_nr; ++c) {
+                            keel::c64 b_val = B[(pc + kk) + (jc + jr + c) * ldb];
                             br_p[kk * nr + c] = b_val.real();
                             bi_p[kk * nr + c] = b_val.imag();
                         }
-                        for (std::size_t c = cur_nr; c < nr; ++c) {
+                        for (keel::usize c = cur_nr; c < nr; ++c) {
                             br_p[kk * nr + c] = 0.0;
                             bi_p[kk * nr + c] = 0.0;
                         }
                     }
                 }
 
-                for (std::size_t ic = 0; ic < m; ic += mc_block) {
-                    std::size_t mc = std::min(mc_block, m - ic);
+                for (keel::usize ic = 0; ic < m; ic += mc_block) {
+                    keel::usize mc = std::min(mc_block, m - ic);
 
                     // Pack A real and imaginary blocks ONCE per tile
-                    for (std::size_t ii = 0; ii < mc; ii += mr) {
-                        std::size_t cur_mr = std::min(mr, mc - ii);
+                    for (keel::usize ii = 0; ii < mc; ii += mr) {
+                        keel::usize cur_mr = std::min(mr, mc - ii);
                         double *ar_p = Ar_pack.data() + ii * kc;
                         double *ai_p = Ai_pack.data() + ii * kc;
-                        for (std::size_t kk = 0; kk < kc; ++kk) {
-                            const Complex *a_col = A + (ic + ii) + (pc + kk) * lda;
-                            for (std::size_t r = 0; r < cur_mr; ++r) {
+                        for (keel::usize kk = 0; kk < kc; ++kk) {
+                            const keel::c64 *a_col = A + (ic + ii) + (pc + kk) * lda;
+                            for (keel::usize r = 0; r < cur_mr; ++r) {
                                 ar_p[kk * mr + r] = a_col[r].real();
                                 ai_p[kk * mr + r] = a_col[r].imag();
                             }
-                            for (std::size_t r = cur_mr; r < mr; ++r) {
+                            for (keel::usize r = cur_mr; r < mr; ++r) {
                                 ar_p[kk * mr + r] = 0.0;
                                 ai_p[kk * mr + r] = 0.0;
                             }
                         }
                     }
 
-                    for (std::size_t jr = 0; jr < nc; jr += nr) {
-                        std::size_t cur_nr = std::min(nr, nc - jr);
+                    for (keel::usize jr = 0; jr < nc; jr += nr) {
+                        keel::usize cur_nr = std::min(nr, nc - jr);
                         const double *br_p_tile = Br_pack.data() + jr * kc;
                         const double *bi_p_tile = Bi_pack.data() + jr * kc;
 
-                        for (std::size_t ir = 0; ir < mc; ir += mr) {
-                            std::size_t cur_mr = std::min(mr, mc - ir);
+                        for (keel::usize ir = 0; ir < mc; ir += mr) {
+                            keel::usize cur_mr = std::min(mr, mc - ir);
                             const double *ar_p = Ar_pack.data() + ir * kc;
                             const double *ai_p = Ai_pack.data() + ir * kc;
-                            Complex *c_ptr = C + (ic + ir) + (jc + jr) * ldc;
+                            keel::c64 *c_ptr = C + (ic + ir) + (jc + jr) * ldc;
 
                             if (cur_mr == mr && cur_nr == nr) {
                                 // 4M SIMD accumulators: Real part (cr) and Imag part (ci)
@@ -610,7 +609,7 @@ void GemmComplexKernel(std::size_t m, std::size_t n, std::size_t k,
                                 auto ci00 = hn::Zero(d), ci01 = hn::Zero(d), ci02 = hn::Zero(d), ci03 = hn::Zero(d), ci04 = hn::Zero(d), ci05 = hn::Zero(d);
                                 auto ci10 = hn::Zero(d), ci11 = hn::Zero(d), ci12 = hn::Zero(d), ci13 = hn::Zero(d), ci14 = hn::Zero(d), ci15 = hn::Zero(d);
 
-                                for (std::size_t kk = 0; kk < kc; ++kk) {
+                                for (keel::usize kk = 0; kk < kc; ++kk) {
                                     auto ar0 = hn::LoadU(d, ar_p + kk * mr + 0 * N);
                                     auto ar1 = hn::LoadU(d, ar_p + kk * mr + 1 * N);
                                     auto ai0 = hn::LoadU(d, ai_p + kk * mr + 0 * N);
@@ -649,7 +648,7 @@ void GemmComplexKernel(std::size_t m, std::size_t n, std::size_t k,
 
                                 #define STORE_COMPLEX_COL(col_idx, cr0, cr1, ci0, ci1) \
                                 { \
-                                    Complex *col_c = c_ptr + col_idx * ldc; \
+                                    keel::c64 *col_c = c_ptr + col_idx * ldc; \
                                     auto yr0 = hn::Mul(cr0, v_alpha_r); \
                                     yr0 = hn::NegMulAdd(ci0, v_alpha_i, yr0); \
                                     auto yr1 = hn::Mul(cr1, v_alpha_r); \
@@ -663,16 +662,16 @@ void GemmComplexKernel(std::size_t m, std::size_t n, std::size_t k,
                                     hn::StoreU(yr1, d, buf_r1); \
                                     hn::StoreU(yi0, d, buf_i0); \
                                     hn::StoreU(yi1, d, buf_i1); \
-                                    for (std::size_t r = 0; r < N; ++r) { \
-                                        Complex c_val = Complex(buf_r0[r], buf_i0[r]); \
-                                        if (current_beta != Complex(0.0, 0.0)) { \
+                                    for (keel::usize r = 0; r < N; ++r) { \
+                                        keel::c64 c_val = keel::c64(buf_r0[r], buf_i0[r]); \
+                                        if (current_beta != keel::c64(0.0, 0.0)) { \
                                             c_val += col_c[r + 0 * N] * current_beta; \
                                         } \
                                         col_c[r + 0 * N] = c_val; \
                                     } \
-                                    for (std::size_t r = 0; r < N; ++r) { \
-                                        Complex c_val = Complex(buf_r1[r], buf_i1[r]); \
-                                        if (current_beta != Complex(0.0, 0.0)) { \
+                                    for (keel::usize r = 0; r < N; ++r) { \
+                                        keel::c64 c_val = keel::c64(buf_r1[r], buf_i1[r]); \
+                                        if (current_beta != keel::c64(0.0, 0.0)) { \
                                             c_val += col_c[r + 1 * N] * current_beta; \
                                         } \
                                         col_c[r + 1 * N] = c_val; \
@@ -688,18 +687,18 @@ void GemmComplexKernel(std::size_t m, std::size_t n, std::size_t k,
                                 #undef STORE_COMPLEX_COL
                             } else {
                                 // Tail scalar edge kernel
-                                for (std::size_t c = 0; c < cur_nr; ++c) {
-                                    Complex *col_c = c_ptr + c * ldc;
+                                for (keel::usize c = 0; c < cur_nr; ++c) {
+                                    keel::c64 *col_c = c_ptr + c * ldc;
                                     const double *br_col = br_p_tile + c;
                                     const double *bi_col = bi_p_tile + c;
-                                    for (std::size_t r = 0; r < cur_mr; ++r) {
-                                        Complex acc(0.0, 0.0);
-                                        for (std::size_t kk = 0; kk < kc; ++kk) {
-                                            Complex a_val(ar_p[kk * mr + r], ai_p[kk * mr + r]);
-                                            Complex b_val(br_col[kk * nr], bi_col[kk * nr]);
+                                    for (keel::usize r = 0; r < cur_mr; ++r) {
+                                        keel::c64 acc(0.0, 0.0);
+                                        for (keel::usize kk = 0; kk < kc; ++kk) {
+                                            keel::c64 a_val(ar_p[kk * mr + r], ai_p[kk * mr + r]);
+                                            keel::c64 b_val(br_col[kk * nr], bi_col[kk * nr]);
                                             acc += a_val * b_val;
                                         }
-                                        if (current_beta == Complex(0.0, 0.0)) {
+                                        if (current_beta == keel::c64(0.0, 0.0)) {
                                             col_c[r] = alpha * acc;
                                         } else {
                                             col_c[r] = current_beta * col_c[r] + alpha * acc;
@@ -717,19 +716,19 @@ void GemmComplexKernel(std::size_t m, std::size_t n, std::size_t k,
 
 
 
-bool LuPanelDoubleKernel(double *A, std::size_t lda, std::int32_t *piv, std::size_t m, std::size_t n, std::size_t offset_row)
+bool LuPanelDoubleKernel(double *A, keel::usize lda, keel::i32 *piv, keel::usize m, keel::usize n, keel::usize offset_row)
 {
     const hn::ScalableTag<double> d;
-    const std::size_t N = hn::Lanes(d);
+    const keel::usize N = hn::Lanes(d);
 
-    for (std::size_t j = 0; j < n; ++j) {
-        std::size_t pivot = j;
+    for (keel::usize j = 0; j < n; ++j) {
+        keel::usize pivot = j;
         double pmax = std::fabs(A[j + j * lda]);
         const double *c_ptr = A + j * lda;
-        const std::size_t rem_piv = m - (j + 1);
+        const keel::usize rem_piv = m - (j + 1);
 
         if (rem_piv >= N) {
-            std::size_t i = j + 1;
+            keel::usize i = j + 1;
             auto v_max = hn::Set(d, pmax);
             for (; i + N <= m; i += N) {
                 auto v_val = hn::Abs(hn::LoadU(d, c_ptr + i));
@@ -737,7 +736,7 @@ bool LuPanelDoubleKernel(double *A, std::size_t lda, std::int32_t *piv, std::siz
             }
             const double vec_pmax = hn::ReduceMax(d, v_max);
             if (vec_pmax > pmax) {
-                for (std::size_t k = j + 1; k < m; ++k) {
+                for (keel::usize k = j + 1; k < m; ++k) {
                     const double v = std::fabs(c_ptr[k]);
                     if (v > pmax) {
                         pmax = v;
@@ -754,18 +753,18 @@ bool LuPanelDoubleKernel(double *A, std::size_t lda, std::int32_t *piv, std::siz
                 }
             }
         } else {
-            for (std::size_t i = j + 1; i < m; ++i) {
+            for (keel::usize i = j + 1; i < m; ++i) {
                 const double v = std::fabs(c_ptr[i]);
                 if (v > pmax) { pmax = v; pivot = i; }
             }
         }
 
         if (pmax == 0.0) return false;
-        piv[j] = static_cast<std::int32_t>(pivot + offset_row);
+        piv[j] = static_cast<keel::i32>(pivot + offset_row);
         if (pivot != j) {
             double *r1 = A + j;
             double *r2 = A + pivot;
-            std::size_t col = 0;
+            keel::usize col = 0;
             for (; col + 8 <= n; col += 8) {
                 double t0 = r1[(col + 0) * lda]; r1[(col + 0) * lda] = r2[(col + 0) * lda]; r2[(col + 0) * lda] = t0;
                 double t1 = r1[(col + 1) * lda]; r1[(col + 1) * lda] = r2[(col + 1) * lda]; r2[(col + 1) * lda] = t1;
@@ -782,9 +781,9 @@ bool LuPanelDoubleKernel(double *A, std::size_t lda, std::int32_t *piv, std::siz
         }
         const double inv_pivot = 1.0 / A[j + j * lda];
         double *scale_ptr = A + j * lda + (j + 1);
-        const std::size_t rem_scale = m - (j + 1);
+        const keel::usize rem_scale = m - (j + 1);
         auto v_inv = hn::Set(d, inv_pivot);
-        std::size_t si = 0;
+        keel::usize si = 0;
         for (; si + N <= rem_scale; si += N) {
             hn::StoreU(hn::Mul(hn::LoadU(d, scale_ptr + si), v_inv), d, scale_ptr + si);
         }
@@ -793,9 +792,9 @@ bool LuPanelDoubleKernel(double *A, std::size_t lda, std::int32_t *piv, std::siz
         }
 
         const double *l_col = A + j * lda;
-        const std::size_t rem_m = m - (j + 1);
+        const keel::usize rem_m = m - (j + 1);
 
-        std::size_t col = j + 1;
+        keel::usize col = j + 1;
         for (; col + 4 <= n; col += 4) {
             const double f0 = A[j + (col + 0) * lda];
             const double f1 = A[j + (col + 1) * lda];
@@ -814,7 +813,7 @@ bool LuPanelDoubleKernel(double *A, std::size_t lda, std::int32_t *piv, std::siz
                 auto v_nf2 = hn::Set(d, -f2);
                 auto v_nf3 = hn::Set(d, -f3);
 
-                std::size_t idx = 0;
+                keel::usize idx = 0;
                 for (; idx + N <= rem_m; idx += N) {
                     auto v_x = hn::LoadU(d, x_ptr + idx);
                     hn::StoreU(hn::MulAdd(v_x, v_nf0, hn::LoadU(d, c0 + idx)), d, c0 + idx);
@@ -841,7 +840,7 @@ bool LuPanelDoubleKernel(double *A, std::size_t lda, std::int32_t *piv, std::siz
                 double *y_ptr = col_ptr + (j + 1);
                 auto v_neg_f = hn::Set(d, -f);
 
-                std::size_t idx = 0;
+                keel::usize idx = 0;
                 for (; idx + N <= rem_m; idx += N) {
                     auto v_y = hn::MulAdd(hn::LoadU(d, x_ptr + idx), v_neg_f, hn::LoadU(d, y_ptr + idx));
                     hn::StoreU(v_y, d, y_ptr + idx);
@@ -855,29 +854,29 @@ bool LuPanelDoubleKernel(double *A, std::size_t lda, std::int32_t *piv, std::siz
     return true;
 }
 
-bool LuPanelComplexKernel(std::complex<double> *A_cplx, std::size_t lda, std::int32_t *piv, std::size_t m, std::size_t n, std::size_t offset_row)
+bool LuPanelComplexKernel(keel::c64 *A_cplx, keel::usize lda, keel::i32 *piv, keel::usize m, keel::usize n, keel::usize offset_row)
 {
     const hn::ScalableTag<double> d;
-    const std::size_t N = hn::Lanes(d);
+    const keel::usize N = hn::Lanes(d);
     double *A = reinterpret_cast<double*>(A_cplx);
 
-    for (std::size_t j = 0; j < n; ++j) {
-        std::size_t pivot = j;
-        double pmax = std::norm(A_cplx[j + j * lda]);
+    for (keel::usize j = 0; j < n; ++j) {
+        keel::usize pivot = j;
+        double pmax = keel::norm(A_cplx[j + j * lda]);
         
         // Pivot search (scalar is sufficient for complex magnitude since it's O(m))
-        for (std::size_t i = j + 1; i < m; ++i) {
-            double v = std::norm(A_cplx[i + j * lda]);
+        for (keel::usize i = j + 1; i < m; ++i) {
+            double v = keel::norm(A_cplx[i + j * lda]);
             if (v > pmax) { pmax = v; pivot = i; }
         }
 
         if (pmax == 0.0) return false;
-        piv[j] = static_cast<std::int32_t>(pivot + offset_row);
+        piv[j] = static_cast<keel::i32>(pivot + offset_row);
         
         if (pivot != j) {
-            std::complex<double> *r1 = A_cplx + j;
-            std::complex<double> *r2 = A_cplx + pivot;
-            std::size_t col = 0;
+            keel::c64 *r1 = A_cplx + j;
+            keel::c64 *r2 = A_cplx + pivot;
+            keel::usize col = 0;
             for (; col + 4 <= n; col += 4) {
                 std::swap(r1[(col + 0) * lda], r2[(col + 0) * lda]);
                 std::swap(r1[(col + 1) * lda], r2[(col + 1) * lda]);
@@ -889,18 +888,18 @@ bool LuPanelComplexKernel(std::complex<double> *A_cplx, std::size_t lda, std::in
             }
         }
 
-        const std::complex<double> inv_pivot = 1.0 / A_cplx[j + j * lda];
-        for (std::size_t i = j + 1; i < m; ++i) {
+        const keel::c64 inv_pivot = 1.0 / A_cplx[j + j * lda];
+        for (keel::usize i = j + 1; i < m; ++i) {
             A_cplx[i + j * lda] *= inv_pivot;
         }
 
         const double *l_col = A + 2 * j * lda;
-        const std::size_t rem_m = m - (j + 1);
+        const keel::usize rem_m = m - (j + 1);
         
-        std::size_t col = j + 1;
+        keel::usize col = j + 1;
         for (; col + 2 <= n; col += 2) {
-            const std::complex<double> f0 = A_cplx[j + (col + 0) * lda];
-            const std::complex<double> f1 = A_cplx[j + (col + 1) * lda];
+            const keel::c64 f0 = A_cplx[j + (col + 0) * lda];
+            const keel::c64 f1 = A_cplx[j + (col + 1) * lda];
             
             double *c0 = A + 2 * (col + 0) * lda + 2 * (j + 1);
             double *c1 = A + 2 * (col + 1) * lda + 2 * (j + 1);
@@ -912,7 +911,7 @@ bool LuPanelComplexKernel(std::complex<double> *A_cplx, std::size_t lda, std::in
                 auto v_fr1 = hn::Set(d, f1.real());
                 auto v_fi1 = hn::Set(d, f1.imag());
 
-                std::size_t idx = 0;
+                keel::usize idx = 0;
                 for (; idx + N <= rem_m; idx += N) {
                     hn::Vec<decltype(d)> xr, xi;
                     hn::LoadInterleaved2(d, x_ptr + 2 * idx, xr, xi);
@@ -936,7 +935,7 @@ bool LuPanelComplexKernel(std::complex<double> *A_cplx, std::size_t lda, std::in
             }
         }
         for (; col < n; ++col) {
-            const std::complex<double> f = A_cplx[j + col * lda];
+            const keel::c64 f = A_cplx[j + col * lda];
             if (f.real() == 0.0 && f.imag() == 0.0) continue;
             
             double *c_col = A + 2 * col * lda + 2 * (j + 1);
@@ -946,7 +945,7 @@ bool LuPanelComplexKernel(std::complex<double> *A_cplx, std::size_t lda, std::in
                 auto v_fr = hn::Set(d, f.real());
                 auto v_fi = hn::Set(d, f.imag());
                 
-                std::size_t idx = 0;
+                keel::usize idx = 0;
                 for (; idx + N <= rem_m; idx += N) {
                     hn::Vec<decltype(d)> xr, xi;
                     hn::LoadInterleaved2(d, x_ptr + 2 * idx, xr, xi);
@@ -980,43 +979,43 @@ HWY_EXPORT(GemmComplexKernel);
 HWY_EXPORT(LuPanelDoubleKernel);
 HWY_EXPORT(LuPanelComplexKernel);
 
-bool lu_panel(double *A, std::size_t lda, std::int32_t *piv, std::size_t m, std::size_t n, std::size_t offset_row)
+bool lu_panel(double *A, keel::usize lda, keel::i32 *piv, keel::usize m, keel::usize n, keel::usize offset_row)
 {
     return HWY_DYNAMIC_DISPATCH(LuPanelDoubleKernel)(A, lda, piv, m, n, offset_row);
 }
 
-bool lu_panel(std::complex<double> *A, std::size_t lda, std::int32_t *piv, std::size_t m, std::size_t n, std::size_t offset_row)
+bool lu_panel(keel::c64 *A, keel::usize lda, keel::i32 *piv, keel::usize m, keel::usize n, keel::usize offset_row)
 {
     return HWY_DYNAMIC_DISPATCH(LuPanelComplexKernel)(A, lda, piv, m, n, offset_row);
 }
 
 void gemm(MatrixTranspose transa, MatrixTranspose transb,
-          std::size_t m, std::size_t n, std::size_t k,
-          double alpha, const double *A, std::size_t lda,
-          const double *B, std::size_t ldb,
-          double beta, double *C, std::size_t ldc)
+          keel::usize m, keel::usize n, keel::usize k,
+          double alpha, const double *A, keel::usize lda,
+          const double *B, keel::usize ldb,
+          double beta, double *C, keel::usize ldc)
 {
     if (m == 0 || n == 0)
         return;
     const double *A_eff = A;
-    std::size_t lda_eff = lda;
+    keel::usize lda_eff = lda;
     std::vector<double> A_trans;
     if (transa != MatrixTranspose::NoTrans && k > 0 && alpha != 0.0) {
         A_trans.resize(m * k);
-        for (std::size_t p = 0; p < k; ++p)
-            for (std::size_t i = 0; i < m; ++i)
+        for (keel::usize p = 0; p < k; ++p)
+            for (keel::usize i = 0; i < m; ++i)
                 A_trans[i + p * m] = A[p + i * lda];
         A_eff = A_trans.data();
         lda_eff = m;
     }
 
     const double *B_eff = B;
-    std::size_t ldb_eff = ldb;
+    keel::usize ldb_eff = ldb;
     std::vector<double> B_trans;
     if (transb != MatrixTranspose::NoTrans && k > 0 && alpha != 0.0) {
         B_trans.resize(k * n);
-        for (std::size_t j = 0; j < n; ++j)
-            for (std::size_t p = 0; p < k; ++p)
+        for (keel::usize j = 0; j < n; ++j)
+            for (keel::usize p = 0; p < k; ++p)
                 B_trans[p + j * k] = B[j + p * ldb];
         B_eff = B_trans.data();
         ldb_eff = k;
@@ -1026,38 +1025,38 @@ void gemm(MatrixTranspose transa, MatrixTranspose transb,
 }
 
 void gemm(MatrixTranspose transa, MatrixTranspose transb,
-          std::size_t m, std::size_t n, std::size_t k,
-          std::complex<double> alpha, const std::complex<double> *A, std::size_t lda,
-          const std::complex<double> *B, std::size_t ldb,
-          std::complex<double> beta, std::complex<double> *C, std::size_t ldc)
+          keel::usize m, keel::usize n, keel::usize k,
+          keel::c64 alpha, const keel::c64 *A, keel::usize lda,
+          const keel::c64 *B, keel::usize ldb,
+          keel::c64 beta, keel::c64 *C, keel::usize ldc)
 {
     if (m == 0 || n == 0)
         return;
-    const std::complex<double> *A_eff = A;
-    std::size_t lda_eff = lda;
-    std::vector<std::complex<double>> A_trans;
-    if (transa != MatrixTranspose::NoTrans && k > 0 && alpha != std::complex<double>(0.0, 0.0)) {
+    const keel::c64 *A_eff = A;
+    keel::usize lda_eff = lda;
+    std::vector<keel::c64> A_trans;
+    if (transa != MatrixTranspose::NoTrans && k > 0 && alpha != keel::c64(0.0, 0.0)) {
         const bool conjA = (transa == MatrixTranspose::ConjTrans);
         A_trans.resize(m * k);
-        for (std::size_t p = 0; p < k; ++p)
-            for (std::size_t i = 0; i < m; ++i) {
+        for (keel::usize p = 0; p < k; ++p)
+            for (keel::usize i = 0; i < m; ++i) {
                 const auto v = A[p + i * lda];
-                A_trans[i + p * m] = conjA ? std::conj(v) : v;
+                A_trans[i + p * m] = conjA ? keel::conj(v) : v;
             }
         A_eff = A_trans.data();
         lda_eff = m;
     }
 
-    const std::complex<double> *B_eff = B;
-    std::size_t ldb_eff = ldb;
-    std::vector<std::complex<double>> B_trans;
-    if (transb != MatrixTranspose::NoTrans && k > 0 && alpha != std::complex<double>(0.0, 0.0)) {
+    const keel::c64 *B_eff = B;
+    keel::usize ldb_eff = ldb;
+    std::vector<keel::c64> B_trans;
+    if (transb != MatrixTranspose::NoTrans && k > 0 && alpha != keel::c64(0.0, 0.0)) {
         const bool conjB = (transb == MatrixTranspose::ConjTrans);
         B_trans.resize(k * n);
-        for (std::size_t j = 0; j < n; ++j)
-            for (std::size_t p = 0; p < k; ++p) {
+        for (keel::usize j = 0; j < n; ++j)
+            for (keel::usize p = 0; p < k; ++p) {
                 const auto v = B[j + p * ldb];
-                B_trans[p + j * k] = conjB ? std::conj(v) : v;
+                B_trans[p + j * k] = conjB ? keel::conj(v) : v;
             }
         B_eff = B_trans.data();
         ldb_eff = k;
@@ -1067,14 +1066,14 @@ void gemm(MatrixTranspose transa, MatrixTranspose transb,
 }
 
 template <typename T> struct is_complex_type : std::false_type {};
-template <typename U> struct is_complex_type<std::complex<U>> : std::true_type {};
+template <typename U> struct is_complex_type<keel::Complex<U>> : std::true_type {};
 template <typename T> inline constexpr bool is_complex_type_v = is_complex_type<T>::value;
 
 template <typename T>
-void gemm_dispatch(std::size_t m, std::size_t n, std::size_t k,
-                   T alpha, const T *A, std::size_t lda,
-                   const T *B, std::size_t ldb,
-                   T beta, T *C, std::size_t ldc)
+void gemm_dispatch(keel::usize m, keel::usize n, keel::usize k,
+                   T alpha, const T *A, keel::usize lda,
+                   const T *B, keel::usize ldb,
+                   T beta, T *C, keel::usize ldc)
 {
     if constexpr (is_complex_type_v<T>) {
         gemm(MatrixTranspose::NoTrans, MatrixTranspose::NoTrans, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc);
@@ -1089,36 +1088,36 @@ void gemm_dispatch(std::size_t m, std::size_t n, std::size_t k,
 
 template <typename T>
 void trsm_base(MatrixSide side, MatrixUplo uplo, MatrixTranspose trans, MatrixDiag diag,
-               std::size_t m, std::size_t n,
-               T alpha, const T *A, std::size_t lda,
-               T *B, std::size_t ldb)
+               keel::usize m, keel::usize n,
+               T alpha, const T *A, keel::usize lda,
+               T *B, keel::usize ldb)
 {
     const bool is_unit = (diag == MatrixDiag::Unit);
     const bool is_conj = (trans == MatrixTranspose::ConjTrans);
 
-    auto get_a = [&](std::size_t r, std::size_t c) -> T {
+    auto get_a = [&](keel::usize r, keel::usize c) -> T {
         T val = (trans == MatrixTranspose::NoTrans) ? A[r + c * lda] : A[c + r * lda];
         if constexpr (is_complex_type_v<T>) {
-            if (is_conj && trans != MatrixTranspose::NoTrans) return std::conj(val);
+            if (is_conj && trans != MatrixTranspose::NoTrans) return keel::conj(val);
         }
         return val;
     };
 
     if (side == MatrixSide::Left) {
         if (alpha != T(1)) {
-            for (std::size_t j = 0; j < n; ++j) {
-                for (std::size_t i = 0; i < m; ++i) {
+            for (keel::usize j = 0; j < n; ++j) {
+                for (keel::usize i = 0; i < m; ++i) {
                     B[i + j * ldb] *= alpha;
                 }
             }
         }
-        for (std::size_t j = 0; j < n; ++j) {
+        for (keel::usize j = 0; j < n; ++j) {
             if (uplo == MatrixUplo::Lower && trans == MatrixTranspose::NoTrans) {
-                for (std::size_t k = 0; k < m; ++k) {
+                for (keel::usize k = 0; k < m; ++k) {
                     if (!is_unit) B[k + j * ldb] /= get_a(k, k);
                     const T xkj = B[k + j * ldb];
                     if (xkj == T(0)) continue;
-                    for (std::size_t i = k + 1; i < m; ++i) B[i + j * ldb] -= get_a(i, k) * xkj;
+                    for (keel::usize i = k + 1; i < m; ++i) B[i + j * ldb] -= get_a(i, k) * xkj;
                 }
             } else if (uplo == MatrixUplo::Lower && trans != MatrixTranspose::NoTrans) {
                 for (std::intptr_t k = static_cast<std::intptr_t>(m) - 1; k >= 0; --k) {
@@ -1134,61 +1133,61 @@ void trsm_base(MatrixSide side, MatrixUplo uplo, MatrixTranspose trans, MatrixDi
                     for (std::intptr_t i = k - 1; i >= 0; --i) B[i + j * ldb] -= get_a(i, k) * xkj;
                 }
             } else { // Upper + Trans
-                for (std::size_t k = 0; k < m; ++k) {
+                for (keel::usize k = 0; k < m; ++k) {
                     if (!is_unit) B[k + j * ldb] /= get_a(k, k);
                     const T xkj = B[k + j * ldb];
-                    for (std::size_t i = k + 1; i < m; ++i) B[i + j * ldb] -= get_a(i, k) * xkj;
+                    for (keel::usize i = k + 1; i < m; ++i) B[i + j * ldb] -= get_a(i, k) * xkj;
                 }
             }
         }
     } else {
         if (alpha != T(1)) {
-            for (std::size_t j = 0; j < n; ++j) {
-                for (std::size_t i = 0; i < m; ++i) B[i + j * ldb] *= alpha;
+            for (keel::usize j = 0; j < n; ++j) {
+                for (keel::usize i = 0; i < m; ++i) B[i + j * ldb] *= alpha;
             }
         }
         if (uplo == MatrixUplo::Lower && trans == MatrixTranspose::NoTrans) {
             for (std::intptr_t k = static_cast<std::intptr_t>(n) - 1; k >= 0; --k) {
                 if (!is_unit) {
                     T akk = get_a(k, k);
-                    for (std::size_t i = 0; i < m; ++i) B[i + k * ldb] /= akk;
+                    for (keel::usize i = 0; i < m; ++i) B[i + k * ldb] /= akk;
                 }
                 for (std::intptr_t j = k - 1; j >= 0; --j) {
                     T akj = get_a(k, j);
-                    for (std::size_t i = 0; i < m; ++i) B[i + j * ldb] -= B[i + k * ldb] * akj;
+                    for (keel::usize i = 0; i < m; ++i) B[i + j * ldb] -= B[i + k * ldb] * akj;
                 }
             }
         } else if (uplo == MatrixUplo::Lower && trans != MatrixTranspose::NoTrans) {
-            for (std::size_t k = 0; k < n; ++k) {
+            for (keel::usize k = 0; k < n; ++k) {
                 if (!is_unit) {
                     T akk = get_a(k, k);
-                    for (std::size_t i = 0; i < m; ++i) B[i + k * ldb] /= akk;
+                    for (keel::usize i = 0; i < m; ++i) B[i + k * ldb] /= akk;
                 }
-                for (std::size_t j = k + 1; j < n; ++j) {
+                for (keel::usize j = k + 1; j < n; ++j) {
                     T akj = get_a(k, j);
-                    for (std::size_t i = 0; i < m; ++i) B[i + j * ldb] -= B[i + k * ldb] * akj;
+                    for (keel::usize i = 0; i < m; ++i) B[i + j * ldb] -= B[i + k * ldb] * akj;
                 }
             }
         } else if (uplo == MatrixUplo::Upper && trans == MatrixTranspose::NoTrans) {
-            for (std::size_t k = 0; k < n; ++k) {
+            for (keel::usize k = 0; k < n; ++k) {
                 if (!is_unit) {
                     T akk = get_a(k, k);
-                    for (std::size_t i = 0; i < m; ++i) B[i + k * ldb] /= akk;
+                    for (keel::usize i = 0; i < m; ++i) B[i + k * ldb] /= akk;
                 }
-                for (std::size_t j = k + 1; j < n; ++j) {
+                for (keel::usize j = k + 1; j < n; ++j) {
                     T akj = get_a(k, j);
-                    for (std::size_t i = 0; i < m; ++i) B[i + j * ldb] -= B[i + k * ldb] * akj;
+                    for (keel::usize i = 0; i < m; ++i) B[i + j * ldb] -= B[i + k * ldb] * akj;
                 }
             }
         } else { // Upper + Trans
             for (std::intptr_t k = static_cast<std::intptr_t>(n) - 1; k >= 0; --k) {
                 if (!is_unit) {
                     T akk = get_a(k, k);
-                    for (std::size_t i = 0; i < m; ++i) B[i + k * ldb] /= akk;
+                    for (keel::usize i = 0; i < m; ++i) B[i + k * ldb] /= akk;
                 }
                 for (std::intptr_t j = k - 1; j >= 0; --j) {
                     T akj = get_a(k, j);
-                    for (std::size_t i = 0; i < m; ++i) B[i + j * ldb] -= B[i + k * ldb] * akj;
+                    for (keel::usize i = 0; i < m; ++i) B[i + j * ldb] -= B[i + k * ldb] * akj;
                 }
             }
         }
@@ -1197,16 +1196,16 @@ void trsm_base(MatrixSide side, MatrixUplo uplo, MatrixTranspose trans, MatrixDi
 
 template <typename T>
 void trsm_generic(MatrixSide side, MatrixUplo uplo, MatrixTranspose trans, MatrixDiag diag,
-                  std::size_t m, std::size_t n,
-                  T alpha, const T *A, std::size_t lda,
-                  T *B, std::size_t ldb)
+                  keel::usize m, keel::usize n,
+                  T alpha, const T *A, keel::usize lda,
+                  T *B, keel::usize ldb)
 {
     if (m == 0 || n == 0) return;
     
     // Scale B by alpha upfront
     if (alpha != T(1)) {
-        for (std::size_t j = 0; j < n; ++j) {
-            for (std::size_t i = 0; i < m; ++i) B[i + j * ldb] *= alpha;
+        for (keel::usize j = 0; j < n; ++j) {
+            for (keel::usize i = 0; i < m; ++i) B[i + j * ldb] *= alpha;
         }
     }
 
@@ -1215,8 +1214,8 @@ void trsm_generic(MatrixSide side, MatrixUplo uplo, MatrixTranspose trans, Matri
             trsm_base(side, uplo, trans, diag, m, n, T(1), A, lda, B, ldb);
             return;
         }
-        std::size_t m1 = m / 2;
-        std::size_t m2 = m - m1;
+        keel::usize m1 = m / 2;
+        keel::usize m2 = m - m1;
         
         if (uplo == MatrixUplo::Lower && trans == MatrixTranspose::NoTrans) {
             trsm_generic(side, uplo, trans, diag, m1, n, T(1), A, lda, B, ldb);
@@ -1229,11 +1228,11 @@ void trsm_generic(MatrixSide side, MatrixUplo uplo, MatrixTranspose trans, Matri
         } else if (uplo == MatrixUplo::Upper && trans != MatrixTranspose::NoTrans) {
             trsm_generic(side, uplo, trans, diag, m1, n, T(1), A, lda, B, ldb);
             std::vector<T> U01_T(m2 * m1);
-            for(std::size_t c=0; c<m2; ++c) {
-                for(std::size_t r=0; r<m1; ++r) {
+            for(keel::usize c=0; c<m2; ++c) {
+                for(keel::usize r=0; r<m1; ++r) {
                     T val = A[r + (m1 + c)*lda];
                     if constexpr (is_complex_type_v<T>) {
-                        if (trans == MatrixTranspose::ConjTrans) val = std::conj(val);
+                        if (trans == MatrixTranspose::ConjTrans) val = keel::conj(val);
                     }
                     U01_T[c + r*m2] = val; 
                 }
@@ -1243,11 +1242,11 @@ void trsm_generic(MatrixSide side, MatrixUplo uplo, MatrixTranspose trans, Matri
         } else if (uplo == MatrixUplo::Lower && trans != MatrixTranspose::NoTrans) {
             trsm_generic(side, uplo, trans, diag, m2, n, T(1), A + m1 + m1 * lda, lda, B + m1, ldb);
             std::vector<T> L10_T(m1 * m2);
-            for(std::size_t c=0; c<m1; ++c) {
-                for(std::size_t r=0; r<m2; ++r) {
+            for(keel::usize c=0; c<m1; ++c) {
+                for(keel::usize r=0; r<m2; ++r) {
                     T val = A[(m1 + r) + c*lda];
                     if constexpr (is_complex_type_v<T>) {
-                        if (trans == MatrixTranspose::ConjTrans) val = std::conj(val);
+                        if (trans == MatrixTranspose::ConjTrans) val = keel::conj(val);
                     }
                     L10_T[c + r*m1] = val;
                 }
@@ -1260,8 +1259,8 @@ void trsm_generic(MatrixSide side, MatrixUplo uplo, MatrixTranspose trans, Matri
             trsm_base(side, uplo, trans, diag, m, n, T(1), A, lda, B, ldb);
             return;
         }
-        std::size_t n1 = n / 2;
-        std::size_t n2 = n - n1;
+        keel::usize n1 = n / 2;
+        keel::usize n2 = n - n1;
 
         if (uplo == MatrixUplo::Lower && trans == MatrixTranspose::NoTrans) {
             trsm_generic(side, uplo, trans, diag, m, n2, T(1), A + n1 + n1 * lda, lda, B + n1 * ldb, ldb);
@@ -1274,11 +1273,11 @@ void trsm_generic(MatrixSide side, MatrixUplo uplo, MatrixTranspose trans, Matri
         } else if (uplo == MatrixUplo::Upper && trans != MatrixTranspose::NoTrans) {
             trsm_generic(side, uplo, trans, diag, m, n2, T(1), A + n1 + n1 * lda, lda, B + n1 * ldb, ldb);
             std::vector<T> U01_T(n2 * n1);
-            for(std::size_t c=0; c<n2; ++c) {
-                for(std::size_t r=0; r<n1; ++r) {
+            for(keel::usize c=0; c<n2; ++c) {
+                for(keel::usize r=0; r<n1; ++r) {
                     T val = A[r + (n1 + c)*lda];
                     if constexpr (is_complex_type_v<T>) {
-                        if (trans == MatrixTranspose::ConjTrans) val = std::conj(val);
+                        if (trans == MatrixTranspose::ConjTrans) val = keel::conj(val);
                     }
                     U01_T[c + r*n2] = val; 
                 }
@@ -1288,11 +1287,11 @@ void trsm_generic(MatrixSide side, MatrixUplo uplo, MatrixTranspose trans, Matri
         } else if (uplo == MatrixUplo::Lower && trans != MatrixTranspose::NoTrans) {
             trsm_generic(side, uplo, trans, diag, m, n1, T(1), A, lda, B, ldb);
             std::vector<T> L10_T(n1 * n2);
-            for(std::size_t c=0; c<n1; ++c) {
-                for(std::size_t r=0; r<n2; ++r) {
+            for(keel::usize c=0; c<n1; ++c) {
+                for(keel::usize r=0; r<n2; ++r) {
                     T val = A[(n1 + r) + c*lda];
                     if constexpr (is_complex_type_v<T>) {
-                        if (trans == MatrixTranspose::ConjTrans) val = std::conj(val);
+                        if (trans == MatrixTranspose::ConjTrans) val = keel::conj(val);
                     }
                     L10_T[c + r*n1] = val;
                 }
@@ -1305,17 +1304,17 @@ void trsm_generic(MatrixSide side, MatrixUplo uplo, MatrixTranspose trans, Matri
 
 template <typename T>
 void syrk_recursive(MatrixUplo uplo, MatrixTranspose trans,
-                    std::size_t n, std::size_t k,
-                    T alpha, const T *V_T, std::size_t ld_v_t, const T *V, std::size_t ld_v,
-                    T *C, std::size_t ldc)
+                    keel::usize n, keel::usize k,
+                    T alpha, const T *V_T, keel::usize ld_v_t, const T *V, keel::usize ld_v,
+                    T *C, keel::usize ldc)
 {
     if (n <= 8) {
-        for (std::size_t j = 0; j < n; ++j) {
-            std::size_t i_start = (uplo == MatrixUplo::Lower) ? j : 0;
-            std::size_t i_end   = (uplo == MatrixUplo::Lower) ? n : j + 1;
-            for (std::size_t i = i_start; i < i_end; ++i) {
+        for (keel::usize j = 0; j < n; ++j) {
+            keel::usize i_start = (uplo == MatrixUplo::Lower) ? j : 0;
+            keel::usize i_end   = (uplo == MatrixUplo::Lower) ? n : j + 1;
+            for (keel::usize i = i_start; i < i_end; ++i) {
                 T sum = 0;
-                for (std::size_t l = 0; l < k; ++l) {
+                for (keel::usize l = 0; l < k; ++l) {
                     sum += V_T[i + l * ld_v_t] * V[l + j * ld_v];
                 }
                 C[i + j * ldc] += alpha * sum;
@@ -1324,8 +1323,8 @@ void syrk_recursive(MatrixUplo uplo, MatrixTranspose trans,
         return;
     }
 
-    std::size_t n1 = n / 2;
-    std::size_t n2 = n - n1;
+    keel::usize n1 = n / 2;
+    keel::usize n2 = n - n1;
 
     if (uplo == MatrixUplo::Upper) {
         syrk_recursive(uplo, trans, n1, k, alpha, V_T, ld_v_t, V, ld_v, C, ldc);
@@ -1340,20 +1339,20 @@ void syrk_recursive(MatrixUplo uplo, MatrixTranspose trans,
 
 template <typename T>
 void syrk_generic(MatrixUplo uplo, MatrixTranspose trans,
-                  std::size_t n, std::size_t k,
-                  T alpha, const T *A, std::size_t lda,
-                  T beta, T *C, std::size_t ldc)
+                  keel::usize n, keel::usize k,
+                  T alpha, const T *A, keel::usize lda,
+                  T beta, T *C, keel::usize ldc)
 {
     if (n == 0) return;
 
     if (beta != T(1)) {
-        for (std::size_t j = 0; j < n; ++j) {
-            std::size_t i_start = (uplo == MatrixUplo::Lower) ? j : 0;
-            std::size_t i_end   = (uplo == MatrixUplo::Lower) ? n : j + 1;
+        for (keel::usize j = 0; j < n; ++j) {
+            keel::usize i_start = (uplo == MatrixUplo::Lower) ? j : 0;
+            keel::usize i_end   = (uplo == MatrixUplo::Lower) ? n : j + 1;
             if (beta == T(0)) {
-                for (std::size_t i = i_start; i < i_end; ++i) C[i + j * ldc] = T(0);
+                for (keel::usize i = i_start; i < i_end; ++i) C[i + j * ldc] = T(0);
             } else {
-                for (std::size_t i = i_start; i < i_end; ++i) C[i + j * ldc] *= beta;
+                for (keel::usize i = i_start; i < i_end; ++i) C[i + j * ldc] *= beta;
             }
         }
     }
@@ -1367,23 +1366,23 @@ void syrk_generic(MatrixUplo uplo, MatrixTranspose trans,
     std::vector<T> V(k * n);
     
     if (!is_trans) {
-        for (std::size_t col = 0; col < k; ++col) {
-            for (std::size_t row = 0; row < n; ++row) {
+        for (keel::usize col = 0; col < k; ++col) {
+            for (keel::usize row = 0; row < n; ++row) {
                 V_T[row + col * n] = A[row + col * lda];
                 T val = A[row + col * lda];
                 if constexpr (is_complex_type_v<T>) {
-                    if (is_conj) val = std::conj(val);
+                    if (is_conj) val = keel::conj(val);
                 }
                 V[col + row * k] = val;
             }
         }
     } else {
-        for (std::size_t col = 0; col < n; ++col) {
-            for (std::size_t row = 0; row < k; ++row) {
+        for (keel::usize col = 0; col < n; ++col) {
+            for (keel::usize row = 0; row < k; ++row) {
                 V[row + col * k] = A[row + col * lda];
                 T val = A[row + col * lda];
                 if constexpr (is_complex_type_v<T>) {
-                    if (is_conj) val = std::conj(val);
+                    if (is_conj) val = keel::conj(val);
                 }
                 V_T[col + row * n] = val;
             }
@@ -1394,33 +1393,33 @@ void syrk_generic(MatrixUplo uplo, MatrixTranspose trans,
 }
 
 void trsm(MatrixSide side, MatrixUplo uplo, MatrixTranspose trans, MatrixDiag diag,
-          std::size_t m, std::size_t n,
-          double alpha, const double *A, std::size_t lda,
-          double *B, std::size_t ldb)
+          keel::usize m, keel::usize n,
+          double alpha, const double *A, keel::usize lda,
+          double *B, keel::usize ldb)
 {
     trsm_generic(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb);
 }
 
 void trsm(MatrixSide side, MatrixUplo uplo, MatrixTranspose trans, MatrixDiag diag,
-          std::size_t m, std::size_t n,
-          std::complex<double> alpha, const std::complex<double> *A, std::size_t lda,
-          std::complex<double> *B, std::size_t ldb)
+          keel::usize m, keel::usize n,
+          keel::c64 alpha, const keel::c64 *A, keel::usize lda,
+          keel::c64 *B, keel::usize ldb)
 {
     trsm_generic(side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb);
 }
 
 void syrk(MatrixUplo uplo, MatrixTranspose trans,
-          std::size_t n, std::size_t k,
-          double alpha, const double *A, std::size_t lda,
-          double beta, double *C, std::size_t ldc)
+          keel::usize n, keel::usize k,
+          double alpha, const double *A, keel::usize lda,
+          double beta, double *C, keel::usize ldc)
 {
     syrk_generic(uplo, trans, n, k, alpha, A, lda, beta, C, ldc);
 }
 
 void syrk(MatrixUplo uplo, MatrixTranspose trans,
-          std::size_t n, std::size_t k,
-          std::complex<double> alpha, const std::complex<double> *A, std::size_t lda,
-          std::complex<double> beta, std::complex<double> *C, std::size_t ldc)
+          keel::usize n, keel::usize k,
+          keel::c64 alpha, const keel::c64 *A, keel::usize lda,
+          keel::c64 beta, keel::c64 *C, keel::usize ldc)
 {
     syrk_generic(uplo, trans, n, k, alpha, A, lda, beta, C, ldc);
 }

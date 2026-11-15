@@ -5,6 +5,7 @@
 // of the per-op path's two products + a temporary. Mul, Mul, Add (each rounds;
 // NOT FMA) so the result is bit-identical to the per-op `a.*x + b.*y`.
 
+#include <keel/core.h>
 #include <numkit/ops/fused/fused_kernels.hpp>
 #include <numkit/ops/parallel_for.hpp>
 
@@ -22,11 +23,11 @@ namespace HWY_NAMESPACE {
 namespace hn = hwy::HWY_NAMESPACE;
 
 void AxpbyImpl(const double *x, double a, const double *y, double b,
-               double *out, std::size_t n) {
+               double *out, keel::usize n) {
     const hn::ScalableTag<double> d;
-    const std::size_t L = hn::Lanes(d);
+    const keel::usize L = hn::Lanes(d);
     const auto va = hn::Set(d, a), vb = hn::Set(d, b);
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i + L <= n; i += L) {
         // (a*x) + (b*y), three roundings — NOT FMA — to match the per-op
         // `a.*x + b.*y` fallback bit-for-bit.
@@ -47,9 +48,9 @@ namespace numkit::ops {
 HWY_EXPORT(AxpbyImpl);
 
 void fusedAxpby(const double *x, double a, const double *y, double b,
-                double *out, std::size_t n) {
+                double *out, keel::usize n) {
     if (n == 0) return;
-    detail::parallel_for(n, std::size_t{1} << 16, [&](std::size_t s, std::size_t e) {
+    detail::parallel_for(n, keel::usize{1} << 16, [&](keel::usize s, keel::usize e) {
         HWY_DYNAMIC_DISPATCH(AxpbyImpl)(x + s, a, y + s, b, out + s, e - s);
     });
 }

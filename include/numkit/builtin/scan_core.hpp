@@ -5,11 +5,12 @@
 // (relocated to the runtime layer) can reuse the same machinery as
 // the pure sscanf. scanfEmit itself is pure — no Engine.
 
-#include <numkit/value/span.hpp>
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/ref.h>
 #include <numkit/value/value.hpp>
 
 #include <cstddef>
-#include <memory_resource>
 #include <string>
 
 namespace numkit::ops {
@@ -21,8 +22,8 @@ namespace numkit::builtin::detail {
 // scanfCycle's run summary — matched-item count + input bytes consumed.
 struct ScanfOut
 {
-    std::size_t count;
-    std::size_t bytesConsumed;
+    keel::usize count;
+    keel::usize bytesConsumed;
 };
 
 /// @brief Common fscanf/sscanf body once the input buffer has been materialised.
@@ -38,8 +39,8 @@ struct ScanfOut
 /// @param r Output statistics struct (count + bytes consumed).
 /// @param mr Memory resource for allocations.
 void scanfEmit(const std::string &input, const std::string &fmt,
-               const ::numkit::ops::SizeSpec &sz, std::size_t nargout,
-               Span<Value> outs, ScanfOut &r,
-               std::pmr::memory_resource *mr = nullptr);
+               const ::numkit::ops::SizeSpec &sz, keel::usize nargout,
+               keel::MutArrayRef<Value> outs, ScanfOut &r,
+               keel::Allocator *mr = nullptr);
 
 } // namespace numkit::builtin::detail

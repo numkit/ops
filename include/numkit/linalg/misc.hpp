@@ -8,7 +8,8 @@
 
 #pragma once
 
-#include <memory_resource>
+#include <keel/core.h>
+#include <keel/memory.h>
 #include <utility>
 #include <numkit/value/value.hpp>
 
@@ -22,15 +23,15 @@ namespace numkit::linalg {
 ///
 /// `jb` is the 1-based pivot-column indices. Real-only in v1.
 std::pair<Value, Value>
-rref(const Value &A, bool have_tol, double tol_user,
-     std::pmr::memory_resource *mr = nullptr);
+rref(const Value &A, bool have_tol, keel::f64 tol_user,
+     keel::Allocator *mr = nullptr);
 
 /// @brief Givens plane rotation (`[G, y_out] = planerot([x; y])`).
 ///
 /// Returns `G` such that `G Â· [x; y] = [r; 0]` where `r = hypot(x, y)`.
 /// Real-only.
 std::pair<Value, Value>
-planerot(const Value &xy, std::pmr::memory_resource *mr = nullptr);
+planerot(const Value &xy, keel::Allocator *mr = nullptr);
 
 
 /// @}

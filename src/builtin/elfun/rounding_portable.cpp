@@ -3,6 +3,7 @@
 // Reference scalar ceil/floor/round/fix over a double array.
 // Compiled when NUMKIT_WITH_SIMD=OFF.
 
+#include <keel/core.h>
 #include "rounding_detail.hpp"
 
 #include <cmath>
@@ -10,24 +11,24 @@
 
 namespace numkit::builtin::detail {
 
-void doubleCeilLoop(const double *in, double *out, std::size_t n)
+void doubleCeilLoop(const double *in, double *out, keel::usize n)
 {
-    for (std::size_t i = 0; i < n; ++i) out[i] = std::ceil(in[i]);
+    for (keel::usize i = 0; i < n; ++i) out[i] = std::ceil(in[i]);
 }
 
-void doubleFloorLoop(const double *in, double *out, std::size_t n)
+void doubleFloorLoop(const double *in, double *out, keel::usize n)
 {
-    for (std::size_t i = 0; i < n; ++i) out[i] = std::floor(in[i]);
+    for (keel::usize i = 0; i < n; ++i) out[i] = std::floor(in[i]);
 }
 
-void doubleRoundLoop(const double *in, double *out, std::size_t n)
+void doubleRoundLoop(const double *in, double *out, keel::usize n)
 {
-    for (std::size_t i = 0; i < n; ++i) out[i] = std::round(in[i]);
+    for (keel::usize i = 0; i < n; ++i) out[i] = std::round(in[i]);
 }
 
-void doubleFixLoop(const double *in, double *out, std::size_t n)
+void doubleFixLoop(const double *in, double *out, keel::usize n)
 {
-    for (std::size_t i = 0; i < n; ++i) out[i] = std::trunc(in[i]);
+    for (keel::usize i = 0; i < n; ++i) out[i] = std::trunc(in[i]);
 }
 
 } // namespace numkit::builtin::detail

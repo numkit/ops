@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include <keel/core.h>
 #include <atomic>
 #include <condition_variable>
 #include <cstddef>
@@ -48,7 +49,7 @@ public:
     // for this task — useful for memory-bandwidth-bound kernels where
     // 6+ workers don't help and just add signaling noise on dual-channel
     // DDR5. Pass 0 (the default) to use every worker.
-    void run(std::size_t n, std::function<void(std::size_t, std::size_t)> fn,
+    void run(keel::usize n, std::function<void(keel::usize, keel::usize)> fn,
              int max_workers = 0);
 
 private:
@@ -69,11 +70,11 @@ private:
     // is how many workers participate in this task (≤ workers_.size());
     // workers with id ≥ active_ wake up on cv_start_ but skip the
     // task body so they don't decrement task_remaining_.
-    std::function<void(std::size_t, std::size_t)> task_;
-    std::size_t                      task_n_         = 0;
+    std::function<void(keel::usize, keel::usize)> task_;
+    keel::usize                      task_n_         = 0;
     std::atomic<int>                 task_remaining_{0};
     int                              active_         = 0;
-    std::atomic<std::uint64_t>       epoch_{0};
+    std::atomic<keel::u64>       epoch_{0};
     std::atomic<bool>                shutdown_{false};
 };
 

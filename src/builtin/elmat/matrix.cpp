@@ -1,9 +1,15 @@
 // toolboxes/builtin/src/lang/arrays/matrix.cpp
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/ref.h>
+#include <keel/arena.h>
+#include <keel/array.h>
+#include <keel/complex.h>
+#include <keel/math.h>
 #include <numkit/builtin/elmat.hpp>
 
 #include <numkit/value/value.hpp>
-#include <numkit/value/scratch.hpp>
 #include <numkit/value/error.hpp>
 
 #include <numkit/ops/helpers.hpp>
@@ -20,7 +26,6 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
-#include <complex>
 #include <cstdint>
 #include <cstring>
 #include <limits>
@@ -36,16 +41,16 @@ namespace numkit::builtin {
 // ════════════════════════════════════════════════════════════════════════
 
 // ── Constructors ──────────────────────────────────────────────────────
-Value zeros(size_t rows, size_t cols, size_t pages, std::pmr::memory_resource *mr)
+Value zeros(keel::usize rows, keel::usize cols, keel::usize pages, keel::Allocator *mr)
 {
     return createMatrix({rows, cols, pages}, ValueType::DOUBLE, mr);
 }
 
-Value ones(size_t rows, size_t cols, size_t pages, std::pmr::memory_resource *mr)
+Value ones(keel::usize rows, keel::usize cols, keel::usize pages, keel::Allocator *mr)
 {
     auto m = createMatrix({rows, cols, pages}, ValueType::DOUBLE, mr);
     double *p = m.doubleDataMut();
-    for (size_t i = 0; i < m.numel(); ++i)
+    for (keel::usize i = 0; i < m.numel(); ++i)
         p[i] = 1.0;
     return m;
 }
@@ -53,24 +58,24 @@ Value ones(size_t rows, size_t cols, size_t pages, std::pmr::memory_resource *mr
 // ND overloads: caller passes a flat dim list. For nd <= 3 these just
 // route to the legacy 2D/3D ctors via createMatrixND; nd > 3 hits the
 // Value::matrixND ctor and the SBO Dims storage.
-Value zerosND(const size_t *dims, std::size_t nDims, std::pmr::memory_resource *mr)
+Value zerosND(const keel::usize *dims, keel::usize nDims, keel::Allocator *mr)
 {
     return createMatrixND(dims, nDims, ValueType::DOUBLE, mr);
 }
 
-Value onesND(const size_t *dims, std::size_t nDims, std::pmr::memory_resource *mr)
+Value onesND(const keel::usize *dims, keel::usize nDims, keel::Allocator *mr)
 {
     auto m = createMatrixND(dims, nDims, ValueType::DOUBLE, mr);
     double *p = m.doubleDataMut();
-    for (size_t i = 0; i < m.numel(); ++i)
+    for (keel::usize i = 0; i < m.numel(); ++i)
         p[i] = 1.0;
     return m;
 }
 
-Value eye(size_t rows, size_t cols, std::pmr::memory_resource *mr)
+Value eye(keel::usize rows, keel::usize cols, keel::Allocator *mr)
 {
     auto m = Value::matrix(rows, cols, ValueType::DOUBLE, mr);
-    for (size_t i = 0; i < std::min(rows, cols); ++i)
+    for (keel::usize i = 0; i < std::min(rows, cols); ++i)
         m.elem(i, i) = 1.0;
     return m;
 }
@@ -94,13 +99,13 @@ Value eye(size_t rows, size_t cols, std::pmr::memory_resource *mr)
 // and the alternative (publishing it from builtin to linalg via a
 // public header) trades one tiny duplication for inter-lib include
 // surface. TODO: consider promoting to toolboxes/builtin/internal/ later.
-Value poly_of_matrix(const Value &A, std::pmr::memory_resource *mr)
+Value poly_of_matrix(const Value &A, keel::Allocator *mr)
 {
     if (A.dims().ndim() != 2)
         throw Error("poly: input must be a 2D matrix",
                     0, 0, "poly", "", "numkit:poly:notMatrix");
-    const std::size_t m = static_cast<std::size_t>(A.dims().dim(0));
-    const std::size_t n = static_cast<std::size_t>(A.dims().dim(1));
+    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
+    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
     if (m != n)
         throw Error("poly: matrix must be square (use poly(roots) for vector input)",
                     0, 0, "poly", "", "numkit:poly:notSquare");
@@ -123,9 +128,9 @@ Value poly_of_matrix(const Value &A, std::pmr::memory_resource *mr)
     //     c[k] = -trace(M_k) / k
     // After the loop, c[1..n] are the coefficients (after the leading 1).
 
-    ScratchArena scratch(mr);
-    ScratchVec<double> M(n * n, 0.0, &scratch);
-    ScratchVec<double> Mnext(n * n, &scratch);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<double> M(n * n, 0.0, scratch.allocator());
+    keel::Array<double> Mnext(n * n, scratch.allocator());
 
     auto out = Value::matrix(1, n + 1, ValueType::DOUBLE, mr);
     double *c = out.doubleDataMut();
@@ -133,26 +138,26 @@ Value poly_of_matrix(const Value &A, std::pmr::memory_resource *mr)
 
     const double *Adata = A.doubleData();
 
-    for (std::size_t k = 1; k <= n; ++k) {
+    for (keel::usize k = 1; k <= n; ++k) {
         // Mnext = A * (M + c[k-1] * I)
         //       = A * M + c[k-1] * A
         // First: Mnext = A * M
         std::fill(Mnext.begin(), Mnext.end(), 0.0);
-        for (std::size_t j = 0; j < n; ++j)
-            for (std::size_t kk = 0; kk < n; ++kk) {
+        for (keel::usize j = 0; j < n; ++j)
+            for (keel::usize kk = 0; kk < n; ++kk) {
                 const double mkj = M[kk + j * n];
                 if (mkj == 0.0) continue;
-                for (std::size_t i = 0; i < n; ++i)
+                for (keel::usize i = 0; i < n; ++i)
                     Mnext[i + j * n] += Adata[i + kk * n] * mkj;
             }
         // Add c[k-1] * A
         const double cprev = c[k - 1];
-        for (std::size_t i = 0; i < n * n; ++i)
+        for (keel::usize i = 0; i < n * n; ++i)
             Mnext[i] += cprev * Adata[i];
 
         // c[k] = -trace(Mnext) / k
         double tr = 0.0;
-        for (std::size_t i = 0; i < n; ++i) tr += Mnext[i + i * n];
+        for (keel::usize i = 0; i < n; ++i) tr += Mnext[i + i * n];
         c[k] = -tr / static_cast<double>(k);
 
         std::swap(M, Mnext);
@@ -172,25 +177,25 @@ Value poly_of_matrix(const Value &A, std::pmr::memory_resource *mr)
 // (true) vs ascending (false) for `cols[j]`. `out_idx` (optional, may
 // be nullptr) receives the 0-indexed selected rows for the 2-output
 // form. Stable on full ties.
-Value topkrows_full(const Value &A, std::size_t k,
-                    const std::vector<std::size_t> &colsIn,
-                    const std::vector<std::uint8_t> &descIn,
-                    std::vector<std::size_t> *out_idx,
-                    std::pmr::memory_resource *mr)
+Value topkrows_full(const Value &A, keel::usize k,
+                    const std::vector<keel::usize> &colsIn,
+                    const std::vector<keel::u8> &descIn,
+                    std::vector<keel::usize> *out_idx,
+                    keel::Allocator *mr)
 {
     if (A.dims().ndim() != 2)
         throw Error("topkrows: input must be a 2D matrix",
                     0, 0, "topkrows", "", "numkit:topkrows:notMatrix");
-    const std::size_t m = static_cast<std::size_t>(A.dims().dim(0));
-    const std::size_t n = static_cast<std::size_t>(A.dims().dim(1));
-    const std::size_t kk = std::min(k, m);
+    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
+    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
+    const keel::usize kk = std::min(k, m);
 
     // Resolve cols / desc defaults.
-    std::vector<std::size_t> cols;
-    std::vector<std::uint8_t> desc;
+    std::vector<keel::usize> cols;
+    std::vector<keel::u8> desc;
     if (colsIn.empty()) {
         cols.reserve(n);
-        for (std::size_t j = 0; j < n; ++j) cols.push_back(j);
+        for (keel::usize j = 0; j < n; ++j) cols.push_back(j);
     } else {
         cols = colsIn;
     }
@@ -205,23 +210,23 @@ Value topkrows_full(const Value &A, std::size_t k,
                     "length of col",
                     0, 0, "topkrows", "", "numkit:topkrows:dirSize");
     }
-    for (std::size_t j : cols)
+    for (keel::usize j : cols)
         if (j >= n)
             throw Error("topkrows: column index out of range",
                         0, 0, "topkrows", "", "numkit:topkrows:badCol");
 
-    ScratchArena scratch(mr);
-    ScratchVec<std::size_t> idx(m, &scratch);
-    for (std::size_t i = 0; i < m; ++i) idx[i] = i;
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<keel::usize> idx(m, scratch.allocator());
+    for (keel::usize i = 0; i < m; ++i) idx[i] = i;
 
     // Use elemAsDouble for any-class input.
-    auto elem = [&](std::size_t r, std::size_t c) {
+    auto elem = [&](keel::usize r, keel::usize c) {
         return A.elemAsDouble(r + c * m);
     };
     std::stable_sort(idx.begin(), idx.end(),
-        [&](std::size_t a, std::size_t b) {
-            for (std::size_t k2 = 0; k2 < cols.size(); ++k2) {
-                const std::size_t j = cols[k2];
+        [&](keel::usize a, keel::usize b) {
+            for (keel::usize k2 = 0; k2 < cols.size(); ++k2) {
+                const keel::usize j = cols[k2];
                 const double va = elem(a, j);
                 const double vb = elem(b, j);
                 if (va == vb) continue;
@@ -234,11 +239,11 @@ Value topkrows_full(const Value &A, std::size_t k,
     // Preserve element class.
     auto out = (n == 0) ? Value::matrix(kk, 0, A.type(), mr)
                         : Value::matrix(kk, n, A.type(), mr);
-    for (std::size_t i = 0; i < kk; ++i) {
-        const std::size_t r = idx[i];
-        for (std::size_t j = 0; j < n; ++j) {
-            const std::size_t src_lin = r + j * m;
-            const std::size_t dst_lin = i + j * kk;
+    for (keel::usize i = 0; i < kk; ++i) {
+        const keel::usize r = idx[i];
+        for (keel::usize j = 0; j < n; ++j) {
+            const keel::usize src_lin = r + j * m;
+            const keel::usize dst_lin = i + j * kk;
             // Class-preserving copy.
             switch (A.type()) {
                 case ValueType::DOUBLE: out.doubleDataMut()[dst_lin] = A.doubleData()[src_lin]; break;
@@ -262,12 +267,12 @@ Value topkrows_full(const Value &A, std::size_t k,
     }
     if (out_idx) {
         out_idx->resize(kk);
-        for (std::size_t i = 0; i < kk; ++i) (*out_idx)[i] = idx[i];
+        for (keel::usize i = 0; i < kk; ++i) (*out_idx)[i] = idx[i];
     }
     return out;
 }
 
-Value topkrows(const Value &A, std::size_t k, std::pmr::memory_resource *mr)
+Value topkrows(const Value &A, keel::usize k, keel::Allocator *mr)
 {
     return topkrows_full(A, k, {}, {}, nullptr, mr);
 }
@@ -275,7 +280,7 @@ Value topkrows(const Value &A, std::size_t k, std::pmr::memory_resource *mr)
 // ── Toeplitz / Hankel / Vandermonde / Companion ─────────────────────
 
 
-Value toeplitz(const Value &cV, const Value &rV, std::pmr::memory_resource *mr)
+Value toeplitz(const Value &cV, const Value &rV, keel::Allocator *mr)
 {
     const bool single1 = rV.isEmpty();
     const bool anyCplx  = cV.isComplex() || (!single1 && rV.isComplex());
@@ -283,8 +288,8 @@ Value toeplitz(const Value &cV, const Value &rV, std::pmr::memory_resource *mr)
         (cV.type() == ValueType::SINGLE ||
          (!single1 && rV.type() == ValueType::SINGLE));
 
-    const std::size_t m = cV.numel();
-    const std::size_t n = single1 ? m : rV.numel();
+    const keel::usize m = cV.numel();
+    const keel::usize n = single1 ? m : rV.numel();
     if (m == 0 || n == 0)
         throw Error("toeplitz: inputs must be non-empty",
                     0, 0, "toeplitz", "", "numkit:toeplitz:empty");
@@ -294,22 +299,22 @@ Value toeplitz(const Value &cV, const Value &rV, std::pmr::memory_resource *mr)
     // Hermitian Toeplitz matrix (MATLAB conjugates the strictly-lower
     // triangle, T(i,j) = conj(c(i-j)) for i>j, c(j-i) otherwise).
     if (anyCplx) {
-        ScratchArena scratch(mr);
-        ScratchVec<Complex> c(m, &scratch);
-        for (size_t k = 0; k < m; ++k)
+        keel::ArenaTemp scratch = keel::get_scratch(mr);
+        keel::Array<keel::c64> c(m, scratch.allocator());
+        for (keel::usize k = 0; k < m; ++k)
             c[k] = cV.isComplex() ? cV.complexData()[k]
-                                  : Complex(cV.elemAsDouble(k), 0.0);
-        ScratchVec<Complex> r(n, &scratch);
+                                  : keel::c64(cV.elemAsDouble(k), 0.0);
+        keel::Array<keel::c64> r(n, scratch.allocator());
         if (!single1)
-            for (size_t k = 0; k < n; ++k)
+            for (keel::usize k = 0; k < n; ++k)
                 r[k] = rV.isComplex() ? rV.complexData()[k]
-                                      : Complex(rV.elemAsDouble(k), 0.0);
+                                      : keel::c64(rV.elemAsDouble(k), 0.0);
         auto M = Value::matrix(m, n, ValueType::COMPLEX, mr);
-        Complex *dst = M.complexDataMut();
-        for (size_t j = 0; j < n; ++j)
-            for (size_t i = 0; i < m; ++i) {
-                Complex v;
-                if (single1) v = (i > j) ? std::conj(c[i - j]) : c[j - i];
+        keel::c64 *dst = M.complexDataMut();
+        for (keel::usize j = 0; j < n; ++j)
+            for (keel::usize i = 0; i < m; ++i) {
+                keel::c64 v;
+                if (single1) v = (i > j) ? keel::conj(c[i - j]) : c[j - i];
                 else         v = (i >= j) ? c[i - j] : r[j - i];
                 dst[j * m + i] = v;
             }
@@ -317,10 +322,10 @@ Value toeplitz(const Value &cV, const Value &rV, std::pmr::memory_resource *mr)
     }
 
     // Real path (DOUBLE or SINGLE output; class preserved).
-    ScratchArena scratch(mr);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
     auto c = valueToScratchDoubles(cV, scratch);
-    ScratchVec<double> r(&scratch);
-    if (single1) r.assign(c.begin(), c.end());
+    keel::Array<double> r(scratch.allocator());
+    if (single1) r.assign(c);
     else         r = valueToScratchDoubles(rV, scratch);
 
     // T[i,j] = c[i-j] (i>=j) else r[j-i]. MATLAB silently overrides r[0]
@@ -329,19 +334,19 @@ Value toeplitz(const Value &cV, const Value &rV, std::pmr::memory_resource *mr)
     auto M = Value::matrix(m, n, ot, mr);
     if (ot == ValueType::SINGLE) {
         float *dst = static_cast<float *>(M.rawDataMut());
-        for (size_t j = 0; j < n; ++j)
-            for (size_t i = 0; i < m; ++i)
+        for (keel::usize j = 0; j < n; ++j)
+            for (keel::usize i = 0; i < m; ++i)
                 dst[j * m + i] = static_cast<float>((i >= j) ? c[i - j] : r[j - i]);
     } else {
         double *dst = M.doubleDataMut();
-        for (size_t j = 0; j < n; ++j)
-            for (size_t i = 0; i < m; ++i)
+        for (keel::usize j = 0; j < n; ++j)
+            for (keel::usize i = 0; i < m; ++i)
                 dst[j * m + i] = (i >= j) ? c[i - j] : r[j - i];
     }
     return M;
 }
 
-Value hankel(const Value &cV, const Value &rV, std::pmr::memory_resource *mr)
+Value hankel(const Value &cV, const Value &rV, keel::Allocator *mr)
 {
     const bool single1 = rV.isEmpty();
     const bool anyCplx  = cV.isComplex() || (!single1 && rV.isComplex());
@@ -349,8 +354,8 @@ Value hankel(const Value &cV, const Value &rV, std::pmr::memory_resource *mr)
         (cV.type() == ValueType::SINGLE ||
          (!single1 && rV.type() == ValueType::SINGLE));
 
-    const std::size_t m = cV.numel();
-    const std::size_t n = single1 ? m : rV.numel();
+    const keel::usize m = cV.numel();
+    const keel::usize n = single1 ? m : rV.numel();
     if (m == 0 || n == 0)
         throw Error("hankel: inputs must be non-empty",
                     0, 0, "hankel", "", "numkit:hankel:empty");
@@ -358,29 +363,29 @@ Value hankel(const Value &cV, const Value &rV, std::pmr::memory_resource *mr)
     // H[i,j] = c[i+j] (i+j < m) else r[i+j-m+1]. hankel never conjugates.
     // Single-arg: r is all zeros (anti-triangular Hankel).
     if (anyCplx) {
-        ScratchArena scratch(mr);
-        ScratchVec<Complex> c(m, &scratch);
-        for (size_t k = 0; k < m; ++k)
+        keel::ArenaTemp scratch = keel::get_scratch(mr);
+        keel::Array<keel::c64> c(m, scratch.allocator());
+        for (keel::usize k = 0; k < m; ++k)
             c[k] = cV.isComplex() ? cV.complexData()[k]
-                                  : Complex(cV.elemAsDouble(k), 0.0);
-        ScratchVec<Complex> r(n, &scratch);
-        for (size_t k = 0; k < n; ++k)
+                                  : keel::c64(cV.elemAsDouble(k), 0.0);
+        keel::Array<keel::c64> r(n, scratch.allocator());
+        for (keel::usize k = 0; k < n; ++k)
             r[k] = (!single1 && rV.isComplex()) ? rV.complexData()[k]
-                 : (!single1)                   ? Complex(rV.elemAsDouble(k), 0.0)
-                                                : Complex(0.0, 0.0);
+                 : (!single1)                   ? keel::c64(rV.elemAsDouble(k), 0.0)
+                                                : keel::c64(0.0, 0.0);
         auto M = Value::matrix(m, n, ValueType::COMPLEX, mr);
-        Complex *dst = M.complexDataMut();
-        for (size_t j = 0; j < n; ++j)
-            for (size_t i = 0; i < m; ++i) {
-                const size_t s = i + j;
+        keel::c64 *dst = M.complexDataMut();
+        for (keel::usize j = 0; j < n; ++j)
+            for (keel::usize i = 0; i < m; ++i) {
+                const keel::usize s = i + j;
                 dst[j * m + i] = (s < m) ? c[s] : r[s - m + 1];
             }
         return M;
     }
 
-    ScratchArena scratch(mr);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
     auto c = valueToScratchDoubles(cV, scratch);
-    ScratchVec<double> r(&scratch);
+    keel::Array<double> r(scratch.allocator());
     if (single1) r.assign(m, 0.0);
     else         r = valueToScratchDoubles(rV, scratch);
 
@@ -388,92 +393,92 @@ Value hankel(const Value &cV, const Value &rV, std::pmr::memory_resource *mr)
     auto M = Value::matrix(m, n, ot, mr);
     if (ot == ValueType::SINGLE) {
         float *dst = static_cast<float *>(M.rawDataMut());
-        for (size_t j = 0; j < n; ++j)
-            for (size_t i = 0; i < m; ++i) {
-                const size_t s = i + j;
+        for (keel::usize j = 0; j < n; ++j)
+            for (keel::usize i = 0; i < m; ++i) {
+                const keel::usize s = i + j;
                 dst[j * m + i] = static_cast<float>((s < m) ? c[s] : r[s - m + 1]);
             }
     } else {
         double *dst = M.doubleDataMut();
-        for (size_t j = 0; j < n; ++j)
-            for (size_t i = 0; i < m; ++i) {
-                const size_t s = i + j;
+        for (keel::usize j = 0; j < n; ++j)
+            for (keel::usize i = 0; i < m; ++i) {
+                const keel::usize s = i + j;
                 dst[j * m + i] = (s < m) ? c[s] : r[s - m + 1];
             }
     }
     return M;
 }
 
-Value vander(const Value &vV, std::pmr::memory_resource *mr)
+Value vander(const Value &vV, keel::Allocator *mr)
 {
-    ScratchArena scratch(mr);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
     auto v = valueToScratchDoubles(vV, scratch);
-    const std::size_t n = v.size();
+    const keel::usize n = v.size();
     if (n == 0)
         return Value::matrix(0, 0, ValueType::DOUBLE, mr);
     auto M = Value::matrix(n, n, ValueType::DOUBLE, mr);
     // V[i, j] = v[i] ^ (n - 1 - j) -- highest power on the LEFT.
-    for (size_t i = 0; i < n; ++i) {
+    for (keel::usize i = 0; i < n; ++i) {
         const double x = v[i];
         M.elem(i, n - 1) = 1.0;
-        for (size_t k = 1; k < n; ++k)
+        for (keel::usize k = 1; k < n; ++k)
             M.elem(i, n - 1 - k) = M.elem(i, n - k) * x;
     }
     return M;
 }
 
-Value compan(const Value &pV, std::pmr::memory_resource *mr)
+Value compan(const Value &pV, keel::Allocator *mr)
 {
-    ScratchArena scratch(mr);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
     auto p = valueToScratchDoubles(pV, scratch);
-    const std::size_t pn = p.size();
+    const keel::usize pn = p.size();
     if (pn < 2)
         return Value::matrix(0, 0, ValueType::DOUBLE, mr);
     if (p[0] == 0.0)
         throw Error("compan: leading coefficient must be non-zero",
                     0, 0, "compan", "", "numkit:compan:zeroLead");
 
-    const std::size_t n = pn - 1;
+    const keel::usize n = pn - 1;
     auto M = Value::matrix(n, n, ValueType::DOUBLE, mr);
     const double inv = 1.0 / p[0];
-    for (std::size_t j = 0; j < n; ++j)
+    for (keel::usize j = 0; j < n; ++j)
         M.elem(0, j) = -p[j + 1] * inv;
-    for (std::size_t i = 1; i < n; ++i)
+    for (keel::usize i = 1; i < n; ++i)
         M.elem(i, i - 1) = 1.0;
     return M;
 }
 
 // ── Pascal / Hilbert / Wilkinson / Hadamard / Rosser ────────────────
 
-Value pascal(size_t n, std::pmr::memory_resource *mr)
+Value pascal(keel::usize n, keel::Allocator *mr)
 {
     if (n == 0)
         return Value::matrix(0, 0, ValueType::DOUBLE, mr);
     auto M = Value::matrix(n, n, ValueType::DOUBLE, mr);
     // Default symmetric form: P[i, j] = C(i+j, i). Build via the
     // recurrence P[i,j] = P[i-1,j] + P[i,j-1] with P[0,*]=P[*,0]=1.
-    for (size_t i = 0; i < n; ++i) {
+    for (keel::usize i = 0; i < n; ++i) {
         M.elem(i, 0) = 1.0;
         M.elem(0, i) = 1.0;
     }
-    for (size_t i = 1; i < n; ++i)
-        for (size_t j = 1; j < n; ++j)
+    for (keel::usize i = 1; i < n; ++i)
+        for (keel::usize j = 1; j < n; ++j)
             M.elem(i, j) = M.elem(i - 1, j) + M.elem(i, j - 1);
     return M;
 }
 
-Value hilb(size_t n, std::pmr::memory_resource *mr)
+Value hilb(keel::usize n, keel::Allocator *mr)
 {
     if (n == 0)
         return Value::matrix(0, 0, ValueType::DOUBLE, mr);
     auto M = Value::matrix(n, n, ValueType::DOUBLE, mr);
-    for (size_t i = 0; i < n; ++i)
-        for (size_t j = 0; j < n; ++j)
+    for (keel::usize i = 0; i < n; ++i)
+        for (keel::usize j = 0; j < n; ++j)
             M.elem(i, j) = 1.0 / static_cast<double>(i + j + 1);
     return M;
 }
 
-Value invhilb(size_t n, std::pmr::memory_resource *mr)
+Value invhilb(keel::usize n, keel::Allocator *mr)
 {
     if (n == 0)
         return Value::matrix(0, 0, ValueType::DOUBLE, mr);
@@ -489,8 +494,8 @@ Value invhilb(size_t n, std::pmr::memory_resource *mr)
             r = r * static_cast<long double>(n_ - t + 1) / static_cast<long double>(t);
         return r;
     };
-    for (size_t i0 = 0; i0 < n; ++i0)
-        for (size_t j0 = 0; j0 < n; ++j0) {
+    for (keel::usize i0 = 0; i0 < n; ++i0)
+        for (keel::usize j0 = 0; j0 < n; ++j0) {
             const long i = static_cast<long>(i0 + 1);
             const long j = static_cast<long>(j0 + 1);
             const long N = static_cast<long>(n);
@@ -507,15 +512,15 @@ Value invhilb(size_t n, std::pmr::memory_resource *mr)
     return M;
 }
 
-Value wilkinson(size_t n, std::pmr::memory_resource *mr)
+Value wilkinson(keel::usize n, keel::Allocator *mr)
 {
     if (n == 0)
         return Value::matrix(0, 0, ValueType::DOUBLE, mr);
     auto M = Value::matrix(n, n, ValueType::DOUBLE, mr);
     // Diagonal: |(1:n) - (n+1)/2|; subdiagonal/superdiagonal: ones.
     const double mid = (static_cast<double>(n) + 1.0) / 2.0;
-    for (size_t i = 0; i < n; ++i) {
-        M.elem(i, i) = std::abs(static_cast<double>(i + 1) - mid);
+    for (keel::usize i = 0; i < n; ++i) {
+        M.elem(i, i) = keel::abs(static_cast<double>(i + 1) - mid);
         if (i > 0) {
             M.elem(i, i - 1) = 1.0;
             M.elem(i - 1, i) = 1.0;
@@ -524,7 +529,7 @@ Value wilkinson(size_t n, std::pmr::memory_resource *mr)
     return M;
 }
 
-Value hadamard(size_t n, std::pmr::memory_resource *mr)
+Value hadamard(keel::usize n, keel::Allocator *mr)
 {
     if (n == 0)
         return Value::matrix(0, 0, ValueType::DOUBLE, mr);
@@ -533,7 +538,7 @@ Value hadamard(size_t n, std::pmr::memory_resource *mr)
         M.elem(0, 0) = 1.0;
         return M;
     }
-    size_t base = 0;
+    keel::usize base = 0;
     if ((n & (n - 1)) == 0) {
         base = 1;
     } else if (n % 12 == 0 && ((n / 12) & ((n / 12) - 1)) == 0) {
@@ -550,29 +555,29 @@ Value hadamard(size_t n, std::pmr::memory_resource *mr)
         M.elem(0, 0) = 1.0;
     } else if (base == 12) {
         static const double r12[11] = {-1, 1, -1, 1, 1, 1, -1, -1, -1, 1, -1};
-        for (size_t i = 0; i < 12; ++i) {
+        for (keel::usize i = 0; i < 12; ++i) {
             M.elem(0, i) = 1.0;
             M.elem(i, 0) = 1.0;
         }
-        for (size_t i = 0; i < 11; ++i)
-            for (size_t j = 0; j < 11; ++j)
+        for (keel::usize i = 0; i < 11; ++i)
+            for (keel::usize j = 0; j < 11; ++j)
                 M.elem(i + 1, j + 1) = r12[(j + 11 - i) % 11];
     } else {
         static const double v20[19] = {-1, -1, 1, 1, -1, -1, -1, -1, 1, -1, 1, -1, 1, 1, 1, 1, -1, -1, 1};
-        for (size_t i = 0; i < 20; ++i) {
+        for (keel::usize i = 0; i < 20; ++i) {
             M.elem(0, i) = 1.0;
             M.elem(i, 0) = 1.0;
         }
-        for (size_t i = 0; i < 19; ++i)
-            for (size_t j = 0; j < 19; ++j)
+        for (keel::usize i = 0; i < 19; ++i)
+            for (keel::usize j = 0; j < 19; ++j)
                 M.elem(i + 1, j + 1) = v20[(i + j) % 19];
     }
 
     // Sylvester recursion: H_{2k} = [Hk Hk; Hk -Hk].
-    for (size_t k = base; k < n; k <<= 1) {
+    for (keel::usize k = base; k < n; k <<= 1) {
         // Quadrant copies for size doubling from k → 2k.
-        for (size_t i = 0; i < k; ++i)
-            for (size_t j = 0; j < k; ++j) {
+        for (keel::usize i = 0; i < k; ++i)
+            for (keel::usize j = 0; j < k; ++j) {
                 const double v = M.elem(i, j);
                 M.elem(i,     j + k) =  v;
                 M.elem(i + k, j)     =  v;
@@ -582,7 +587,7 @@ Value hadamard(size_t n, std::pmr::memory_resource *mr)
     return M;
 }
 
-Value rosser(std::pmr::memory_resource *mr)
+Value rosser(keel::Allocator *mr)
 {
     // Hardcoded 8×8 Rosser test matrix (MATLAB R2025b: rosser()).
     static constexpr double R[64] = {
@@ -596,13 +601,13 @@ Value rosser(std::pmr::memory_resource *mr)
           29,   -44,   52,  -23,  208,  208, -911,   99
     };
     auto M = Value::matrix(8, 8, ValueType::DOUBLE, mr);
-    for (size_t i = 0; i < 8; ++i)
-        for (size_t j = 0; j < 8; ++j)
+    for (keel::usize i = 0; i < 8; ++i)
+        for (keel::usize j = 0; j < 8; ++j)
             M.elem(i, j) = R[i * 8 + j];
     return M;
 }
 
-Value magic(size_t N, std::pmr::memory_resource *mr)
+Value magic(keel::usize N, keel::Allocator *mr)
 {
     if (N == 0)
         return Value::matrix(0, 0, ValueType::DOUBLE, mr);
@@ -633,14 +638,14 @@ Value magic(size_t N, std::pmr::memory_resource *mr)
     }
     // Row-major buf[i*N + j] → column-major out[j*N + i]
     double *out = m.doubleDataMut();
-    for (size_t i = 0; i < N; ++i)
-        for (size_t j = 0; j < N; ++j)
+    for (keel::usize i = 0; i < N; ++i)
+        for (keel::usize j = 0; j < N; ++j)
             out[j * N + i] = buf[i * N + j];
     return m;
 }
 
 // ── Shape queries ────────────────────────────────────────────────────
-Value size(const Value &x, std::pmr::memory_resource *mr)
+Value size(const Value &x, keel::Allocator *mr)
 {
     const auto &dims = x.dims();
     // Output ndim: at least 2 (MATLAB convention — a row vector reports
@@ -654,12 +659,12 @@ Value size(const Value &x, std::pmr::memory_resource *mr)
     return sv;
 }
 
-Value size(const Value &x, int dim, std::pmr::memory_resource *mr)
+Value size(const Value &x, int dim, keel::Allocator *mr)
 {
     return Value::scalar(static_cast<double>(x.dims().dimSize(dim - 1)), mr);
 }
 
-std::tuple<Value, Value> sizePair(const Value &x, std::pmr::memory_resource *mr)
+std::tuple<Value, Value> sizePair(const Value &x, keel::Allocator *mr)
 {
     const auto &dims = x.dims();
     return std::make_tuple(
@@ -667,7 +672,7 @@ std::tuple<Value, Value> sizePair(const Value &x, std::pmr::memory_resource *mr)
         Value::scalar(static_cast<double>(dims.cols()), mr));
 }
 
-Value length(const Value &x, std::pmr::memory_resource *mr)
+Value length(const Value &x, keel::Allocator *mr)
 {
     if (x.isEmpty() || x.numel() == 0)
         return Value::scalar(0.0, mr);
@@ -676,12 +681,12 @@ Value length(const Value &x, std::pmr::memory_resource *mr)
     return Value::scalar(len, mr);
 }
 
-Value numel(const Value &x, std::pmr::memory_resource *mr)
+Value numel(const Value &x, keel::Allocator *mr)
 {
     return Value::scalar(static_cast<double>(x.numel()), mr);
 }
 
-Value ndims(const Value &x, std::pmr::memory_resource *mr)
+Value ndims(const Value &x, keel::Allocator *mr)
 {
     return Value::scalar(static_cast<double>(x.dims().ndims()), mr);
 }
@@ -693,11 +698,11 @@ namespace {
 // line of every reshape entry (bugs/closed/lang/
 // reshape-size-arg-validation.md). `dimsDesc` names the requested shape
 // ("5x5") so the message carries both element counts.
-void reshape_argcheck(const Value &x, Span<const size_t> dims)
+void reshape_argcheck(const Value &x, keel::ArrayRef<keel::usize> dims)
 {
-    size_t newNumel = 1;
+    keel::usize newNumel = 1;
     std::string dimsDesc;
-    for (size_t i = 0; i < dims.size(); ++i) {
+    for (keel::usize i = 0; i < dims.size(); ++i) {
         newNumel *= dims[i];
         if (i) dimsDesc += "x";
         dimsDesc += std::to_string(dims[i]);
@@ -712,10 +717,10 @@ void reshape_argcheck(const Value &x, Span<const size_t> dims)
 }
 } // namespace
 
-Value reshape(const Value &x, size_t rows, size_t cols, size_t pages, std::pmr::memory_resource *mr)
+Value reshape(const Value &x, keel::usize rows, keel::usize cols, keel::usize pages, keel::Allocator *mr)
 {
-    const size_t shape[3] = {rows, cols, pages};
-    reshape_argcheck(x, Span<const size_t>(shape, pages > 0 ? 3 : 2));
+    const keel::usize shape[3] = {rows, cols, pages};
+    reshape_argcheck(x, keel::ArrayRef<keel::usize>(shape, pages > 0 ? 3 : 2));
 
     DimsArg d{rows, cols, pages};
 
@@ -737,7 +742,7 @@ Value reshape(const Value &x, size_t rows, size_t cols, size_t pages, std::pmr::
                     : Value::stringArray(d.rows, d.cols));
         auto &src = x.cellDataVec();
         auto &dst = r.cellDataVec();
-        for (size_t i = 0; i < src.size() && i < dst.size(); ++i)
+        for (keel::usize i = 0; i < src.size() && i < dst.size(); ++i)
             dst[i] = src[i];
         return r;
     }
@@ -751,9 +756,9 @@ Value reshape(const Value &x, size_t rows, size_t cols, size_t pages, std::pmr::
 // ND reshape. Same elem-count check, then route to matrixND for nd > 3.
 // CELL/STRING ND not supported yet (matches the 2D/3D behaviour: only
 // CELL/STRING currently handles 2D and 3D shapes via cell3D/stringArray3D).
-Value reshapeND(const Value &x, Span<const size_t> dims, std::pmr::memory_resource *mr)
+Value reshapeND(const Value &x, keel::ArrayRef<keel::usize> dims, keel::Allocator *mr)
 {
-    const std::size_t nDims = dims.size();
+    const keel::usize nDims = dims.size();
     reshape_argcheck(x, dims);
 
     if (x.isObject())
@@ -761,9 +766,9 @@ Value reshapeND(const Value &x, Span<const size_t> dims, std::pmr::memory_resour
 
     if (x.type() == ValueType::CELL || x.type() == ValueType::STRING) {
         if (nDims <= 3) {
-            const size_t r = nDims > 0 ? dims[0] : 1;
-            const size_t c = nDims > 1 ? dims[1] : 1;
-            const size_t p = nDims > 2 ? dims[2] : 0;
+            const keel::usize r = nDims > 0 ? dims[0] : 1;
+            const keel::usize c = nDims > 1 ? dims[1] : 1;
+            const keel::usize p = nDims > 2 ? dims[2] : 0;
             return reshape(x, r, c, p, mr);
         }
         Value r = (x.type() == ValueType::CELL)
@@ -771,7 +776,7 @@ Value reshapeND(const Value &x, Span<const size_t> dims, std::pmr::memory_resour
             : Value::stringArrayND(dims.data(), static_cast<int>(nDims), mr);
         auto &src = x.cellDataVec();
         auto &dst = r.cellDataVec();
-        for (size_t i = 0; i < src.size() && i < dst.size(); ++i)
+        for (keel::usize i = 0; i < src.size() && i < dst.size(); ++i)
             dst[i] = src[i];
         return r;
     }
@@ -782,25 +787,25 @@ Value reshapeND(const Value &x, Span<const size_t> dims, std::pmr::memory_resour
     return r;
 }
 
-Value reshape(const Value &x, Span<const size_t> dims, std::pmr::memory_resource *mr)
+Value reshape(const Value &x, keel::ArrayRef<keel::usize> dims, keel::Allocator *mr)
 {
     return reshapeND(x, dims, mr);
 }
 
 // ── pagetranspose / pagectranspose ───────────────────────────────────
 
-Value pagetranspose(const Value &x, std::pmr::memory_resource *mr)
+Value pagetranspose(const Value &x, keel::Allocator *mr)
 {
     return pageTransposeAny(x, /*conjugate=*/false, mr);
 }
 
-Value pagectranspose(const Value &x, std::pmr::memory_resource *mr)
+Value pagectranspose(const Value &x, keel::Allocator *mr)
 {
     return pageTransposeAny(x, /*conjugate=*/true, mr);
 }
 
 // ── sphere / cylinder / ellipsoid ───────────────────────────────────
-Surface3 sphere(size_t n, std::pmr::memory_resource *mr)
+Surface3 sphere(keel::usize n, keel::Allocator *mr)
 {
     // Match MATLAB's parametrisation exactly:
     //   theta = (-n:2:n)/n * pi          → linspace(-π,  π,  n+1)
@@ -811,7 +816,7 @@ Surface3 sphere(size_t n, std::pmr::memory_resource *mr)
     //   Y = cos(phi) * sin(theta)
     //   Z = sin(phi) * ones(1, n+1)
     constexpr double kPi = 3.14159265358979323846;
-    const size_t m = n + 1;
+    const keel::usize m = n + 1;
     auto X = Value::matrix(m, m, ValueType::DOUBLE, mr);
     auto Y = Value::matrix(m, m, ValueType::DOUBLE, mr);
     auto Z = Value::matrix(m, m, ValueType::DOUBLE, mr);
@@ -822,7 +827,7 @@ Surface3 sphere(size_t n, std::pmr::memory_resource *mr)
     if (n == 0) return { std::move(X), std::move(Y), std::move(Z) };
 
     std::vector<double> cosPhi(m), sinPhi(m);
-    for (size_t i = 0; i < m; ++i) {
+    for (keel::usize i = 0; i < m; ++i) {
         const double phi = (2.0 * static_cast<double>(i) - static_cast<double>(n))
                               / static_cast<double>(n) * (kPi / 2.0);
         cosPhi[i] = std::cos(phi);
@@ -832,7 +837,7 @@ Surface3 sphere(size_t n, std::pmr::memory_resource *mr)
     cosPhi[m - 1] = 0.0;
 
     std::vector<double> cosTh(m), sinTh(m);
-    for (size_t j = 0; j < m; ++j) {
+    for (keel::usize j = 0; j < m; ++j) {
         const double theta = (2.0 * static_cast<double>(j) - static_cast<double>(n))
                                 / static_cast<double>(n) * kPi;
         cosTh[j] = std::cos(theta);
@@ -841,9 +846,9 @@ Surface3 sphere(size_t n, std::pmr::memory_resource *mr)
     sinTh[0] = 0.0;
     sinTh[m - 1] = 0.0;
 
-    for (size_t j = 0; j < m; ++j) {
-        for (size_t i = 0; i < m; ++i) {
-            const size_t k = j * m + i;
+    for (keel::usize j = 0; j < m; ++j) {
+        for (keel::usize i = 0; i < m; ++i) {
+            const keel::usize k = j * m + i;
             xd[k] = cosPhi[i] * cosTh[j] + 0.0;
             yd[k] = cosPhi[i] * sinTh[j] + 0.0;
             zd[k] = sinPhi[i] + 0.0;
@@ -852,18 +857,18 @@ Surface3 sphere(size_t n, std::pmr::memory_resource *mr)
     return { std::move(X), std::move(Y), std::move(Z) };
 }
 
-Surface3 cylinder(const Value &R, size_t n, std::pmr::memory_resource *mr)
+Surface3 cylinder(const Value &R, keel::usize n, keel::Allocator *mr)
 {
     // Profile R is a 1-D vector of radii along z. Output is length(R) ×
     // (n+1). z is linspace(0, 1, length(R)) repeated across columns.
     constexpr double kPi = 3.14159265358979323846;
-    const size_t rows = R.numel();
+    const keel::usize rows = R.numel();
     if (rows == 0) {
         auto Z = Value::matrix(0, 0, ValueType::DOUBLE, mr);
         return { Z, Z, Z };
     }
 
-    const size_t cols = n + 1;
+    const keel::usize cols = n + 1;
     auto X = Value::matrix(rows, cols, ValueType::DOUBLE, mr);
     auto Y = Value::matrix(rows, cols, ValueType::DOUBLE, mr);
     auto Z = Value::matrix(rows, cols, ValueType::DOUBLE, mr);
@@ -872,11 +877,11 @@ Surface3 cylinder(const Value &R, size_t n, std::pmr::memory_resource *mr)
     double *zd = Z.doubleDataMut();
 
     const double *Rd = R.doubleData();
-    for (size_t j = 0; j < cols; ++j) {
+    for (keel::usize j = 0; j < cols; ++j) {
         const double theta = 2.0 * kPi * static_cast<double>(j) / static_cast<double>(n);
         const double ct = std::cos(theta), st = std::sin(theta);
-        for (size_t i = 0; i < rows; ++i) {
-            const size_t k = j * rows + i;
+        for (keel::usize i = 0; i < rows; ++i) {
+            const keel::usize k = j * rows + i;
             xd[k] = Rd[i] * ct;
             yd[k] = Rd[i] * st;
             zd[k] = (rows == 1) ? 0.0
@@ -886,15 +891,15 @@ Surface3 cylinder(const Value &R, size_t n, std::pmr::memory_resource *mr)
     return { std::move(X), std::move(Y), std::move(Z) };
 }
 
-Surface3 ellipsoid(double xc, double yc, double zc, double xr, double yr, double zr, size_t n, std::pmr::memory_resource *mr)
+Surface3 ellipsoid(double xc, double yc, double zc, double xr, double yr, double zr, keel::usize n, keel::Allocator *mr)
 {
     // Same parametrisation as sphere, scaled by (xr, yr, zr) and shifted.
     auto sph = sphere(n, mr);
-    const size_t total = sph.X.numel();
+    const keel::usize total = sph.X.numel();
     double *xd = sph.X.doubleDataMut();
     double *yd = sph.Y.doubleDataMut();
     double *zd = sph.Z.doubleDataMut();
-    for (size_t k = 0; k < total; ++k) {
+    for (keel::usize k = 0; k < total; ++k) {
         xd[k] = xc + xr * xd[k];
         yd[k] = yc + yr * yd[k];
         zd[k] = zc + zr * zd[k];
@@ -903,7 +908,7 @@ Surface3 ellipsoid(double xc, double yc, double zc, double xr, double yr, double
 }
 
 // ── peaks ────────────────────────────────────────────────────────────
-Value peaks(size_t n, std::pmr::memory_resource *mr)
+Value peaks(keel::usize n, keel::Allocator *mr)
 {
     if (n == 0) return Value::matrix(0, 0, ValueType::DOUBLE, mr);
 
@@ -913,9 +918,9 @@ Value peaks(size_t n, std::pmr::memory_resource *mr)
     // x, y = linspace(-3, 3, n) on a meshgrid: X varies along columns,
     // Y along rows (so row i → y, col j → x — matches MATLAB peaks).
     const double step = (n > 1) ? 6.0 / static_cast<double>(n - 1) : 0.0;
-    for (size_t j = 0; j < n; ++j) {  // column index → x axis
+    for (keel::usize j = 0; j < n; ++j) {  // column index → x axis
         const double x = (n > 1) ? -3.0 + step * static_cast<double>(j) : 0.0;
-        for (size_t i = 0; i < n; ++i) {  // row index → y axis
+        for (keel::usize i = 0; i < n; ++i) {  // row index → y axis
             const double y = (n > 1) ? -3.0 + step * static_cast<double>(i) : 0.0;
             // MATLAB peaks formula (Press et al., adapted from MATLAB source).
             const double xm1   = 1.0 - x;
@@ -948,12 +953,12 @@ Value peaks(size_t n, std::pmr::memory_resource *mr)
 // operand may be 2D (broadcast across the other's batch dims).
 
 
-Value pagemtimes(const Value &x, const Value &y, std::pmr::memory_resource *mr)
+Value pagemtimes(const Value &x, const Value &y, keel::Allocator *mr)
 {
     return pagemtimes(x, TranspOp::None, y, TranspOp::None, mr);
 }
 
-Value pagemtimes(const Value &x, TranspOp tx, const Value &y, TranspOp ty, std::pmr::memory_resource *mr)
+Value pagemtimes(const Value &x, TranspOp tx, const Value &y, TranspOp ty, keel::Allocator *mr)
 {
     // MATLAB type promotion: COMPLEX wins over real; SINGLE wins over
     // DOUBLE. Integer/logical/char inputs are rejected — pagemtimes
@@ -965,18 +970,18 @@ Value pagemtimes(const Value &x, TranspOp tx, const Value &y, TranspOp ty, std::
         throw Error("pagemtimes: inputs must be 'single', 'double', or complex",
                      0, 0, "pagemtimes", "", "numkit:pagemtimes:type");
     if (x.isComplex() || y.isComplex())
-        return pagemtimesImpl<Complex>(x, tx, y, ty, mr);
+        return pagemtimesImpl<keel::c64>(x, tx, y, ty, mr);
     if (x.type() == ValueType::SINGLE || y.type() == ValueType::SINGLE)
         return pagemtimesImpl<float  >(x, tx, y, ty, mr);
     return     pagemtimesImpl<double >(x, tx, y, ty, mr);
 }
 
-Value diag(const Value &x, std::pmr::memory_resource *mr)
+Value diag(const Value &x, keel::Allocator *mr)
 {
     return diag(x, 0, mr);
 }
 
-Value diag(const Value &x, int k, std::pmr::memory_resource *mr)
+Value diag(const Value &x, int k, keel::Allocator *mr)
 {
     const ValueType t = x.type();
     // MATLAB: "Inputs must be numeric, char, or logical." Cells / strings
@@ -986,38 +991,38 @@ Value diag(const Value &x, int k, std::pmr::memory_resource *mr)
         throw Error("diag: inputs must be numeric, char, or logical",
                      0, 0, "diag", "", "numkit:diag:badType");
 
-    const size_t es = elementSize(t);
-    const size_t ak = static_cast<size_t>(k < 0 ? -k : k);
+    const keel::usize es = elementSize(t);
+    const keel::usize ak = static_cast<keel::usize>(k < 0 ? -k : k);
 
     if (x.dims().isVector()) {
         // Build a square matrix with x on the k-th diagonal. The output
         // matrix is zero-filled (= 0 / char(0) / false / 0+0i), so only
         // the diagonal entries need to be written.
-        const size_t n = x.numel();
-        const size_t m = n + ak;
+        const keel::usize n = x.numel();
+        const keel::usize m = n + ak;
         auto r = Value::matrix(m, m, t, mr);
         const char *src = static_cast<const char *>(x.rawData());
         char *dst = static_cast<char *>(r.rawDataMut());
-        for (size_t i = 0; i < n; ++i) {
-            const size_t row = (k >= 0) ? i : i + ak;
-            const size_t col = (k >= 0) ? i + ak : i;
+        for (keel::usize i = 0; i < n; ++i) {
+            const keel::usize row = (k >= 0) ? i : i + ak;
+            const keel::usize col = (k >= 0) ? i + ak : i;
             std::memcpy(dst + (col * m + row) * es, src + i * es, es);  // col-major
         }
         return r;
     }
 
     // Matrix input: extract the k-th diagonal as a column vector.
-    const size_t R = x.dims().rows(), C = x.dims().cols();
-    const size_t row0 = (k >= 0) ? 0 : ak;
-    const size_t col0 = (k >= 0) ? ak : 0;
-    size_t len = 0;
+    const keel::usize R = x.dims().rows(), C = x.dims().cols();
+    const keel::usize row0 = (k >= 0) ? 0 : ak;
+    const keel::usize col0 = (k >= 0) ? ak : 0;
+    keel::usize len = 0;
     if (row0 < R && col0 < C)
         len = std::min(R - row0, C - col0);
     auto r = Value::matrix(len, 1, t, mr);
     const char *src = static_cast<const char *>(x.rawData());
     char *dst = static_cast<char *>(r.rawDataMut());
-    for (size_t i = 0; i < len; ++i) {
-        const size_t row = row0 + i, col = col0 + i;
+    for (keel::usize i = 0; i < len; ++i) {
+        const keel::usize row = row0 + i, col = col0 + i;
         std::memcpy(dst + i * es, src + (col * R + row) * es, es);  // x col-major
     }
     return r;
@@ -1031,57 +1036,57 @@ Value diag(const Value &x, int k, std::pmr::memory_resource *mr)
 // all-real input still sorts by |z|+angle (so sort([2 -2]+0i) = [2 -2]).
 std::tuple<Value, Value> sortComplex(const Value &x, int dim, bool descend,
                                      NanPlace nanPlace,
-                                     std::pmr::memory_resource *mr)
+                                     keel::Allocator *mr)
 {
     // NaN side: Auto = first for descending / last for ascending; First/Last
     // force the side regardless of direction (MATLAB 'MissingPlacement').
     const bool nanFirst = (nanPlace == NanPlace::Auto) ? descend
                                                        : (nanPlace == NanPlace::First);
-    const size_t R = x.dims().rows(), C = x.dims().cols();
-    const size_t P = x.dims().is3D() ? x.dims().pages() : 1;
+    const keel::usize R = x.dims().rows(), C = x.dims().cols();
+    const keel::usize P = x.dims().is3D() ? x.dims().pages() : 1;
     const int sortDim = (dim >= 1) ? std::min(dim - 1, 2)
                                    : ((R > 1) ? 0 : (C > 1) ? 1 : 2);
-    const size_t N = (sortDim == 0) ? R : (sortDim == 1) ? C : P;
+    const keel::usize N = (sortDim == 0) ? R : (sortDim == 1) ? C : P;
 
     auto r = x.dims().is3D() ? Value::matrix3d(R, C, P, ValueType::COMPLEX, mr)
                              : Value::matrix(R, C, ValueType::COMPLEX, mr);
     auto idx = x.dims().is3D() ? Value::matrix3d(R, C, P, ValueType::DOUBLE, mr)
                                : Value::matrix(R, C, ValueType::DOUBLE, mr);
 
-    const size_t slice0 = (sortDim == 0) ? 1 : R;
-    const size_t slice1 = (sortDim == 1) ? 1 : C;
-    const size_t slice2 = (sortDim == 2) ? 1 : P;
-    const Complex *src = x.complexData();
-    ScratchArena scratch(mr);
-    ScratchVec<std::pair<Complex, size_t>> buf(N, &scratch);
+    const keel::usize slice0 = (sortDim == 0) ? 1 : R;
+    const keel::usize slice1 = (sortDim == 1) ? 1 : C;
+    const keel::usize slice2 = (sortDim == 2) ? 1 : P;
+    const keel::c64 *src = x.complexData();
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<std::pair<keel::c64, keel::usize>> buf(N, scratch.allocator());
 
-    for (size_t pp = 0; pp < slice2; ++pp)
-        for (size_t c = 0; c < slice1; ++c)
-            for (size_t rr = 0; rr < slice0; ++rr) {
-                for (size_t k = 0; k < N; ++k) {
-                    const size_t rIdx = (sortDim == 0) ? k : rr;
-                    const size_t cIdx = (sortDim == 1) ? k : c;
-                    const size_t pIdx = (sortDim == 2) ? k : pp;
+    for (keel::usize pp = 0; pp < slice2; ++pp)
+        for (keel::usize c = 0; c < slice1; ++c)
+            for (keel::usize rr = 0; rr < slice0; ++rr) {
+                for (keel::usize k = 0; k < N; ++k) {
+                    const keel::usize rIdx = (sortDim == 0) ? k : rr;
+                    const keel::usize cIdx = (sortDim == 1) ? k : c;
+                    const keel::usize pIdx = (sortDim == 2) ? k : pp;
                     buf[k] = {src[pIdx * R * C + cIdx * R + rIdx], k};
                 }
                 std::stable_sort(buf.begin(), buf.end(),
                           [descend, nanFirst](const auto &a, const auto &b) {
-                              const double am = std::abs(a.first), bm = std::abs(b.first);
+                              const double am = keel::abs(a.first), bm = keel::abs(b.first);
                               const bool an = std::isnan(am), bn = std::isnan(bm);
                               if (an || bn) {
                                   if (an && bn) return false;
                                   return nanFirst ? an : bn;
                               }
                               if (am != bm) return descend ? (am > bm) : (am < bm);
-                              const double aa = std::arg(a.first), ba = std::arg(b.first);
+                              const double aa = keel::arg(a.first), ba = keel::arg(b.first);
                               if (aa != ba) return descend ? (aa > ba) : (aa < ba);
                               return false;
                           });
-                for (size_t k = 0; k < N; ++k) {
-                    const size_t rIdx = (sortDim == 0) ? k : rr;
-                    const size_t cIdx = (sortDim == 1) ? k : c;
-                    const size_t pIdx = (sortDim == 2) ? k : pp;
-                    const size_t lin = pIdx * R * C + cIdx * R + rIdx;
+                for (keel::usize k = 0; k < N; ++k) {
+                    const keel::usize rIdx = (sortDim == 0) ? k : rr;
+                    const keel::usize cIdx = (sortDim == 1) ? k : c;
+                    const keel::usize pIdx = (sortDim == 2) ? k : pp;
+                    const keel::usize lin = pIdx * R * C + cIdx * R + rIdx;
                     r.complexDataMut()[lin] = buf[k].first;
                     idx.doubleDataMut()[lin] = static_cast<double>(buf[k].second + 1);
                 }
@@ -1090,7 +1095,7 @@ std::tuple<Value, Value> sortComplex(const Value &x, int dim, bool descend,
 }
 
 std::tuple<Value, Value> sort(const Value &x, int dim, bool descend,
-                              NanPlace nanPlace, std::pmr::memory_resource *mr)
+                              NanPlace nanPlace, keel::Allocator *mr)
 {
     if (x.isScalar())
         return std::make_tuple(x, Value::scalar(1.0, mr));
@@ -1102,32 +1107,32 @@ std::tuple<Value, Value> sort(const Value &x, int dim, bool descend,
     const bool nanFirst = (nanPlace == NanPlace::Auto) ? descend
                                                        : (nanPlace == NanPlace::First);
 
-    const size_t R = x.dims().rows(), C = x.dims().cols();
-    const size_t P = x.dims().is3D() ? x.dims().pages() : 1;
+    const keel::usize R = x.dims().rows(), C = x.dims().cols();
+    const keel::usize P = x.dims().is3D() ? x.dims().pages() : 1;
     // dim<1 -> auto (first non-singleton, MATLAB convention). Explicit dim
     // is 1-based: 1=down columns, 2=along rows, 3=along pages.
     const int sortDim = (dim >= 1) ? std::min(dim - 1, 2)
                                    : ((R > 1) ? 0 : (C > 1) ? 1 : 2);
-    const size_t N = (sortDim == 0) ? R : (sortDim == 1) ? C : P;
+    const keel::usize N = (sortDim == 0) ? R : (sortDim == 1) ? C : P;
 
     auto r = x.dims().is3D() ? Value::matrix3d(R, C, P, ValueType::DOUBLE, mr)
                              : Value::matrix(R, C, ValueType::DOUBLE, mr);
     auto idx = x.dims().is3D() ? Value::matrix3d(R, C, P, ValueType::DOUBLE, mr)
                                : Value::matrix(R, C, ValueType::DOUBLE, mr);
 
-    const size_t slice0 = (sortDim == 0) ? 1 : R;
-    const size_t slice1 = (sortDim == 1) ? 1 : C;
-    const size_t slice2 = (sortDim == 2) ? 1 : P;
-    ScratchArena scratch(mr);
-    ScratchVec<std::pair<double, size_t>> buf(N, &scratch);
+    const keel::usize slice0 = (sortDim == 0) ? 1 : R;
+    const keel::usize slice1 = (sortDim == 1) ? 1 : C;
+    const keel::usize slice2 = (sortDim == 2) ? 1 : P;
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<std::pair<double, keel::usize>> buf(N, scratch.allocator());
 
-    for (size_t pp = 0; pp < slice2; ++pp)
-        for (size_t c = 0; c < slice1; ++c)
-            for (size_t rr = 0; rr < slice0; ++rr) {
-                for (size_t k = 0; k < N; ++k) {
-                    const size_t rIdx = (sortDim == 0) ? k : rr;
-                    const size_t cIdx = (sortDim == 1) ? k : c;
-                    const size_t pIdx = (sortDim == 2) ? k : pp;
+    for (keel::usize pp = 0; pp < slice2; ++pp)
+        for (keel::usize c = 0; c < slice1; ++c)
+            for (keel::usize rr = 0; rr < slice0; ++rr) {
+                for (keel::usize k = 0; k < N; ++k) {
+                    const keel::usize rIdx = (sortDim == 0) ? k : rr;
+                    const keel::usize cIdx = (sortDim == 1) ? k : c;
+                    const keel::usize pIdx = (sortDim == 2) ? k : pp;
                     buf[k] = {x.doubleData()[pIdx * R * C + cIdx * R + rIdx], k};
                 }
                 // MATLAB sort: stable; NaN sorts LAST for ascend, FIRST
@@ -1143,11 +1148,11 @@ std::tuple<Value, Value> sort(const Value &x, int dim, bool descend,
                               }
                               return descend ? (av > bv) : (av < bv);
                           });
-                for (size_t k = 0; k < N; ++k) {
-                    const size_t rIdx = (sortDim == 0) ? k : rr;
-                    const size_t cIdx = (sortDim == 1) ? k : c;
-                    const size_t pIdx = (sortDim == 2) ? k : pp;
-                    const size_t lin = pIdx * R * C + cIdx * R + rIdx;
+                for (keel::usize k = 0; k < N; ++k) {
+                    const keel::usize rIdx = (sortDim == 0) ? k : rr;
+                    const keel::usize cIdx = (sortDim == 1) ? k : c;
+                    const keel::usize pIdx = (sortDim == 2) ? k : pp;
+                    const keel::usize lin = pIdx * R * C + cIdx * R + rIdx;
                     r.doubleDataMut()[lin] = buf[k].first;
                     idx.doubleDataMut()[lin] = static_cast<double>(buf[k].second + 1);
                 }
@@ -1157,28 +1162,28 @@ std::tuple<Value, Value> sort(const Value &x, int dim, bool descend,
 
 // ── sortrows ─────────────────────────────────────────────────────────
 
-std::tuple<Value, Value> sortrows(const Value &x, std::pmr::memory_resource *mr)
+std::tuple<Value, Value> sortrows(const Value &x, keel::Allocator *mr)
 {
     return sortRowsImpl(x, nullptr, 0, mr);
 }
 
-std::tuple<Value, Value> sortrows(const Value &x, Span<const int> cols, std::pmr::memory_resource *mr)
+std::tuple<Value, Value> sortrows(const Value &x, keel::ArrayRef<int> cols, keel::Allocator *mr)
 {
     return sortRowsImpl(x, cols.data(), cols.size(), mr);
 }
 
-Value find(const Value &x, std::pmr::memory_resource *mr)
+Value find(const Value &x, keel::Allocator *mr)
 {
-    ScratchArena scratch(mr);
-    auto indices = ScratchVec<double>(&scratch);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    auto indices = keel::Array<double>(scratch.allocator());
     if (x.isLogical()) {
-        const uint8_t *ld = x.logicalData();
-        for (size_t i = 0; i < x.numel(); ++i)
+        const keel::u8 *ld = x.logicalData();
+        for (keel::usize i = 0; i < x.numel(); ++i)
             if (ld[i])
                 indices.push_back(static_cast<double>(i + 1));
     } else {
         const double *dd = x.doubleData();
-        for (size_t i = 0; i < x.numel(); ++i)
+        for (keel::usize i = 0; i < x.numel(); ++i)
             if (dd[i] != 0.0)
                 indices.push_back(static_cast<double>(i + 1));
     }
@@ -1192,16 +1197,16 @@ Value find(const Value &x, std::pmr::memory_resource *mr)
 
 // ── nnz / nonzeros ───────────────────────────────────────────────────
 
-Value nnz(const Value &x, std::pmr::memory_resource *mr)
+Value nnz(const Value &x, keel::Allocator *mr)
 {
     if (x.numel() == 0)
         return Value::scalar(0.0, mr);
-    size_t count = 0;
-    forEachNonzero(x, [&](size_t) { ++count; });
+    keel::usize count = 0;
+    forEachNonzero(x, [&](keel::usize) { ++count; });
     return Value::scalar(static_cast<double>(count), mr);
 }
 
-Value nonzeros(const Value &x, std::pmr::memory_resource *mr)
+Value nonzeros(const Value &x, keel::Allocator *mr)
 {
     if (x.numel() == 0) {
         // Empty input → 0×1 column of the source type (DOUBLE if unknown).
@@ -1210,52 +1215,52 @@ Value nonzeros(const Value &x, std::pmr::memory_resource *mr)
     }
     switch (x.type()) {
     case ValueType::LOGICAL: {
-        const uint8_t *p = x.logicalData();
-        return collectTypedNonzeros<uint8_t>(x, ValueType::LOGICAL, [&](size_t i) -> uint8_t { return p[i]; }, mr);
+        const keel::u8 *p = x.logicalData();
+        return collectTypedNonzeros<keel::u8>(x, ValueType::LOGICAL, [&](keel::usize i) -> keel::u8 { return p[i]; }, mr);
     }
     case ValueType::DOUBLE: {
         const double *p = x.doubleData();
-        return collectTypedNonzeros<double>(x, ValueType::DOUBLE, [&](size_t i) -> double { return p[i]; }, mr);
+        return collectTypedNonzeros<double>(x, ValueType::DOUBLE, [&](keel::usize i) -> double { return p[i]; }, mr);
     }
     case ValueType::SINGLE: {
         const float *p = x.singleData();
-        return collectTypedNonzeros<float>(x, ValueType::SINGLE, [&](size_t i) -> float { return p[i]; }, mr);
+        return collectTypedNonzeros<float>(x, ValueType::SINGLE, [&](keel::usize i) -> float { return p[i]; }, mr);
     }
     case ValueType::COMPLEX: {
-        const Complex *p = x.complexData();
-        return collectTypedNonzeros<Complex>(x, ValueType::COMPLEX, [&](size_t i) -> Complex { return p[i]; }, mr);
+        const keel::c64 *p = x.complexData();
+        return collectTypedNonzeros<keel::c64>(x, ValueType::COMPLEX, [&](keel::usize i) -> keel::c64 { return p[i]; }, mr);
     }
     case ValueType::INT8: {
-        const int8_t *p = x.int8Data();
-        return collectTypedNonzeros<int8_t>(x, ValueType::INT8, [&](size_t i) -> int8_t { return p[i]; }, mr);
+        const keel::i8 *p = x.int8Data();
+        return collectTypedNonzeros<keel::i8>(x, ValueType::INT8, [&](keel::usize i) -> keel::i8 { return p[i]; }, mr);
     }
     case ValueType::INT16: {
-        const int16_t *p = x.int16Data();
-        return collectTypedNonzeros<int16_t>(x, ValueType::INT16, [&](size_t i) -> int16_t { return p[i]; }, mr);
+        const keel::i16 *p = x.int16Data();
+        return collectTypedNonzeros<keel::i16>(x, ValueType::INT16, [&](keel::usize i) -> keel::i16 { return p[i]; }, mr);
     }
     case ValueType::INT32: {
-        const int32_t *p = x.int32Data();
-        return collectTypedNonzeros<int32_t>(x, ValueType::INT32, [&](size_t i) -> int32_t { return p[i]; }, mr);
+        const keel::i32 *p = x.int32Data();
+        return collectTypedNonzeros<keel::i32>(x, ValueType::INT32, [&](keel::usize i) -> keel::i32 { return p[i]; }, mr);
     }
     case ValueType::INT64: {
-        const int64_t *p = x.int64Data();
-        return collectTypedNonzeros<int64_t>(x, ValueType::INT64, [&](size_t i) -> int64_t { return p[i]; }, mr);
+        const keel::i64 *p = x.int64Data();
+        return collectTypedNonzeros<keel::i64>(x, ValueType::INT64, [&](keel::usize i) -> keel::i64 { return p[i]; }, mr);
     }
     case ValueType::UINT8: {
-        const uint8_t *p = x.uint8Data();
-        return collectTypedNonzeros<uint8_t>(x, ValueType::UINT8, [&](size_t i) -> uint8_t { return p[i]; }, mr);
+        const keel::u8 *p = x.uint8Data();
+        return collectTypedNonzeros<keel::u8>(x, ValueType::UINT8, [&](keel::usize i) -> keel::u8 { return p[i]; }, mr);
     }
     case ValueType::UINT16: {
-        const uint16_t *p = x.uint16Data();
-        return collectTypedNonzeros<uint16_t>(x, ValueType::UINT16, [&](size_t i) -> uint16_t { return p[i]; }, mr);
+        const keel::u16 *p = x.uint16Data();
+        return collectTypedNonzeros<keel::u16>(x, ValueType::UINT16, [&](keel::usize i) -> keel::u16 { return p[i]; }, mr);
     }
     case ValueType::UINT32: {
-        const uint32_t *p = x.uint32Data();
-        return collectTypedNonzeros<uint32_t>(x, ValueType::UINT32, [&](size_t i) -> uint32_t { return p[i]; }, mr);
+        const keel::u32 *p = x.uint32Data();
+        return collectTypedNonzeros<keel::u32>(x, ValueType::UINT32, [&](keel::usize i) -> keel::u32 { return p[i]; }, mr);
     }
     case ValueType::UINT64: {
-        const uint64_t *p = x.uint64Data();
-        return collectTypedNonzeros<uint64_t>(x, ValueType::UINT64, [&](size_t i) -> uint64_t { return p[i]; }, mr);
+        const keel::u64 *p = x.uint64Data();
+        return collectTypedNonzeros<keel::u64>(x, ValueType::UINT64, [&](keel::usize i) -> keel::u64 { return p[i]; }, mr);
     }
     default:
         throw Error("nonzeros: unsupported element type",
@@ -1264,14 +1269,14 @@ Value nonzeros(const Value &x, std::pmr::memory_resource *mr)
 }
 
 // ── Concatenation ────────────────────────────────────────────────────
-Value horzcat(Span<const Value> values, std::pmr::memory_resource *mr)
+Value horzcat(keel::ArrayRef<Value> values, keel::Allocator *mr)
 {
     if (values.empty())
         return Value();
     return Value::horzcat(values.data(), values.size(), mr);
 }
 
-Value vertcat(Span<const Value> values, std::pmr::memory_resource *mr)
+Value vertcat(keel::ArrayRef<Value> values, keel::Allocator *mr)
 {
     if (values.empty())
         return Value();
@@ -1279,13 +1284,13 @@ Value vertcat(Span<const Value> values, std::pmr::memory_resource *mr)
 }
 
 // ── Grids ────────────────────────────────────────────────────────────
-std::tuple<Value, Value> meshgrid(const Value &x, const Value &y, std::pmr::memory_resource *mr)
+std::tuple<Value, Value> meshgrid(const Value &x, const Value &y, keel::Allocator *mr)
 {
-    const size_t nx = x.numel(), ny = y.numel();
+    const keel::usize nx = x.numel(), ny = y.numel();
     auto X = Value::matrix(ny, nx, ValueType::DOUBLE, mr);
     auto Y = Value::matrix(ny, nx, ValueType::DOUBLE, mr);
-    for (size_t r = 0; r < ny; ++r)
-        for (size_t c = 0; c < nx; ++c) {
+    for (keel::usize r = 0; r < ny; ++r)
+        for (keel::usize c = 0; c < nx; ++c) {
             X.elem(r, c) = x.doubleData()[c];
             Y.elem(r, c) = y.doubleData()[r];
         }
@@ -1294,21 +1299,21 @@ std::tuple<Value, Value> meshgrid(const Value &x, const Value &y, std::pmr::memo
 
 // 3-arg meshgrid: returns three [ny, nx, nz] 3-D arrays. See BUGS.md #23.
 std::tuple<Value, Value, Value>
-meshgrid(const Value &x, const Value &y, const Value &z, std::pmr::memory_resource *mr)
+meshgrid(const Value &x, const Value &y, const Value &z, keel::Allocator *mr)
 {
-    const size_t nx = x.numel(), ny = y.numel(), nz = z.numel();
+    const keel::usize nx = x.numel(), ny = y.numel(), nz = z.numel();
     auto X = Value::matrix3d(ny, nx, nz, ValueType::DOUBLE, mr);
     auto Y = Value::matrix3d(ny, nx, nz, ValueType::DOUBLE, mr);
     auto Z = Value::matrix3d(ny, nx, nz, ValueType::DOUBLE, mr);
     double *xd = X.doubleDataMut();
     double *yd = Y.doubleDataMut();
     double *zd = Z.doubleDataMut();
-    for (size_t p = 0; p < nz; ++p) {
+    for (keel::usize p = 0; p < nz; ++p) {
         const double zp = z.elemAsDouble(p);
-        for (size_t c = 0; c < nx; ++c) {
+        for (keel::usize c = 0; c < nx; ++c) {
             const double xc = x.elemAsDouble(c);
-            for (size_t r = 0; r < ny; ++r) {
-                const size_t idx = r + c * ny + p * (nx * ny);
+            for (keel::usize r = 0; r < ny; ++r) {
+                const keel::usize idx = r + c * ny + p * (nx * ny);
                 xd[idx] = xc;
                 yd[idx] = y.elemAsDouble(r);
                 zd[idx] = zp;
@@ -1320,14 +1325,14 @@ meshgrid(const Value &x, const Value &y, const Value &z, std::pmr::memory_resour
 
 // ── ndgrid ──────────────────────────────────────────────────────────
 std::tuple<Value, Value>
-ndgrid(const Value &x, const Value &y, std::pmr::memory_resource *mr)
+ndgrid(const Value &x, const Value &y, keel::Allocator *mr)
 {
-    const size_t nx = x.numel(), ny = y.numel();
+    const keel::usize nx = x.numel(), ny = y.numel();
     // Output shape: [nx, ny] — first arg is row dim (axes-major).
     auto X = Value::matrix(nx, ny, ValueType::DOUBLE, mr);
     auto Y = Value::matrix(nx, ny, ValueType::DOUBLE, mr);
-    for (size_t r = 0; r < nx; ++r)
-        for (size_t c = 0; c < ny; ++c) {
+    for (keel::usize r = 0; r < nx; ++r)
+        for (keel::usize c = 0; c < ny; ++c) {
             X.elem(r, c) = x.elemAsDouble(r);
             Y.elem(r, c) = y.elemAsDouble(c);
         }
@@ -1335,15 +1340,15 @@ ndgrid(const Value &x, const Value &y, std::pmr::memory_resource *mr)
 }
 
 std::tuple<Value, Value, Value>
-ndgrid(const Value &x, const Value &y, const Value &z, std::pmr::memory_resource *mr)
+ndgrid(const Value &x, const Value &y, const Value &z, keel::Allocator *mr)
 {
-    const size_t nx = x.numel(), ny = y.numel(), nz = z.numel();
+    const keel::usize nx = x.numel(), ny = y.numel(), nz = z.numel();
     auto X = Value::matrix3d(nx, ny, nz, ValueType::DOUBLE, mr);
     auto Y = Value::matrix3d(nx, ny, nz, ValueType::DOUBLE, mr);
     auto Z = Value::matrix3d(nx, ny, nz, ValueType::DOUBLE, mr);
-    for (size_t p = 0; p < nz; ++p)
-        for (size_t c = 0; c < ny; ++c)
-            for (size_t r = 0; r < nx; ++r) {
+    for (keel::usize p = 0; p < nz; ++p)
+        for (keel::usize c = 0; c < ny; ++c)
+            for (keel::usize r = 0; r < nx; ++r) {
                 X.elem(r, c, p) = x.elemAsDouble(r);
                 Y.elem(r, c, p) = y.elemAsDouble(c);
                 Z.elem(r, c, p) = z.elemAsDouble(p);
@@ -1357,7 +1362,7 @@ ndgrid(const Value &x, const Value &y, const Value &z, std::pmr::memory_resource
 // ── Reductions and products ──────────────────────────────────────────
 
 
-Value cumsum(const Value &x, std::pmr::memory_resource *mr)
+Value cumsum(const Value &x, keel::Allocator *mr)
 {
     if (isIntegerType(x.type()))
         return cumIntegerNative(x, 0, /*isProd=*/false, mr);
@@ -1377,19 +1382,19 @@ Value cumsum(const Value &x, std::pmr::memory_resource *mr)
         numkit::builtin::cumsumScan(x.doubleData(), r.doubleDataMut(), x.numel());
         return r;
     }
-    const size_t R = x.dims().rows(), C = x.dims().cols();
+    const keel::usize R = x.dims().rows(), C = x.dims().cols();
     auto r = Value::matrix(R, C, ValueType::DOUBLE, mr);
     const double *src = x.doubleData();
     double *dst = r.doubleDataMut();
     // Per-column inclusive scan — column data is contiguous.
-    for (size_t c = 0; c < C; ++c)
+    for (keel::usize c = 0; c < C; ++c)
         numkit::builtin::cumsumScan(src + c * R, dst + c * R, R);
     return r;
 }
 
 // cumsum along an explicit dim. Output shape equals input shape (this is
 // not a reduction). Vector / scalar input ignores dim and walks linearly.
-Value cumsum(const Value &x, int dim, std::pmr::memory_resource *mr)
+Value cumsum(const Value &x, int dim, keel::Allocator *mr)
 {
     if (isIntegerType(x.type()))
         return cumIntegerNative(x, dim, /*isProd=*/false, mr);
@@ -1411,29 +1416,29 @@ Value cumsum(const Value &x, int dim, std::pmr::memory_resource *mr)
         if (dd.ndim() > kMaxNd)
             throw Error("cumsum: rank exceeds 32",
                          0, 0, "cumsum", "", "numkit:cumsum:tooManyDims");
-        size_t outDims[kMaxNd];
+        keel::usize outDims[kMaxNd];
         for (int i = 0; i < dd.ndim(); ++i) outDims[i] = dd.dim(i);
         auto r = Value::matrixND(outDims, dd.ndim(), ValueType::DOUBLE, mr);
-        const size_t sliceLen = dd.dim(d - 1);
-        size_t B = 1;
+        const keel::usize sliceLen = dd.dim(d - 1);
+        keel::usize B = 1;
         for (int i = 0; i < d - 1; ++i) B *= dd.dim(i);
-        size_t O = 1;
+        keel::usize O = 1;
         for (int i = d; i < dd.ndim(); ++i) O *= dd.dim(i);
         const double *src = x.doubleData();
         double *dst = r.doubleDataMut();
         if (B == 1) {
-            for (size_t o = 0; o < O; ++o) {
-                const size_t base = o * sliceLen;
+            for (keel::usize o = 0; o < O; ++o) {
+                const keel::usize base = o * sliceLen;
                 numkit::builtin::cumsumScan(src + base, dst + base, sliceLen);
             }
         } else {
-            for (size_t o = 0; o < O; ++o)
-                for (size_t b = 0; b < B; ++b) {
-                    const size_t base = o * sliceLen * B + b;
+            for (keel::usize o = 0; o < O; ++o)
+                for (keel::usize b = 0; b < B; ++b) {
+                    const keel::usize base = o * sliceLen * B + b;
                     if (sliceLen == 0) continue;
                     double acc = src[base];
                     dst[base] = acc;
-                    for (size_t k = 1; k < sliceLen; ++k) {
+                    for (keel::usize k = 1; k < sliceLen; ++k) {
                         acc += src[base + k * B];
                         dst[base + k * B] = acc;
                     }
@@ -1442,8 +1447,8 @@ Value cumsum(const Value &x, int dim, std::pmr::memory_resource *mr)
         return r;
     }
 
-    const size_t R = dd.rows(), C = dd.cols();
-    const size_t P = dd.is3D() ? dd.pages() : 1;
+    const keel::usize R = dd.rows(), C = dd.cols();
+    const keel::usize P = dd.is3D() ? dd.pages() : 1;
     auto r = dd.is3D() ? Value::matrix3d(R, C, P, ValueType::DOUBLE, mr)
                        : Value::matrix(R, C, ValueType::DOUBLE, mr);
     const double *src = x.doubleData();
@@ -1452,28 +1457,28 @@ Value cumsum(const Value &x, int dim, std::pmr::memory_resource *mr)
     if (d == 1) {
         // dim=1: scan down each column. Column data is contiguous so
         // route through the SIMD prefix-sum kernel.
-        for (size_t pp = 0; pp < P; ++pp)
-            for (size_t c = 0; c < C; ++c) {
-                const size_t base = pp * R * C + c * R;
+        for (keel::usize pp = 0; pp < P; ++pp)
+            for (keel::usize c = 0; c < C; ++c) {
+                const keel::usize base = pp * R * C + c * R;
                 numkit::builtin::cumsumScan(src + base, dst + base, R);
             }
     } else if (d == 2) {
         // Walk across columns for each (row, page). Stride = R.
-        for (size_t pp = 0; pp < P; ++pp)
-            for (size_t rr = 0; rr < R; ++rr) {
+        for (keel::usize pp = 0; pp < P; ++pp)
+            for (keel::usize rr = 0; rr < R; ++rr) {
                 double s = 0;
-                const size_t pageBase = pp * R * C;
-                for (size_t c = 0; c < C; ++c) {
+                const keel::usize pageBase = pp * R * C;
+                for (keel::usize c = 0; c < C; ++c) {
                     s += src[pageBase + c * R + rr];
                     dst[pageBase + c * R + rr] = s;
                 }
             }
     } else if (d == 3) {
         // Walk through pages for each (row, col). Stride = R*C.
-        for (size_t c = 0; c < C; ++c)
-            for (size_t rr = 0; rr < R; ++rr) {
+        for (keel::usize c = 0; c < C; ++c)
+            for (keel::usize rr = 0; rr < R; ++rr) {
                 double s = 0;
-                for (size_t pp = 0; pp < P; ++pp) {
+                for (keel::usize pp = 0; pp < P; ++pp) {
                     s += src[pp * R * C + c * R + rr];
                     dst[pp * R * C + c * R + rr] = s;
                 }
@@ -1497,7 +1502,7 @@ Value cumsum(const Value &x, int dim, std::pmr::memory_resource *mr)
 // strided access pattern doesn't benefit from SIMD; cumImpl's scalar
 // cumKernel still handles those (with the same Op as before).
 
-Value cumprod(const Value &x, int dim, std::pmr::memory_resource *mr)
+Value cumprod(const Value &x, int dim, keel::Allocator *mr)
 {
     if (isIntegerType(x.type()))
         return cumIntegerNative(x, dim, /*isProd=*/true, mr);
@@ -1510,7 +1515,7 @@ Value cumprod(const Value &x, int dim, std::pmr::memory_resource *mr)
 }
 
 
-Value cummax(const Value &x, int dim, std::pmr::memory_resource *mr)
+Value cummax(const Value &x, int dim, keel::Allocator *mr)
 {
     if (x.isLogical())
         return logicalizeCumResult(cummax(toDoubleValue(x, mr), dim, mr), mr);
@@ -1531,7 +1536,7 @@ Value cummax(const Value &x, int dim, std::pmr::memory_resource *mr)
                            }, "cummax", mr);
 }
 
-Value cummin(const Value &x, int dim, std::pmr::memory_resource *mr)
+Value cummin(const Value &x, int dim, keel::Allocator *mr)
 {
     if (x.isLogical())
         return logicalizeCumResult(cummin(toDoubleValue(x, mr), dim, mr), mr);
@@ -1549,7 +1554,7 @@ Value cummin(const Value &x, int dim, std::pmr::memory_resource *mr)
 
 // ── diff: discrete difference ────────────────────────────────────────
 
-Value diff(const Value &x, int n, int dim, std::pmr::memory_resource *mr)
+Value diff(const Value &x, int n, int dim, keel::Allocator *mr)
 {
     // MATLAB: the difference order N must be a positive integer scalar; n == 0
     // (identity) and negative orders are errors. The reg validates the
@@ -1567,14 +1572,14 @@ Value diff(const Value &x, int n, int dim, std::pmr::memory_resource *mr)
 
     const int d = numkit::ops::resolveDim(x, dim, "diff");
     const auto &dd = x.dims();
-    const size_t sliceLen = (d >= 1 && d <= dd.ndim()) ? dd.dim(d - 1) : 1;
+    const keel::usize sliceLen = (d >= 1 && d <= dd.ndim()) ? dd.dim(d - 1) : 1;
 
     // If n collapses or exceeds the dim, return correctly-shaped empty
     // (preserving the integer class for integer input).
-    if (sliceLen <= static_cast<size_t>(n)) {
+    if (sliceLen <= static_cast<keel::usize>(n)) {
         if (isInt) {
             const int nd = dd.ndim();
-            size_t outDims[Dims::kMaxRank];
+            keel::usize outDims[Dims::kMaxRank];
             for (int i = 0; i < nd; ++i) outDims[i] = dd.dim(i);
             outDims[d - 1] = 0;
             return Value::matrixND(outDims, nd, x.type(), mr);
@@ -1620,7 +1625,7 @@ Value diff(const Value &x, int n, int dim, std::pmr::memory_resource *mr)
 
 
 // ── xor (elementwise logical) ────────────────────────────────────────
-Value xorOf(const Value &a, const Value &b, std::pmr::memory_resource *mr)
+Value xorOf(const Value &a, const Value &b, keel::Allocator *mr)
 {
     auto ad = promoteToDouble(a, mr);
     auto bd = promoteToDouble(b, mr);
@@ -1630,7 +1635,7 @@ Value xorOf(const Value &a, const Value &b, std::pmr::memory_resource *mr)
         }, mr);
     if (d.isScalar()) return Value::logicalScalar(d.toScalar() != 0.0, mr);
     auto r = createLike(d, ValueType::LOGICAL, mr);
-    for (size_t i = 0; i < d.numel(); ++i)
+    for (keel::usize i = 0; i < d.numel(); ++i)
         r.logicalDataMut()[i] = (d.doubleData()[i] != 0.0) ? 1 : 0;
     return r;
 }

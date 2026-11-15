@@ -1,9 +1,10 @@
 ﻿// toolboxes/optim/include/numkit/optim/local/fzero.hpp
 #pragma once
 
-#include <memory_resource>
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/ref.h>
 #include <numkit/value/fn_handle.hpp>
-#include <numkit/value/span.hpp>
 #include <numkit/value/value.hpp>
 
 namespace numkit::optim {
@@ -35,8 +36,8 @@ namespace numkit::optim {
 /// @return     Scalar root.
 /// @throws Error  No sign change found near `x0`.
 /// @see fminbnd
-Value fzero(FnHandle fn, double x0,
-            std::pmr::memory_resource *mr = nullptr);
+Value fzero(FnHandle fn, keel::f64 x0,
+            keel::Allocator *mr = nullptr);
 
 /// @brief Scalar root-finder, bracket form (`x = fzero(fn, a, b)`).
 ///
@@ -50,8 +51,8 @@ Value fzero(FnHandle fn, double x0,
 /// @return     Scalar root.
 /// @throws Error  No sign change in `[a, b]`, or invalid bounds.
 /// @see fminbnd
-Value fzero(FnHandle fn, double a, double b,
-            std::pmr::memory_resource *mr = nullptr);
+Value fzero(FnHandle fn, keel::f64 a, keel::f64 b,
+            keel::Allocator *mr = nullptr);
 
 /// @brief Bounded scalar minimisation
 /// (`x = fminbnd(fn, lo, hi, tol)`).
@@ -66,8 +67,8 @@ Value fzero(FnHandle fn, double a, double b,
 /// @param mr   Memory resource (nullptr â†’ process default).
 /// @return     Scalar minimiser `x*` âˆˆ `[lo, hi]`.
 /// @see fzero, fminsearch
-Value fminbnd(FnHandle fn, double lo, double hi, double tol,
-              std::pmr::memory_resource *mr = nullptr);
+Value fminbnd(FnHandle fn, keel::f64 lo, keel::f64 hi, keel::f64 tol,
+              keel::Allocator *mr = nullptr);
 
 /// @brief Multi-dimensional unconstrained minimisation
 /// (`x = fminsearch(fn, x0, tol)`).
@@ -83,8 +84,8 @@ Value fminbnd(FnHandle fn, double lo, double hi, double tol,
 /// @return     Minimiser as a `n Ã— 1` DOUBLE column Value (length
 ///             `n = x0.size()`).
 /// @see fminbnd
-Value fminsearch(FnHandle fn, Span<const double> x0, double tol,
-                 std::pmr::memory_resource *mr = nullptr);
+Value fminsearch(FnHandle fn, keel::ArrayRef<keel::f64> x0, keel::f64 tol,
+                 keel::Allocator *mr = nullptr);
 
 
 /// @}

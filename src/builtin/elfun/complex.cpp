@@ -1,5 +1,8 @@
 // math/src/complex/complex.cpp
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/complex.h>
 #include <numkit/builtin/elfun.hpp>
 
 #include <numkit/value/value.hpp>
@@ -8,7 +11,6 @@
 #include <numkit/ops/helpers.hpp>
 
 #include <cmath>
-#include <complex>
 
 namespace numkit::builtin {
 
@@ -16,29 +18,29 @@ namespace numkit::builtin {
 // Public API
 // ════════════════════════════════════════════════════════════════════════
 
-Value real(const Value &x, std::pmr::memory_resource *mr)
+Value real(const Value &x, keel::Allocator *mr)
 {
-    std::pmr::memory_resource *p = mr;
+    keel::Allocator *p = mr;
     if (!x.isComplex())
         return x;
     if (x.isSingleComplex()) {
         auto r = createLike(x, ValueType::SINGLE, p);
         float *dst = r.singleDataMut();
-        for (size_t i = 0; i < x.numel(); ++i)
+        for (keel::usize i = 0; i < x.numel(); ++i)
             dst[i] = static_cast<float>(x.complexData()[i].real());
         return r;
     }
     if (x.isScalar())
         return Value::scalar(x.toComplex().real(), p);
     auto r = createLike(x, ValueType::DOUBLE, p);
-    for (size_t i = 0; i < x.numel(); ++i)
+    for (keel::usize i = 0; i < x.numel(); ++i)
         r.doubleDataMut()[i] = x.complexData()[i].real();
     return r;
 }
 
-Value imag(const Value &x, std::pmr::memory_resource *mr)
+Value imag(const Value &x, keel::Allocator *mr)
 {
-    std::pmr::memory_resource *p = mr;
+    keel::Allocator *p = mr;
     if (!x.isComplex()) {
         if (x.type() == ValueType::SINGLE)
             return createLike(x, ValueType::SINGLE, p);
@@ -49,29 +51,29 @@ Value imag(const Value &x, std::pmr::memory_resource *mr)
     if (x.isSingleComplex()) {
         auto r = createLike(x, ValueType::SINGLE, p);
         float *dst = r.singleDataMut();
-        for (size_t i = 0; i < x.numel(); ++i)
+        for (keel::usize i = 0; i < x.numel(); ++i)
             dst[i] = static_cast<float>(x.complexData()[i].imag());
         return r;
     }
     if (x.isScalar())
         return Value::scalar(x.toComplex().imag(), p);
     auto r = createLike(x, ValueType::DOUBLE, p);
-    for (size_t i = 0; i < x.numel(); ++i)
+    for (keel::usize i = 0; i < x.numel(); ++i)
         r.doubleDataMut()[i] = x.complexData()[i].imag();
     return r;
 }
 
-Value conj(const Value &x, std::pmr::memory_resource *mr)
+Value conj(const Value &x, keel::Allocator *mr)
 {
-    std::pmr::memory_resource *p = mr;
+    keel::Allocator *p = mr;
     if (!x.isComplex())
         return x;
-    return unaryComplex(x, [](const Complex &c) { return std::conj(c); }, p);
+    return unaryComplex(x, [](const keel::c64 &c) { return keel::conj(c); }, p);
 }
 
-Value complex(const Value &re, std::pmr::memory_resource *mr)
+Value complex(const Value &re, keel::Allocator *mr)
 {
-    std::pmr::memory_resource *p = mr;
+    keel::Allocator *p = mr;
     if (re.isComplex())
         return re;
     const bool outSingle = (re.type() == ValueType::SINGLE);
@@ -79,18 +81,18 @@ Value complex(const Value &re, std::pmr::memory_resource *mr)
         return Value::complexScalar(re.toScalar(), 0.0, p);
     auto r = createLike(re, ValueType::COMPLEX, p);
     if (outSingle) r.setSingleComplex(true);
-    Complex *dst = r.complexDataMut();
-    for (size_t i = 0; i < re.numel(); ++i) {
+    keel::c64 *dst = r.complexDataMut();
+    for (keel::usize i = 0; i < re.numel(); ++i) {
         double v = re.elemAsDouble(i);
         if (outSingle) v = static_cast<double>(static_cast<float>(v));
-        dst[i] = Complex(v, 0.0);
+        dst[i] = keel::c64(v, 0.0);
     }
     return r;
 }
 
-Value complex(const Value &re, const Value &im, std::pmr::memory_resource *mr)
+Value complex(const Value &re, const Value &im, keel::Allocator *mr)
 {
-    std::pmr::memory_resource *p = mr;
+    keel::Allocator *p = mr;
     const bool outSingle = (re.type() == ValueType::SINGLE || re.isSingleComplex() ||
                             im.type() == ValueType::SINGLE || im.isSingleComplex());
     if (re.isScalar() && im.isScalar() && !outSingle)
@@ -101,57 +103,57 @@ Value complex(const Value &re, const Value &im, std::pmr::memory_resource *mr)
                      0, 0, "complex", "", "numkit:complex:dimagree");
     auto r = createLike(shape, ValueType::COMPLEX, p);
     if (outSingle) r.setSingleComplex(true);
-    Complex *dst = r.complexDataMut();
-    const size_t n = shape.numel();
+    keel::c64 *dst = r.complexDataMut();
+    const keel::usize n = shape.numel();
     const double reScalar = re.isScalar() ? re.toScalar() : 0.0;
     const double imScalar = im.isScalar() ? im.toScalar() : 0.0;
-    for (size_t i = 0; i < n; ++i) {
+    for (keel::usize i = 0; i < n; ++i) {
         double r0 = re.isScalar() ? reScalar : re.elemAsDouble(i);
         double i0 = im.isScalar() ? imScalar : im.elemAsDouble(i);
         if (outSingle) {
             r0 = static_cast<double>(static_cast<float>(r0));
             i0 = static_cast<double>(static_cast<float>(i0));
         }
-        dst[i] = Complex(r0, i0);
+        dst[i] = keel::c64(r0, i0);
     }
     return r;
 }
 
-Value angle(const Value &x, std::pmr::memory_resource *mr)
+Value angle(const Value &x, keel::Allocator *mr)
 {
-    std::pmr::memory_resource *p = mr;
+    keel::Allocator *p = mr;
     if (x.isComplex()) {
         if (x.isSingleComplex()) {
             auto r = createLike(x, ValueType::SINGLE, p);
             float *dst = r.singleDataMut();
-            for (size_t i = 0; i < x.numel(); ++i)
-                dst[i] = static_cast<float>(std::arg(x.complexData()[i]));
+            for (keel::usize i = 0; i < x.numel(); ++i)
+                dst[i] = static_cast<float>(keel::arg(x.complexData()[i]));
             return r;
         }
         if (x.isScalar())
-            return Value::scalar(std::arg(x.toComplex()), p);
+            return Value::scalar(keel::arg(x.toComplex()), p);
         auto r = createLike(x, ValueType::DOUBLE, p);
-        for (size_t i = 0; i < x.numel(); ++i)
-            r.doubleDataMut()[i] = std::arg(x.complexData()[i]);
+        for (keel::usize i = 0; i < x.numel(); ++i)
+            r.doubleDataMut()[i] = keel::arg(x.complexData()[i]);
         return r;
     }
     if (x.type() == ValueType::SINGLE) {
         auto r = createLike(x, ValueType::SINGLE, p);
         const float *src = x.singleData();
         float *dst = r.singleDataMut();
-        for (size_t i = 0; i < x.numel(); ++i)
+        for (keel::usize i = 0; i < x.numel(); ++i)
             dst[i] = std::atan2(0.0f, src[i]);
         return r;
     }
     return unaryDouble(x, [](double v) { return std::atan2(0.0, v); }, p);
 }
 
-Value isreal(const Value &x, std::pmr::memory_resource *mr)
+Value isreal(const Value &x, keel::Allocator *mr)
 {
     return Value::scalar(!x.isComplex() ? 1.0 : 0.0, mr);
 }
 
-Value unwrap(const Value &p, double tol, int /*dim*/, std::pmr::memory_resource *mr)
+Value unwrap(const Value &p, double tol, int /*dim*/, keel::Allocator *mr)
 {
     if (p.isEmpty())
         return p;
@@ -163,13 +165,13 @@ Value unwrap(const Value &p, double tol, int /*dim*/, std::pmr::memory_resource 
         out = Value(p); // copy
 
     double *data = out.doubleDataMut();
-    const size_t n = out.numel();
+    const keel::usize n = out.numel();
     if (n <= 1) return out;
 
     constexpr double kTwoPi = 2.0 * 3.14159265358979323846;
     double dp_corr = 0.0;
 
-    for (size_t i = 1; i < n; ++i) {
+    for (keel::usize i = 1; i < n; ++i) {
         double d = data[i] - data[i - 1];
         if (d > tol) {
             double jumps = std::floor((d + tol) / kTwoPi);

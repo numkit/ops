@@ -3,9 +3,10 @@
 // Elementary mathematical functions: trigonometry, exp, log, complex, rounding.
 #pragma once
 
-#include <memory_resource>
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/ref.h>
 #include <numkit/value/value.hpp>
-#include <numkit/value/span.hpp>
 
 namespace numkit::builtin {
 
@@ -31,7 +32,7 @@ namespace numkit::builtin {
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `sin(x)`.
 /// @see cos, tan, asin, sind, sinpi
-Value sin(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value sin(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Elementwise cosine in radians (`y = cos(x)`).
 ///
@@ -42,7 +43,7 @@ Value sin(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `cos(x)`.
 /// @see sin, tan, acos, cosd, cospi
-Value cos(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value cos(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Elementwise tangent in radians (`y = tan(x)`).
 ///
@@ -52,7 +53,7 @@ Value cos(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `tan(x)`.
 /// @see sin, cos, atan, tand
-Value tan(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value tan(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Elementwise inverse sine in radians (`y = asin(x)`).
 ///
@@ -63,7 +64,7 @@ Value tan(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `asin(x)`.
 /// @see sin, acos, atan, asind
-Value asin(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value asin(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Elementwise inverse cosine in radians (`y = acos(x)`).
 ///
@@ -74,7 +75,7 @@ Value asin(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `acos(x)`.
 /// @see cos, asin, atan, acosd
-Value acos(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value acos(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Elementwise inverse tangent in radians (`y = atan(x)`).
 ///
@@ -84,7 +85,7 @@ Value acos(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `atan(x)`.
 /// @see atan2, tan, asin, acos, atand
-Value atan(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value atan(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Four-quadrant inverse tangent in radians (`theta = atan2(y, x)`).
 ///
@@ -96,7 +97,7 @@ Value atan(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Broadcast array containing `atan2(y, x)` in `[-pi, pi]`.
 /// @see atan, atan2d, cart2pol
-Value atan2(const Value &y, const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value atan2(const Value &y, const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Elementwise secant in radians (`y = sec(x) = 1 / cos(x)`).
 ///
@@ -104,7 +105,7 @@ Value atan2(const Value &y, const Value &x, std::pmr::memory_resource *mr = null
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `sec(x)`.
 /// @see cos, csc, cot, secd
-Value sec(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value sec(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Elementwise cosecant in radians (`y = csc(x) = 1 / sin(x)`).
 ///
@@ -112,7 +113,7 @@ Value sec(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `csc(x)`.
 /// @see sin, sec, cot, cscd
-Value csc(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value csc(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Elementwise cotangent in radians (`y = cot(x) = 1 / tan(x)`).
 ///
@@ -120,7 +121,7 @@ Value csc(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `cot(x)`.
 /// @see tan, sec, csc, cotd
-Value cot(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value cot(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Elementwise inverse secant in radians (`y = asec(x)`).
 ///
@@ -128,7 +129,7 @@ Value cot(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `asec(x)`.
 /// @see sec, acsc, acot, asecd
-Value asec(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value asec(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Elementwise inverse cosecant in radians (`y = acsc(x)`).
 ///
@@ -136,7 +137,7 @@ Value asec(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `acsc(x)`.
 /// @see csc, asec, acot, acscd
-Value acsc(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value acsc(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Elementwise inverse cotangent in radians (`y = acot(x)`).
 ///
@@ -144,7 +145,7 @@ Value acsc(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `acot(x)`.
 /// @see cot, asec, acsc, acotd
-Value acot(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value acot(const Value &x, keel::Allocator *mr = nullptr);
 
 // ── Trigonometry (Degrees) ──────────────────────────────────────────────────
 
@@ -156,7 +157,7 @@ Value acot(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `sind(x)`.
 /// @see sin, cosd, tand, asind
-Value sind(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value sind(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Elementwise cosine in degrees (`y = cosd(x)`).
 ///
@@ -166,7 +167,7 @@ Value sind(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `cosd(x)`.
 /// @see cos, sind, tand, acosd
-Value cosd(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value cosd(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Elementwise tangent in degrees (`y = tand(x)`).
 ///
@@ -176,7 +177,7 @@ Value cosd(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `tand(x)`.
 /// @see tan, sind, cosd, atand
-Value tand(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value tand(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Elementwise inverse sine in degrees (`y = asind(x)`).
 ///
@@ -186,7 +187,7 @@ Value tand(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `asind(x)`.
 /// @see asin, sind, acosd, atand
-Value asind(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value asind(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Elementwise inverse cosine in degrees (`y = acosd(x)`).
 ///
@@ -196,7 +197,7 @@ Value asind(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `acosd(x)`.
 /// @see acos, cosd, asind, atand
-Value acosd(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value acosd(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Elementwise inverse tangent in degrees (`y = atand(x)`).
 ///
@@ -206,7 +207,7 @@ Value acosd(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `atand(x)`.
 /// @see atan, tand, atan2d, asind
-Value atand(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value atand(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Four-quadrant inverse tangent in degrees (`theta = atan2d(y, x)`).
 ///
@@ -217,7 +218,7 @@ Value atand(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Broadcast array containing `atan2d(y, x)` in `[-180, 180]` degrees.
 /// @see atan2, atand
-Value atan2d(const Value &y, const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value atan2d(const Value &y, const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Elementwise secant in degrees (`y = secd(x)`).
 ///
@@ -225,7 +226,7 @@ Value atan2d(const Value &y, const Value &x, std::pmr::memory_resource *mr = nul
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `secd(x)`.
 /// @see sec, cosd, cscd, cotd
-Value secd(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value secd(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Elementwise cosecant in degrees (`y = cscd(x)`).
 ///
@@ -233,7 +234,7 @@ Value secd(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `cscd(x)`.
 /// @see csc, sind, secd, cotd
-Value cscd(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value cscd(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Elementwise cotangent in degrees (`y = cotd(x)`).
 ///
@@ -241,7 +242,7 @@ Value cscd(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `cotd(x)`.
 /// @see cot, tand, secd, cscd
-Value cotd(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value cotd(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Elementwise inverse secant in degrees (`y = asecd(x)`).
 ///
@@ -249,7 +250,7 @@ Value cotd(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `asecd(x)` in degrees.
 /// @see asec, secd, acscd, acotd
-Value asecd(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value asecd(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Elementwise inverse cosecant in degrees (`y = acscd(x)`).
 ///
@@ -257,7 +258,7 @@ Value asecd(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `acscd(x)` in degrees.
 /// @see acsc, cscd, asecd, acotd
-Value acscd(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value acscd(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Elementwise inverse cotangent in degrees (`y = acotd(x)`).
 ///
@@ -265,7 +266,7 @@ Value acscd(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `acotd(x)` in degrees.
 /// @see acot, cotd, asecd, acscd
-Value acotd(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value acotd(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Elementwise sine of pi times input (`y = sin(pi * x)`).
 ///
@@ -275,7 +276,7 @@ Value acotd(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `sin(pi * x)`.
 /// @see sin, cospi
-Value sinpi(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value sinpi(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Elementwise cosine of pi times input (`y = cos(pi * x)`).
 ///
@@ -285,7 +286,7 @@ Value sinpi(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `cos(pi * x)`.
 /// @see cos, sinpi
-Value cospi(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value cospi(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Converts angles from degrees to radians (`y = deg2rad(x)`).
 ///
@@ -295,7 +296,7 @@ Value cospi(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Angle array in radians.
 /// @see rad2deg, sin, cos
-Value deg2rad(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value deg2rad(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Converts angles from radians to degrees (`y = rad2deg(x)`).
 ///
@@ -305,7 +306,7 @@ Value deg2rad(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Angle array in degrees.
 /// @see deg2rad, sind, cosd
-Value rad2deg(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value rad2deg(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Wraps angles in radians to interval `[-pi, pi]`.
 ///
@@ -313,7 +314,7 @@ Value rad2deg(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Wrapped angle array in `[-pi, pi]`.
 /// @see wrapTo2Pi, wrapTo180, wrapTo360
-Value wrapToPi(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value wrapToPi(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Wraps angles in radians to interval `[0, 2*pi)`.
 ///
@@ -321,7 +322,7 @@ Value wrapToPi(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Wrapped angle array in `[0, 2*pi)`.
 /// @see wrapToPi, wrapTo360
-Value wrapTo2Pi(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value wrapTo2Pi(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Wraps angles in degrees to interval `[-180, 180]`.
 ///
@@ -329,7 +330,7 @@ Value wrapTo2Pi(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Wrapped angle array in `[-180, 180]`.
 /// @see wrapTo360, wrapToPi
-Value wrapTo180(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value wrapTo180(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Wraps angles in degrees to interval `[0, 360)`.
 ///
@@ -337,7 +338,7 @@ Value wrapTo180(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Wrapped angle array in `[0, 360)`.
 /// @see wrapTo180, wrapTo2Pi
-Value wrapTo360(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value wrapTo360(const Value &x, keel::Allocator *mr = nullptr);
 
 // ── Hyperbolic Functions ────────────────────────────────────────────────────
 
@@ -350,7 +351,7 @@ Value wrapTo360(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `sinh(x)`.
 /// @see cosh, tanh, asinh, csch
-Value sinh(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value sinh(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Hyperbolic cosine (`y = cosh(x)`).
 ///
@@ -361,7 +362,7 @@ Value sinh(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `cosh(x)`.
 /// @see sinh, tanh, acosh, sech
-Value cosh(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value cosh(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Hyperbolic tangent (`y = tanh(x)`).
 ///
@@ -371,7 +372,7 @@ Value cosh(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `tanh(x)`.
 /// @see sinh, cosh, atanh, coth
-Value tanh(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value tanh(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Inverse hyperbolic sine (`y = asinh(x)`).
 ///
@@ -381,7 +382,7 @@ Value tanh(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `asinh(x)`.
 /// @see sinh, acosh, atanh
-Value asinh(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value asinh(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Inverse hyperbolic cosine (`y = acosh(x)`).
 ///
@@ -392,7 +393,7 @@ Value asinh(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `acosh(x)`.
 /// @see cosh, asinh, atanh
-Value acosh(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value acosh(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Inverse hyperbolic tangent (`y = atanh(x)`).
 ///
@@ -402,7 +403,7 @@ Value acosh(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `atanh(x)`.
 /// @see tanh, asinh, acosh
-Value atanh(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value atanh(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Hyperbolic secant (`y = sech(x) = 1 / cosh(x)`).
 ///
@@ -410,7 +411,7 @@ Value atanh(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `sech(x)`.
 /// @see cosh, csch, asech
-Value sech(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value sech(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Hyperbolic cosecant (`y = csch(x) = 1 / sinh(x)`).
 ///
@@ -418,7 +419,7 @@ Value sech(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `csch(x)`.
 /// @see sinh, sech, acsch
-Value csch(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value csch(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Hyperbolic cotangent (`y = coth(x) = 1 / tanh(x)`).
 ///
@@ -426,7 +427,7 @@ Value csch(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `coth(x)`.
 /// @see tanh, csch, acoth
-Value coth(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value coth(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Inverse hyperbolic secant (`y = asech(x)`).
 ///
@@ -434,7 +435,7 @@ Value coth(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `asech(x)`.
 /// @see sech, acsch, acoth
-Value asech(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value asech(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Inverse hyperbolic cosecant (`y = acsch(x)`).
 ///
@@ -442,7 +443,7 @@ Value asech(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `acsch(x)`.
 /// @see csch, asech, acoth
-Value acsch(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value acsch(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Inverse hyperbolic cotangent (`y = acoth(x)`).
 ///
@@ -450,7 +451,7 @@ Value acsch(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `acoth(x)`.
 /// @see coth, asech, acsch
-Value acoth(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value acoth(const Value &x, keel::Allocator *mr = nullptr);
 
 // ── Coordinate Transforms ───────────────────────────────────────────────────
 
@@ -496,7 +497,7 @@ struct SphTriple {
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return PolarPair containing angle `theta` (radians) and radius `rho`.
 /// @see pol2cart, cart2sph, sph2cart
-PolarPair cart2pol(const Value &x, const Value &y, std::pmr::memory_resource *mr = nullptr);
+PolarPair cart2pol(const Value &x, const Value &y, keel::Allocator *mr = nullptr);
 
 /// @brief Transforms 3D Cartesian coordinates to cylindrical coordinates (`[theta, rho, z] = cart2pol(x, y, z)`).
 ///
@@ -506,7 +507,7 @@ PolarPair cart2pol(const Value &x, const Value &y, std::pmr::memory_resource *mr
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return CylTriple containing `theta`, `rho`, and `z`.
 /// @see pol2cart, cart2sph, sph2cart
-CylTriple cart2pol(const Value &x, const Value &y, const Value &z, std::pmr::memory_resource *mr = nullptr);
+CylTriple cart2pol(const Value &x, const Value &y, const Value &z, keel::Allocator *mr = nullptr);
 
 /// @brief Transforms 2D polar coordinates to Cartesian coordinates (`[x, y] = pol2cart(theta, rho)`).
 ///
@@ -517,7 +518,7 @@ CylTriple cart2pol(const Value &x, const Value &y, const Value &z, std::pmr::mem
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return CartPair containing `x` and `y` coordinates.
 /// @see cart2pol, sph2cart, cart2sph
-CartPair pol2cart(const Value &theta, const Value &rho, std::pmr::memory_resource *mr = nullptr);
+CartPair pol2cart(const Value &theta, const Value &rho, keel::Allocator *mr = nullptr);
 
 /// @brief Transforms 3D cylindrical coordinates to Cartesian coordinates (`[x, y, z] = pol2cart(theta, rho, z)`).
 ///
@@ -527,7 +528,7 @@ CartPair pol2cart(const Value &theta, const Value &rho, std::pmr::memory_resourc
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return CartTriple containing `x`, `y`, and `z`.
 /// @see cart2pol, sph2cart, cart2sph
-CartTriple pol2cart(const Value &theta, const Value &rho, const Value &z, std::pmr::memory_resource *mr = nullptr);
+CartTriple pol2cart(const Value &theta, const Value &rho, const Value &z, keel::Allocator *mr = nullptr);
 
 /// @brief Transforms 3D Cartesian coordinates to spherical coordinates (`[az, el, r] = cart2sph(x, y, z)`).
 ///
@@ -539,7 +540,7 @@ CartTriple pol2cart(const Value &theta, const Value &rho, const Value &z, std::p
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return SphTriple containing azimuth `az`, elevation `el`, and radius `r`.
 /// @see sph2cart, cart2pol, pol2cart
-SphTriple cart2sph(const Value &x, const Value &y, const Value &z, std::pmr::memory_resource *mr = nullptr);
+SphTriple cart2sph(const Value &x, const Value &y, const Value &z, keel::Allocator *mr = nullptr);
 
 /// @brief Transforms 3D spherical coordinates to Cartesian coordinates (`[x, y, z] = sph2cart(az, el, r)`).
 ///
@@ -551,31 +552,31 @@ SphTriple cart2sph(const Value &x, const Value &y, const Value &z, std::pmr::mem
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return CartTriple containing `x`, `y`, and `z`.
 /// @see cart2sph, pol2cart, cart2pol
-CartTriple sph2cart(const Value &az, const Value &el, const Value &r, std::pmr::memory_resource *mr = nullptr);
+CartTriple sph2cart(const Value &az, const Value &el, const Value &r, keel::Allocator *mr = nullptr);
 
 /// @brief Transforms 2D Cartesian coordinates to polar coordinates (span wrapper).
 /// @param args Span containing `x` and `y`.
 /// @param mr Memory resource.
 /// @return Struct containing `{th, r}`.
-Value cart2pol(Span<const Value> args, std::pmr::memory_resource *mr = nullptr);
+Value cart2pol(keel::ArrayRef<Value> args, keel::Allocator *mr = nullptr);
 
 /// @brief Transforms 2D polar coordinates to Cartesian coordinates (span wrapper).
 /// @param args Span containing `th` and `r`.
 /// @param mr Memory resource.
 /// @return Struct containing `{x, y}`.
-Value pol2cart(Span<const Value> args, std::pmr::memory_resource *mr = nullptr);
+Value pol2cart(keel::ArrayRef<Value> args, keel::Allocator *mr = nullptr);
 
 /// @brief Transforms 3D Cartesian coordinates to spherical coordinates (span wrapper).
 /// @param args Span containing `x`, `y`, `z`.
 /// @param mr Memory resource.
 /// @return Struct containing `{az, el, r}`.
-Value cart2sph(Span<const Value> args, std::pmr::memory_resource *mr = nullptr);
+Value cart2sph(keel::ArrayRef<Value> args, keel::Allocator *mr = nullptr);
 
 /// @brief Transforms 3D spherical coordinates to Cartesian coordinates (span wrapper).
 /// @param args Span containing `az`, `el`, `r`.
 /// @param mr Memory resource.
 /// @return Struct containing `{x, y, z}`.
-Value sph2cart(Span<const Value> args, std::pmr::memory_resource *mr = nullptr);
+Value sph2cart(keel::ArrayRef<Value> args, keel::Allocator *mr = nullptr);
 
 // ── Exponentials and Logarithms ─────────────────────────────────────────────
 
@@ -588,7 +589,7 @@ Value sph2cart(Span<const Value> args, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `exp(x)`.
 /// @see expm1, log, log10, log2, pow2
-Value exp(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value exp(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Computes `exp(x) - 1` accurately for small `x`.
 ///
@@ -598,7 +599,7 @@ Value exp(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `exp(x) - 1`.
 /// @see exp, log1p
-Value expm1(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value expm1(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Natural logarithm (`ln(x)`).
 ///
@@ -608,7 +609,7 @@ Value expm1(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `log(x)`.
 /// @see exp, log10, log2, log1p, reallog
-Value log(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value log(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Base-10 logarithm (`log10(x)`).
 ///
@@ -618,7 +619,7 @@ Value log(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `log10(x)`.
 /// @see log, log2
-Value log10(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value log10(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Base-2 logarithm (`log2(x)`).
 ///
@@ -628,7 +629,7 @@ Value log10(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `log2(x)`.
 /// @see log, log10, pow2, nextpow2
-Value log2(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value log2(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Computes `log(1 + x)` accurately for small `x`.
 ///
@@ -638,7 +639,7 @@ Value log2(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `log(1 + x)`.
 /// @see log, expm1
-Value log1p(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value log1p(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Base-2 power scaling (`y = 2.^x`).
 ///
@@ -646,7 +647,7 @@ Value log1p(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `2.^x`.
 /// @see log2, pow, nextpow2
-Value pow2(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value pow2(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Base-2 power scaling with mantissa and exponent (`y = f .* 2.^e`).
 ///
@@ -657,7 +658,7 @@ Value pow2(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Scaled values `f .* 2.^e`.
 /// @see log2, pow2
-Value pow2(const Value &f, const Value &e, std::pmr::memory_resource *mr = nullptr);
+Value pow2(const Value &f, const Value &e, keel::Allocator *mr = nullptr);
 
 /// @brief Smallest integer exponent such that `2^p >= abs(n)` (`p = nextpow2(n)`).
 ///
@@ -667,7 +668,7 @@ Value pow2(const Value &f, const Value &e, std::pmr::memory_resource *mr = nullp
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Exponent array `p = ceil(log2(abs(n)))`.
 /// @see pow2, log2
-Value nextpow2(const Value &n, std::pmr::memory_resource *mr = nullptr);
+Value nextpow2(const Value &n, keel::Allocator *mr = nullptr);
 
 /// @brief Square root (`y = sqrt(x)`).
 ///
@@ -678,7 +679,7 @@ Value nextpow2(const Value &n, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `sqrt(x)`.
 /// @see realsqrt, cbrt, nthroot, hypot
-Value sqrt(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value sqrt(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Real square root with domain error check (`y = realsqrt(x)`).
 ///
@@ -688,7 +689,7 @@ Value sqrt(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Real array containing `sqrt(x)`.
 /// @see sqrt, reallog, realpow
-Value realsqrt(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value realsqrt(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Real natural logarithm with domain error check (`y = reallog(x)`).
 ///
@@ -698,7 +699,7 @@ Value realsqrt(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Real array containing `log(x)`.
 /// @see log, realsqrt, realpow
-Value reallog(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value reallog(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Cube root (`y = cbrt(x)`).
 ///
@@ -708,7 +709,7 @@ Value reallog(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `cbrt(x)`.
 /// @see sqrt, nthroot
-Value cbrt(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value cbrt(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Real nth root of real numbers (`y = nthroot(x, n)`).
 ///
@@ -719,7 +720,7 @@ Value cbrt(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `nthroot(x, n)`.
 /// @see sqrt, cbrt, pow
-Value nthroot(const Value &x, const Value &n, std::pmr::memory_resource *mr = nullptr);
+Value nthroot(const Value &x, const Value &n, keel::Allocator *mr = nullptr);
 
 /// @brief Square root of sum of squares (`hypot(x, y) = sqrt(x^2 + y^2)`).
 ///
@@ -730,7 +731,7 @@ Value nthroot(const Value &x, const Value &n, std::pmr::memory_resource *mr = nu
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Broadcast array containing `sqrt(x^2 + y^2)`.
 /// @see sqrt, abs, cart2pol
-Value hypot(const Value &x, const Value &y, std::pmr::memory_resource *mr = nullptr);
+Value hypot(const Value &x, const Value &y, keel::Allocator *mr = nullptr);
 
 /// @brief Elementwise power (`z = x .^ y`).
 ///
@@ -741,7 +742,7 @@ Value hypot(const Value &x, const Value &y, std::pmr::memory_resource *mr = null
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Broadcast array containing `x .^ y`.
 /// @see exp, pow2, realpow
-Value pow(const Value &x, const Value &y, std::pmr::memory_resource *mr = nullptr);
+Value pow(const Value &x, const Value &y, keel::Allocator *mr = nullptr);
 
 /// @brief Real power with complex error check (`y = realpow(x, y)`).
 ///
@@ -752,7 +753,7 @@ Value pow(const Value &x, const Value &y, std::pmr::memory_resource *mr = nullpt
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array containing `x .^ y`.
 /// @see pow, realsqrt, reallog
-Value realpow(const Value &x, const Value &y, std::pmr::memory_resource *mr = nullptr);
+Value realpow(const Value &x, const Value &y, keel::Allocator *mr = nullptr);
 
 // ── Complex Numbers ─────────────────────────────────────────────────────────
 
@@ -764,7 +765,7 @@ Value realpow(const Value &x, const Value &y, std::pmr::memory_resource *mr = nu
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Real array containing `real(x)`.
 /// @see imag, conj, complex, isreal
-Value real(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value real(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Imaginary part of complex array (`y = imag(x)`).
 ///
@@ -774,7 +775,7 @@ Value real(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Real array containing `imag(x)` (zeros for real inputs).
 /// @see real, conj, complex, angle
-Value imag(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value imag(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Complex conjugate (`y = conj(x)`).
 ///
@@ -784,7 +785,7 @@ Value imag(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `conj(x)`.
 /// @see real, imag, abs, angle
-Value conj(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value conj(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Phase angle of complex numbers in radians (`y = angle(x)`).
 ///
@@ -794,7 +795,7 @@ Value conj(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing phase angles in radians.
 /// @see abs, unwrap, atan2
-Value angle(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value angle(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Absolute value / complex magnitude (`y = abs(x)`).
 ///
@@ -805,7 +806,7 @@ Value angle(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing magnitude `|x|`.
 /// @see angle, hypot, sign
-Value abs(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value abs(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Constructs complex array from real part (`complex(re)`).
 ///
@@ -813,7 +814,7 @@ Value abs(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Complex array `re + 0i`.
 /// @see real, imag, isreal
-Value complex(const Value &re, std::pmr::memory_resource *mr = nullptr);
+Value complex(const Value &re, keel::Allocator *mr = nullptr);
 
 /// @brief Constructs complex array from real and imaginary parts (`complex(re, im)`).
 ///
@@ -822,7 +823,7 @@ Value complex(const Value &re, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Complex array `re + im * 1i`.
 /// @see real, imag, conj
-Value complex(const Value &re, const Value &im, std::pmr::memory_resource *mr = nullptr);
+Value complex(const Value &re, const Value &im, keel::Allocator *mr = nullptr);
 
 /// @brief Signum function (-1, 0, 1 or unit complex phasor).
 ///
@@ -833,7 +834,7 @@ Value complex(const Value &re, const Value &im, std::pmr::memory_resource *mr = 
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `sign(x)`.
 /// @see abs
-Value sign(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value sign(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Unwraps phase angles across array dimensions.
 ///
@@ -846,7 +847,7 @@ Value sign(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array with unwrapped continuous phase.
 /// @see angle, wrapToPi
-Value unwrap(const Value &p, double tol = 3.14159265358979323846, int dim = -1, std::pmr::memory_resource *mr = nullptr);
+Value unwrap(const Value &p, keel::f64 tol = 3.14159265358979323846, int dim = -1, keel::Allocator *mr = nullptr);
 
 /// @brief Tests if array contains real values (false if complex storage is active).
 ///
@@ -854,7 +855,7 @@ Value unwrap(const Value &p, double tol = 3.14159265358979323846, int dim = -1, 
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Scalar logical Value (`true` if real, `false` if complex).
 /// @see real, imag, isnumeric
-Value isreal(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value isreal(const Value &x, keel::Allocator *mr = nullptr);
 
 // ── Rounding and Remainder ──────────────────────────────────────────────────
 
@@ -867,7 +868,7 @@ Value isreal(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape with rounded elements.
 /// @see floor, ceil, fix, roundN
-Value round(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value round(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Rounds elements to N decimal digits or N significant digits (`round(x, n, type)`).
 ///
@@ -877,7 +878,7 @@ Value round(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape with rounded elements.
 /// @see round, floor, ceil
-Value roundN(const Value &x, int n, bool significant = false, std::pmr::memory_resource *mr = nullptr);
+Value roundN(const Value &x, int n, bool significant = false, keel::Allocator *mr = nullptr);
 
 /// @brief Rounds down towards negative infinity (`y = floor(x)`).
 ///
@@ -887,7 +888,7 @@ Value roundN(const Value &x, int n, bool significant = false, std::pmr::memory_r
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `floor(x)`.
 /// @see ceil, round, fix
-Value floor(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value floor(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Rounds up towards positive infinity (`y = ceil(x)`).
 ///
@@ -897,7 +898,7 @@ Value floor(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `ceil(x)`.
 /// @see floor, round, fix
-Value ceil(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value ceil(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Rounds towards zero / truncate (`y = fix(x)`).
 ///
@@ -907,7 +908,7 @@ Value ceil(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `fix(x)`.
 /// @see floor, ceil, round
-Value fix(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value fix(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Positive part / rectifier (`y = max(x, 0)`).
 ///
@@ -915,7 +916,7 @@ Value fix(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape with negative elements clamped to zero.
 /// @see max, fix
-Value subplus(const Value &x, std::pmr::memory_resource *mr = nullptr);
+Value subplus(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Modulo operation where sign of result matches divisor (`y = mod(x, y)`).
 ///
@@ -926,7 +927,7 @@ Value subplus(const Value &x, std::pmr::memory_resource *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `mod(x, y)`.
 /// @see rem, floor
-Value mod(const Value &x, const Value &y, std::pmr::memory_resource *mr = nullptr);
+Value mod(const Value &x, const Value &y, keel::Allocator *mr = nullptr);
 
 /// @brief Remainder after division where sign of result matches dividend (`y = rem(x, y)`).
 ///
@@ -937,7 +938,7 @@ Value mod(const Value &x, const Value &y, std::pmr::memory_resource *mr = nullpt
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape containing `rem(x, y)`.
 /// @see mod, fix
-Value rem(const Value &x, const Value &y, std::pmr::memory_resource *mr = nullptr);
+Value rem(const Value &x, const Value &y, keel::Allocator *mr = nullptr);
 
 
 /// @}

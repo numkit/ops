@@ -3,14 +3,19 @@
 // Phase 2b compute/register split — see project_layering_refactor memory.
 #pragma once
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/ref.h>
+#include <keel/arena.h>
+#include <keel/array.h>
+#include <keel/complex.h>
+#include <keel/math.h>
 #include <numkit/value/value.hpp>
 #include <numkit/ops/helpers.hpp>
 #include <numkit/ops/reductions.hpp>
 #include <numkit/ops/rows_helpers.hpp>
 
 #include <numkit/value/error.hpp>
-#include <numkit/value/scratch.hpp>
-#include <numkit/value/span.hpp>
 #include <numkit/ops/reductions.hpp>  // engine-free numkit::builtin::detail dim-infra (ops re-export)
 
 #include <algorithm>
@@ -19,7 +24,6 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
-#include <memory_resource>
 #include <numeric>
 #include <string>
 #include <tuple>
@@ -37,14 +41,14 @@ namespace {
 // Siamese / de la Loubère method for odd N >= 3.
 // Fills positions [0..N²-1] starting at (0, N/2) and stepping
 // (-1, +1) mod N; on collision step (+1, 0) instead.
-void magicOdd(double *p, size_t N)
+void magicOdd(double *p, keel::usize N)
 {
-    size_t r = 0;
-    size_t c = N / 2;
-    for (size_t k = 1; k <= N * N; ++k) {
+    keel::usize r = 0;
+    keel::usize c = N / 2;
+    for (keel::usize k = 1; k <= N * N; ++k) {
         p[r * N + c] = static_cast<double>(k);
-        const size_t nr = (r == 0) ? (N - 1) : (r - 1);
-        const size_t nc = (c + 1) % N;
+        const keel::usize nr = (r == 0) ? (N - 1) : (r - 1);
+        const keel::usize nc = (c + 1) % N;
         if (p[nr * N + nc] != 0.0) {
             r = (r + 1) % N;          // collision: drop down
         } else {
@@ -57,14 +61,14 @@ void magicOdd(double *p, size_t N)
 // Doubly-even (N ≡ 0 mod 4): start with the natural 1..N² fill and
 // swap each cell whose (i mod 4, j mod 4) is on either of the two
 // 4×4-block diagonals.
-void magicDoublyEven(double *p, size_t N)
+void magicDoublyEven(double *p, keel::usize N)
 {
-    const size_t total = N * N;
-    for (size_t i = 0; i < N; ++i)
-        for (size_t j = 0; j < N; ++j) {
-            const size_t k = i * N + j + 1;       // 1-based natural fill
-            const size_t mi = i % 4;
-            const size_t mj = j % 4;
+    const keel::usize total = N * N;
+    for (keel::usize i = 0; i < N; ++i)
+        for (keel::usize j = 0; j < N; ++j) {
+            const keel::usize k = i * N + j + 1;       // 1-based natural fill
+            const keel::usize mi = i % 4;
+            const keel::usize mj = j % 4;
             const bool diag = (mi == mj) || (mi + mj == 3);
             p[i * N + j] = static_cast<double>(diag ? (total + 1 - k) : k);
         }
@@ -79,18 +83,18 @@ void magicDoublyEven(double *p, size_t N)
 //   Then for row mid = K (0-indexed = (p-1)/2):
 //     swap (mid, 0) ↔ (mid+p, 0)   -- undo the previous swap on this cell
 //     swap (mid, K) ↔ (mid+p, K)   -- and apply the strached swap instead
-void magicSinglyEven(double *p, size_t N)
+void magicSinglyEven(double *p, keel::usize N)
 {
-    const size_t P = N / 2;          // odd
-    const size_t S = P * P;
-    const size_t K = (N - 2) / 4;    // num "full" left/right cols to swap
+    const keel::usize P = N / 2;          // odd
+    const keel::usize S = P * P;
+    const keel::usize K = (N - 2) / 4;    // num "full" left/right cols to swap
 
     // Build one (P×P) odd-magic and tile into four quadrants.
     std::vector<double> sq(P * P, 0.0);
     magicOdd(sq.data(), P);
 
-    for (size_t i = 0; i < P; ++i) {
-        for (size_t j = 0; j < P; ++j) {
+    for (keel::usize i = 0; i < P; ++i) {
+        for (keel::usize j = 0; j < P; ++j) {
             const double s = sq[i * P + j];
             p[(i)     * N + (j)]     = s;                    // A (top-left)
             p[(i)     * N + (j + P)] = s + 2.0 * S;          // C (top-right)
@@ -102,18 +106,18 @@ void magicSinglyEven(double *p, size_t N)
     // Bulk column swaps: leftmost K and rightmost K-1 columns get
     // top-half / bottom-half rows swapped. (For N=6, K=1 → swap col 0
     // only; right side has K-1=0 cols, none.)
-    auto swapRowsAtCol = [&](size_t col) {
-        for (size_t r = 0; r < P; ++r)
+    auto swapRowsAtCol = [&](keel::usize col) {
+        for (keel::usize r = 0; r < P; ++r)
             std::swap(p[r * N + col], p[(r + P) * N + col]);
     };
-    for (size_t c = 0; c < K; ++c)
+    for (keel::usize c = 0; c < K; ++c)
         swapRowsAtCol(c);
-    for (size_t c = N - K + 1; c < N && K > 0; ++c)
+    for (keel::usize c = N - K + 1; c < N && K > 0; ++c)
         swapRowsAtCol(c);
 
     // Middle-row fix: for row mid = K (0-indexed), undo column-0 swap
     // and apply column-K swap instead. (MATLAB: i=k+1, j=[1, i].)
-    const size_t mid = K;
+    const keel::usize mid = K;
     if (mid < P) {
         std::swap(p[mid * N + 0], p[(mid + P) * N + 0]);  // undo
         std::swap(p[mid * N + K], p[(mid + P) * N + K]);  // apply
@@ -126,11 +130,11 @@ namespace {
 // Extract Value as a flat double buffer in linear element order via
 // elemAsDouble (handles every numeric/logical type). Returns the
 // buffer; live for the lifetime of `scratch`.
-ScratchVec<double> valueToScratchDoubles(const Value &v, ScratchArena &scratch)
+keel::Array<double> valueToScratchDoubles(const Value &v, const keel::ArenaTemp &scratch)
 {
-    const std::size_t n = v.numel();
-    ScratchVec<double> out(n, &scratch);
-    for (std::size_t i = 0; i < n; ++i) out[i] = v.elemAsDouble(i);
+    const keel::usize n = v.numel();
+    keel::Array<double> out(n, scratch.allocator());
+    for (keel::usize i = 0; i < n; ++i) out[i] = v.elemAsDouble(i);
     return out;
 }
 
@@ -141,11 +145,11 @@ namespace {
 // parts when input is COMPLEX. For DOUBLE / SINGLE inputs the flag is
 // ignored at the element level (no-op).
 template <typename T>
-Value pageTransposeT(const Value &x, ValueType ty, bool conjugate, std::pmr::memory_resource *mr)
+Value pageTransposeT(const Value &x, ValueType ty, bool conjugate, keel::Allocator *mr)
 {
     const auto &d = x.dims();
-    const size_t M = d.rows(), N = d.cols();
-    const size_t P = d.is3D() ? d.pages() : 1u;
+    const keel::usize M = d.rows(), N = d.cols();
+    const keel::usize P = d.is3D() ? d.pages() : 1u;
 
     auto out = (P == 1u)
         ? Value::matrix(N, M, ty, mr)
@@ -153,17 +157,17 @@ Value pageTransposeT(const Value &x, ValueType ty, bool conjugate, std::pmr::mem
 
     const T *src = static_cast<const T *>(x.rawData());
     T *dst       = static_cast<T *>(out.rawDataMut());
-    const size_t pageInElems  = M * N;
-    const size_t pageOutElems = N * M;
+    const keel::usize pageInElems  = M * N;
+    const keel::usize pageOutElems = N * M;
 
-    for (size_t p = 0; p < P; ++p) {
+    for (keel::usize p = 0; p < P; ++p) {
         const T *sp = src + p * pageInElems;
         T *dp       = dst + p * pageOutElems;
-        for (size_t j = 0; j < N; ++j) {
-            for (size_t i = 0; i < M; ++i) {
-                if constexpr (std::is_same_v<T, Complex>) {
-                    Complex v = sp[j * M + i];
-                    dp[i * N + j] = conjugate ? std::conj(v) : v;
+        for (keel::usize j = 0; j < N; ++j) {
+            for (keel::usize i = 0; i < M; ++i) {
+                if constexpr (std::is_same_v<T, keel::c64>) {
+                    keel::c64 v = sp[j * M + i];
+                    dp[i * N + j] = conjugate ? keel::conj(v) : v;
                 } else {
                     (void)conjugate;
                     dp[i * N + j] = sp[j * M + i];
@@ -174,21 +178,21 @@ Value pageTransposeT(const Value &x, ValueType ty, bool conjugate, std::pmr::mem
     return out;
 }
 
-Value pageTransposeAny(const Value &x, bool conjugate, std::pmr::memory_resource *mr)
+Value pageTransposeAny(const Value &x, bool conjugate, keel::Allocator *mr)
 {
     switch (x.type()) {
     case ValueType::DOUBLE:  return pageTransposeT<double>(x, ValueType::DOUBLE, conjugate, mr);
     case ValueType::SINGLE:  return pageTransposeT<float>(x, ValueType::SINGLE, conjugate, mr);
-    case ValueType::COMPLEX: return pageTransposeT<Complex>(x, ValueType::COMPLEX, conjugate, mr);
-    case ValueType::INT8:    return pageTransposeT<int8_t>(x, ValueType::INT8, conjugate, mr);
-    case ValueType::INT16:   return pageTransposeT<int16_t>(x, ValueType::INT16, conjugate, mr);
-    case ValueType::INT32:   return pageTransposeT<int32_t>(x, ValueType::INT32, conjugate, mr);
-    case ValueType::INT64:   return pageTransposeT<int64_t>(x, ValueType::INT64, conjugate, mr);
-    case ValueType::UINT8:   return pageTransposeT<uint8_t>(x, ValueType::UINT8, conjugate, mr);
-    case ValueType::UINT16:  return pageTransposeT<uint16_t>(x, ValueType::UINT16, conjugate, mr);
-    case ValueType::UINT32:  return pageTransposeT<uint32_t>(x, ValueType::UINT32, conjugate, mr);
-    case ValueType::UINT64:  return pageTransposeT<uint64_t>(x, ValueType::UINT64, conjugate, mr);
-    case ValueType::LOGICAL: return pageTransposeT<uint8_t>(x, ValueType::LOGICAL, conjugate, mr);
+    case ValueType::COMPLEX: return pageTransposeT<keel::c64>(x, ValueType::COMPLEX, conjugate, mr);
+    case ValueType::INT8:    return pageTransposeT<keel::i8>(x, ValueType::INT8, conjugate, mr);
+    case ValueType::INT16:   return pageTransposeT<keel::i16>(x, ValueType::INT16, conjugate, mr);
+    case ValueType::INT32:   return pageTransposeT<keel::i32>(x, ValueType::INT32, conjugate, mr);
+    case ValueType::INT64:   return pageTransposeT<keel::i64>(x, ValueType::INT64, conjugate, mr);
+    case ValueType::UINT8:   return pageTransposeT<keel::u8>(x, ValueType::UINT8, conjugate, mr);
+    case ValueType::UINT16:  return pageTransposeT<keel::u16>(x, ValueType::UINT16, conjugate, mr);
+    case ValueType::UINT32:  return pageTransposeT<keel::u32>(x, ValueType::UINT32, conjugate, mr);
+    case ValueType::UINT64:  return pageTransposeT<keel::u64>(x, ValueType::UINT64, conjugate, mr);
+    case ValueType::LOGICAL: return pageTransposeT<keel::u8>(x, ValueType::LOGICAL, conjugate, mr);
     default:
         throw Error("pagetranspose: unsupported input type",
                      0, 0, "pagetranspose", "", "numkit:pagetranspose:badType");
@@ -204,42 +208,42 @@ namespace {
 // portable inline loop.
 template <typename T>
 inline void runPageMatmul(const T *, const T *, T *,
-                          size_t, size_t, size_t);
+                          keel::usize, keel::usize, keel::usize);
 
 template <>
 inline void runPageMatmul<double>(const double *a, const double *b, double *c,
-                                  size_t M, size_t N, size_t K)
+                                  keel::usize M, keel::usize N, keel::usize K)
 {
     ops::detail::matmulDoubleLoop(a, b, c, M, N, K);
 }
 
 template <>
 inline void runPageMatmul<float>(const float *a, const float *b, float *c,
-                                 size_t M, size_t N, size_t K)
+                                 keel::usize M, keel::usize N, keel::usize K)
 {
-    for (size_t j = 0; j < N; ++j) {
+    for (keel::usize j = 0; j < N; ++j) {
         float *cj = c + j * M;
-        for (size_t i = 0; i < M; ++i) cj[i] = 0.0f;
-        for (size_t k = 0; k < K; ++k) {
+        for (keel::usize i = 0; i < M; ++i) cj[i] = 0.0f;
+        for (keel::usize k = 0; k < K; ++k) {
             const float bkj = b[j * K + k];
             const float *ak = a + k * M;
-            for (size_t i = 0; i < M; ++i)
+            for (keel::usize i = 0; i < M; ++i)
                 cj[i] += ak[i] * bkj;
         }
     }
 }
 
 template <>
-inline void runPageMatmul<Complex>(const Complex *a, const Complex *b, Complex *c,
-                                   size_t M, size_t N, size_t K)
+inline void runPageMatmul<keel::c64>(const keel::c64 *a, const keel::c64 *b, keel::c64 *c,
+                                   keel::usize M, keel::usize N, keel::usize K)
 {
-    for (size_t j = 0; j < N; ++j) {
-        Complex *cj = c + j * M;
-        for (size_t i = 0; i < M; ++i) cj[i] = Complex(0.0, 0.0);
-        for (size_t k = 0; k < K; ++k) {
-            const Complex bkj = b[j * K + k];
-            const Complex *ak = a + k * M;
-            for (size_t i = 0; i < M; ++i)
+    for (keel::usize j = 0; j < N; ++j) {
+        keel::c64 *cj = c + j * M;
+        for (keel::usize i = 0; i < M; ++i) cj[i] = keel::c64(0.0, 0.0);
+        for (keel::usize k = 0; k < K; ++k) {
+            const keel::c64 bkj = b[j * K + k];
+            const keel::c64 *ak = a + k * M;
+            for (keel::usize i = 0; i < M; ++i)
                 cj[i] += ak[i] * bkj;
         }
     }
@@ -248,17 +252,17 @@ inline void runPageMatmul<Complex>(const Complex *a, const Complex *b, Complex *
 template <typename T> constexpr ValueType pagemtimesElemMType();
 template <> constexpr ValueType pagemtimesElemMType<double >() { return ValueType::DOUBLE;  }
 template <> constexpr ValueType pagemtimesElemMType<float  >() { return ValueType::SINGLE;  }
-template <> constexpr ValueType pagemtimesElemMType<Complex>() { return ValueType::COMPLEX; }
+template <> constexpr ValueType pagemtimesElemMType<keel::c64>() { return ValueType::COMPLEX; }
 
 // Read element i of `src` as T. For T = Complex, real-typed sources
 // upgrade to (real, 0); for T ∈ {double, float}, complex sources are
 // rejected upstream so we never reach the if-branch with COMPLEX input.
 template <typename T>
-inline T readElemAsT(const Value &src, size_t i, bool typeMatches)
+inline T readElemAsT(const Value &src, keel::usize i, bool typeMatches)
 {
-    if constexpr (std::is_same_v<T, Complex>) {
+    if constexpr (std::is_same_v<T, keel::c64>) {
         if (typeMatches) return src.complexData()[i];
-        return Complex(src.elemAsDouble(i), 0.0);
+        return keel::c64(src.elemAsDouble(i), 0.0);
     } else {
         if (typeMatches) return static_cast<const T *>(src.rawData())[i];
         return static_cast<T>(src.elemAsDouble(i));
@@ -269,7 +273,7 @@ inline T readElemAsT(const Value &src, size_t i, bool typeMatches)
 template <typename T>
 inline T conjIfComplex(T v)
 {
-    if constexpr (std::is_same_v<T, Complex>) return std::conj(v);
+    if constexpr (std::is_same_v<T, keel::c64>) return keel::conj(v);
     else return v;
 }
 
@@ -278,11 +282,11 @@ inline T conjIfComplex(T v)
 // (no per-element conversion) when src already holds the target type
 // AND no transpose is needed.
 template <typename T>
-void materialisePage(T *dst, const Value &src, size_t pageOff,
-                     size_t rowDim, size_t colDim, TranspOp tr)
+void materialisePage(T *dst, const Value &src, keel::usize pageOff,
+                     keel::usize rowDim, keel::usize colDim, TranspOp tr)
 {
-    const size_t pageElems = rowDim * colDim;
-    const size_t base = pageOff * pageElems;
+    const keel::usize pageElems = rowDim * colDim;
+    const keel::usize base = pageOff * pageElems;
     const bool typeMatches = (src.type() == pagemtimesElemMType<T>());
 
     if (tr == TranspOp::None) {
@@ -290,7 +294,7 @@ void materialisePage(T *dst, const Value &src, size_t pageOff,
             std::memcpy(dst, static_cast<const T *>(src.rawData()) + base,
                         pageElems * sizeof(T));
         } else {
-            for (size_t i = 0; i < pageElems; ++i)
+            for (keel::usize i = 0; i < pageElems; ++i)
                 dst[i] = readElemAsT<T>(src, base + i, false);
         }
         return;
@@ -298,9 +302,9 @@ void materialisePage(T *dst, const Value &src, size_t pageOff,
     // Transpose: dst is colDim × rowDim col-major;
     // dst[r * colDim + c] = src[c * rowDim + r] (then conjugate if ctranspose+Complex).
     const bool needsConj = (tr == TranspOp::CTranspose);
-    for (size_t r = 0; r < rowDim; ++r) {
-        for (size_t c = 0; c < colDim; ++c) {
-            const size_t srcOff = base + c * rowDim + r;
+    for (keel::usize r = 0; r < rowDim; ++r) {
+        for (keel::usize c = 0; c < colDim; ++c) {
+            const keel::usize srcOff = base + c * rowDim + r;
             T v = readElemAsT<T>(src, srcOff, typeMatches);
             if (needsConj) v = conjIfComplex<T>(v);
             dst[r * colDim + c] = v;
@@ -309,7 +313,7 @@ void materialisePage(T *dst, const Value &src, size_t pageOff,
 }
 
 template <typename T>
-Value pagemtimesImpl(const Value &x, TranspOp tx, const Value &y, TranspOp ty, std::pmr::memory_resource *mr)
+Value pagemtimesImpl(const Value &x, TranspOp tx, const Value &y, TranspOp ty, keel::Allocator *mr)
 {
     const auto &xd = x.dims();
     const auto &yd = y.dims();
@@ -319,23 +323,23 @@ Value pagemtimesImpl(const Value &x, TranspOp tx, const Value &y, TranspOp ty, s
         throw Error("pagemtimes: each input must have at least 2 dimensions",
                      0, 0, "pagemtimes", "", "numkit:pagemtimes:rank");
 
-    const size_t xRowDim = xd.dim(0), xColDim = xd.dim(1);
-    const size_t yRowDim = yd.dim(0), yColDim = yd.dim(1);
+    const keel::usize xRowDim = xd.dim(0), xColDim = xd.dim(1);
+    const keel::usize yRowDim = yd.dim(0), yColDim = yd.dim(1);
 
-    const size_t M  = (tx == TranspOp::None) ? xRowDim : xColDim;
-    const size_t Kx = (tx == TranspOp::None) ? xColDim : xRowDim;
-    const size_t Ky = (ty == TranspOp::None) ? yRowDim : yColDim;
-    const size_t N  = (ty == TranspOp::None) ? yColDim : yRowDim;
+    const keel::usize M  = (tx == TranspOp::None) ? xRowDim : xColDim;
+    const keel::usize Kx = (tx == TranspOp::None) ? xColDim : xRowDim;
+    const keel::usize Ky = (ty == TranspOp::None) ? yRowDim : yColDim;
+    const keel::usize N  = (ty == TranspOp::None) ? yColDim : yRowDim;
     if (Kx != Ky)
         throw Error("pagemtimes: inner matrix dimensions must agree",
                      0, 0, "pagemtimes", "", "numkit:pagemtimes:innerdim");
-    const size_t K = Kx;
+    const keel::usize K = Kx;
 
     constexpr int kMaxNd = Dims::kMaxRank;
     const int xb = std::max(0, xnd - 2);
     const int yb = std::max(0, ynd - 2);
     const int outBatchNd = std::max(xb, yb);
-    size_t xBatch[kMaxNd], yBatch[kMaxNd], outBatch[kMaxNd];
+    keel::usize xBatch[kMaxNd], yBatch[kMaxNd], outBatch[kMaxNd];
     for (int i = 0; i < outBatchNd; ++i) {
         xBatch[i] = (i < xb) ? xd.dim(2 + i) : 1;
         yBatch[i] = (i < yb) ? yd.dim(2 + i) : 1;
@@ -346,11 +350,11 @@ Value pagemtimesImpl(const Value &x, TranspOp tx, const Value &y, TranspOp ty, s
         outBatch[i] = std::max(xBatch[i], yBatch[i]);
     }
 
-    size_t batchN = 1;
+    keel::usize batchN = 1;
     for (int i = 0; i < outBatchNd; ++i) batchN *= outBatch[i];
 
     const int outNd = 2 + outBatchNd;
-    size_t outDimArr[kMaxNd];
+    keel::usize outDimArr[kMaxNd];
     outDimArr[0] = M;
     outDimArr[1] = N;
     for (int i = 0; i < outBatchNd; ++i) outDimArr[2 + i] = outBatch[i];
@@ -359,27 +363,27 @@ Value pagemtimesImpl(const Value &x, TranspOp tx, const Value &y, TranspOp ty, s
         return z;
 
     T *zData = static_cast<T *>(z.rawDataMut());
-    const size_t xPageStride = xRowDim * xColDim;
-    const size_t yPageStride = yRowDim * yColDim;
-    const size_t zPageStride = M * N;
+    const keel::usize xPageStride = xRowDim * xColDim;
+    const keel::usize yPageStride = yRowDim * yColDim;
+    const keel::usize zPageStride = M * N;
 
     // Direct-pass when source already matches T and no transpose is
     // needed; otherwise materialise into typed scratch (one per call,
     // reused across all batch pages).
     const bool xDirect = (x.type() == pagemtimesElemMType<T>()) && (tx == TranspOp::None);
     const bool yDirect = (y.type() == pagemtimesElemMType<T>()) && (ty == TranspOp::None);
-    ScratchArena scratch(mr);
-    ScratchVec<T> scratchX(&scratch), scratchY(&scratch);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<T> scratchX(scratch.allocator()), scratchY(scratch.allocator());
     if (!xDirect) scratchX.resize(xPageStride);
     if (!yDirect) scratchY.resize(yPageStride);
 
-    auto getXPage = [&](size_t pageOff) -> const T * {
+    auto getXPage = [&](keel::usize pageOff) -> const T * {
         if (xDirect)
             return static_cast<const T *>(x.rawData()) + pageOff * xPageStride;
         materialisePage(scratchX.data(), x, pageOff, xRowDim, xColDim, tx);
         return scratchX.data();
     };
-    auto getYPage = [&](size_t pageOff) -> const T * {
+    auto getYPage = [&](keel::usize pageOff) -> const T * {
         if (yDirect)
             return static_cast<const T *>(y.rawData()) + pageOff * yPageStride;
         materialisePage(scratchY.data(), y, pageOff, yRowDim, yColDim, ty);
@@ -391,9 +395,9 @@ Value pagemtimesImpl(const Value &x, TranspOp tx, const Value &y, TranspOp ty, s
         return z;
     }
 
-    size_t xBatchStride[kMaxNd], yBatchStride[kMaxNd];
+    keel::usize xBatchStride[kMaxNd], yBatchStride[kMaxNd];
     {
-        size_t sx = 1, sy = 1;
+        keel::usize sx = 1, sy = 1;
         for (int i = 0; i < outBatchNd; ++i) {
             xBatchStride[i] = sx;
             yBatchStride[i] = sy;
@@ -402,14 +406,14 @@ Value pagemtimesImpl(const Value &x, TranspOp tx, const Value &y, TranspOp ty, s
         }
     }
 
-    size_t coords[kMaxNd] = {0};
+    keel::usize coords[kMaxNd] = {0};
     Dims outBatchDims(outBatch, outBatchNd);
-    size_t pageIdx = 0;
+    keel::usize pageIdx = 0;
     do {
-        size_t xOff = 0, yOff = 0;
+        keel::usize xOff = 0, yOff = 0;
         for (int i = 0; i < outBatchNd; ++i) {
-            const size_t xc = (xBatch[i] == 1) ? 0 : coords[i];
-            const size_t yc = (yBatch[i] == 1) ? 0 : coords[i];
+            const keel::usize xc = (xBatch[i] == 1) ? 0 : coords[i];
+            const keel::usize yc = (yBatch[i] == 1) ? 0 : coords[i];
             xOff += xc * xBatchStride[i];
             yOff += yc * yBatchStride[i];
         }
@@ -428,13 +432,13 @@ namespace {
 // Promote to a 2D DOUBLE matrix for row-tuple ops. Returns a copy if the
 // type or shape differs; for already-2D-DOUBLE input returns by value
 // (cheap COW in the engine).
-Value toDoubleMatrix2D(const Value &x, const char *fn, std::pmr::memory_resource *mr)
+Value toDoubleMatrix2D(const Value &x, const char *fn, keel::Allocator *mr)
 {
     if (x.dims().is3D() || x.dims().ndim() > 2)
         throw Error(std::string(fn) + ": input must be 2D",
                      0, 0, fn, "", std::string("numkit:") + fn + ":bad2D");
-    const size_t R = x.dims().rows();
-    const size_t C = x.dims().cols();
+    const keel::usize R = x.dims().rows();
+    const keel::usize C = x.dims().cols();
     if (x.type() == ValueType::DOUBLE) {
         // Return a fresh DOUBLE matrix identical to x — cheap, avoids
         // touching the input through a shared buffer later.
@@ -446,7 +450,7 @@ Value toDoubleMatrix2D(const Value &x, const char *fn, std::pmr::memory_resource
     }
     auto r = Value::matrix(R, C, ValueType::DOUBLE, mr);
     double *dst = r.doubleDataMut();
-    for (size_t i = 0; i < x.numel(); ++i)
+    for (keel::usize i = 0; i < x.numel(); ++i)
         dst[i] = x.elemAsDouble(i);
     return r;
 }
@@ -456,51 +460,51 @@ Value toDoubleMatrix2D(const Value &x, const char *fn, std::pmr::memory_resource
 // then phase angle arg(z) ascending (a negative column index sorts that
 // column descending). A NaN component sorts last. Must NOT drop the
 // imaginary part (toDoubleMatrix2D does) — that silently returns wrong rows.
-inline bool cxRowLess(Complex a, Complex b)
+inline bool cxRowLess(keel::c64 a, keel::c64 b)
 {
-    const double am = std::abs(a), bm = std::abs(b);
+    const double am = keel::abs(a), bm = keel::abs(b);
     const bool an = std::isnan(am), bn = std::isnan(bm);
     if (an || bn) { if (an && bn) return false; return bn; }   // non-NaN < NaN
     if (am != bm) return am < bm;
-    return std::arg(a) < std::arg(b);
+    return keel::arg(a) < keel::arg(b);
 }
 
 std::tuple<Value, Value>
-sortRowsComplex(const Value &x, const int *cols, std::size_t nCols,
-                std::pmr::memory_resource *mr)
+sortRowsComplex(const Value &x, const int *cols, keel::usize nCols,
+                keel::Allocator *mr)
 {
     if (x.dims().is3D() || x.dims().ndim() > 2)
         throw Error("sortrows: input must be 2D",
                      0, 0, "sortrows", "", "numkit:sortrows:bad2D");
-    const size_t R = x.dims().rows();
-    const size_t C = x.dims().cols();
+    const keel::usize R = x.dims().rows();
+    const keel::usize C = x.dims().cols();
     if (R == 0)
         return std::make_tuple(x, Value::matrix(0, 1, ValueType::DOUBLE, mr));
 
-    ScratchArena scratch(mr);
-    ScratchVec<int> sortKeys(&scratch);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<int> sortKeys(scratch.allocator());
     if (nCols == 0) {
         sortKeys.reserve(C);
-        for (size_t c = 1; c <= C; ++c) sortKeys.push_back(static_cast<int>(c));
+        for (keel::usize c = 1; c <= C; ++c) sortKeys.push_back(static_cast<int>(c));
     } else {
-        sortKeys.assign(cols, cols + nCols);
+        sortKeys.assign(keel::ArrayRef<int>(cols, nCols));
         for (int rawCol : sortKeys) {
             const int absC = (rawCol < 0) ? -rawCol : rawCol;
-            if (rawCol == 0 || static_cast<size_t>(absC) > C)
+            if (rawCol == 0 || static_cast<keel::usize>(absC) > C)
                 throw Error("sortrows: column index out of range",
                              0, 0, "sortrows", "", "numkit:sortrows:badCol");
         }
     }
 
-    const Complex *src = x.complexData();
-    auto perm = ScratchVec<size_t>(R, &scratch);
-    for (size_t i = 0; i < R; ++i) perm[i] = i;
+    const keel::c64 *src = x.complexData();
+    auto perm = keel::Array<keel::usize>(R, scratch.allocator());
+    for (keel::usize i = 0; i < R; ++i) perm[i] = i;
     std::stable_sort(perm.begin(), perm.end(),
-        [&](size_t a, size_t b) {
+        [&](keel::usize a, keel::usize b) {
             for (int key : sortKeys) {
                 const bool desc = key < 0;
-                const size_t c = static_cast<size_t>((desc ? -key : key) - 1);
-                const Complex va = src[c * R + a], vb = src[c * R + b];
+                const keel::usize c = static_cast<keel::usize>((desc ? -key : key) - 1);
+                const keel::c64 va = src[c * R + a], vb = src[c * R + b];
                 if (cxRowLess(va, vb)) return !desc;
                 if (cxRowLess(vb, va)) return desc;
             }
@@ -508,25 +512,25 @@ sortRowsComplex(const Value &x, const int *cols, std::size_t nCols,
         });
 
     auto out = Value::matrix(R, C, ValueType::COMPLEX, mr);
-    Complex *dst = out.complexDataMut();
-    for (size_t i = 0; i < R; ++i)
-        for (size_t c = 0; c < C; ++c)
+    keel::c64 *dst = out.complexDataMut();
+    for (keel::usize i = 0; i < R; ++i)
+        for (keel::usize c = 0; c < C; ++c)
             dst[c * R + i] = src[c * R + perm[i]];
     auto idx = Value::matrix(R, 1, ValueType::DOUBLE, mr);
     double *idxP = idx.doubleDataMut();
-    for (size_t i = 0; i < R; ++i)
+    for (keel::usize i = 0; i < R; ++i)
         idxP[i] = static_cast<double>(perm[i] + 1);
     return std::make_tuple(std::move(out), std::move(idx));
 }
 
 std::tuple<Value, Value>
-sortRowsImpl(const Value &x, const int *cols, std::size_t nCols, std::pmr::memory_resource *mr)
+sortRowsImpl(const Value &x, const int *cols, keel::usize nCols, keel::Allocator *mr)
 {
     if (x.type() == ValueType::COMPLEX)
         return sortRowsComplex(x, cols, nCols, mr);
     auto m = toDoubleMatrix2D(x, "sortrows", mr);
-    const size_t R = m.dims().rows();
-    const size_t C = m.dims().cols();
+    const keel::usize R = m.dims().rows();
+    const keel::usize C = m.dims().cols();
 
     if (R == 0) {
         // Empty rows — return as-is and an empty 0×1 idx column.
@@ -534,30 +538,30 @@ sortRowsImpl(const Value &x, const int *cols, std::size_t nCols, std::pmr::memor
         return std::make_tuple(std::move(m), std::move(idx));
     }
 
-    ScratchArena scratch(mr);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
 
     // Validate cols list. nCols==0 ⇒ all columns ascending in order.
-    ScratchVec<int> sortKeys(&scratch);
+    keel::Array<int> sortKeys(scratch.allocator());
     if (nCols == 0) {
         sortKeys.reserve(C);
-        for (size_t c = 1; c <= C; ++c)
+        for (keel::usize c = 1; c <= C; ++c)
             sortKeys.push_back(static_cast<int>(c));
     } else {
-        sortKeys.assign(cols, cols + nCols);
+        sortKeys.assign(keel::ArrayRef<int>(cols, nCols));
         for (int rawCol : sortKeys) {
             const int absC = (rawCol < 0) ? -rawCol : rawCol;
-            if (rawCol == 0 || static_cast<size_t>(absC) > C)
+            if (rawCol == 0 || static_cast<keel::usize>(absC) > C)
                 throw Error("sortrows: column index out of range",
                              0, 0, "sortrows", "", "numkit:sortrows:badCol");
         }
     }
 
-    auto perm = ScratchVec<size_t>(R, &scratch);
-    for (size_t i = 0; i < R; ++i) perm[i] = i;
+    auto perm = keel::Array<keel::usize>(R, scratch.allocator());
+    for (keel::usize i = 0; i < R; ++i) perm[i] = i;
 
     const double *src = m.doubleData();
     std::stable_sort(perm.begin(), perm.end(),
-        [&](size_t a, size_t b) {
+        [&](keel::usize a, keel::usize b) {
             return numkit::ops::rowLexCmpByCols(src, C, R, a, b,
                                             sortKeys.data(), sortKeys.size()) < 0;
         });
@@ -565,7 +569,7 @@ sortRowsImpl(const Value &x, const int *cols, std::size_t nCols, std::pmr::memor
     auto sorted = numkit::ops::collectRowsByIndex(m, perm.data(), perm.size(), mr);
     auto idx = Value::matrix(R, 1, ValueType::DOUBLE, mr);
     double *idxP = idx.doubleDataMut();
-    for (size_t i = 0; i < R; ++i)
+    for (keel::usize i = 0; i < R; ++i)
         idxP[i] = static_cast<double>(perm[i] + 1);
     return std::make_tuple(std::move(sorted), std::move(idx));
 }
@@ -576,9 +580,9 @@ namespace {
 // Type-aware predicate: element at linear index i non-zero?
 // NaN counts as non-zero (NaN != 0). For COMPLEX both parts checked.
 template <typename T>
-inline bool isNonzeroElemT(const T *p, size_t i) { return p[i] != T{0}; }
+inline bool isNonzeroElemT(const T *p, keel::usize i) { return p[i] != T{0}; }
 
-inline bool isNonzeroComplex(const Complex *p, size_t i)
+inline bool isNonzeroComplex(const keel::c64 *p, keel::usize i)
 {
     return p[i].real() != 0.0 || p[i].imag() != 0.0;
 }
@@ -586,66 +590,66 @@ inline bool isNonzeroComplex(const Complex *p, size_t i)
 template <typename Visit>
 void forEachNonzero(const Value &x, Visit visit)
 {
-    const size_t n = x.numel();
+    const keel::usize n = x.numel();
     switch (x.type()) {
     case ValueType::LOGICAL: {
-        const uint8_t *p = x.logicalData();
-        for (size_t i = 0; i < n; ++i) if (p[i]) visit(i);
+        const keel::u8 *p = x.logicalData();
+        for (keel::usize i = 0; i < n; ++i) if (p[i]) visit(i);
         break;
     }
     case ValueType::DOUBLE: {
         const double *p = x.doubleData();
-        for (size_t i = 0; i < n; ++i) if (isNonzeroElemT(p, i)) visit(i);
+        for (keel::usize i = 0; i < n; ++i) if (isNonzeroElemT(p, i)) visit(i);
         break;
     }
     case ValueType::SINGLE: {
         const float *p = x.singleData();
-        for (size_t i = 0; i < n; ++i) if (isNonzeroElemT(p, i)) visit(i);
+        for (keel::usize i = 0; i < n; ++i) if (isNonzeroElemT(p, i)) visit(i);
         break;
     }
     case ValueType::COMPLEX: {
-        const Complex *p = x.complexData();
-        for (size_t i = 0; i < n; ++i) if (isNonzeroComplex(p, i)) visit(i);
+        const keel::c64 *p = x.complexData();
+        for (keel::usize i = 0; i < n; ++i) if (isNonzeroComplex(p, i)) visit(i);
         break;
     }
     case ValueType::INT8: {
-        const int8_t *p = x.int8Data();
-        for (size_t i = 0; i < n; ++i) if (isNonzeroElemT(p, i)) visit(i);
+        const keel::i8 *p = x.int8Data();
+        for (keel::usize i = 0; i < n; ++i) if (isNonzeroElemT(p, i)) visit(i);
         break;
     }
     case ValueType::INT16: {
-        const int16_t *p = x.int16Data();
-        for (size_t i = 0; i < n; ++i) if (isNonzeroElemT(p, i)) visit(i);
+        const keel::i16 *p = x.int16Data();
+        for (keel::usize i = 0; i < n; ++i) if (isNonzeroElemT(p, i)) visit(i);
         break;
     }
     case ValueType::INT32: {
-        const int32_t *p = x.int32Data();
-        for (size_t i = 0; i < n; ++i) if (isNonzeroElemT(p, i)) visit(i);
+        const keel::i32 *p = x.int32Data();
+        for (keel::usize i = 0; i < n; ++i) if (isNonzeroElemT(p, i)) visit(i);
         break;
     }
     case ValueType::INT64: {
-        const int64_t *p = x.int64Data();
-        for (size_t i = 0; i < n; ++i) if (isNonzeroElemT(p, i)) visit(i);
+        const keel::i64 *p = x.int64Data();
+        for (keel::usize i = 0; i < n; ++i) if (isNonzeroElemT(p, i)) visit(i);
         break;
     }
     case ValueType::UINT8: {
-        const uint8_t *p = x.uint8Data();
-        for (size_t i = 0; i < n; ++i) if (isNonzeroElemT(p, i)) visit(i);
+        const keel::u8 *p = x.uint8Data();
+        for (keel::usize i = 0; i < n; ++i) if (isNonzeroElemT(p, i)) visit(i);
         break;
     }
     case ValueType::UINT16: {
-        const uint16_t *p = x.uint16Data();
-        for (size_t i = 0; i < n; ++i) if (isNonzeroElemT(p, i)) visit(i);
+        const keel::u16 *p = x.uint16Data();
+        for (keel::usize i = 0; i < n; ++i) if (isNonzeroElemT(p, i)) visit(i);
         break;
     }
     case ValueType::UINT32: {
-        const uint32_t *p = x.uint32Data();
-        for (size_t i = 0; i < n; ++i) if (isNonzeroElemT(p, i)) visit(i);
+        const keel::u32 *p = x.uint32Data();
+        for (keel::usize i = 0; i < n; ++i) if (isNonzeroElemT(p, i)) visit(i);
         break;
     }
     case ValueType::UINT64: {
-        const uint64_t *p = x.uint64Data();
-        for (size_t i = 0; i < n; ++i) if (isNonzeroElemT(p, i)) visit(i);
+        const keel::u64 *p = x.uint64Data();
+        for (keel::usize i = 0; i < n; ++i) if (isNonzeroElemT(p, i)) visit(i);
         break;
     }
     default:
@@ -675,11 +679,11 @@ T *typedDstFor(Value &r, ValueType outType)
 }
 
 template <typename T, typename Reader>
-Value collectTypedNonzeros(const Value &x, ValueType outType, Reader read, std::pmr::memory_resource *mr)
+Value collectTypedNonzeros(const Value &x, ValueType outType, Reader read, keel::Allocator *mr)
 {
-    ScratchArena scratch(mr);
-    ScratchVec<T> vals(&scratch);
-    forEachNonzero(x, [&](size_t i) { vals.push_back(read(i)); });
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<T> vals(scratch.allocator());
+    forEachNonzero(x, [&](keel::usize i) { vals.push_back(read(i)); });
     auto r = Value::matrix(vals.size(), 1, outType, mr);
     if (!vals.empty()) {
         T *dst = typedDstFor<T>(r, outType);
@@ -701,14 +705,14 @@ namespace {
 // precision (accumulated through double) — the same limitation as the rest
 // of nk's numeric core; int8/16/32 and uint8/16/32 are exact.
 template <typename T>
-void cumIntegerScanInto(const Value &x, T *dst, size_t strideD, size_t lenD,
+void cumIntegerScanInto(const Value &x, T *dst, keel::usize strideD, keel::usize lenD,
                         bool isProd)
 {
     const double lo = static_cast<double>(std::numeric_limits<T>::min());
     const double hi = static_cast<double>(std::numeric_limits<T>::max());
-    const size_t n = x.numel();
-    for (size_t i = 0; i < n; ++i) {
-        const size_t coord = (i / strideD) % lenD;
+    const keel::usize n = x.numel();
+    for (keel::usize i = 0; i < n; ++i) {
+        const keel::usize coord = (i / strideD) % lenD;
         const double cur = x.elemAsDouble(i);
         double v = cur;
         if (coord != 0) {
@@ -722,7 +726,7 @@ void cumIntegerScanInto(const Value &x, T *dst, size_t strideD, size_t lenD,
 }
 
 Value cumIntegerNative(const Value &x, int dim, bool isProd,
-                       std::pmr::memory_resource *mr)
+                       keel::Allocator *mr)
 {
     const auto &dd = x.dims();
     const int nd = dd.ndim();
@@ -734,24 +738,24 @@ Value cumIntegerNative(const Value &x, int dim, bool isProd,
         for (int k = 0; k < nd; ++k)
             if (dd.dim(k) > 1) { d = k + 1; break; }
     }
-    size_t strideD = 1;
+    keel::usize strideD = 1;
     for (int k = 0; k < d - 1; ++k) strideD *= dd.dim(k);
-    const size_t lenD = (d - 1 < nd) ? dd.dim(d - 1) : 1;
+    const keel::usize lenD = (d - 1 < nd) ? dd.dim(d - 1) : 1;
 
-    size_t outDims[Dims::kMaxRank];
+    keel::usize outDims[Dims::kMaxRank];
     for (int k = 0; k < nd; ++k) outDims[k] = dd.dim(k);
     Value r = Value::matrixND(outDims, nd, x.type(), mr);
     if (x.numel() == 0 || lenD == 0 || strideD == 0) return r;
 
     switch (x.type()) {
-    case ValueType::INT8:   cumIntegerScanInto<int8_t>  (x, r.int8DataMut(),   strideD, lenD, isProd); break;
-    case ValueType::INT16:  cumIntegerScanInto<int16_t> (x, r.int16DataMut(),  strideD, lenD, isProd); break;
-    case ValueType::INT32:  cumIntegerScanInto<int32_t> (x, r.int32DataMut(),  strideD, lenD, isProd); break;
-    case ValueType::INT64:  cumIntegerScanInto<int64_t> (x, r.int64DataMut(),  strideD, lenD, isProd); break;
-    case ValueType::UINT8:  cumIntegerScanInto<uint8_t> (x, r.uint8DataMut(),  strideD, lenD, isProd); break;
-    case ValueType::UINT16: cumIntegerScanInto<uint16_t>(x, r.uint16DataMut(), strideD, lenD, isProd); break;
-    case ValueType::UINT32: cumIntegerScanInto<uint32_t>(x, r.uint32DataMut(), strideD, lenD, isProd); break;
-    case ValueType::UINT64: cumIntegerScanInto<uint64_t>(x, r.uint64DataMut(), strideD, lenD, isProd); break;
+    case ValueType::INT8:   cumIntegerScanInto<keel::i8>  (x, r.int8DataMut(),   strideD, lenD, isProd); break;
+    case ValueType::INT16:  cumIntegerScanInto<keel::i16> (x, r.int16DataMut(),  strideD, lenD, isProd); break;
+    case ValueType::INT32:  cumIntegerScanInto<keel::i32> (x, r.int32DataMut(),  strideD, lenD, isProd); break;
+    case ValueType::INT64:  cumIntegerScanInto<keel::i64> (x, r.int64DataMut(),  strideD, lenD, isProd); break;
+    case ValueType::UINT8:  cumIntegerScanInto<keel::u8> (x, r.uint8DataMut(),  strideD, lenD, isProd); break;
+    case ValueType::UINT16: cumIntegerScanInto<keel::u16>(x, r.uint16DataMut(), strideD, lenD, isProd); break;
+    case ValueType::UINT32: cumIntegerScanInto<keel::u32>(x, r.uint32DataMut(), strideD, lenD, isProd); break;
+    case ValueType::UINT64: cumIntegerScanInto<keel::u64>(x, r.uint64DataMut(), strideD, lenD, isProd); break;
     default: break;
     }
     return r;
@@ -762,7 +766,7 @@ Value cumIntegerNative(const Value &x, int dim, bool isProd,
 // Uniform inner-block (B) / outer-count (O) strides cover vector/2D/3D/ND.
 // (Complex isn't perf-critical here — correctness over a SIMD prefix scan.)
 Value cumComplexAlongDim(const Value &x, int d, bool isProd,
-                         std::pmr::memory_resource *mr)
+                         keel::Allocator *mr)
 {
     const auto &dd = x.dims();
     const int nd = dd.ndim();
@@ -770,23 +774,23 @@ Value cumComplexAlongDim(const Value &x, int d, bool isProd,
     if (nd > kMaxNd)
         throw Error("cumsum: rank exceeds 32",
                      0, 0, "cumsum", "", "numkit:cumsum:tooManyDims");
-    size_t outDims[kMaxNd];
+    keel::usize outDims[kMaxNd];
     for (int i = 0; i < nd; ++i) outDims[i] = dd.dim(i);
     auto r = Value::matrixND(outDims, nd, ValueType::COMPLEX, mr);
     if (x.numel() == 0) return r;
-    const size_t sliceLen = (d >= 1 && d <= nd) ? dd.dim(d - 1) : 1;
+    const keel::usize sliceLen = (d >= 1 && d <= nd) ? dd.dim(d - 1) : 1;
     if (sliceLen == 0) return r;
-    size_t B = 1; for (int i = 0; i < d - 1 && i < nd; ++i) B *= dd.dim(i);
-    size_t O = 1; for (int i = d; i < nd; ++i) O *= dd.dim(i);
-    const Complex *src = x.complexData();
-    Complex *dst = r.complexDataMut();
-    for (size_t o = 0; o < O; ++o)
-        for (size_t b = 0; b < B; ++b) {
-            const size_t base = o * sliceLen * B + b;
-            Complex acc = src[base];
+    keel::usize B = 1; for (int i = 0; i < d - 1 && i < nd; ++i) B *= dd.dim(i);
+    keel::usize O = 1; for (int i = d; i < nd; ++i) O *= dd.dim(i);
+    const keel::c64 *src = x.complexData();
+    keel::c64 *dst = r.complexDataMut();
+    for (keel::usize o = 0; o < O; ++o)
+        for (keel::usize b = 0; b < B; ++b) {
+            const keel::usize base = o * sliceLen * B + b;
+            keel::c64 acc = src[base];
             dst[base] = acc;
-            for (size_t k = 1; k < sliceLen; ++k) {
-                const Complex v = src[base + k * B];
+            for (keel::usize k = 1; k < sliceLen; ++k) {
+                const keel::c64 v = src[base + k * B];
                 acc = isProd ? acc * v : acc + v;
                 dst[base + k * B] = acc;
             }
@@ -803,7 +807,7 @@ Value cumComplexAlongDim(const Value &x, int d, bool isProd,
 // math/.../reductions_detail.hpp — keep the order rule in sync. (Complex isn't
 // perf-critical here — correctness over a SIMD scan.)
 Value cumComplexMinMaxAlongDim(const Value &x, int d, bool isMax,
-                               std::pmr::memory_resource *mr)
+                               keel::Allocator *mr)
 {
     const auto &dd = x.dims();
     const int nd = dd.ndim();
@@ -811,32 +815,32 @@ Value cumComplexMinMaxAlongDim(const Value &x, int d, bool isMax,
     if (nd > kMaxNd)
         throw Error("cummax: rank exceeds 32",
                      0, 0, "cummax", "", "numkit:cummax:tooManyDims");
-    size_t outDims[kMaxNd];
+    keel::usize outDims[kMaxNd];
     for (int i = 0; i < nd; ++i) outDims[i] = dd.dim(i);
     auto r = Value::matrixND(outDims, nd, ValueType::COMPLEX, mr);
     if (x.numel() == 0) return r;
-    const size_t sliceLen = (d >= 1 && d <= nd) ? dd.dim(d - 1) : 1;
+    const keel::usize sliceLen = (d >= 1 && d <= nd) ? dd.dim(d - 1) : 1;
     if (sliceLen == 0) return r;
-    size_t B = 1; for (int i = 0; i < d - 1 && i < nd; ++i) B *= dd.dim(i);
-    size_t O = 1; for (int i = d; i < nd; ++i) O *= dd.dim(i);
-    const Complex *src = x.complexData();
-    Complex *dst = r.complexDataMut();
-    auto isMissing = [](Complex z) {
+    keel::usize B = 1; for (int i = 0; i < d - 1 && i < nd; ++i) B *= dd.dim(i);
+    keel::usize O = 1; for (int i = d; i < nd; ++i) O *= dd.dim(i);
+    const keel::c64 *src = x.complexData();
+    keel::c64 *dst = r.complexDataMut();
+    auto isMissing = [](keel::c64 z) {
         return std::isnan(z.real()) || std::isnan(z.imag());
     };
-    auto vBetter = [&](Complex v, Complex best) {
-        const double av = std::abs(v), ab = std::abs(best);
+    auto vBetter = [&](keel::c64 v, keel::c64 best) {
+        const double av = keel::abs(v), ab = keel::abs(best);
         if (av != ab) return isMax ? (av > ab) : (av < ab);
-        const double gv = std::arg(v), gb = std::arg(best);
+        const double gv = keel::arg(v), gb = keel::arg(best);
         return isMax ? (gv > gb) : (gv < gb);
     };
-    for (size_t o = 0; o < O; ++o)
-        for (size_t b = 0; b < B; ++b) {
-            const size_t base = o * sliceLen * B + b;
-            Complex acc = src[base];
+    for (keel::usize o = 0; o < O; ++o)
+        for (keel::usize b = 0; b < B; ++b) {
+            const keel::usize base = o * sliceLen * B + b;
+            keel::c64 acc = src[base];
             dst[base] = acc;
-            for (size_t k = 1; k < sliceLen; ++k) {
-                const Complex v = src[base + k * B];
+            for (keel::usize k = 1; k < sliceLen; ++k) {
+                const keel::c64 v = src[base + k * B];
                 if (isMissing(v)) {
                     // omitnan: skip the missing operand, carry acc forward.
                 } else if (isMissing(acc) || vBetter(v, acc)) {
@@ -864,41 +868,41 @@ template <typename Op>
 void cumKernel(const Value &x, int d, Op op, double *dst)
 {
     const auto &dd = x.dims();
-    const size_t R = dd.rows(), C = dd.cols();
-    const size_t P = dd.is3D() ? dd.pages() : 1;
+    const keel::usize R = dd.rows(), C = dd.cols();
+    const keel::usize P = dd.is3D() ? dd.pages() : 1;
     const double *src = x.doubleData();
 
     if (d == 1) {
-        for (size_t pp = 0; pp < P; ++pp)
-            for (size_t c = 0; c < C; ++c) {
-                const size_t base = pp * R * C + c * R;
+        for (keel::usize pp = 0; pp < P; ++pp)
+            for (keel::usize c = 0; c < C; ++c) {
+                const keel::usize base = pp * R * C + c * R;
                 if (R == 0) continue;
                 double acc = src[base];
                 dst[base] = acc;
-                for (size_t rr = 1; rr < R; ++rr) {
+                for (keel::usize rr = 1; rr < R; ++rr) {
                     acc = op(acc, src[base + rr]);
                     dst[base + rr] = acc;
                 }
             }
     } else if (d == 2) {
-        for (size_t pp = 0; pp < P; ++pp)
-            for (size_t rr = 0; rr < R; ++rr) {
-                const size_t pageBase = pp * R * C;
+        for (keel::usize pp = 0; pp < P; ++pp)
+            for (keel::usize rr = 0; rr < R; ++rr) {
+                const keel::usize pageBase = pp * R * C;
                 if (C == 0) continue;
                 double acc = src[pageBase + rr];
                 dst[pageBase + rr] = acc;
-                for (size_t c = 1; c < C; ++c) {
+                for (keel::usize c = 1; c < C; ++c) {
                     acc = op(acc, src[pageBase + c * R + rr]);
                     dst[pageBase + c * R + rr] = acc;
                 }
             }
     } else if (d == 3) {
-        for (size_t c = 0; c < C; ++c)
-            for (size_t rr = 0; rr < R; ++rr) {
+        for (keel::usize c = 0; c < C; ++c)
+            for (keel::usize rr = 0; rr < R; ++rr) {
                 if (P == 0) continue;
                 double acc = src[c * R + rr];
                 dst[c * R + rr] = acc;
-                for (size_t pp = 1; pp < P; ++pp) {
+                for (keel::usize pp = 1; pp < P; ++pp) {
                     acc = op(acc, src[pp * R * C + c * R + rr]);
                     dst[pp * R * C + c * R + rr] = acc;
                 }
@@ -907,7 +911,7 @@ void cumKernel(const Value &x, int d, Op op, double *dst)
 }
 
 template <typename Op>
-Value cumImpl(const Value &x, int dim, Op op, const char *fn, std::pmr::memory_resource *mr)
+Value cumImpl(const Value &x, int dim, Op op, const char *fn, keel::Allocator *mr)
 {
     if (x.isEmpty())
         return Value::matrix(0, 0, ValueType::DOUBLE, mr);
@@ -918,7 +922,7 @@ Value cumImpl(const Value &x, int dim, Op op, const char *fn, std::pmr::memory_r
         if (x.numel() == 0) return r;
         double acc = x.doubleData()[0];
         r.doubleDataMut()[0] = acc;
-        for (size_t i = 1; i < x.numel(); ++i) {
+        for (keel::usize i = 1; i < x.numel(); ++i) {
             acc = op(acc, x.doubleData()[i]);
             r.doubleDataMut()[i] = acc;
         }
@@ -938,10 +942,10 @@ Value cumImpl(const Value &x, int dim, Op op, const char *fn, std::pmr::memory_r
 } // namespace
 namespace {
 
-using ScanFn = void (*)(const double *, double *, std::size_t);
+using ScanFn = void (*)(const double *, double *, keel::usize);
 
 template <typename Op>
-Value cumScanDispatch(const Value &x, int dim, ScanFn scan, Op scalarOp, const char *fn, std::pmr::memory_resource *mr)
+Value cumScanDispatch(const Value &x, int dim, ScanFn scan, Op scalarOp, const char *fn, keel::Allocator *mr)
 {
     if (x.isEmpty())
         return Value::matrix(0, 0, ValueType::DOUBLE, mr);
@@ -965,29 +969,29 @@ Value cumScanDispatch(const Value &x, int dim, ScanFn scan, Op scalarOp, const c
         if (dd.ndim() > kMaxNd)
             throw Error(std::string(fn) + ": rank exceeds 32",
                          0, 0, fn, "", std::string("numkit:") + fn + ":tooManyDims");
-        size_t outDims[kMaxNd];
+        keel::usize outDims[kMaxNd];
         for (int i = 0; i < dd.ndim(); ++i) outDims[i] = dd.dim(i);
         auto r = Value::matrixND(outDims, dd.ndim(), ValueType::DOUBLE, mr);
-        const size_t sliceLen = dd.dim(d - 1);
-        size_t B = 1;
+        const keel::usize sliceLen = dd.dim(d - 1);
+        keel::usize B = 1;
         for (int i = 0; i < d - 1; ++i) B *= dd.dim(i);
-        size_t O = 1;
+        keel::usize O = 1;
         for (int i = d; i < dd.ndim(); ++i) O *= dd.dim(i);
         const double *src = x.doubleData();
         double *dst = r.doubleDataMut();
         if (B == 1) {
-            for (size_t o = 0; o < O; ++o) {
-                const size_t base = o * sliceLen;
+            for (keel::usize o = 0; o < O; ++o) {
+                const keel::usize base = o * sliceLen;
                 scan(src + base, dst + base, sliceLen);
             }
         } else {
-            for (size_t o = 0; o < O; ++o)
-                for (size_t b = 0; b < B; ++b) {
-                    const size_t base = o * sliceLen * B + b;
+            for (keel::usize o = 0; o < O; ++o)
+                for (keel::usize b = 0; b < B; ++b) {
+                    const keel::usize base = o * sliceLen * B + b;
                     if (sliceLen == 0) continue;
                     double acc = src[base];
                     dst[base] = acc;
-                    for (size_t k = 1; k < sliceLen; ++k) {
+                    for (keel::usize k = 1; k < sliceLen; ++k) {
                         acc = scalarOp(acc, src[base + k * B]);
                         dst[base + k * B] = acc;
                     }
@@ -996,8 +1000,8 @@ Value cumScanDispatch(const Value &x, int dim, ScanFn scan, Op scalarOp, const c
         return r;
     }
 
-    const size_t R = dd.rows(), C = dd.cols();
-    const size_t P = dd.is3D() ? dd.pages() : 1;
+    const keel::usize R = dd.rows(), C = dd.cols();
+    const keel::usize P = dd.is3D() ? dd.pages() : 1;
     auto r = dd.is3D() ? Value::matrix3d(R, C, P, ValueType::DOUBLE, mr)
                        : Value::matrix(R, C, ValueType::DOUBLE, mr);
     const double *src = x.doubleData();
@@ -1005,9 +1009,9 @@ Value cumScanDispatch(const Value &x, int dim, ScanFn scan, Op scalarOp, const c
 
     if (d == 1) {
         // Per-column scan — column data is contiguous, route through SIMD.
-        for (size_t pp = 0; pp < P; ++pp)
-            for (size_t c = 0; c < C; ++c) {
-                const size_t base = pp * R * C + c * R;
+        for (keel::usize pp = 0; pp < P; ++pp)
+            for (keel::usize c = 0; c < C; ++c) {
+                const keel::usize base = pp * R * C + c * R;
                 scan(src + base, dst + base, R);
             }
     } else {
@@ -1022,14 +1026,14 @@ namespace {
 // cummax / cummin PRESERVE the logical class (unlike cumsum / cumprod, which
 // promote logical → double). Run the double kernel on a promoted copy, then
 // narrow the 0/1 result back to LOGICAL — mirrors xorOf's double→logical step.
-Value logicalizeCumResult(const Value &d, std::pmr::memory_resource *mr)
+Value logicalizeCumResult(const Value &d, keel::Allocator *mr)
 {
     if (d.isScalar()) return Value::logicalScalar(d.toScalar() != 0.0, mr);
     Value r = createLike(d, ValueType::LOGICAL, mr);
-    uint8_t *dst = r.logicalDataMut();
+    keel::u8 *dst = r.logicalDataMut();
     const double *src = d.doubleData();
-    const size_t n = d.numel();
-    for (size_t i = 0; i < n; ++i) dst[i] = (src[i] != 0.0) ? 1 : 0;
+    const keel::usize n = d.numel();
+    for (keel::usize i = 0; i < n; ++i) dst[i] = (src[i] != 0.0) ? 1 : 0;
     return r;
 }
 
@@ -1038,13 +1042,13 @@ Value logicalizeCumResult(const Value &d, std::pmr::memory_resource *mr)
 // by code point, preserving the char class). Cannot reuse toChar(): it routes
 // through fromString and FLATTENS a matrix to a row. createLike preserves dims
 // (2-D / N-D); the column-major layout matches the double buffer 1:1.
-Value charizeSortResult(const Value &d, std::pmr::memory_resource *mr)
+Value charizeSortResult(const Value &d, keel::Allocator *mr)
 {
     Value r = createLike(d, ValueType::CHAR, mr);
     char *dst = r.charDataMut();
     const double *src = d.doubleData();
-    const size_t n = d.numel();
-    for (size_t i = 0; i < n; ++i)
+    const keel::usize n = d.numel();
+    for (keel::usize i = 0; i < n; ++i)
         dst[i] = static_cast<char>(static_cast<int>(src[i]));
     return r;
 }
@@ -1058,29 +1062,29 @@ void diffOnceDouble(const double *src, double *dst,
                     const Dims &srcDims, int d)
 {
     const int nd = srcDims.ndim();
-    const size_t sliceLen = srcDims.dim(d - 1);
+    const keel::usize sliceLen = srcDims.dim(d - 1);
     if (sliceLen < 2) return;  // out has zero elements
 
-    size_t innerStride = 1;
+    keel::usize innerStride = 1;
     for (int i = 0; i < d - 1; ++i) innerStride *= srcDims.dim(i);
-    size_t outerCount = 1;
+    keel::usize outerCount = 1;
     for (int i = d; i < nd; ++i) outerCount *= srcDims.dim(i);
-    const size_t outSliceLen = sliceLen - 1;
+    const keel::usize outSliceLen = sliceLen - 1;
 
     if (innerStride == 1) {
         // Contiguous along the diff axis — simple linear pass per outer block.
-        for (size_t o = 0; o < outerCount; ++o) {
+        for (keel::usize o = 0; o < outerCount; ++o) {
             const double *s = src + o * sliceLen;
             double *t = dst + o * outSliceLen;
-            for (size_t k = 0; k < outSliceLen; ++k)
+            for (keel::usize k = 0; k < outSliceLen; ++k)
                 t[k] = s[k + 1] - s[k];
         }
     } else {
-        for (size_t o = 0; o < outerCount; ++o)
-            for (size_t b = 0; b < innerStride; ++b) {
-                const size_t srcBase = o * innerStride * sliceLen + b;
-                const size_t dstBase = o * innerStride * outSliceLen + b;
-                for (size_t k = 0; k < outSliceLen; ++k)
+        for (keel::usize o = 0; o < outerCount; ++o)
+            for (keel::usize b = 0; b < innerStride; ++b) {
+                const keel::usize srcBase = o * innerStride * sliceLen + b;
+                const keel::usize dstBase = o * innerStride * outSliceLen + b;
+                for (keel::usize k = 0; k < outSliceLen; ++k)
                     dst[dstBase + k * innerStride] =
                         src[srcBase + (k + 1) * innerStride] -
                         src[srcBase + k * innerStride];
@@ -1088,15 +1092,15 @@ void diffOnceDouble(const double *src, double *dst,
     }
 }
 
-Value makeDiffOutput(const Dims &srcDims, int d, size_t step, ValueType vt,
-                     std::pmr::memory_resource *mr)
+Value makeDiffOutput(const Dims &srcDims, int d, keel::usize step, ValueType vt,
+                     keel::Allocator *mr)
 {
     const int nd = srcDims.ndim();
     constexpr int kMaxNd = Dims::kMaxRank;
     if (nd > kMaxNd)
         throw Error("diff: rank exceeds 32",
                      0, 0, "diff", "", "numkit:diff:tooManyDims");
-    size_t outDims[kMaxNd];
+    keel::usize outDims[kMaxNd];
     for (int i = 0; i < nd; ++i) outDims[i] = srcDims.dim(i);
     outDims[d - 1] = (outDims[d - 1] >= step) ? outDims[d - 1] - step : 0;
     return Value::matrixND(outDims, nd, vt, mr);
@@ -1104,28 +1108,28 @@ Value makeDiffOutput(const Dims &srcDims, int d, size_t step, ValueType vt,
 
 // Complex counterpart of diffOnceDouble — successive differences over Complex
 // storage (real and imaginary differenced together), same strided layout.
-void diffOnceComplex(const Complex *src, Complex *dst, const Dims &srcDims, int d)
+void diffOnceComplex(const keel::c64 *src, keel::c64 *dst, const Dims &srcDims, int d)
 {
     const int nd = srcDims.ndim();
-    const size_t sliceLen = srcDims.dim(d - 1);
+    const keel::usize sliceLen = srcDims.dim(d - 1);
     if (sliceLen < 2) return;
-    size_t innerStride = 1;
+    keel::usize innerStride = 1;
     for (int i = 0; i < d - 1; ++i) innerStride *= srcDims.dim(i);
-    size_t outerCount = 1;
+    keel::usize outerCount = 1;
     for (int i = d; i < nd; ++i) outerCount *= srcDims.dim(i);
-    const size_t outSliceLen = sliceLen - 1;
+    const keel::usize outSliceLen = sliceLen - 1;
     if (innerStride == 1) {
-        for (size_t o = 0; o < outerCount; ++o) {
-            const Complex *s = src + o * sliceLen;
-            Complex *t = dst + o * outSliceLen;
-            for (size_t k = 0; k < outSliceLen; ++k) t[k] = s[k + 1] - s[k];
+        for (keel::usize o = 0; o < outerCount; ++o) {
+            const keel::c64 *s = src + o * sliceLen;
+            keel::c64 *t = dst + o * outSliceLen;
+            for (keel::usize k = 0; k < outSliceLen; ++k) t[k] = s[k + 1] - s[k];
         }
     } else {
-        for (size_t o = 0; o < outerCount; ++o)
-            for (size_t b = 0; b < innerStride; ++b) {
-                const size_t srcBase = o * innerStride * sliceLen + b;
-                const size_t dstBase = o * innerStride * outSliceLen + b;
-                for (size_t k = 0; k < outSliceLen; ++k)
+        for (keel::usize o = 0; o < outerCount; ++o)
+            for (keel::usize b = 0; b < innerStride; ++b) {
+                const keel::usize srcBase = o * innerStride * sliceLen + b;
+                const keel::usize dstBase = o * innerStride * outSliceLen + b;
+                for (keel::usize k = 0; k < outSliceLen; ++k)
                     dst[dstBase + k * innerStride] =
                         src[srcBase + (k + 1) * innerStride] -
                         src[srcBase + k * innerStride];
@@ -1134,24 +1138,24 @@ void diffOnceComplex(const Complex *src, Complex *dst, const Dims &srcDims, int 
 }
 
 // Identity copy of a COMPLEX value (preserves shape + both parts).
-Value copyComplexSameShape(const Value &x, std::pmr::memory_resource *mr)
+Value copyComplexSameShape(const Value &x, keel::Allocator *mr)
 {
     const auto &dd = x.dims();
     const int nd = dd.ndim();
-    size_t dims[Dims::kMaxRank];
+    keel::usize dims[Dims::kMaxRank];
     for (int i = 0; i < nd; ++i) dims[i] = dd.dim(i);
     auto r = Value::matrixND(dims, nd, ValueType::COMPLEX, mr);
     if (x.numel() > 0)
-        std::memcpy(r.complexDataMut(), x.complexData(), x.numel() * sizeof(Complex));
+        std::memcpy(r.complexDataMut(), x.complexData(), x.numel() * sizeof(keel::c64));
     return r;
 }
 
-Value copyToDouble(const Value &x, std::pmr::memory_resource *mr)
+Value copyToDouble(const Value &x, keel::Allocator *mr)
 {
     const auto &dd = x.dims();
     const int nd = dd.ndim();
     constexpr int kMaxNd = Dims::kMaxRank;
-    size_t dims[kMaxNd];
+    keel::usize dims[kMaxNd];
     for (int i = 0; i < nd; ++i) dims[i] = dd.dim(i);
     auto r = Value::matrixND(dims, nd, ValueType::DOUBLE, mr);
     if (x.type() == ValueType::DOUBLE) {
@@ -1159,7 +1163,7 @@ Value copyToDouble(const Value &x, std::pmr::memory_resource *mr)
                     x.numel() * sizeof(double));
     } else {
         double *dst = r.doubleDataMut();
-        for (size_t i = 0; i < x.numel(); ++i)
+        for (keel::usize i = 0; i < x.numel(); ++i)
             dst[i] = x.elemAsDouble(i);
     }
     return r;
@@ -1172,12 +1176,12 @@ template <typename T>
 void diffOnceIntegerT(const T *src, T *dst, const Dims &srcDims, int d)
 {
     const int nd = srcDims.ndim();
-    const size_t sliceLen = srcDims.dim(d - 1);
-    size_t innerStride = 1;
+    const keel::usize sliceLen = srcDims.dim(d - 1);
+    keel::usize innerStride = 1;
     for (int i = 0; i < d - 1; ++i) innerStride *= srcDims.dim(i);
-    size_t outerCount = 1;
+    keel::usize outerCount = 1;
     for (int i = d; i < nd; ++i) outerCount *= srcDims.dim(i);
-    const size_t outSliceLen = sliceLen - 1;
+    const keel::usize outSliceLen = sliceLen - 1;
     const double lo = static_cast<double>(std::numeric_limits<T>::min());
     const double hi = static_cast<double>(std::numeric_limits<T>::max());
     auto sub = [&](T a, T b) -> T {
@@ -1187,17 +1191,17 @@ void diffOnceIntegerT(const T *src, T *dst, const Dims &srcDims, int d)
         return static_cast<T>(v);
     };
     if (innerStride == 1) {
-        for (size_t o = 0; o < outerCount; ++o) {
+        for (keel::usize o = 0; o < outerCount; ++o) {
             const T *s = src + o * sliceLen;
             T *t = dst + o * outSliceLen;
-            for (size_t k = 0; k < outSliceLen; ++k) t[k] = sub(s[k + 1], s[k]);
+            for (keel::usize k = 0; k < outSliceLen; ++k) t[k] = sub(s[k + 1], s[k]);
         }
     } else {
-        for (size_t o = 0; o < outerCount; ++o)
-            for (size_t b = 0; b < innerStride; ++b) {
-                const size_t srcBase = o * innerStride * sliceLen + b;
-                const size_t dstBase = o * innerStride * outSliceLen + b;
-                for (size_t k = 0; k < outSliceLen; ++k)
+        for (keel::usize o = 0; o < outerCount; ++o)
+            for (keel::usize b = 0; b < innerStride; ++b) {
+                const keel::usize srcBase = o * innerStride * sliceLen + b;
+                const keel::usize dstBase = o * innerStride * outSliceLen + b;
+                for (keel::usize k = 0; k < outSliceLen; ++k)
                     dst[dstBase + k * innerStride] =
                         sub(src[srcBase + (k + 1) * innerStride],
                             src[srcBase + k * innerStride]);
@@ -1208,26 +1212,26 @@ void diffOnceIntegerT(const T *src, T *dst, const Dims &srcDims, int d)
 // n-th order diff of an integer-typed Value: keeps the class and saturates at
 // each pass (the saturated pass-k result feeds pass k+1). Caller guarantees
 // sliceLen > n along d.
-Value diffInteger(const Value &x, int n, int d, std::pmr::memory_resource *mr)
+Value diffInteger(const Value &x, int n, int d, keel::Allocator *mr)
 {
     const ValueType vt = x.type();
     Value cur = copyIntegerSameClass(x, mr);
     for (int pass = 0; pass < n; ++pass) {
         const auto &curDims = cur.dims();
         const int nd = curDims.ndim();
-        size_t outDims[Dims::kMaxRank];
+        keel::usize outDims[Dims::kMaxRank];
         for (int i = 0; i < nd; ++i) outDims[i] = curDims.dim(i);
         outDims[d - 1] = (outDims[d - 1] >= 1) ? outDims[d - 1] - 1 : 0;
         Value out = Value::matrixND(outDims, nd, vt, mr);
         switch (vt) {
-        case ValueType::INT8:   diffOnceIntegerT<int8_t>  (cur.int8Data(),   out.int8DataMut(),   curDims, d); break;
-        case ValueType::INT16:  diffOnceIntegerT<int16_t> (cur.int16Data(),  out.int16DataMut(),  curDims, d); break;
-        case ValueType::INT32:  diffOnceIntegerT<int32_t> (cur.int32Data(),  out.int32DataMut(),  curDims, d); break;
-        case ValueType::INT64:  diffOnceIntegerT<int64_t> (cur.int64Data(),  out.int64DataMut(),  curDims, d); break;
-        case ValueType::UINT8:  diffOnceIntegerT<uint8_t> (cur.uint8Data(),  out.uint8DataMut(),  curDims, d); break;
-        case ValueType::UINT16: diffOnceIntegerT<uint16_t>(cur.uint16Data(), out.uint16DataMut(), curDims, d); break;
-        case ValueType::UINT32: diffOnceIntegerT<uint32_t>(cur.uint32Data(), out.uint32DataMut(), curDims, d); break;
-        case ValueType::UINT64: diffOnceIntegerT<uint64_t>(cur.uint64Data(), out.uint64DataMut(), curDims, d); break;
+        case ValueType::INT8:   diffOnceIntegerT<keel::i8>  (cur.int8Data(),   out.int8DataMut(),   curDims, d); break;
+        case ValueType::INT16:  diffOnceIntegerT<keel::i16> (cur.int16Data(),  out.int16DataMut(),  curDims, d); break;
+        case ValueType::INT32:  diffOnceIntegerT<keel::i32> (cur.int32Data(),  out.int32DataMut(),  curDims, d); break;
+        case ValueType::INT64:  diffOnceIntegerT<keel::i64> (cur.int64Data(),  out.int64DataMut(),  curDims, d); break;
+        case ValueType::UINT8:  diffOnceIntegerT<keel::u8> (cur.uint8Data(),  out.uint8DataMut(),  curDims, d); break;
+        case ValueType::UINT16: diffOnceIntegerT<keel::u16>(cur.uint16Data(), out.uint16DataMut(), curDims, d); break;
+        case ValueType::UINT32: diffOnceIntegerT<keel::u32>(cur.uint32Data(), out.uint32DataMut(), curDims, d); break;
+        case ValueType::UINT64: diffOnceIntegerT<keel::u64>(cur.uint64Data(), out.uint64DataMut(), curDims, d); break;
         default: break;
         }
         cur = std::move(out);
@@ -1239,11 +1243,11 @@ Value diffInteger(const Value &x, int n, int d, std::pmr::memory_resource *mr)
 namespace {
 
 // Used by xor below — small inputs, no need for a SIMD path.
-Value promoteToDouble(const Value &x, std::pmr::memory_resource *mr)
+Value promoteToDouble(const Value &x, keel::Allocator *mr)
 {
     if (x.type() == ValueType::DOUBLE) return x;
     auto r = createLike(x, ValueType::DOUBLE, mr);
-    for (size_t i = 0; i < x.numel(); ++i)
+    for (keel::usize i = 0; i < x.numel(); ++i)
         r.doubleDataMut()[i] = x.elemAsDouble(i);
     return r;
 }
@@ -1251,10 +1255,10 @@ Value promoteToDouble(const Value &x, std::pmr::memory_resource *mr)
 } // namespace
 
 // topkrows worker (def in matrix.cpp, external).
-Value topkrows_full(const Value &A, std::size_t k,
-                    const std::vector<std::size_t> &colsIn,
-                    const std::vector<std::uint8_t> &descIn,
-                    std::vector<std::size_t> *out_idx,
-                    std::pmr::memory_resource *mr);
+Value topkrows_full(const Value &A, keel::usize k,
+                    const std::vector<keel::usize> &colsIn,
+                    const std::vector<keel::u8> &descIn,
+                    std::vector<keel::usize> *out_idx,
+                    keel::Allocator *mr);
 
 } // namespace numkit::builtin

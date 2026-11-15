@@ -3,6 +3,12 @@
 // chol / lu / qr / svd â€” implementations and engine adapters.
 // Migrated from toolboxes/builtin/src/language/arrays/matrix.cpp.
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/arena.h>
+#include <keel/array.h>
+#include <keel/complex.h>
+#include <keel/math.h>
 #include <numkit/linalg/decompositions.hpp>
 #include <numkit/ops/blas.hpp>
 #include <numkit/ops/la_solve.hpp>
@@ -13,8 +19,6 @@
 // wrappers) live in decompositions_reg.cpp.
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
-#include <numkit/value/scratch.hpp>
-#include <numkit/value/span.hpp>
 
 #include <algorithm>
 #include <cctype>
@@ -32,26 +36,26 @@ namespace numkit::linalg {
 // Shared raw-buffer kernels (defined as inline templates in decompositions_detail.hpp)
 
 template <typename T>
-static std::size_t cholUpperTiled(T *r, std::size_t n, std::size_t ldr) {
-    constexpr std::size_t B_SIZE = 64;
-    for (std::size_t j = 0; j < n; j += B_SIZE) {
-        std::size_t jb = std::min(B_SIZE, n - j);
+static keel::usize cholUpperTiled(T *r, keel::usize n, keel::usize ldr) {
+    constexpr keel::usize B_SIZE = 64;
+    for (keel::usize j = 0; j < n; j += B_SIZE) {
+        keel::usize jb = std::min(B_SIZE, n - j);
         
         // 1. Factor diagonal block (sequentially)
-        for (std::size_t k = j; k < j + jb; ++k) {
+        for (keel::usize k = j; k < j + jb; ++k) {
             if constexpr (detail::is_complex_v<T>) {
-                if (std::abs(r[k + k * ldr].imag()) > 1e-11) return k + 1;
+                if (keel::abs(r[k + k * ldr].imag()) > 1e-11) return k + 1;
             }
             double s_real = detail::real_part(r[k + k * ldr]);
             if (s_real <= 0.0) return k + 1;
             const double diag = std::sqrt(s_real);
             r[k + k * ldr] = T(diag);
             const T inv_diag = T(1.0 / diag);
-            for (std::size_t col = k + 1; col < j + jb; ++col) {
+            for (keel::usize col = k + 1; col < j + jb; ++col) {
                 r[k + col * ldr] *= inv_diag;
-                for (std::size_t row = k + 1; row <= col; ++row) {
+                for (keel::usize row = k + 1; row <= col; ++row) {
                     if constexpr (detail::is_complex_v<T>) {
-                        r[row + col * ldr] -= std::conj(r[k + row * ldr]) * r[k + col * ldr];
+                        r[row + col * ldr] -= keel::conj(r[k + row * ldr]) * r[k + col * ldr];
                     } else {
                         r[row + col * ldr] -= r[k + row * ldr] * r[k + col * ldr];
                     }
@@ -77,28 +81,28 @@ static std::size_t cholUpperTiled(T *r, std::size_t n, std::size_t ldr) {
 }
 
 template <typename T>
-static std::size_t cholUpperFactorBlockedImpl(const T *a, T *r, std::size_t n) {
+static keel::usize cholUpperFactorBlockedImpl(const T *a, T *r, keel::usize n) {
     std::fill(r, r + n * n, T(0));
-    for (std::size_t col = 0; col < n; ++col) {
-        for (std::size_t row = 0; row <= col; ++row) {
+    for (keel::usize col = 0; col < n; ++col) {
+        for (keel::usize row = 0; row <= col; ++row) {
             r[row + col * n] = a[row + col * n];
         }
     }
     return cholUpperTiled(r, n, n);
 }
 
-static std::size_t cholUpperFactorBlocked(const double *a, double *r, std::size_t n) {
+static keel::usize cholUpperFactorBlocked(const double *a, double *r, keel::usize n) {
     return cholUpperFactorBlockedImpl(a, r, n);
 }
 
-Value chol(const Value &A, std::pmr::memory_resource *mr)
+Value chol(const Value &A, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "chol");
     if (A.dims().ndim() != 2)
         throw Error("chol: input must be a 2D matrix",
                     0, 0, "chol", "", "numkit:chol:notMatrix");
-    const std::size_t m = static_cast<std::size_t>(A.dims().dim(0));
-    const std::size_t n = static_cast<std::size_t>(A.dims().dim(1));
+    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
+    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
     if (m != n)
         throw Error("chol: matrix must be square",
                     0, 0, "chol", "", "numkit:chol:notSquare");
@@ -110,11 +114,11 @@ Value chol(const Value &A, std::pmr::memory_resource *mr)
 
     if (Aw.isComplex()) {
         const auto *ad = Aw.complexData();
-        for (std::size_t j = 0; j < n; ++j) {
-            if (std::abs(ad[j + j * n].imag()) > 1e-11)
+        for (keel::usize j = 0; j < n; ++j) {
+            if (keel::abs(ad[j + j * n].imag()) > 1e-11)
                 throw Error("chol: matrix is not positive-definite", 0, 0, "chol", "", "numkit:chol:notPosDef");
-            for (std::size_t i = j + 1; i < n; ++i) {
-                if (std::abs(ad[i + j * n] - std::conj(ad[j + i * n])) > 1e-11)
+            for (keel::usize i = j + 1; i < n; ++i) {
+                if (keel::abs(ad[i + j * n] - keel::conj(ad[j + i * n])) > 1e-11)
                     throw Error("chol: matrix is not positive-definite", 0, 0, "chol", "", "numkit:chol:notPosDef");
             }
         }
@@ -139,36 +143,36 @@ Value chol(const Value &A, std::pmr::memory_resource *mr)
 namespace {
 
 template <typename T>
-void lu_factor_general(T *LU, std::size_t m, std::size_t n, std::int32_t *piv)
+void lu_factor_general(T *LU, keel::usize m, keel::usize n, keel::i32 *piv)
 {
-    const std::size_t k = std::min(m, n);
+    const keel::usize k = std::min(m, n);
     if (k == 0) return;
 
     // General fallback for wide (m < n) or singular matrices: partial pivoting
     // without failing on zero pivots.
-    for (std::size_t j = 0; j < k; ++j) {
-        std::size_t p = j;
+    for (keel::usize j = 0; j < k; ++j) {
+        keel::usize p = j;
         double max_val = detail::abs_val(LU[j + j * m]);
-        for (std::size_t i = j + 1; i < m; ++i) {
+        for (keel::usize i = j + 1; i < m; ++i) {
             const double v = detail::abs_val(LU[i + j * m]);
             if (v > max_val) {
                 max_val = v;
                 p = i;
             }
         }
-        piv[j] = static_cast<std::int32_t>(p);
+        piv[j] = static_cast<keel::i32>(p);
         if (p != j) {
-            for (std::size_t c = 0; c < n; ++c)
+            for (keel::usize c = 0; c < n; ++c)
                 std::swap(LU[j + c * m], LU[p + c * m]);
         }
         const T diag = LU[j + j * m];
         if (detail::abs_val(diag) != 0.0) {
-            for (std::size_t i = j + 1; i < m; ++i)
+            for (keel::usize i = j + 1; i < m; ++i)
                 LU[i + j * m] /= diag;
-            for (std::size_t c = j + 1; c < n; ++c) {
+            for (keel::usize c = j + 1; c < n; ++c) {
                 const T ujc = LU[j + c * m];
                 if (ujc == T(0)) continue;
-                for (std::size_t i = j + 1; i < m; ++i)
+                for (keel::usize i = j + 1; i < m; ++i)
                     LU[i + c * m] -= LU[i + j * m] * ujc;
             }
         }
@@ -177,14 +181,14 @@ void lu_factor_general(T *LU, std::size_t m, std::size_t n, std::int32_t *piv)
 
 template <typename T>
 std::tuple<Value, Value, Value>
-lu_decompose_impl(const Value &A, std::pmr::memory_resource *mr)
+lu_decompose_impl(const Value &A, keel::Allocator *mr)
 {
-    const std::size_t m = static_cast<std::size_t>(A.dims().dim(0));
-    const std::size_t n = static_cast<std::size_t>(A.dims().dim(1));
-    const std::size_t k = std::min(m, n);
-    ScratchArena scratch(mr);
-    ScratchVec<T> LU(m * n, &scratch);
-    ScratchVec<std::int32_t> piv(std::max<std::size_t>(k, 1), &scratch);
+    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
+    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
+    const keel::usize k = std::min(m, n);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<T> LU(m * n, scratch.allocator());
+    keel::Array<keel::i32> piv(std::max<keel::usize>(k, 1), scratch.allocator());
     const T *src = detail::get_data<T>(A);
     std::copy(src, src + m * n, LU.begin());
     if (m >= n) {
@@ -206,34 +210,34 @@ lu_decompose_impl(const Value &A, std::pmr::memory_resource *mr)
     std::fill(U, U + k * n, T(0));
     std::fill(P, P + m * m, 0.0);
 
-    for (std::size_t j = 0; j < k; ++j) {
+    for (keel::usize j = 0; j < k; ++j) {
         L[j + j * m] = T(1);
-        for (std::size_t i = j + 1; i < m; ++i)
+        for (keel::usize i = j + 1; i < m; ++i)
             L[i + j * m] = LU[i + j * m];
     }
-    for (std::size_t j = 0; j < n; ++j) {
-        const std::size_t i_max = std::min(j + 1, k);
-        for (std::size_t i = 0; i < i_max; ++i)
+    for (keel::usize j = 0; j < n; ++j) {
+        const keel::usize i_max = std::min(j + 1, k);
+        for (keel::usize i = 0; i < i_max; ++i)
             U[i + j * k] = LU[i + j * m];
     }
-    std::vector<std::size_t> perm(m);
-    for (std::size_t i = 0; i < m; ++i) perm[i] = i;
-    for (std::size_t j = 0; j < k; ++j)
+    std::vector<keel::usize> perm(m);
+    for (keel::usize i = 0; i < m; ++i) perm[i] = i;
+    for (keel::usize j = 0; j < k; ++j)
         std::swap(perm[j], perm[piv[j]]);
-    for (std::size_t i = 0; i < m; ++i)
+    for (keel::usize i = 0; i < m; ++i)
         P[i + perm[i] * m] = 1.0;
 
     return std::make_tuple(detail::narrow_if_real(Lout), detail::narrow_if_real(Uout), std::move(Pout));
 }
 
 template <typename T>
-Value lu_combined_impl(const Value &A, std::pmr::memory_resource *mr)
+Value lu_combined_impl(const Value &A, keel::Allocator *mr)
 {
-    const std::size_t m = static_cast<std::size_t>(A.dims().dim(0));
-    const std::size_t n = static_cast<std::size_t>(A.dims().dim(1));
-    const std::size_t k = std::min(m, n);
-    ScratchArena scratch(mr);
-    ScratchVec<std::int32_t> piv(std::max<std::size_t>(k, 1), &scratch);
+    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
+    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
+    const keel::usize k = std::min(m, n);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<keel::i32> piv(std::max<keel::usize>(k, 1), scratch.allocator());
     Value out = detail::make_matrix<T>(m, n, mr);
     T *LU = detail::get_data_mut<T>(out);
     const T *src = detail::get_data<T>(A);
@@ -252,7 +256,7 @@ Value lu_combined_impl(const Value &A, std::pmr::memory_resource *mr)
 } // anonymous namespace
 
 std::tuple<Value, Value, Value>
-lu_decompose(const Value &A, std::pmr::memory_resource *mr)
+lu_decompose(const Value &A, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "lu");
     if (A.dims().ndim() != 2)
@@ -263,7 +267,7 @@ lu_decompose(const Value &A, std::pmr::memory_resource *mr)
     const Value Aw = detail::widenSingleToDouble(A, mr);
 
     auto [L, U, P] = Aw.isComplex()
-        ? lu_decompose_impl<detail::Complex>(Aw, mr)
+        ? lu_decompose_impl<keel::c64>(Aw, mr)
         : lu_decompose_impl<double>(Aw, mr);
     if (wantSingle) {
         L = detail::narrowDoubleToSingle(L, mr);
@@ -273,7 +277,7 @@ lu_decompose(const Value &A, std::pmr::memory_resource *mr)
     return std::make_tuple(std::move(L), std::move(U), std::move(P));
 }
 
-Value lu_combined(const Value &A, std::pmr::memory_resource *mr)
+Value lu_combined(const Value &A, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "lu");
     if (A.dims().ndim() != 2)
@@ -284,7 +288,7 @@ Value lu_combined(const Value &A, std::pmr::memory_resource *mr)
     const Value Aw = detail::widenSingleToDouble(A, mr);
 
     if (Aw.isComplex()) {
-        return detail::narrowDoubleToSingleIf(lu_combined_impl<detail::Complex>(Aw, mr), wantSingle, mr);
+        return detail::narrowDoubleToSingleIf(lu_combined_impl<keel::c64>(Aw, mr), wantSingle, mr);
     }
     return detail::narrowDoubleToSingleIf(lu_combined_impl<double>(Aw, mr), wantSingle, mr);
 }
@@ -298,24 +302,24 @@ namespace {
 // Householder QR with explicit Q construction. Decomposes mÃ—n A
 // (m >= n) into Q (mÃ—m orthogonal/unitary) and R (mÃ—n upper-triangular).
 template <typename T>
-void qrFullHouseholder(const T *A_in, std::size_t m, std::size_t n,
+void qrFullHouseholder(const T *A_in, keel::usize m, keel::usize n,
                        T *Qout, T *Rout,
-                       std::pmr::memory_resource *mr)
+                       keel::Allocator *mr)
 {
-    ScratchArena scratch(mr);
-    ScratchVec<T> R_work(m * n, &scratch);
-    ScratchVec<T> V(m * n, T(0), &scratch);
-    ScratchVec<T> tau(n, T(0), &scratch);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<T> R_work(m * n, scratch.allocator());
+    keel::Array<T> V(m * n, T(0), scratch.allocator());
+    keel::Array<T> tau(n, T(0), scratch.allocator());
     std::copy(A_in, A_in + m * n, R_work.begin());
 
-    for (std::size_t k = 0; k < n; ++k) {
+    for (keel::usize k = 0; k < n; ++k) {
         // LAPACK dlarfg rule: when the SUBDIAGONAL tail is entirely
         // zero, tau = 0 and the diagonal is left UNCHANGED â€” no
         // reflector is applied. (Always true for the trailing 1x1
         // block of a square matrix, which is why our last R diagonal
         // and Q column came out sign-flipped vs MATLAB/LAPACK.)
         double tail_sq = 0.0;
-        for (std::size_t i = k + 1; i < m; ++i)
+        for (keel::usize i = k + 1; i < m; ++i)
             tail_sq += detail::abs_sq(R_work[i + k * m]);
         if (tail_sq == 0.0) {
             tau[k] = T(0);
@@ -332,7 +336,7 @@ void qrFullHouseholder(const T *A_in, std::size_t m, std::size_t n,
 
         T alpha;
         if constexpr (detail::is_complex_v<T>) {
-            const double abs_xk = std::abs(xk);
+            const double abs_xk = keel::abs(xk);
             const T phase = (abs_xk > 0.0) ? (xk / abs_xk) : T(1.0, 0.0);
             alpha = -phase * norm;
         } else {
@@ -340,11 +344,11 @@ void qrFullHouseholder(const T *A_in, std::size_t m, std::size_t n,
         }
 
         V[k + k * m] = xk - alpha;
-        for (std::size_t i = k + 1; i < m; ++i)
+        for (keel::usize i = k + 1; i < m; ++i)
             V[i + k * m] = R_work[i + k * m];
 
         double v_norm_sq = 0.0;
-        for (std::size_t i = k; i < m; ++i)
+        for (keel::usize i = k; i < m; ++i)
             v_norm_sq += detail::abs_sq(V[i + k * m]);
 
         if (v_norm_sq == 0.0) {
@@ -353,46 +357,46 @@ void qrFullHouseholder(const T *A_in, std::size_t m, std::size_t n,
             continue;
         }
         tau[k] = T(2.0 / v_norm_sq);
-        for (std::size_t j = k + 1; j < n; ++j) {
+        for (keel::usize j = k + 1; j < n; ++j) {
             T dot = T(0);
-            for (std::size_t i = k; i < m; ++i) {
+            for (keel::usize i = k; i < m; ++i) {
                 if constexpr (detail::is_complex_v<T>) {
-                    dot += std::conj(V[i + k * m]) * R_work[i + j * m];
+                    dot += keel::conj(V[i + k * m]) * R_work[i + j * m];
                 } else {
                     dot += V[i + k * m] * R_work[i + j * m];
                 }
             }
             const T s = tau[k] * dot;
-            for (std::size_t i = k; i < m; ++i)
+            for (keel::usize i = k; i < m; ++i)
                 R_work[i + j * m] -= s * V[i + k * m];
         }
         R_work[k + k * m] = alpha;
-        for (std::size_t i = k + 1; i < m; ++i)
+        for (keel::usize i = k + 1; i < m; ++i)
             R_work[i + k * m] = T(0);
     }
 
-    for (std::size_t j = 0; j < n; ++j)
-        for (std::size_t i = 0; i < m; ++i)
+    for (keel::usize j = 0; j < n; ++j)
+        for (keel::usize i = 0; i < m; ++i)
             Rout[i + j * m] = (i <= j) ? R_work[i + j * m] : T(0);
 
     std::fill(Qout, Qout + m * m, T(0));
-    for (std::size_t i = 0; i < m; ++i)
+    for (keel::usize i = 0; i < m; ++i)
         Qout[i + i * m] = T(1);
 
-    for (std::size_t kk = n; kk-- > 0;) {
-        const std::size_t k = kk;
+    for (keel::usize kk = n; kk-- > 0;) {
+        const keel::usize k = kk;
         if (detail::abs_sq(tau[k]) == 0.0) continue;
-        for (std::size_t j = 0; j < m; ++j) {
+        for (keel::usize j = 0; j < m; ++j) {
             T dot = T(0);
-            for (std::size_t i = k; i < m; ++i) {
+            for (keel::usize i = k; i < m; ++i) {
                 if constexpr (detail::is_complex_v<T>) {
-                    dot += std::conj(V[i + k * m]) * Qout[i + j * m];
+                    dot += keel::conj(V[i + k * m]) * Qout[i + j * m];
                 } else {
                     dot += V[i + k * m] * Qout[i + j * m];
                 }
             }
             const T s = tau[k] * dot;
-            for (std::size_t i = k; i < m; ++i)
+            for (keel::usize i = k; i < m; ++i)
                 Qout[i + j * m] -= s * V[i + k * m];
         }
     }
@@ -400,35 +404,35 @@ void qrFullHouseholder(const T *A_in, std::size_t m, std::size_t n,
 
 // Column-pivoted Householder QR: AÂ·P = QÂ·R
 template <typename T>
-void qrPivotedHouseholder(const T *A_in, std::size_t m, std::size_t n,
-                          T *Qout, T *Rout, std::size_t *permOut,
-                          std::pmr::memory_resource *mr)
+void qrPivotedHouseholder(const T *A_in, keel::usize m, keel::usize n,
+                          T *Qout, T *Rout, keel::usize *permOut,
+                          keel::Allocator *mr)
 {
-    ScratchArena scratch(mr);
-    ScratchVec<T> R_work(m * n, &scratch);
-    ScratchVec<T> V(m * n, T(0), &scratch);
-    ScratchVec<T> tau(n, T(0), &scratch);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<T> R_work(m * n, scratch.allocator());
+    keel::Array<T> V(m * n, T(0), scratch.allocator());
+    keel::Array<T> tau(n, T(0), scratch.allocator());
     std::copy(A_in, A_in + m * n, R_work.begin());
-    for (std::size_t j = 0; j < n; ++j) permOut[j] = j;
+    for (keel::usize j = 0; j < n; ++j) permOut[j] = j;
 
-    for (std::size_t k = 0; k < n; ++k) {
-        std::size_t pj = k;
+    for (keel::usize k = 0; k < n; ++k) {
+        keel::usize pj = k;
         double pmax = -1.0;
-        for (std::size_t j = k; j < n; ++j) {
+        for (keel::usize j = k; j < n; ++j) {
             double s = 0.0;
-            for (std::size_t i = k; i < m; ++i) {
+            for (keel::usize i = k; i < m; ++i) {
                 s += detail::abs_sq(R_work[i + j * m]);
             }
             if (s > pmax) { pmax = s; pj = j; }
         }
         if (pj != k) {
-            for (std::size_t i = 0; i < m; ++i)
+            for (keel::usize i = 0; i < m; ++i)
                 std::swap(R_work[i + k * m], R_work[i + pj * m]);
             std::swap(permOut[k], permOut[pj]);
         }
         // dlarfg tail rule â€” see qrFullHouseholder.
         double norm_sq = 0.0;
-        for (std::size_t i = k + 1; i < m; ++i) {
+        for (keel::usize i = k + 1; i < m; ++i) {
             norm_sq += detail::abs_sq(R_work[i + k * m]);
         }
         if (norm_sq == 0.0) { tau[k] = T(0); continue; }
@@ -439,7 +443,7 @@ void qrPivotedHouseholder(const T *A_in, std::size_t m, std::size_t n,
 
         T alpha;
         if constexpr (detail::is_complex_v<T>) {
-            const double abs_xk = std::abs(xk);
+            const double abs_xk = keel::abs(xk);
             const T phase = (abs_xk > 0.0) ? (xk / abs_xk) : T(1.0, 0.0);
             alpha = -phase * norm;
         } else {
@@ -447,47 +451,47 @@ void qrPivotedHouseholder(const T *A_in, std::size_t m, std::size_t n,
         }
 
         V[k + k * m] = xk - alpha;
-        for (std::size_t i = k + 1; i < m; ++i) V[i + k * m] = R_work[i + k * m];
+        for (keel::usize i = k + 1; i < m; ++i) V[i + k * m] = R_work[i + k * m];
         double v_norm_sq = 0.0;
-        for (std::size_t i = k; i < m; ++i) v_norm_sq += detail::abs_sq(V[i + k * m]);
+        for (keel::usize i = k; i < m; ++i) v_norm_sq += detail::abs_sq(V[i + k * m]);
         if (v_norm_sq == 0.0) { R_work[k + k * m] = alpha; tau[k] = T(0); continue; }
         tau[k] = T(2.0 / v_norm_sq);
-        for (std::size_t j = k + 1; j < n; ++j) {
+        for (keel::usize j = k + 1; j < n; ++j) {
             T dot = T(0);
-            for (std::size_t i = k; i < m; ++i) {
+            for (keel::usize i = k; i < m; ++i) {
                 if constexpr (detail::is_complex_v<T>) {
-                    dot += std::conj(V[i + k * m]) * R_work[i + j * m];
+                    dot += keel::conj(V[i + k * m]) * R_work[i + j * m];
                 } else {
                     dot += V[i + k * m] * R_work[i + j * m];
                 }
             }
             const T s = tau[k] * dot;
-            for (std::size_t i = k; i < m; ++i) R_work[i + j * m] -= s * V[i + k * m];
+            for (keel::usize i = k; i < m; ++i) R_work[i + j * m] -= s * V[i + k * m];
         }
         R_work[k + k * m] = alpha;
-        for (std::size_t i = k + 1; i < m; ++i) R_work[i + k * m] = T(0);
+        for (keel::usize i = k + 1; i < m; ++i) R_work[i + k * m] = T(0);
     }
 
-    for (std::size_t j = 0; j < n; ++j)
-        for (std::size_t i = 0; i < m; ++i)
+    for (keel::usize j = 0; j < n; ++j)
+        for (keel::usize i = 0; i < m; ++i)
             Rout[i + j * m] = (i <= j) ? R_work[i + j * m] : T(0);
 
     std::fill(Qout, Qout + m * m, T(0));
-    for (std::size_t i = 0; i < m; ++i) Qout[i + i * m] = T(1);
-    for (std::size_t kk = n; kk-- > 0;) {
-        const std::size_t k = kk;
+    for (keel::usize i = 0; i < m; ++i) Qout[i + i * m] = T(1);
+    for (keel::usize kk = n; kk-- > 0;) {
+        const keel::usize k = kk;
         if (detail::abs_sq(tau[k]) == 0.0) continue;
-        for (std::size_t j = 0; j < m; ++j) {
+        for (keel::usize j = 0; j < m; ++j) {
             T dot = T(0);
-            for (std::size_t i = k; i < m; ++i) {
+            for (keel::usize i = k; i < m; ++i) {
                 if constexpr (detail::is_complex_v<T>) {
-                    dot += std::conj(V[i + k * m]) * Qout[i + j * m];
+                    dot += keel::conj(V[i + k * m]) * Qout[i + j * m];
                 } else {
                     dot += V[i + k * m] * Qout[i + j * m];
                 }
             }
             const T s = tau[k] * dot;
-            for (std::size_t i = k; i < m; ++i) Qout[i + j * m] -= s * V[i + k * m];
+            for (keel::usize i = k; i < m; ++i) Qout[i + j * m] -= s * V[i + k * m];
         }
     }
 }
@@ -495,14 +499,14 @@ void qrPivotedHouseholder(const T *A_in, std::size_t m, std::size_t n,
 } // anonymous namespace
 
 std::tuple<Value, Value>
-qr_decompose(const Value &A, std::pmr::memory_resource *mr)
+qr_decompose(const Value &A, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "qr");
     if (A.dims().ndim() != 2)
         throw Error("qr: input must be a 2D matrix",
                     0, 0, "qr", "", "numkit:qr:notMatrix");
-    const std::size_t m = static_cast<std::size_t>(A.dims().dim(0));
-    const std::size_t n = static_cast<std::size_t>(A.dims().dim(1));
+    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
+    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
     if (m < n)
         throw Error("qr: number of rows must be >= number of columns "
                     "(wide matrices via row-pivoted QR are deferred)",
@@ -525,42 +529,42 @@ qr_decompose(const Value &A, std::pmr::memory_resource *mr)
         detail::narrowDoubleToSingleIf(R, wantSingle, mr));
 }
 
-Value qr_R_only(const Value &A, std::pmr::memory_resource *mr)
+Value qr_R_only(const Value &A, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "qr");
     if (A.dims().ndim() != 2)
         throw Error("qr: input must be a 2D matrix",
                     0, 0, "qr", "", "numkit:qr:notMatrix");
-    const std::size_t m = static_cast<std::size_t>(A.dims().dim(0));
-    const std::size_t n = static_cast<std::size_t>(A.dims().dim(1));
+    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
+    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
     if (m < n)
         throw Error("qr: number of rows must be >= number of columns",
                     0, 0, "qr", "", "numkit:qr:wide");
     const bool wantSingle = (A.type() == ValueType::SINGLE);
     const Value Aw = detail::widenSingleToDouble(A, mr);
-    ScratchArena scratch(mr);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
     if (Aw.isComplex()) {
-        ScratchVec<detail::Complex> Q_unused(m * m, &scratch);
+        keel::Array<keel::c64> Q_unused(m * m, scratch.allocator());
         auto R = Value::complexMatrix(m, n, mr);
         qrFullHouseholder(Aw.complexData(), m, n, Q_unused.data(), R.complexDataMut(), mr);
         return detail::narrowDoubleToSingleIf(detail::narrow_if_real(R, mr), wantSingle, mr);
     }
-    ScratchVec<double> Q_unused(m * m, &scratch);
+    keel::Array<double> Q_unused(m * m, scratch.allocator());
     auto R = Value::matrix(m, n, ValueType::DOUBLE, mr);
     qrFullHouseholder(Aw.doubleData(), m, n, Q_unused.data(), R.doubleDataMut(), mr);
     return detail::narrowDoubleToSingleIf(R, wantSingle, mr);
 }
 
 std::tuple<Value, Value>
-qr_pivoted(const Value &A, std::vector<std::size_t> &perm,
-           std::pmr::memory_resource *mr)
+qr_pivoted(const Value &A, std::vector<keel::usize> &perm,
+           keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "qr");
     if (A.dims().ndim() != 2)
         throw Error("qr: input must be a 2D matrix",
                     0, 0, "qr", "", "numkit:qr:notMatrix");
-    const std::size_t m = static_cast<std::size_t>(A.dims().dim(0));
-    const std::size_t n = static_cast<std::size_t>(A.dims().dim(1));
+    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
+    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
     if (m < n)
         throw Error("qr: number of rows must be >= number of columns "
                     "(wide matrices via row-pivoted QR are deferred)",
@@ -595,26 +599,26 @@ namespace {
 // One-sided Jacobi SVD: rotates columns of A until they become orthogonal.
 // Caller normalises columns and assembles U, S, V.
 template <typename T>
-void jacobiSvdInplace(T *A, std::size_t m, std::size_t n,
-                      T *V, std::size_t maxSweeps, double tol)
+void jacobiSvdInplace(T *A, keel::usize m, keel::usize n,
+                      T *V, keel::usize maxSweeps, double tol)
 {
     std::fill(V, V + n * n, T(0));
-    for (std::size_t i = 0; i < n; ++i) V[i + i * n] = T(1);
+    for (keel::usize i = 0; i < n; ++i) V[i + i * n] = T(1);
 
-    auto colDot = [&](std::size_t p, std::size_t q) -> T {
+    auto colDot = [&](keel::usize p, keel::usize q) -> T {
         T s(0);
-        for (std::size_t i = 0; i < m; ++i) {
+        for (keel::usize i = 0; i < m; ++i) {
             if constexpr (detail::is_complex_v<T>) {
-                s += std::conj(A[i + p * m]) * A[i + q * m];
+                s += keel::conj(A[i + p * m]) * A[i + q * m];
             } else {
                 s += A[i + p * m] * A[i + q * m];
             }
         }
         return s;
     };
-    auto rotateCols = [&](T *M, std::size_t leadDim, std::size_t nrows,
-                          std::size_t p, std::size_t q, double c, T s) {
-        for (std::size_t i = 0; i < nrows; ++i) {
+    auto rotateCols = [&](T *M, keel::usize leadDim, keel::usize nrows,
+                          keel::usize p, keel::usize q, double c, T s) {
+        for (keel::usize i = 0; i < nrows; ++i) {
             const T mip = M[i + p * leadDim];
             const T miq = M[i + q * leadDim];
             M[i + p * leadDim] = c * mip - detail::conj_if_complex(s) * miq;
@@ -622,10 +626,10 @@ void jacobiSvdInplace(T *A, std::size_t m, std::size_t n,
         }
     };
 
-    for (std::size_t sweep = 0; sweep < maxSweeps; ++sweep) {
+    for (keel::usize sweep = 0; sweep < maxSweeps; ++sweep) {
         double off = 0.0;
-        for (std::size_t p = 0; p + 1 < n; ++p) {
-            for (std::size_t q = p + 1; q < n; ++q) {
+        for (keel::usize p = 0; p + 1 < n; ++p) {
+            for (keel::usize q = p + 1; q < n; ++q) {
                 const double alpha = detail::real_part(colDot(p, p));
                 const double beta  = detail::real_part(colDot(q, q));
                 const T gamma_val  = colDot(p, q);
@@ -667,14 +671,14 @@ void jacobiSvdInplace(T *A, std::size_t m, std::size_t n,
 } // anonymous namespace
 
 std::tuple<Value, Value, Value>
-svd_decompose(const Value &A, std::pmr::memory_resource *mr)
+svd_decompose(const Value &A, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "svd");
     if (A.dims().ndim() != 2)
         throw Error("svd: input must be a 2D matrix",
                     0, 0, "svd", "", "numkit:svd:notMatrix");
-    const std::size_t m_in = static_cast<std::size_t>(A.dims().dim(0));
-    const std::size_t n_in = static_cast<std::size_t>(A.dims().dim(1));
+    const keel::usize m_in = static_cast<keel::usize>(A.dims().dim(0));
+    const keel::usize n_in = static_cast<keel::usize>(A.dims().dim(1));
     const bool wantSingle = (A.type() == ValueType::SINGLE);
 
     if (m_in == 0 || n_in == 0) {
@@ -688,68 +692,68 @@ svd_decompose(const Value &A, std::pmr::memory_resource *mr)
 
     if (Aw.isComplex()) {
         const bool transposed = (m_in < n_in);
-        const std::size_t m = transposed ? n_in : m_in;
-        const std::size_t n = transposed ? m_in : n_in;
+        const keel::usize m = transposed ? n_in : m_in;
+        const keel::usize n = transposed ? m_in : n_in;
 
-        ScratchArena scratch(mr);
-        ScratchVec<Complex> A_work(m * n, &scratch);
-        ScratchVec<Complex> V_work(n * n, &scratch);
+        keel::ArenaTemp scratch = keel::get_scratch(mr);
+        keel::Array<keel::c64> A_work(m * n, scratch.allocator());
+        keel::Array<keel::c64> V_work(n * n, scratch.allocator());
 
-        const Complex *A_data = Aw.complexData();
+        const keel::c64 *A_data = Aw.complexData();
         if (!transposed) {
             std::copy(A_data, A_data + m * n, A_work.begin());
         } else {
             // Conjugate transpose (Hermitian transpose) for m_in < n_in
-            for (std::size_t j = 0; j < n_in; ++j)
-                for (std::size_t i = 0; i < m_in; ++i)
-                    A_work[j + i * n_in] = std::conj(A_data[i + j * m_in]);
+            for (keel::usize j = 0; j < n_in; ++j)
+                for (keel::usize i = 0; i < m_in; ++i)
+                    A_work[j + i * n_in] = keel::conj(A_data[i + j * m_in]);
         }
 
         jacobiSvdInplace(A_work.data(), m, n, V_work.data(), 64, 1e-13);
 
-        ScratchVec<double> sigma(n, &scratch);
-        ScratchVec<std::size_t> order(n, &scratch);
-        for (std::size_t k = 0; k < n; ++k) {
+        keel::Array<double> sigma(n, scratch.allocator());
+        keel::Array<keel::usize> order(n, scratch.allocator());
+        for (keel::usize k = 0; k < n; ++k) {
             double s = 0.0;
-            for (std::size_t i = 0; i < m; ++i)
+            for (keel::usize i = 0; i < m; ++i)
                 s += detail::abs_sq(A_work[i + k * m]);
             sigma[k] = std::sqrt(s);
             order[k] = k;
         }
         std::sort(order.begin(), order.end(),
-                  [&](std::size_t a, std::size_t b) { return sigma[a] > sigma[b]; });
+                  [&](keel::usize a, keel::usize b) { return sigma[a] > sigma[b]; });
 
         auto Uout = Value::complexMatrix(m, m, mr);
         auto Sout = Value::matrix(m, n, ValueType::DOUBLE, mr);
         auto Vout = Value::complexMatrix(n, n, mr);
-        Complex *U = Uout.complexDataMut();
+        keel::c64 *U = Uout.complexDataMut();
         double *S = Sout.doubleDataMut();
-        Complex *V = Vout.complexDataMut();
-        std::fill(U, U + m * m, Complex(0.0, 0.0));
+        keel::c64 *V = Vout.complexDataMut();
+        std::fill(U, U + m * m, keel::c64(0.0, 0.0));
         std::fill(S, S + m * n, 0.0);
-        std::fill(V, V + n * n, Complex(0.0, 0.0));
+        std::fill(V, V + n * n, keel::c64(0.0, 0.0));
 
-        std::size_t r_nz = 0;
-        for (std::size_t k = 0; k < n; ++k) {
-            const std::size_t src = order[k];
+        keel::usize r_nz = 0;
+        for (keel::usize k = 0; k < n; ++k) {
+            const keel::usize src = order[k];
             S[k + k * m] = sigma[src];
             if (sigma[src] > 0.0) {
                 const double inv_s = 1.0 / sigma[src];
-                for (std::size_t i = 0; i < m; ++i)
+                for (keel::usize i = 0; i < m; ++i)
                     U[i + k * m] = A_work[i + src * m] * inv_s;
                 r_nz = k + 1;
             }
-            for (std::size_t i = 0; i < n; ++i)
+            for (keel::usize i = 0; i < n; ++i)
                 V[i + k * n] = V_work[i + src * n];
         }
 
         // Complete U to an m-by-m unitary matrix in O(m^2 * r_nz) via Householder QR.
         if (r_nz == 0) {
-            for (std::size_t i = 0; i < m; ++i)
-                U[i + i * m] = Complex(1.0, 0.0);
+            for (keel::usize i = 0; i < m; ++i)
+                U[i + i * m] = keel::c64(1.0, 0.0);
         } else if (r_nz < m) {
-            ScratchVec<Complex> Q_full(m * m, &scratch);
-            ScratchVec<Complex> R_dummy(m * r_nz, &scratch);
+            keel::Array<keel::c64> Q_full(m * m, scratch.allocator());
+            keel::Array<keel::c64> R_dummy(m * r_nz, scratch.allocator());
             qrFullHouseholder(U, m, r_nz, Q_full.data(), R_dummy.data(), mr);
             std::copy(Q_full.data() + r_nz * m, Q_full.data() + m * m, U + r_nz * m);
         }
@@ -762,8 +766,8 @@ svd_decompose(const Value &A, std::pmr::memory_resource *mr)
         auto S_out_tr = Value::matrix(m_in, n_in, ValueType::DOUBLE, mr);
         double *St = S_out_tr.doubleDataMut();
         std::fill(St, St + m_in * n_in, 0.0);
-        const std::size_t k_diag = std::min(m_in, n_in);
-        for (std::size_t k = 0; k < k_diag; ++k)
+        const keel::usize k_diag = std::min(m_in, n_in);
+        for (keel::usize k = 0; k < k_diag; ++k)
             St[k + k * m_in] = S[k + k * m];
         return std::make_tuple(detail::narrow_if_real(Vout, mr),
                                std::move(S_out_tr),
@@ -771,19 +775,19 @@ svd_decompose(const Value &A, std::pmr::memory_resource *mr)
     }
 
     const bool transposed = (m_in < n_in);
-    const std::size_t m = transposed ? n_in : m_in;
-    const std::size_t n = transposed ? m_in : n_in;
+    const keel::usize m = transposed ? n_in : m_in;
+    const keel::usize n = transposed ? m_in : n_in;
 
-    ScratchArena scratch(mr);
-    ScratchVec<double> A_work(m * n, &scratch);
-    ScratchVec<double> V_work(n * n, &scratch);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<double> A_work(m * n, scratch.allocator());
+    keel::Array<double> V_work(n * n, scratch.allocator());
 
     const double *A_data = Aw.doubleData();
     if (!transposed) {
         std::copy(A_data, A_data + m * n, A_work.begin());
     } else {
-        for (std::size_t j = 0; j < n_in; ++j)
-            for (std::size_t i = 0; i < m_in; ++i)
+        for (keel::usize j = 0; j < n_in; ++j)
+            for (keel::usize i = 0; i < m_in; ++i)
                 A_work[j + i * n_in] = A_data[i + j * m_in];
     }
 
@@ -791,17 +795,17 @@ svd_decompose(const Value &A, std::pmr::memory_resource *mr)
                      /*maxSweeps=*/64,
                      /*tol=*/1e-13);
 
-    ScratchVec<double> sigma(n, &scratch);
-    ScratchVec<std::size_t> order(n, &scratch);
-    for (std::size_t k = 0; k < n; ++k) {
+    keel::Array<double> sigma(n, scratch.allocator());
+    keel::Array<keel::usize> order(n, scratch.allocator());
+    for (keel::usize k = 0; k < n; ++k) {
         double s = 0.0;
-        for (std::size_t i = 0; i < m; ++i)
+        for (keel::usize i = 0; i < m; ++i)
             s += A_work[i + k * m] * A_work[i + k * m];
         sigma[k] = std::sqrt(s);
         order[k] = k;
     }
     std::sort(order.begin(), order.end(),
-              [&](std::size_t a, std::size_t b) { return sigma[a] > sigma[b]; });
+              [&](keel::usize a, keel::usize b) { return sigma[a] > sigma[b]; });
 
     auto Uout = Value::matrix(m, m, ValueType::DOUBLE, mr);
     auto Sout = Value::matrix(m, n, ValueType::DOUBLE, mr);
@@ -813,29 +817,29 @@ svd_decompose(const Value &A, std::pmr::memory_resource *mr)
     std::fill(S, S + m * n, 0.0);
     std::fill(V, V + n * n, 0.0);
 
-    std::size_t r_nz = 0;
-    for (std::size_t k = 0; k < n; ++k) {
-        const std::size_t src = order[k];
+    keel::usize r_nz = 0;
+    for (keel::usize k = 0; k < n; ++k) {
+        const keel::usize src = order[k];
         S[k + k * m] = sigma[src];
         if (sigma[src] > 0.0) {
             const double inv_s = 1.0 / sigma[src];
-            for (std::size_t i = 0; i < m; ++i)
+            for (keel::usize i = 0; i < m; ++i)
                 U[i + k * m] = A_work[i + src * m] * inv_s;
             r_nz = k + 1;
         } else {
-            for (std::size_t i = 0; i < m; ++i) U[i + k * m] = 0.0;
+            for (keel::usize i = 0; i < m; ++i) U[i + k * m] = 0.0;
         }
-        for (std::size_t i = 0; i < n; ++i)
+        for (keel::usize i = 0; i < n; ++i)
             V[i + k * n] = V_work[i + src * n];
     }
 
     // Complete U to an m-by-m orthogonal matrix in O(m^2 * r_nz) via Householder QR.
     if (r_nz == 0) {
-        for (std::size_t i = 0; i < m; ++i)
+        for (keel::usize i = 0; i < m; ++i)
             U[i + i * m] = 1.0;
     } else if (r_nz < m) {
-        ScratchVec<double> Q_full(m * m, &scratch);
-        ScratchVec<double> R_dummy(m * r_nz, &scratch);
+        keel::Array<double> Q_full(m * m, scratch.allocator());
+        keel::Array<double> R_dummy(m * r_nz, scratch.allocator());
         qrFullHouseholder(U, m, r_nz, Q_full.data(), R_dummy.data(), mr);
         std::copy(Q_full.data() + r_nz * m, Q_full.data() + m * m, U + r_nz * m);
     }
@@ -850,8 +854,8 @@ svd_decompose(const Value &A, std::pmr::memory_resource *mr)
     auto S_out_tr = Value::matrix(m_in, n_in, ValueType::DOUBLE, mr);
     double *St = S_out_tr.doubleDataMut();
     std::fill(St, St + m_in * n_in, 0.0);
-    const std::size_t k_diag = std::min(m_in, n_in);
-    for (std::size_t k = 0; k < k_diag; ++k)
+    const keel::usize k_diag = std::min(m_in, n_in);
+    for (keel::usize k = 0; k < k_diag; ++k)
         St[k + k * m_in] = S[k + k * m];
     return std::make_tuple(
         detail::narrowDoubleToSingleIf(Vout, wantSingle, mr),
@@ -859,18 +863,18 @@ svd_decompose(const Value &A, std::pmr::memory_resource *mr)
         detail::narrowDoubleToSingleIf(Uout, wantSingle, mr));
 }
 
-Value svd_values(const Value &A, std::pmr::memory_resource *mr)
+Value svd_values(const Value &A, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "svd");
     const bool wantSingle = (A.type() == ValueType::SINGLE);
     auto [U, S, V] = svd_decompose(detail::widenSingleToDouble(A, mr), mr);
-    const std::size_t m = static_cast<std::size_t>(S.dims().dim(0));
-    const std::size_t n = static_cast<std::size_t>(S.dims().dim(1));
-    const std::size_t k = std::min(m, n);
+    const keel::usize m = static_cast<keel::usize>(S.dims().dim(0));
+    const keel::usize n = static_cast<keel::usize>(S.dims().dim(1));
+    const keel::usize k = std::min(m, n);
     auto sv = Value::matrix(k, 1, ValueType::DOUBLE, mr);
     const double *S_data = S.doubleData();
     double *out = sv.doubleDataMut();
-    for (std::size_t i = 0; i < k; ++i)
+    for (keel::usize i = 0; i < k; ++i)
         out[i] = S_data[i + i * m];
     return detail::narrowDoubleToSingleIf(sv, wantSingle, mr);
 }
@@ -896,10 +900,10 @@ inline void givens(double x, double y, double &c, double &s, double &r)
 // Apply Givens rotation (c, s) to rows i and j of an m×n matrix M
 // (column-major). Rotates row i ← c*row_i + s*row_j;
 //                  row j ← -s*row_i + c*row_j.
-void applyGivensRows(double *M, std::size_t leadDim, std::size_t ncols,
-                     std::size_t i, std::size_t j, double c, double s)
+void applyGivensRows(double *M, keel::usize leadDim, keel::usize ncols,
+                     keel::usize i, keel::usize j, double c, double s)
 {
-    for (std::size_t k = 0; k < ncols; ++k) {
+    for (keel::usize k = 0; k < ncols; ++k) {
         const double a = M[i + k * leadDim];
         const double b = M[j + k * leadDim];
         M[i + k * leadDim] =  c * a + s * b;
@@ -909,10 +913,10 @@ void applyGivensRows(double *M, std::size_t leadDim, std::size_t ncols,
 
 // Apply Givens rotation (c, s) to columns i and j of an m×n matrix M
 // (column-major). col_i ← c*col_i + s*col_j; col_j ← -s*col_i + c*col_j.
-void applyGivensCols(double *M, std::size_t leadDim, std::size_t nrows,
-                     std::size_t i, std::size_t j, double c, double s)
+void applyGivensCols(double *M, keel::usize leadDim, keel::usize nrows,
+                     keel::usize i, keel::usize j, double c, double s)
 {
-    for (std::size_t k = 0; k < nrows; ++k) {
+    for (keel::usize k = 0; k < nrows; ++k) {
         const double a = M[k + i * leadDim];
         const double b = M[k + j * leadDim];
         M[k + i * leadDim] =  c * a + s * b;
@@ -924,15 +928,15 @@ void applyGivensCols(double *M, std::size_t leadDim, std::size_t nrows,
 
 std::tuple<Value, Value>
 qrupdate(const Value &Q, const Value &R, const Value &u, const Value &v,
-         std::pmr::memory_resource *mr)
+         keel::Allocator *mr)
 {
     if (Q.dims().ndim() != 2 || R.dims().ndim() != 2)
         throw Error("qrupdate: Q and R must be 2D matrices",
                     0, 0, "qrupdate", "", "numkit:qrupdate:notMatrix");
-    const std::size_t m = static_cast<std::size_t>(Q.dims().dim(0));
-    const std::size_t mq = static_cast<std::size_t>(Q.dims().dim(1));
-    const std::size_t mr2 = static_cast<std::size_t>(R.dims().dim(0));
-    const std::size_t n  = static_cast<std::size_t>(R.dims().dim(1));
+    const keel::usize m = static_cast<keel::usize>(Q.dims().dim(0));
+    const keel::usize mq = static_cast<keel::usize>(Q.dims().dim(1));
+    const keel::usize mr2 = static_cast<keel::usize>(R.dims().dim(0));
+    const keel::usize n  = static_cast<keel::usize>(R.dims().dim(1));
     if (mq != m || mr2 != m)
         throw Error("qrupdate: Q must be m×m and R must be m×n",
                     0, 0, "qrupdate", "", "numkit:qrupdate:badShape");
@@ -952,19 +956,19 @@ qrupdate(const Value &Q, const Value &R, const Value &u, const Value &v,
     std::copy(Qw.doubleData(), Qw.doubleData() + m * m, Qd);
     std::copy(Rw.doubleData(), Rw.doubleData() + m * n, Rd);
 
-    ScratchArena scratch(mr);
-    ScratchVec<double> w(m, &scratch);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<double> w(m, scratch.allocator());
     // w = Q' * u
-    for (std::size_t i = 0; i < m; ++i) {
+    for (keel::usize i = 0; i < m; ++i) {
         double s = 0.0;
-        for (std::size_t k = 0; k < m; ++k) s += Qd[k + i * m] * u.elemAsDouble(k);
+        for (keel::usize k = 0; k < m; ++k) s += Qd[k + i * m] * u.elemAsDouble(k);
         w[i] = s;
     }
 
     // Bring w down to a single non-zero in position 0 via Givens
     // rotations chained from bottom (m-1) to (0). Apply mirrored
     // rotations to Q (cols) and R (rows) to preserve A = Q · R.
-    for (std::size_t i = m - 1; i > 0; --i) {
+    for (keel::usize i = m - 1; i > 0; --i) {
         double c, s, r;
         givens(w[i - 1], w[i], c, s, r);
         w[i - 1] = r;
@@ -978,13 +982,13 @@ qrupdate(const Value &Q, const Value &R, const Value &u, const Value &v,
     // R is now upper Hessenberg (one sub-diagonal below). Add
     // w[0] * v' to the first row: R[0, j] += w[0] * v(j).
     const double w0 = w[0];
-    for (std::size_t j = 0; j < n; ++j)
+    for (keel::usize j = 0; j < n; ++j)
         Rd[0 + j * m] += w0 * v.elemAsDouble(j);
 
     // Restore upper triangular form: chase the sub-diagonal bulge
     // top-down with Givens rotations on rows of R + cols of Q.
-    const std::size_t kmax = std::min(m - 1, n);
-    for (std::size_t i = 0; i < kmax; ++i) {
+    const keel::usize kmax = std::min(m - 1, n);
+    for (keel::usize i = 0; i < kmax; ++i) {
         double c, s, r;
         givens(Rd[i + i * m], Rd[i + 1 + i * m], c, s, r);
         Rd[i + i * m] = r;
@@ -999,16 +1003,16 @@ qrupdate(const Value &Q, const Value &R, const Value &u, const Value &v,
 }
 
 std::tuple<Value, Value>
-qrinsert(const Value &Q, const Value &R, std::size_t k_1based, const Value &x,
-         std::pmr::memory_resource *mr)
+qrinsert(const Value &Q, const Value &R, keel::usize k_1based, const Value &x,
+         keel::Allocator *mr)
 {
     if (Q.dims().ndim() != 2 || R.dims().ndim() != 2)
         throw Error("qrinsert: Q and R must be 2D matrices",
                     0, 0, "qrinsert", "", "numkit:qrinsert:notMatrix");
-    const std::size_t m = static_cast<std::size_t>(Q.dims().dim(0));
-    const std::size_t n = static_cast<std::size_t>(R.dims().dim(1));
-    if (static_cast<std::size_t>(Q.dims().dim(1)) != m
-        || static_cast<std::size_t>(R.dims().dim(0)) != m)
+    const keel::usize m = static_cast<keel::usize>(Q.dims().dim(0));
+    const keel::usize n = static_cast<keel::usize>(R.dims().dim(1));
+    if (static_cast<keel::usize>(Q.dims().dim(1)) != m
+        || static_cast<keel::usize>(R.dims().dim(0)) != m)
         throw Error("qrinsert: Q must be m×m and R must be m×n",
                     0, 0, "qrinsert", "", "numkit:qrinsert:badShape");
     if (x.numel() != m)
@@ -1017,7 +1021,7 @@ qrinsert(const Value &Q, const Value &R, std::size_t k_1based, const Value &x,
     if (k_1based < 1 || k_1based > n + 1)
         throw Error("qrinsert: k must be in 1..n+1",
                     0, 0, "qrinsert", "", "numkit:qrinsert:badK");
-    const std::size_t k = k_1based - 1;
+    const keel::usize k = k_1based - 1;
 
     const bool wantSingle = (Q.type() == ValueType::SINGLE || R.type() == ValueType::SINGLE
                              || x.type() == ValueType::SINGLE);
@@ -1025,12 +1029,12 @@ qrinsert(const Value &Q, const Value &R, std::size_t k_1based, const Value &x,
     const Value Rw = detail::widenSingleToDouble(R, mr);
 
     // y = Q' * x (length m).
-    ScratchArena scratch(mr);
-    ScratchVec<double> y(m, &scratch);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<double> y(m, scratch.allocator());
     const double *Qd_in = Qw.doubleData();
-    for (std::size_t i = 0; i < m; ++i) {
+    for (keel::usize i = 0; i < m; ++i) {
         double s = 0.0;
-        for (std::size_t r2 = 0; r2 < m; ++r2)
+        for (keel::usize r2 = 0; r2 < m; ++r2)
             s += Qd_in[r2 + i * m] * x.elemAsDouble(r2);
         y[i] = s;
     }
@@ -1041,10 +1045,10 @@ qrinsert(const Value &Q, const Value &R, std::size_t k_1based, const Value &x,
     auto R1 = Value::matrix(m, n + 1, ValueType::DOUBLE, mr);
     double *Rd = R1.doubleDataMut();
     const double *Rd_in = Rw.doubleData();
-    for (std::size_t j = 0; j < k; ++j)
+    for (keel::usize j = 0; j < k; ++j)
         std::copy(Rd_in + j * m, Rd_in + (j + 1) * m, Rd + j * m);
     std::copy(y.begin(), y.end(), Rd + k * m);
-    for (std::size_t j = k; j < n; ++j)
+    for (keel::usize j = k; j < n; ++j)
         std::copy(Rd_in + j * m, Rd_in + (j + 1) * m, Rd + (j + 1) * m);
 
     auto Q1 = Value::matrix(m, m, ValueType::DOUBLE, mr);
@@ -1053,7 +1057,7 @@ qrinsert(const Value &Q, const Value &R, std::size_t k_1based, const Value &x,
 
     // Column k of R has entries y[k], y[k+1], ..., y[m-1] below the
     // diagonal. Zero them from bottom up via Givens rotations.
-    for (std::size_t i = m - 1; i > k; --i) {
+    for (keel::usize i = m - 1; i > k; --i) {
         double c, s, r;
         givens(Rd[(i - 1) + k * m], Rd[i + k * m], c, s, r);
         Rd[(i - 1) + k * m] = r;
@@ -1071,16 +1075,16 @@ qrinsert(const Value &Q, const Value &R, std::size_t k_1based, const Value &x,
 }
 
 std::tuple<Value, Value>
-qrdelete(const Value &Q, const Value &R, std::size_t k_1based,
-         std::pmr::memory_resource *mr)
+qrdelete(const Value &Q, const Value &R, keel::usize k_1based,
+         keel::Allocator *mr)
 {
     if (Q.dims().ndim() != 2 || R.dims().ndim() != 2)
         throw Error("qrdelete: Q and R must be 2D matrices",
                     0, 0, "qrdelete", "", "numkit:qrdelete:notMatrix");
-    const std::size_t m = static_cast<std::size_t>(Q.dims().dim(0));
-    const std::size_t n = static_cast<std::size_t>(R.dims().dim(1));
-    if (static_cast<std::size_t>(Q.dims().dim(1)) != m
-        || static_cast<std::size_t>(R.dims().dim(0)) != m)
+    const keel::usize m = static_cast<keel::usize>(Q.dims().dim(0));
+    const keel::usize n = static_cast<keel::usize>(R.dims().dim(1));
+    if (static_cast<keel::usize>(Q.dims().dim(1)) != m
+        || static_cast<keel::usize>(R.dims().dim(0)) != m)
         throw Error("qrdelete: Q must be m×m and R must be m×n",
                     0, 0, "qrdelete", "", "numkit:qrdelete:badShape");
     if (n == 0)
@@ -1089,7 +1093,7 @@ qrdelete(const Value &Q, const Value &R, std::size_t k_1based,
     if (k_1based < 1 || k_1based > n)
         throw Error("qrdelete: k must be in 1..n",
                     0, 0, "qrdelete", "", "numkit:qrdelete:badK");
-    const std::size_t k = k_1based - 1;
+    const keel::usize k = k_1based - 1;
 
     const bool wantSingle = (Q.type() == ValueType::SINGLE || R.type() == ValueType::SINGLE);
     const Value Qw = detail::widenSingleToDouble(Q, mr);
@@ -1099,9 +1103,9 @@ qrdelete(const Value &Q, const Value &R, std::size_t k_1based,
     auto R1 = Value::matrix(m, n - 1, ValueType::DOUBLE, mr);
     double *Rd = R1.doubleDataMut();
     const double *Rd_in = Rw.doubleData();
-    for (std::size_t j = 0; j < k; ++j)
+    for (keel::usize j = 0; j < k; ++j)
         std::copy(Rd_in + j * m, Rd_in + (j + 1) * m, Rd + j * m);
-    for (std::size_t j = k + 1; j < n; ++j)
+    for (keel::usize j = k + 1; j < n; ++j)
         std::copy(Rd_in + j * m, Rd_in + (j + 1) * m, Rd + (j - 1) * m);
 
     auto Q1 = Value::matrix(m, m, ValueType::DOUBLE, mr);
@@ -1111,8 +1115,8 @@ qrdelete(const Value &Q, const Value &R, std::size_t k_1based,
     // After dropping column k, rows k..min(m-1, n-1) have a "bulge"
     // immediately below the diagonal that needs to be chased away
     // with Givens rotations.
-    const std::size_t lim = std::min(m - 1, n - 1);
-    for (std::size_t i = k; i < lim; ++i) {
+    const keel::usize lim = std::min(m - 1, n - 1);
+    for (keel::usize i = k; i < lim; ++i) {
         double c, s, r;
         givens(Rd[i + i * m], Rd[i + 1 + i * m], c, s, r);
         Rd[i + i * m] = r;
@@ -1132,16 +1136,16 @@ qrdelete(const Value &Q, const Value &R, std::size_t k_1based,
 // ────────────────────────────────────────────────────────────────────────
 
 std::tuple<Value, Value>
-qrinsert_row(const Value &Q, const Value &R, std::size_t k_1based, const Value &x,
-             std::pmr::memory_resource *mr)
+qrinsert_row(const Value &Q, const Value &R, keel::usize k_1based, const Value &x,
+             keel::Allocator *mr)
 {
     if (Q.dims().ndim() != 2 || R.dims().ndim() != 2)
         throw Error("qrinsert: Q and R must be 2D matrices",
                     0, 0, "qrinsert", "", "numkit:qrinsert:notMatrix");
-    const std::size_t m = static_cast<std::size_t>(Q.dims().dim(0));
-    const std::size_t n = static_cast<std::size_t>(R.dims().dim(1));
-    if (static_cast<std::size_t>(Q.dims().dim(1)) != m
-        || static_cast<std::size_t>(R.dims().dim(0)) != m)
+    const keel::usize m = static_cast<keel::usize>(Q.dims().dim(0));
+    const keel::usize n = static_cast<keel::usize>(R.dims().dim(1));
+    if (static_cast<keel::usize>(Q.dims().dim(1)) != m
+        || static_cast<keel::usize>(R.dims().dim(0)) != m)
         throw Error("qrinsert: Q must be m by m and R must be m by n",
                     0, 0, "qrinsert", "", "numkit:qrinsert:badShape");
     if (x.numel() != n)
@@ -1150,8 +1154,8 @@ qrinsert_row(const Value &Q, const Value &R, std::size_t k_1based, const Value &
     if (k_1based < 1 || k_1based > m + 1)
         throw Error("qrinsert: j must be in 1..m+1 for 'row'",
                     0, 0, "qrinsert", "", "numkit:qrinsert:badK");
-    const std::size_t k = k_1based - 1;
-    const std::size_t m1 = m + 1;
+    const keel::usize k = k_1based - 1;
+    const keel::usize m1 = m + 1;
 
     const bool wantSingle = (Q.type() == ValueType::SINGLE || R.type() == ValueType::SINGLE
                              || x.type() == ValueType::SINGLE);
@@ -1163,24 +1167,24 @@ qrinsert_row(const Value &Q, const Value &R, std::size_t k_1based, const Value &
     std::fill(Qd, Qd + m1 * m1, 0.0);
     Qd[k + 0 * m1] = 1.0;
     const double *Qd_in = Qw.doubleData();
-    for (std::size_t c = 0; c < m; ++c) {
-        for (std::size_t r = 0; r < k; ++r)
+    for (keel::usize c = 0; c < m; ++c) {
+        for (keel::usize r = 0; r < k; ++r)
             Qd[r + (c + 1) * m1] = Qd_in[r + c * m];
-        for (std::size_t r = k; r < m; ++r)
+        for (keel::usize r = k; r < m; ++r)
             Qd[(r + 1) + (c + 1) * m1] = Qd_in[r + c * m];
     }
 
     auto R1 = Value::matrix(m1, n, ValueType::DOUBLE, mr);
     double *Rd = R1.doubleDataMut();
     const double *Rd_in = Rw.doubleData();
-    for (std::size_t j = 0; j < n; ++j) {
+    for (keel::usize j = 0; j < n; ++j) {
         Rd[0 + j * m1] = x.elemAsDouble(j);
-        for (std::size_t r = 0; r < m; ++r)
+        for (keel::usize r = 0; r < m; ++r)
             Rd[(r + 1) + j * m1] = Rd_in[r + j * m];
     }
 
-    const std::size_t lim = std::min(m, n);
-    for (std::size_t i = 0; i < lim; ++i) {
+    const keel::usize lim = std::min(m, n);
+    for (keel::usize i = 0; i < lim; ++i) {
         double c, s, r;
         givens(Rd[i + i * m1], Rd[(i + 1) + i * m1], c, s, r);
         Rd[i + i * m1] = r;
@@ -1195,16 +1199,16 @@ qrinsert_row(const Value &Q, const Value &R, std::size_t k_1based, const Value &
 }
 
 std::tuple<Value, Value>
-qrdelete_row(const Value &Q, const Value &R, std::size_t k_1based,
-             std::pmr::memory_resource *mr)
+qrdelete_row(const Value &Q, const Value &R, keel::usize k_1based,
+             keel::Allocator *mr)
 {
     if (Q.dims().ndim() != 2 || R.dims().ndim() != 2)
         throw Error("qrdelete: Q and R must be 2D matrices",
                     0, 0, "qrdelete", "", "numkit:qrdelete:notMatrix");
-    const std::size_t m = static_cast<std::size_t>(Q.dims().dim(0));
-    const std::size_t n = static_cast<std::size_t>(R.dims().dim(1));
-    if (static_cast<std::size_t>(Q.dims().dim(1)) != m
-        || static_cast<std::size_t>(R.dims().dim(0)) != m)
+    const keel::usize m = static_cast<keel::usize>(Q.dims().dim(0));
+    const keel::usize n = static_cast<keel::usize>(R.dims().dim(1));
+    if (static_cast<keel::usize>(Q.dims().dim(1)) != m
+        || static_cast<keel::usize>(R.dims().dim(0)) != m)
         throw Error("qrdelete: Q must be m by m and R must be m by n",
                     0, 0, "qrdelete", "", "numkit:qrdelete:badShape");
     if (m == 0)
@@ -1213,23 +1217,23 @@ qrdelete_row(const Value &Q, const Value &R, std::size_t k_1based,
     if (k_1based < 1 || k_1based > m)
         throw Error("qrdelete: j must be in 1..m for 'row'",
                     0, 0, "qrdelete", "", "numkit:qrdelete:badK");
-    const std::size_t k = k_1based - 1;
+    const keel::usize k = k_1based - 1;
 
     const bool wantSingle = (Q.type() == ValueType::SINGLE || R.type() == ValueType::SINGLE);
     const Value Qw = detail::widenSingleToDouble(Q, mr);
     const Value Rw = detail::widenSingleToDouble(R, mr);
 
-    ScratchArena scratch(mr);
-    ScratchVec<double> Qd(m * m, &scratch);
-    ScratchVec<double> Rd(m * n, &scratch);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<double> Qd(m * m, scratch.allocator());
+    keel::Array<double> Rd(m * n, scratch.allocator());
     std::copy(Qw.doubleData(), Qw.doubleData() + m * m, Qd.data());
     std::copy(Rw.doubleData(), Rw.doubleData() + m * n, Rd.data());
 
-    ScratchVec<double> q(m, &scratch);
-    for (std::size_t j = 0; j < m; ++j)
+    keel::Array<double> q(m, scratch.allocator());
+    for (keel::usize j = 0; j < m; ++j)
         q[j] = Qd[k + j * m];
 
-    for (std::size_t i = m - 1; i > 0; --i) {
+    for (keel::usize i = m - 1; i > 0; --i) {
         double c, s, r;
         givens(q[i - 1], q[i], c, s, r);
         q[i - 1] = r;
@@ -1238,19 +1242,19 @@ qrdelete_row(const Value &Q, const Value &R, std::size_t k_1based,
         applyGivensCols(Qd.data(), m, m, i - 1, i, c, s);
     }
 
-    const std::size_t m1 = m - 1;
+    const keel::usize m1 = m - 1;
     auto Q1 = Value::matrix(m1, m1, ValueType::DOUBLE, mr);
     auto R1 = Value::matrix(m1, n, ValueType::DOUBLE, mr);
     double *Q1d = Q1.doubleDataMut();
     double *R1d = R1.doubleDataMut();
-    for (std::size_t c = 0; c < m1; ++c) {
-        for (std::size_t r = 0; r < k; ++r)
+    for (keel::usize c = 0; c < m1; ++c) {
+        for (keel::usize r = 0; r < k; ++r)
             Q1d[r + c * m1] = Qd[r + (c + 1) * m];
-        for (std::size_t r = k + 1; r < m; ++r)
+        for (keel::usize r = k + 1; r < m; ++r)
             Q1d[(r - 1) + c * m1] = Qd[r + (c + 1) * m];
     }
-    for (std::size_t j = 0; j < n; ++j)
-        for (std::size_t r = 1; r < m; ++r)
+    for (keel::usize j = 0; j < n; ++j)
+        for (keel::usize r = 1; r < m; ++r)
             R1d[(r - 1) + j * m1] = Rd[r + j * m];
 
     return std::make_tuple(
@@ -1259,15 +1263,15 @@ qrdelete_row(const Value &Q, const Value &R, std::size_t k_1based,
 }
 
 Value cholupdate(const Value &R, const Value &x, int sign,
-                 std::pmr::memory_resource *mr)
+                 keel::Allocator *mr)
 {
     detail::requireDoubleInput(R, "cholupdate", "R", 1);
     detail::requireDoubleInput(x, "cholupdate", "x", 2);
     if (R.dims().ndim() != 2)
         throw Error("cholupdate: R must be a 2D matrix",
                     0, 0, "cholupdate", "", "numkit:cholupdate:notMatrix");
-    const std::size_t n = static_cast<std::size_t>(R.dims().dim(0));
-    if (n != static_cast<std::size_t>(R.dims().dim(1)))
+    const keel::usize n = static_cast<keel::usize>(R.dims().dim(0));
+    if (n != static_cast<keel::usize>(R.dims().dim(1)))
         throw Error("cholupdate: R must be square",
                     0, 0, "cholupdate", "", "numkit:cholupdate:notSquare");
     if (x.numel() != n)
@@ -1287,11 +1291,11 @@ Value cholupdate(const Value &R, const Value &x, int sign,
         double *Rd = out.doubleDataMut();
         std::copy(Rw.doubleData(), Rw.doubleData() + n * n, Rd);
 
-        ScratchArena scratch(mr);
-        ScratchVec<double> xb(n, &scratch);
-        for (std::size_t i = 0; i < n; ++i) xb[i] = x.elemAsDouble(i);
+        keel::ArenaTemp scratch = keel::get_scratch(mr);
+        keel::Array<double> xb(n, scratch.allocator());
+        for (keel::usize i = 0; i < n; ++i) xb[i] = x.elemAsDouble(i);
 
-        for (std::size_t k = 0; k < n; ++k) {
+        for (keel::usize k = 0; k < n; ++k) {
             const double Rkk = Rd[k + k * n];
             const double xk  = xb[k];
             const double r   = std::hypot(Rkk, xk);
@@ -1299,7 +1303,7 @@ Value cholupdate(const Value &R, const Value &x, int sign,
             const double c = Rkk / r;
             const double s = xk  / r;
             Rd[k + k * n] = r;
-            for (std::size_t j = k + 1; j < n; ++j) {
+            for (keel::usize j = k + 1; j < n; ++j) {
                 const double Rkj = Rd[k + j * n];
                 Rd[k + j * n] = c * Rkj + s * xb[j];
                 xb[j]         = c * xb[j] - s * Rkj;
@@ -1314,24 +1318,24 @@ Value cholupdate(const Value &R, const Value &x, int sign,
     auto out = Value::matrix(n, n, ValueType::DOUBLE, mr);
     double *Rd = out.doubleDataMut();
     const double *Rsrc = Rw.doubleData();
-    for (std::size_t j = 0; j < n; ++j) {
-        for (std::size_t i = 0; i <= j; ++i)
+    for (keel::usize j = 0; j < n; ++j) {
+        for (keel::usize i = 0; i <= j; ++i)
             Rd[i + j * n] = Rsrc[i + j * n];
-        for (std::size_t i = j + 1; i < n; ++i)
+        for (keel::usize i = j + 1; i < n; ++i)
             Rd[i + j * n] = 0.0;
     }
 
-    ScratchArena scratch(mr);
-    ScratchVec<double> p(n, &scratch);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<double> p(n, scratch.allocator());
     double normSq = 0.0;
-    for (std::size_t k = 0; k < n; ++k) {
+    for (keel::usize k = 0; k < n; ++k) {
         const double rkk = Rd[k + k * n];
         if (!(rkk > 0.0) || !std::isfinite(rkk)) {
             throw Error("cholupdate: downdate would break positive-definiteness",
                         0, 0, "cholupdate", "", "numkit:cholupdate:downdateFailed");
         }
         double sum = x.elemAsDouble(k);
-        for (std::size_t i = 0; i < k; ++i)
+        for (keel::usize i = 0; i < k; ++i)
             sum -= Rd[i + k * n] * p[i];
         if (!std::isfinite(sum)) {
             throw Error("cholupdate: downdate would break positive-definiteness",
@@ -1349,14 +1353,14 @@ Value cholupdate(const Value &R, const Value &x, int sign,
     }
 
     double alpha = std::sqrt(oneMinus);
-    ScratchVec<double> z(n, 0.0, &scratch);
-    for (std::size_t idx = n; idx > 0; --idx) {
-        const std::size_t k = idx - 1;
+    keel::Array<double> z(n, 0.0, scratch.allocator());
+    for (keel::usize idx = n; idx > 0; --idx) {
+        const keel::usize k = idx - 1;
         const double scale = std::hypot(alpha, p[k]);
         const double c = alpha / scale;
         const double s = p[k] / scale;
         alpha = scale;
-        for (std::size_t j = k; j < n; ++j) {
+        for (keel::usize j = k; j < n; ++j) {
             const double rkj = Rd[k + j * n];
             Rd[k + j * n] = c * rkj - s * z[j];
             z[j]          = s * rkj + c * z[j];

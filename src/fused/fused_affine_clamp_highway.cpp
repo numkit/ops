@@ -5,6 +5,7 @@
 // FMA + a clamp per element, single streaming pass. min/max replicate
 // std::fmin/fmax NaN semantics so the result matches the per-op fallback.
 
+#include <keel/core.h>
 #include <numkit/ops/fused/fused_kernels.hpp>
 #include <numkit/ops/parallel_for.hpp>
 
@@ -36,12 +37,12 @@ template <class V> HWY_INLINE V FMax(V a, V b) {
 // is bit-identical to per-op `(x - c)./d`. The clamp's fmin/fmax NaN semantics
 // match the per-op min/max either way.
 void AffineClampImpl(const double *x, double p0, double p1, bool divide,
-                     double lo, double hi, double *out, std::size_t n) {
+                     double lo, double hi, double *out, keel::usize n) {
     const hn::ScalableTag<double> d;
-    const std::size_t L = hn::Lanes(d);
+    const keel::usize L = hn::Lanes(d);
     const auto vp0 = hn::Set(d, p0), vp1 = hn::Set(d, p1);
     const auto vlo = hn::Set(d, lo), vhi = hn::Set(d, hi);
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i + L <= n; i += L) {
         const auto xv = hn::LoadU(d, x + i);
         auto v = divide ? hn::Div(hn::Sub(xv, vp0), vp1)
@@ -59,12 +60,12 @@ void AffineClampImpl(const double *x, double p0, double p1, bool divide,
 // it yields lo (FMax(lo,NaN)=lo then FMin(hi,lo)=lo), matching the per-op
 // `min(hi, max(lo, v))` nesting.
 void AffineClampMinOuterImpl(const double *x, double p0, double p1, bool divide,
-                             double lo, double hi, double *out, std::size_t n) {
+                             double lo, double hi, double *out, keel::usize n) {
     const hn::ScalableTag<double> d;
-    const std::size_t L = hn::Lanes(d);
+    const keel::usize L = hn::Lanes(d);
     const auto vp0 = hn::Set(d, p0), vp1 = hn::Set(d, p1);
     const auto vlo = hn::Set(d, lo), vhi = hn::Set(d, hi);
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i + L <= n; i += L) {
         const auto xv = hn::LoadU(d, x + i);
         auto v = divide ? hn::Div(hn::Sub(xv, vp0), vp1)
@@ -89,20 +90,20 @@ HWY_EXPORT(AffineClampImpl);
 HWY_EXPORT(AffineClampMinOuterImpl);
 
 void fusedAffineClamp(const double *x, double scale, double offset,
-                      double lo, double hi, double *out, std::size_t n) {
+                      double lo, double hi, double *out, keel::usize n) {
     if (n == 0) return;
     // Each chunk is a disjoint output slice; no-op (sequential) unless
     // NUMKIT_WITH_THREADS and n is large.
-    detail::parallel_for(n, std::size_t{1} << 16, [&](std::size_t s, std::size_t e) {
+    detail::parallel_for(n, keel::usize{1} << 16, [&](keel::usize s, keel::usize e) {
         HWY_DYNAMIC_DISPATCH(AffineClampImpl)(x + s, scale, offset, /*divide=*/false,
                                               lo, hi, out + s, e - s);
     });
 }
 
 void fusedAffineClampMinOuter(const double *x, double scale, double offset,
-                              double lo, double hi, double *out, std::size_t n) {
+                              double lo, double hi, double *out, keel::usize n) {
     if (n == 0) return;
-    detail::parallel_for(n, std::size_t{1} << 16, [&](std::size_t s, std::size_t e) {
+    detail::parallel_for(n, keel::usize{1} << 16, [&](keel::usize s, keel::usize e) {
         HWY_DYNAMIC_DISPATCH(AffineClampMinOuterImpl)(x + s, scale, offset,
                                                       /*divide=*/false, lo, hi,
                                                       out + s, e - s);
@@ -110,9 +111,9 @@ void fusedAffineClampMinOuter(const double *x, double scale, double offset,
 }
 
 void fusedAffineClampShiftDiv(const double *x, double sub, double div,
-                              double lo, double hi, double *out, std::size_t n) {
+                              double lo, double hi, double *out, keel::usize n) {
     if (n == 0) return;
-    detail::parallel_for(n, std::size_t{1} << 16, [&](std::size_t s, std::size_t e) {
+    detail::parallel_for(n, keel::usize{1} << 16, [&](keel::usize s, keel::usize e) {
         HWY_DYNAMIC_DISPATCH(AffineClampImpl)(x + s, sub, div, /*divide=*/true,
                                               lo, hi, out + s, e - s);
     });
@@ -120,9 +121,9 @@ void fusedAffineClampShiftDiv(const double *x, double sub, double div,
 
 void fusedAffineClampMinOuterShiftDiv(const double *x, double sub, double div,
                                       double lo, double hi, double *out,
-                                      std::size_t n) {
+                                      keel::usize n) {
     if (n == 0) return;
-    detail::parallel_for(n, std::size_t{1} << 16, [&](std::size_t s, std::size_t e) {
+    detail::parallel_for(n, keel::usize{1} << 16, [&](keel::usize s, keel::usize e) {
         HWY_DYNAMIC_DISPATCH(AffineClampMinOuterImpl)(x + s, sub, div,
                                                       /*divide=*/true, lo, hi,
                                                       out + s, e - s);

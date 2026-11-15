@@ -11,11 +11,13 @@
 
 #pragma once
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/array.h>
+#include <keel/complex.h>
 #include <numkit/value/value.hpp>    // numkit::Complex
-#include <numkit/value/scratch.hpp>  // ScratchVec
 
 #include <cstddef>
-#include <memory_resource>
 
 namespace numkit::ops {
 
@@ -23,22 +25,22 @@ namespace numkit::ops {
 // Optional `zi` (length ziLen) seeds the initial delay state; when `zfOut` is
 // non-null the final state (length max(nb,na)-1) is written there — this backs
 // MATLAB's filter(b,a,x,zi) and [y,zf] = filter(...).
-ScratchVec<double> applyFilterDf2t(const double *bn, std::size_t nb, const double *an,
-                                   std::size_t na, const double *input, std::size_t len,
-                                   const double *zi = nullptr, std::size_t ziLen = 0,
-                                   double *zfOut = nullptr,
-                                   std::pmr::memory_resource *mr = nullptr);
+keel::Array<keel::f64> applyFilterDf2t(const keel::f64 *bn, keel::usize nb, const keel::f64 *an,
+                                   keel::usize na, const keel::f64 *input, keel::usize len,
+                                   const keel::f64 *zi = nullptr, keel::usize ziLen = 0,
+                                   keel::f64 *zfOut = nullptr,
+                                   keel::Allocator *mr = nullptr);
 
 // Complex DF2T variant. filter() is bilinear (the recursive a-part mixes
 // terms), so a real/imag split does not apply — the recurrence runs over
 // Complex.
-ScratchVec<Complex> applyFilterDf2tComplex(const Complex *bn, std::size_t nb,
-                                           const Complex *an, std::size_t na,
-                                           const Complex *input, std::size_t len,
-                                           const Complex *zi = nullptr,
-                                           std::size_t ziLen = 0,
-                                           Complex *zfOut = nullptr,
-                                           std::pmr::memory_resource *mr = nullptr);
+keel::Array<keel::c64> applyFilterDf2tComplex(const keel::c64 *bn, keel::usize nb,
+                                           const keel::c64 *an, keel::usize na,
+                                           const keel::c64 *input, keel::usize len,
+                                           const keel::c64 *zi = nullptr,
+                                           keel::usize ziLen = 0,
+                                           keel::c64 *zfOut = nullptr,
+                                           keel::Allocator *mr = nullptr);
 
 // ── Second-order section (biquad) DF2T ────────────────────────────────────
 // One biquad section applied in place to a single-channel signal, Direct-Form-II
@@ -46,13 +48,13 @@ ScratchVec<Complex> applyFilterDf2tComplex(const Complex *bn, std::size_t nb,
 //   y[n] = b0*x[n] + s1;  s1 = b1*x[n] - a1*y[n] + s2;  s2 = b2*x[n] - a2*y[n].
 // The building block of an SOS cascade (signal sosfilt/sosfiltfilt). Like the
 // general DF2T above it is a sequential recurrence — no SIMD.
-void biquadDf2t(double b0, double b1, double b2, double a1, double a2,
-                const double *x, double *y, std::size_t n);
+void biquadDf2t(keel::f64 b0, keel::f64 b1, keel::f64 b2, keel::f64 a1, keel::f64 a2,
+                const keel::f64 *x, keel::f64 *y, keel::usize n);
 
 // Same recurrence seeded with an explicit initial state (s1_init, s2_init) —
 // used by the forward/backward passes of sosfiltfilt.
-void biquadDf2tWithState(double b0, double b1, double b2, double a1, double a2,
-                         const double *x, double *y, std::size_t n,
-                         double s1_init, double s2_init);
+void biquadDf2tWithState(keel::f64 b0, keel::f64 b1, keel::f64 b2, keel::f64 a1, keel::f64 a2,
+                         const keel::f64 *x, keel::f64 *y, keel::usize n,
+                         keel::f64 s1_init, keel::f64 s2_init);
 
 } // namespace numkit::ops

@@ -2,17 +2,17 @@
 //
 // svdsketch & svdappend â€” Randomized low-rank SVD and Incremental SVD.
 
+#include <keel/core.h>
+#include <keel/memory.h>
 #include <numkit/linalg/svd_sketch.hpp>
 #include <numkit/linalg/decompositions.hpp>
 #include "linalg_detail.hpp"
 
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
-#include <numkit/value/scratch.hpp>
 
 #include <algorithm>
 #include <cmath>
-#include <complex>
 #include <random>
 #include <vector>
 
@@ -20,14 +20,12 @@ namespace numkit::linalg {
 
 namespace {
 
-using Complex = std::complex<double>;
-
 // Multiply two real matrices C = A * B
-Value matMulReal(const Value &A, const Value &B, std::pmr::memory_resource *mr)
+Value matMulReal(const Value &A, const Value &B, keel::Allocator *mr)
 {
-    const std::size_t m = static_cast<std::size_t>(A.dims().dim(0));
-    const std::size_t k = static_cast<std::size_t>(A.dims().dim(1));
-    const std::size_t n = static_cast<std::size_t>(B.dims().dim(1));
+    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
+    const keel::usize k = static_cast<keel::usize>(A.dims().dim(1));
+    const keel::usize n = static_cast<keel::usize>(B.dims().dim(1));
 
     auto C = Value::matrix(m, n, ValueType::DOUBLE, mr);
     double *cd = C.doubleDataMut();
@@ -36,11 +34,11 @@ Value matMulReal(const Value &A, const Value &B, std::pmr::memory_resource *mr)
     const double *ad = A.doubleData();
     const double *bd = B.doubleData();
 
-    for (std::size_t j = 0; j < n; ++j) {
-        for (std::size_t l = 0; l < k; ++l) {
+    for (keel::usize j = 0; j < n; ++j) {
+        for (keel::usize l = 0; l < k; ++l) {
             const double b_lj = bd[l + j * k];
             if (b_lj == 0.0) continue;
-            for (std::size_t i = 0; i < m; ++i) {
+            for (keel::usize i = 0; i < m; ++i) {
                 cd[i + j * m] += ad[i + l * m] * b_lj;
             }
         }
@@ -49,15 +47,15 @@ Value matMulReal(const Value &A, const Value &B, std::pmr::memory_resource *mr)
 }
 
 // Transpose of a real matrix
-Value matTranspose(const Value &A, std::pmr::memory_resource *mr)
+Value matTranspose(const Value &A, keel::Allocator *mr)
 {
-    const std::size_t m = static_cast<std::size_t>(A.dims().dim(0));
-    const std::size_t n = static_cast<std::size_t>(A.dims().dim(1));
+    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
+    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
     auto At = Value::matrix(n, m, ValueType::DOUBLE, mr);
     double *atd = At.doubleDataMut();
     const double *ad = A.doubleData();
-    for (std::size_t i = 0; i < m; ++i) {
-        for (std::size_t j = 0; j < n; ++j) {
+    for (keel::usize i = 0; i < m; ++i) {
+        for (keel::usize j = 0; j < n; ++j) {
             atd[j + i * n] = ad[i + j * m];
         }
     }
@@ -66,14 +64,14 @@ Value matTranspose(const Value &A, std::pmr::memory_resource *mr)
 
 } // anonymous namespace
 
-std::tuple<Value, Value, Value> svdsketch(const Value &A, double tol, std::pmr::memory_resource *mr)
+std::tuple<Value, Value, Value> svdsketch(const Value &A, double tol, keel::Allocator *mr)
 {
     if (A.dims().ndim() != 2)
         throw Error("svdsketch: input A must be a 2D matrix", 0, 0, "svdsketch", "", "numkit:svdsketch:notMatrix");
 
-    const std::size_t m = static_cast<std::size_t>(A.dims().dim(0));
-    const std::size_t n = static_cast<std::size_t>(A.dims().dim(1));
-    const std::size_t min_mn = std::min(m, n);
+    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
+    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
+    const keel::usize min_mn = std::min(m, n);
 
     const bool wantSingle = A.type() == ValueType::SINGLE;
     const ValueType rtype = wantSingle ? ValueType::SINGLE : ValueType::DOUBLE;
@@ -86,13 +84,13 @@ std::tuple<Value, Value, Value> svdsketch(const Value &A, double tol, std::pmr::
     Value Aw = detail::widenSingleToDouble(A, mr);
 
     // Step 1: Draw Gaussian random test matrix Omega (n x l)
-    std::size_t l = std::min(min_mn, static_cast<std::size_t>(15));
+    keel::usize l = std::min(min_mn, static_cast<keel::usize>(15));
     auto Omega = Value::matrix(n, l, ValueType::DOUBLE, mr);
     double *od = Omega.doubleDataMut();
 
     std::mt19937 gen(42); // fixed seed for deterministic reproducibility
     std::normal_distribution<double> dist(0.0, 1.0);
-    for (std::size_t i = 0; i < n * l; ++i) od[i] = dist(gen);
+    for (keel::usize i = 0; i < n * l; ++i) od[i] = dist(gen);
 
     // Step 2: Y = A * Omega (m x l)
     Value Y = matMulReal(Aw, Omega, mr);
@@ -102,8 +100,8 @@ std::tuple<Value, Value, Value> svdsketch(const Value &A, double tol, std::pmr::
     auto Q = Value::matrix(m, l, ValueType::DOUBLE, mr);
     const double *qfd = Q_full.doubleData();
     double *qd = Q.doubleDataMut();
-    for (std::size_t j = 0; j < l; ++j) {
-        for (std::size_t i = 0; i < m; ++i) {
+    for (keel::usize j = 0; j < l; ++j) {
+        for (keel::usize i = 0; i < m; ++i) {
             qd[i + j * m] = qfd[i + j * m];
         }
     }
@@ -121,8 +119,8 @@ std::tuple<Value, Value, Value> svdsketch(const Value &A, double tol, std::pmr::
     // Step 7: Truncate rank by tolerance
     const double s0 = S.doubleData()[0];
     const double cutoff = tol * s0;
-    std::size_t rank = 0;
-    for (std::size_t i = 0; i < std::min(l, min_mn); ++i) {
+    keel::usize rank = 0;
+    for (keel::usize i = 0; i < std::min(l, min_mn); ++i) {
         if (S.doubleData()[i + i * l] >= cutoff) {
             rank++;
         }
@@ -144,9 +142,9 @@ std::tuple<Value, Value, Value> svdsketch(const Value &A, double tol, std::pmr::
     const double *sd = S.doubleData();
     const double *vd = V.doubleData();
 
-    for (std::size_t j = 0; j < rank; ++j) {
-        for (std::size_t i = 0; i < m; ++i) urd[i + j * m] = ud[i + j * m];
-        for (std::size_t i = 0; i < n; ++i) vrd[i + j * n] = vd[i + j * n];
+    for (keel::usize j = 0; j < rank; ++j) {
+        for (keel::usize i = 0; i < m; ++i) urd[i + j * m] = ud[i + j * m];
+        for (keel::usize i = 0; i < n; ++i) vrd[i + j * n] = vd[i + j * n];
         srd[j + j * rank] = sd[j + j * l];
     }
 
@@ -156,17 +154,17 @@ std::tuple<Value, Value, Value> svdsketch(const Value &A, double tol, std::pmr::
 }
 
 std::tuple<Value, Value, Value> svdappend(const Value &U, const Value &S, const Value &V,
-                                          const Value &A_new, std::pmr::memory_resource *mr)
+                                          const Value &A_new, keel::Allocator *mr)
 {
     if (U.dims().ndim() != 2 || S.dims().ndim() != 2 || V.dims().ndim() != 2 || A_new.dims().ndim() != 2)
         throw Error("svdappend: inputs must be 2D matrices", 0, 0, "svdappend", "", "numkit:svdappend:notMatrix");
 
-    const std::size_t m = static_cast<std::size_t>(U.dims().dim(0));
-    const std::size_t k = static_cast<std::size_t>(U.dims().dim(1));
-    const std::size_t n = static_cast<std::size_t>(V.dims().dim(0));
-    const std::size_t p = static_cast<std::size_t>(A_new.dims().dim(1));
+    const keel::usize m = static_cast<keel::usize>(U.dims().dim(0));
+    const keel::usize k = static_cast<keel::usize>(U.dims().dim(1));
+    const keel::usize n = static_cast<keel::usize>(V.dims().dim(0));
+    const keel::usize p = static_cast<keel::usize>(A_new.dims().dim(1));
 
-    if (static_cast<std::size_t>(A_new.dims().dim(0)) != m)
+    if (static_cast<keel::usize>(A_new.dims().dim(0)) != m)
         throw Error("svdappend: A_new must have the same number of rows as U", 0, 0, "svdappend", "", "numkit:svdappend:badDims");
 
     const bool wantSingle = U.type() == ValueType::SINGLE || S.type() == ValueType::SINGLE
@@ -187,7 +185,7 @@ std::tuple<Value, Value, Value> svdappend(const Value &U, const Value &S, const 
     double *pd = P.doubleDataMut();
     const double *anewd = A_neww.doubleData();
     const double *umkd = Umk.doubleData();
-    for (std::size_t i = 0; i < m * p; ++i) pd[i] = anewd[i] - umkd[i];
+    for (keel::usize i = 0; i < m * p; ++i) pd[i] = anewd[i] - umkd[i];
 
     // Economic QR of P: Qp * Rp = P (Qp is m x p, Rp is p x p)
     auto [Qp_full, Rp_full] = qr_decompose(P, mr);
@@ -199,15 +197,15 @@ std::tuple<Value, Value, Value> svdappend(const Value &U, const Value &S, const 
     double *qpd = Qp.doubleDataMut();
     double *rpd = Rp.doubleDataMut();
 
-    for (std::size_t j = 0; j < p; ++j) {
-        for (std::size_t i = 0; i < m; ++i) qpd[i + j * m] = qpfd[i + j * m];
-        for (std::size_t i = 0; i < p; ++i) rpd[i + j * p] = rpfd[i + j * (m + p)];
+    for (keel::usize j = 0; j < p; ++j) {
+        for (keel::usize i = 0; i < m; ++i) qpd[i + j * m] = qpfd[i + j * m];
+        for (keel::usize i = 0; i < p; ++i) rpd[i + j * p] = rpfd[i + j * (m + p)];
     }
 
     // Build block matrix K ((k+p) x (k+p)):
     // [ S    m_k ]
     // [ 0    R_p ]
-    const std::size_t dim = k + p;
+    const keel::usize dim = k + p;
     Value K = Value::matrix(dim, dim, ValueType::DOUBLE, mr);
     double *kd = K.doubleDataMut();
     std::fill(kd, kd + dim * dim, 0.0);
@@ -216,20 +214,20 @@ std::tuple<Value, Value, Value> svdappend(const Value &U, const Value &S, const 
     const double *mkd = m_k.doubleData();
 
     // S block (k x k)
-    for (std::size_t j = 0; j < k; ++j) {
-        for (std::size_t i = 0; i < k; ++i) {
+    for (keel::usize j = 0; j < k; ++j) {
+        for (keel::usize i = 0; i < k; ++i) {
             kd[i + j * dim] = sd[i + j * k];
         }
     }
     // m_k block (k x p)
-    for (std::size_t j = 0; j < p; ++j) {
-        for (std::size_t i = 0; i < k; ++i) {
+    for (keel::usize j = 0; j < p; ++j) {
+        for (keel::usize i = 0; i < k; ++i) {
             kd[i + (k + j) * dim] = mkd[i + j * k];
         }
     }
     // Rp block (p x p)
-    for (std::size_t j = 0; j < p; ++j) {
-        for (std::size_t i = 0; i < p; ++i) {
+    for (keel::usize j = 0; j < p; ++j) {
+        for (keel::usize i = 0; i < p; ++i) {
             kd[(k + i) + (k + j) * dim] = rpd[i + j * p];
         }
     }
@@ -241,24 +239,24 @@ std::tuple<Value, Value, Value> svdappend(const Value &U, const Value &S, const 
     Value U_large = Value::matrix(m, dim, ValueType::DOUBLE, mr);
     double *uld = U_large.doubleDataMut();
     const double *ud = Uw.doubleData();
-    for (std::size_t j = 0; j < k; ++j) {
-        for (std::size_t i = 0; i < m; ++i) uld[i + j * m] = ud[i + j * m];
+    for (keel::usize j = 0; j < k; ++j) {
+        for (keel::usize i = 0; i < m; ++i) uld[i + j * m] = ud[i + j * m];
     }
-    for (std::size_t j = 0; j < p; ++j) {
-        for (std::size_t i = 0; i < m; ++i) uld[i + (k + j) * m] = qpd[i + j * m];
+    for (keel::usize j = 0; j < p; ++j) {
+        for (keel::usize i = 0; i < m; ++i) uld[i + (k + j) * m] = qpd[i + j * m];
     }
 
     // Form V_large = [V 0; 0 I_p] ((n+p) x (k+p))
-    const std::size_t n_new = n + p;
+    const keel::usize n_new = n + p;
     Value V_large = Value::matrix(n_new, dim, ValueType::DOUBLE, mr);
     double *vld = V_large.doubleDataMut();
     std::fill(vld, vld + n_new * dim, 0.0);
 
     const double *vd = Vw.doubleData();
-    for (std::size_t j = 0; j < k; ++j) {
-        for (std::size_t i = 0; i < n; ++i) vld[i + j * n_new] = vd[i + j * n];
+    for (keel::usize j = 0; j < k; ++j) {
+        for (keel::usize i = 0; i < n; ++i) vld[i + j * n_new] = vd[i + j * n];
     }
-    for (std::size_t j = 0; j < p; ++j) {
+    for (keel::usize j = 0; j < p; ++j) {
         vld[(n + j) + (k + j) * n_new] = 1.0;
     }
 

@@ -1,9 +1,13 @@
 // toolboxes/builtin/src/datatypes/strings/format.cpp
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/ref.h>
+#include <keel/arena.h>
+#include <keel/array.h>
 #include <numkit/builtin/strfun.hpp>
 
 #include <numkit/value/value.hpp>
-#include <numkit/value/scratch.hpp>
 #include <numkit/value/error.hpp>
 
 #include <cctype>
@@ -23,16 +27,16 @@ namespace {
 std::string applyStringSpec(const std::string &spec, std::string sv)
 {
     bool leftAlign = false;
-    size_t k = 1;                       // skip '%'
+    keel::usize k = 1;                       // skip '%'
     for (; k < spec.size(); ++k) {
         const char c = spec[k];
         if (c == '-') leftAlign = true;
         else if (c == '+' || c == ' ' || c == '0' || c == '#') { /* flag */ }
         else break;
     }
-    size_t width = 0;
+    keel::usize width = 0;
     for (; k < spec.size() && std::isdigit(static_cast<unsigned char>(spec[k])); ++k)
-        width = width * 10 + static_cast<size_t>(spec[k] - '0');
+        width = width * 10 + static_cast<keel::usize>(spec[k] - '0');
     long precision = -1;
     if (k < spec.size() && spec[k] == '.') {
         ++k;
@@ -41,8 +45,8 @@ std::string applyStringSpec(const std::string &spec, std::string sv)
             precision = precision * 10 + (spec[k] - '0');
     }
 
-    if (precision >= 0 && static_cast<size_t>(precision) < sv.size())
-        sv.resize(static_cast<size_t>(precision));
+    if (precision >= 0 && static_cast<keel::usize>(precision) < sv.size())
+        sv.resize(static_cast<keel::usize>(precision));
     if (width > sv.size()) {
         const std::string pad(width - sv.size(), ' ');
         return leftAlign ? sv + pad : pad + sv;
@@ -69,7 +73,7 @@ std::string formatNonFinite(const std::string &spec, double v)
     std::string word = std::isnan(v) ? "NaN" : (v < 0 ? "-Inf" : "Inf");
 
     bool leftAlign = false, plus = false, space = false;
-    size_t k = 1; // skip '%'
+    keel::usize k = 1; // skip '%'
     for (; k < spec.size(); ++k) {
         const char c = spec[k];
         if (c == '-') leftAlign = true;
@@ -78,9 +82,9 @@ std::string formatNonFinite(const std::string &spec, double v)
         else if (c == '0' || c == '#') { /* flag */ }
         else break;
     }
-    size_t width = 0;
+    keel::usize width = 0;
     for (; k < spec.size() && std::isdigit(static_cast<unsigned char>(spec[k])); ++k)
-        width = width * 10 + static_cast<size_t>(spec[k] - '0');
+        width = width * 10 + static_cast<keel::usize>(spec[k] - '0');
 
     if (word == "Inf") {
         if (plus) word = "+Inf";
@@ -138,13 +142,13 @@ std::string formatIntegerConv(const std::string &spec, char type, double v)
 // Public API
 // ════════════════════════════════════════════════════════════════════════
 
-std::string formatOnce(const std::string &fmt, Span<const Value> args, size_t argStart,
+std::string formatOnce(const std::string &fmt, keel::ArrayRef<Value> args, keel::usize argStart,
                        bool literalWhenShort)
 {
     std::ostringstream out;
-    size_t ai = argStart;
+    keel::usize ai = argStart;
 
-    for (size_t i = 0; i < fmt.size(); ++i) {
+    for (keel::usize i = 0; i < fmt.size(); ++i) {
         if (fmt[i] == '\\' && i + 1 < fmt.size()) {
             char next = fmt[i + 1];
             if (next == 'n')  { out << '\n'; i++; continue; }
@@ -162,7 +166,7 @@ std::string formatOnce(const std::string &fmt, Span<const Value> args, size_t ar
                 continue;
             }
 
-            size_t start = i;
+            keel::usize start = i;
             i++;
 
             while (i < fmt.size()
@@ -203,7 +207,7 @@ std::string formatOnce(const std::string &fmt, Span<const Value> args, size_t ar
             // precision), BEFORE the conversion consumes its value arg. We
             // splice the concrete integer into the spec so the downstream
             // string / integer / float formatters need no '*' awareness.
-            for (size_t sp = spec.find('*'); sp != std::string::npos;
+            for (keel::usize sp = spec.find('*'); sp != std::string::npos;
                  sp = spec.find('*')) {
                 long w = (ai < args.size())
                              ? static_cast<long>(args[ai].toScalar())
@@ -267,10 +271,10 @@ std::string formatOnce(const std::string &fmt, Span<const Value> args, size_t ar
     return out.str();
 }
 
-size_t countFormatSpecs(const std::string &fmt)
+keel::usize countFormatSpecs(const std::string &fmt)
 {
-    size_t n = 0;
-    for (size_t i = 0; i < fmt.size(); ++i) {
+    keel::usize n = 0;
+    for (keel::usize i = 0; i < fmt.size(); ++i) {
         if (fmt[i] != '%') continue;
         if (i + 1 < fmt.size() && fmt[i + 1] == '%') { ++i; continue; }
         ++i;
@@ -295,20 +299,20 @@ size_t countFormatSpecs(const std::string &fmt)
     return n;
 }
 
-std::string formatCyclic(const std::string &fmt, Span<const Value> args, size_t argStart, std::pmr::memory_resource *mr)
+std::string formatCyclic(const std::string &fmt, keel::ArrayRef<Value> args, keel::usize argStart, keel::Allocator *mr)
 {
-    std::pmr::memory_resource *p = mr;
-    ScratchArena scratch(mr);
-    ScratchVec<Value> stream(&scratch);
+    keel::Allocator *p = mr;
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<Value> stream(scratch.allocator());
     stream.reserve(args.size() > argStart ? args.size() - argStart : 0);
-    for (size_t i = argStart; i < args.size(); ++i) {
+    for (keel::usize i = argStart; i < args.size(); ++i) {
         const Value &a = args[i];
         // A string array supplies one argument per element (MATLAB cycles
         // the format over them, like a numeric array). A char array is a
         // single atomic %s argument, so it is NOT expanded here.
         if (a.isString()) {
-            size_t n = a.numel();
-            for (size_t j = 0; j < n; ++j)
+            keel::usize n = a.numel();
+            for (keel::usize j = 0; j < n; ++j)
                 stream.push_back(Value::stringScalar(a.stringElem(j), p));
             continue;
         }
@@ -322,8 +326,8 @@ std::string formatCyclic(const std::string &fmt, Span<const Value> args, size_t 
                 stream.push_back(a);
             continue;
         }
-        size_t n = a.numel();
-        for (size_t j = 0; j < n; ++j) {
+        keel::usize n = a.numel();
+        for (keel::usize j = 0; j < n; ++j) {
             double v;
             if (a.type() == ValueType::DOUBLE) v = a.doubleData()[j];
             else if (a.isLogical())        v = a.logicalData()[j] ? 1.0 : 0.0;
@@ -333,23 +337,23 @@ std::string formatCyclic(const std::string &fmt, Span<const Value> args, size_t 
         }
     }
 
-    size_t nSpecs = countFormatSpecs(fmt);
+    keel::usize nSpecs = countFormatSpecs(fmt);
     if (nSpecs == 0 || stream.size() <= nSpecs)
-        return formatOnce(fmt, Span<const Value>{stream.data(), stream.size()}, 0);
+        return formatOnce(fmt, keel::ArrayRef<Value>{stream.data(), stream.size()}, 0);
 
     std::string out;
-    size_t pos = 0;
+    keel::usize pos = 0;
     while (pos < stream.size()) {
-        size_t end = std::min(pos + nSpecs, stream.size());
-        out += formatOnce(fmt, Span<const Value>{stream.data() + pos, end - pos}, 0);
+        keel::usize end = std::min(pos + nSpecs, stream.size());
+        out += formatOnce(fmt, keel::ArrayRef<Value>{stream.data() + pos, end - pos}, 0);
         pos = end;
     }
     return out;
 }
 
-Value sprintf(const Value &fmt, Span<const Value> args, std::pmr::memory_resource *mr)
+Value sprintf(const Value &fmt, keel::ArrayRef<Value> args, keel::Allocator *mr)
 {
-    std::pmr::memory_resource *p = mr;
+    keel::Allocator *p = mr;
     if (!fmt.isChar())
         return Value::fromString("", p);
     std::string result = formatCyclic(fmt.toString(), args, 0, mr);

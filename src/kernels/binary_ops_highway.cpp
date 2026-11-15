@@ -7,6 +7,7 @@
 // / times() / rdivide() in binary_ops.cpp are unchanged; they
 // call these loops only for the 2D same-shape DOUBLE fast path.
 
+#include <keel/core.h>
 #include <numkit/ops/binary_ops.hpp>
 
 #include <numkit/ops/parallel_for.hpp>
@@ -55,8 +56,8 @@ namespace {
 
 // Returns the number of leading scalar elements needed to bring
 // `out + i` to N*sizeof(double) alignment.
-HWY_INLINE std::size_t alignmentLead(const double *out,
-                                     std::size_t i, std::size_t align_bytes)
+HWY_INLINE keel::usize alignmentLead(const double *out,
+                                     keel::usize i, keel::usize align_bytes)
 {
     const auto addr = reinterpret_cast<std::uintptr_t>(out + i);
     const auto rem  = addr % align_bytes;
@@ -73,17 +74,17 @@ HWY_INLINE std::size_t alignmentLead(const double *out,
 // alignment rules as the head; FlushStream is dispatcher-level.
 #define NUMKIT_BINOP_LOOP(NAME, VEC_OP, SCALAR_OP)                                            \
     void NAME(const double *HWY_RESTRICT a, const double *HWY_RESTRICT b,                 \
-              double *HWY_RESTRICT out, std::size_t n)                                    \
+              double *HWY_RESTRICT out, keel::usize n)                                    \
     {                                                                                     \
         const hn::ScalableTag<double> d;                                                  \
-        const std::size_t N           = hn::Lanes(d);                                     \
-        const std::size_t align_bytes = N * sizeof(double);                               \
+        const keel::usize N           = hn::Lanes(d);                                     \
+        const keel::usize align_bytes = N * sizeof(double);                               \
                                                                                           \
-        std::size_t i = 0;                                                                \
-        const std::size_t head = std::min(alignmentLead(out, i, align_bytes), n);         \
-        for (std::size_t k = 0; k < head; ++k, ++i) out[i] = a[i] SCALAR_OP b[i];         \
+        keel::usize i = 0;                                                                \
+        const keel::usize head = std::min(alignmentLead(out, i, align_bytes), n);         \
+        for (keel::usize k = 0; k < head; ++k, ++i) out[i] = a[i] SCALAR_OP b[i];         \
                                                                                           \
-        const std::size_t step4 = 4 * N;                                                  \
+        const keel::usize step4 = 4 * N;                                                  \
         for (; i + step4 <= n; i += step4) {                                              \
             hn::Stream(hn::VEC_OP(hn::LoadU(d, a + i + 0 * N),                            \
                                   hn::LoadU(d, b + i + 0 * N)), d, out + i + 0 * N);     \
@@ -150,9 +151,9 @@ NUMKIT_BINOP_LOOP(RdivideLoop, Div, /)
 
 namespace {
 
-constexpr std::size_t kMR = 8;   // rows per tile (fits 2 vec of 4 lanes)
-constexpr std::size_t kNR = 4;   // cols per tile (4 outer-product accumulators)
-constexpr std::size_t kKC = 256; // K-block — A panel + B panel fit L1
+constexpr keel::usize kMR = 8;   // rows per tile (fits 2 vec of 4 lanes)
+constexpr keel::usize kNR = 4;   // cols per tile (4 outer-product accumulators)
+constexpr keel::usize kKC = 256; // K-block — A panel + B panel fit L1
 
 // Single-pass body: zero-init in registers, sweep all of K, store.
 // Used for K ≤ 2*KC. Operates on the body region [0, M_body) × [0, N_body)
@@ -163,21 +164,21 @@ constexpr std::size_t kKC = 256; // K-block — A panel + B panel fit L1
 void matmulSinglePass(const double *HWY_RESTRICT a,
                                    const double *HWY_RESTRICT b,
                                    double *HWY_RESTRICT c,
-                                   std::size_t M, std::size_t K,
-                                   std::size_t M_body, std::size_t N_body)
+                                   keel::usize M, keel::usize K,
+                                   keel::usize M_body, keel::usize N_body)
 {
     const hn::ScalableTag<double> d;
-    const std::size_t MR_HALF = hn::Lanes(d);
+    const keel::usize MR_HALF = hn::Lanes(d);
 
-    for (std::size_t j0 = 0; j0 < N_body; j0 += kNR) {
-        for (std::size_t i0 = 0; i0 < M_body; i0 += kMR) {
+    for (keel::usize j0 = 0; j0 < N_body; j0 += kNR) {
+        for (keel::usize i0 = 0; i0 < M_body; i0 += kMR) {
             double *c_tile = c + i0;
             auto c00 = hn::Zero(d), c10 = hn::Zero(d);
             auto c01 = hn::Zero(d), c11 = hn::Zero(d);
             auto c02 = hn::Zero(d), c12 = hn::Zero(d);
             auto c03 = hn::Zero(d), c13 = hn::Zero(d);
 
-            for (std::size_t k = 0; k < K; ++k) {
+            for (keel::usize k = 0; k < K; ++k) {
                 const double *a_col = a + k * M;
                 const auto    a0 = hn::LoadU(d, a_col + i0);
                 const auto    a1 = hn::LoadU(d, a_col + i0 + MR_HALF);
@@ -214,22 +215,22 @@ void matmulSinglePass(const double *HWY_RESTRICT a,
 HWY_NOINLINE void matmulKBlocked(const double *HWY_RESTRICT a,
                                  const double *HWY_RESTRICT b,
                                  double *HWY_RESTRICT c,
-                                 std::size_t M, std::size_t K,
-                                 std::size_t M_body, std::size_t N_body)
+                                 keel::usize M, keel::usize K,
+                                 keel::usize M_body, keel::usize N_body)
 {
     const hn::ScalableTag<double> d;
-    const std::size_t MR_HALF = hn::Lanes(d);
+    const keel::usize MR_HALF = hn::Lanes(d);
 
     // First k-block: k in [0, KC). Zero-init accumulators, store at end.
-    for (std::size_t j0 = 0; j0 < N_body; j0 += kNR) {
-        for (std::size_t i0 = 0; i0 < M_body; i0 += kMR) {
+    for (keel::usize j0 = 0; j0 < N_body; j0 += kNR) {
+        for (keel::usize i0 = 0; i0 < M_body; i0 += kMR) {
             double *c_tile = c + i0;
             auto c00 = hn::Zero(d), c10 = hn::Zero(d);
             auto c01 = hn::Zero(d), c11 = hn::Zero(d);
             auto c02 = hn::Zero(d), c12 = hn::Zero(d);
             auto c03 = hn::Zero(d), c13 = hn::Zero(d);
 
-            for (std::size_t k = 0; k < kKC; ++k) {
+            for (keel::usize k = 0; k < kKC; ++k) {
                 const double *a_col = a + k * M;
                 const auto    a0 = hn::LoadU(d, a_col + i0);
                 const auto    a1 = hn::LoadU(d, a_col + i0 + MR_HALF);
@@ -263,11 +264,11 @@ HWY_NOINLINE void matmulKBlocked(const double *HWY_RESTRICT a,
     // accumulate, store back. B[kb..kb+KC, j0..j0+3] stays L1-resident
     // across the M/MR i0 sweep — the access pattern that makes
     // K-blocking pay off.
-    for (std::size_t k0 = kKC; k0 < K; k0 += kKC) {
-        const std::size_t k_hi = (k0 + kKC < K) ? k0 + kKC : K;
+    for (keel::usize k0 = kKC; k0 < K; k0 += kKC) {
+        const keel::usize k_hi = (k0 + kKC < K) ? k0 + kKC : K;
 
-        for (std::size_t j0 = 0; j0 < N_body; j0 += kNR) {
-            for (std::size_t i0 = 0; i0 < M_body; i0 += kMR) {
+        for (keel::usize j0 = 0; j0 < N_body; j0 += kNR) {
+            for (keel::usize i0 = 0; i0 < M_body; i0 += kMR) {
                 double *c_tile = c + i0;
                 auto c00 = hn::LoadU(d, c_tile + (j0 + 0) * M);
                 auto c10 = hn::LoadU(d, c_tile + (j0 + 0) * M + MR_HALF);
@@ -278,7 +279,7 @@ HWY_NOINLINE void matmulKBlocked(const double *HWY_RESTRICT a,
                 auto c03 = hn::LoadU(d, c_tile + (j0 + 3) * M);
                 auto c13 = hn::LoadU(d, c_tile + (j0 + 3) * M + MR_HALF);
 
-                for (std::size_t k = k0; k < k_hi; ++k) {
+                for (keel::usize k = k0; k < k_hi; ++k) {
                     const double *a_col = a + k * M;
                     const auto    a0 = hn::LoadU(d, a_col + i0);
                     const auto    a1 = hn::LoadU(d, a_col + i0 + MR_HALF);
@@ -313,30 +314,30 @@ HWY_NOINLINE void matmulKBlocked(const double *HWY_RESTRICT a,
 } // namespace
 
 void MatmulLoop(const double *HWY_RESTRICT a, const double *HWY_RESTRICT b,
-                double *HWY_RESTRICT c, std::size_t M, std::size_t N, std::size_t K)
+                double *HWY_RESTRICT c, keel::usize M, keel::usize N, keel::usize K)
 {
     const hn::ScalableTag<double> d;
-    const std::size_t lanes = hn::Lanes(d);
+    const keel::usize lanes = hn::Lanes(d);
 
     // Helper: SAXPY-down-column path for an arbitrary [j_lo, j_hi) col
     // range and an arbitrary [i_lo, i_hi) row range. Used for the tail
     // and for problems too small (or wrong vector width) for the
     // 8×4 register tile.
-    auto saxpyRange = [&](std::size_t i_lo, std::size_t i_hi,
-                          std::size_t j_lo, std::size_t j_hi) {
-        for (std::size_t j = j_lo; j < j_hi; ++j) {
+    auto saxpyRange = [&](keel::usize i_lo, keel::usize i_hi,
+                          keel::usize j_lo, keel::usize j_hi) {
+        for (keel::usize j = j_lo; j < j_hi; ++j) {
             double *c_col = c + j * M;
             {
                 const auto zero = hn::Zero(d);
-                std::size_t i = i_lo;
+                keel::usize i = i_lo;
                 for (; i + lanes <= i_hi; i += lanes) hn::StoreU(zero, d, c_col + i);
                 for (; i < i_hi; ++i) c_col[i] = 0.0;
             }
-            for (std::size_t k = 0; k < K; ++k) {
+            for (keel::usize k = 0; k < K; ++k) {
                 const double bkj = b[j * K + k];
                 const auto vb = hn::Set(d, bkj);
                 const double *a_col = a + k * M;
-                std::size_t i = i_lo;
+                keel::usize i = i_lo;
                 for (; i + lanes <= i_hi; i += lanes) {
                     const auto va = hn::LoadU(d, a_col + i);
                     const auto vc = hn::LoadU(d, c_col + i);
@@ -356,8 +357,8 @@ void MatmulLoop(const double *HWY_RESTRICT a, const double *HWY_RESTRICT b,
         return;
     }
 
-    const std::size_t M_body = (M / kMR) * kMR;
-    const std::size_t N_body = (N / kNR) * kNR;
+    const keel::usize M_body = (M / kMR) * kMR;
+    const keel::usize N_body = (N / kNR) * kNR;
 
     // Pick the body specialisation. Empirical break-even on Arrow Lake
     // (AVX2 + MSVC + Highway): K=512 ties, K=1024 K-blocked is 1.7×
@@ -406,7 +407,7 @@ HWY_EXPORT(MatmulLoop);
 // where Highway's Stream falls back to a normal store) FlushStream
 // is a no-op.
 
-void plusLoop(const double *a, const double *b, double *out, std::size_t n)
+void plusLoop(const double *a, const double *b, double *out, keel::usize n)
 {
     // Small native arrays delegate to the shared scalar kernel (binary_scalar.cpp)
     // rather than an inline loop: one body shared with the portable fallback
@@ -418,46 +419,46 @@ void plusLoop(const double *a, const double *b, double *out, std::size_t n)
         return;
     }
     numkit::detail::parallel_for(n, numkit::detail::kCheapElementwiseThreshold,
-        [=](std::size_t s, std::size_t e) {
+        [=](keel::usize s, keel::usize e) {
             HWY_DYNAMIC_DISPATCH(PlusLoop)(a + s, b + s, out + s, e - s);
         }, numkit::detail::kElementwiseMaxWorkers);
     hwy::FlushStream();
 }
 
-void minusLoop(const double *a, const double *b, double *out, std::size_t n)
+void minusLoop(const double *a, const double *b, double *out, keel::usize n)
 {
     if (n < numkit::detail::kSimdInlineThreshold) {   // delegate (see plusLoop)
         minusScalar(a, b, out, n);
         return;
     }
     numkit::detail::parallel_for(n, numkit::detail::kCheapElementwiseThreshold,
-        [=](std::size_t s, std::size_t e) {
+        [=](keel::usize s, keel::usize e) {
             HWY_DYNAMIC_DISPATCH(MinusLoop)(a + s, b + s, out + s, e - s);
         }, numkit::detail::kElementwiseMaxWorkers);
     hwy::FlushStream();
 }
 
-void timesLoop(const double *a, const double *b, double *out, std::size_t n)
+void timesLoop(const double *a, const double *b, double *out, keel::usize n)
 {
     if (n < numkit::detail::kSimdInlineThreshold) {   // delegate (see plusLoop)
         timesScalar(a, b, out, n);
         return;
     }
     numkit::detail::parallel_for(n, numkit::detail::kCheapElementwiseThreshold,
-        [=](std::size_t s, std::size_t e) {
+        [=](keel::usize s, keel::usize e) {
             HWY_DYNAMIC_DISPATCH(TimesLoop)(a + s, b + s, out + s, e - s);
         }, numkit::detail::kElementwiseMaxWorkers);
     hwy::FlushStream();
 }
 
-void rdivideLoop(const double *a, const double *b, double *out, std::size_t n)
+void rdivideLoop(const double *a, const double *b, double *out, keel::usize n)
 {
     if (n < numkit::detail::kSimdInlineThreshold) {   // delegate (see plusLoop)
         rdivideScalar(a, b, out, n);
         return;
     }
     numkit::detail::parallel_for(n, numkit::detail::kCheapElementwiseThreshold,
-        [=](std::size_t s, std::size_t e) {
+        [=](keel::usize s, keel::usize e) {
             HWY_DYNAMIC_DISPATCH(RdivideLoop)(a + s, b + s, out + s, e - s);
         }, numkit::detail::kElementwiseMaxWorkers);
     hwy::FlushStream();
@@ -466,10 +467,10 @@ void rdivideLoop(const double *a, const double *b, double *out, std::size_t n)
 // Threshold for parallel matmul. Below this many output columns the
 // per-worker overhead overshadows the kernel — the existing single-
 // thread MatmulLoop is faster for small N.
-inline constexpr std::size_t kMatmulParallelThreshold = 32;
+inline constexpr keel::usize kMatmulParallelThreshold = 32;
 
 void matmulDoubleLoop(const double *a, const double *b, double *c,
-                      std::size_t M, std::size_t N, std::size_t K)
+                      keel::usize M, keel::usize N, keel::usize K)
 {
     // Outer loop is over columns of C. Each output column is computed
     // from A (read-only) and one column of B; columns are independent,
@@ -485,7 +486,7 @@ void matmulDoubleLoop(const double *a, const double *b, double *c,
         return;
     }
     numkit::detail::parallel_for(N, kMatmulParallelThreshold,
-        [=](std::size_t j_start, std::size_t j_end) {
+        [=](keel::usize j_start, keel::usize j_end) {
             HWY_DYNAMIC_DISPATCH(MatmulLoop)(
                 a,
                 b + j_start * K,

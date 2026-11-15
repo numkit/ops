@@ -15,13 +15,14 @@
 
 #pragma once
 
+#include <keel/core.h>
+#include <keel/memory.h>
 #include <numkit/ops/matlab_mt19937.hpp>
 #include <numkit/value/value.hpp>
 
 #include <cmath>    // v4Normal: std::sqrt / std::log
 #include <cstdint>
 #include <cstring>
-#include <memory_resource>
 #include <random>   // RngContext models a URBG — callers draw via std::*_distribution(rng)
 
 namespace numkit::ops {
@@ -37,10 +38,10 @@ public:
     result_type operator()() { return gen_(); }
 
     /// MATLAB-canonical 53-bit double in (0, 1) — what `rand` uses.
-    double genRes53() { return gen_.genRes53(); }
+    keel::f64 genRes53() { return gen_.genRes53(); }
 
     /// Session-aware uniform in (0, 1): v4Uniform() or v5Uniform() in legacy mode, else genRes53().
-    double nextUniform()
+    keel::f64 nextUniform()
     {
         if (legacyMode_) {
             if (legacyV4Rand_) return v4Uniform();
@@ -51,22 +52,22 @@ public:
 
     /// Session-aware standard normal N(0, 1): v4Normal() or v5Normal() in legacy mode, else
     /// MATLAB-exact 256-layer Marsaglia-Tsang Ziggurat on the MT19937 stream.
-    double nextNormal();
+    keel::f64 nextNormal();
 
     // ── MATLAB rng() control ──────────────────────────────────────────
     /// Seed the stream. `seed == 0` ≡ `rng('default')`.
-    void seed(std::uint64_t seed)
+    void seed(keel::u64 seed)
     {
         legacyMode_ = false;
         legacyV4Rand_ = false;
         legacyV5Rand_ = false;
         legacyV4Randn_ = false;
-        gen_.seed(static_cast<std::uint32_t>(seed));
+        gen_.seed(static_cast<keel::u32>(seed));
     }
     /// `rng('shuffle')` — seed from a nondeterministic source.
     void shuffle();
     /// `s = rng()` — capture the stream state as a struct (.Type / .State).
-    Value state(std::pmr::memory_resource *mr = nullptr) const;
+    Value state(keel::Allocator *mr = nullptr) const;
     /// `rng(s)` — restore a state struct captured by state().
     void restore(const Value &s);
 
@@ -86,7 +87,7 @@ public:
             setLegacyV5Randn(0);
         }
     }
-    void setLegacyV4Rand(std::uint64_t seed)
+    void setLegacyV4Rand(keel::u64 seed)
     {
         enterLegacyMode();
         legacyMode_ = true;
@@ -95,7 +96,7 @@ public:
         v4RandSeed_ = seed;
         v4RandState_ = seed ? seed * 65536ull : 1144108930ull;
     }
-    void setLegacyV4Randn(std::uint64_t seed)
+    void setLegacyV4Randn(keel::u64 seed)
     {
         enterLegacyMode();
         legacyMode_ = true;
@@ -103,20 +104,20 @@ public:
         v4RandnSeed_ = seed;
         v4RandnState_ = seed ? seed * 65536ull : 1144108930ull;
     }
-    void setLegacyV4(std::uint64_t seed)
+    void setLegacyV4(keel::u64 seed)
     {
         setLegacyV4Rand(seed);
         setLegacyV4Randn(seed);
     }
-    void setLegacyTwisterRand(std::uint64_t seed)
+    void setLegacyTwisterRand(keel::u64 seed)
     {
         enterLegacyMode();
         legacyMode_ = true;
         legacyV4Rand_ = false;
         legacyV5Rand_ = false;
-        gen_.seed(static_cast<std::uint32_t>(seed));
+        gen_.seed(static_cast<keel::u32>(seed));
     }
-    void setLegacyTwisterRandState(const std::uint32_t state[MatlabMT19937::STATE_SIZE], int idx)
+    void setLegacyTwisterRandState(const keel::u32 state[MatlabMT19937::STATE_SIZE], int idx)
     {
         enterLegacyMode();
         legacyMode_ = true;
@@ -124,19 +125,19 @@ public:
         legacyV5Rand_ = false;
         gen_.setState(state, idx);
     }
-    void setLegacyV5Rand(std::uint64_t seed)
+    void setLegacyV5Rand(keel::u64 seed)
     {
         const bool wasLegacy = legacyMode_;
         legacyMode_ = true;
         if (!wasLegacy) setLegacyV5Randn(0);
         legacyV4Rand_ = false;
         legacyV5Rand_ = true;
-        std::uint32_t j = static_cast<std::uint32_t>(seed);
+        keel::u32 j = static_cast<keel::u32>(seed);
         if (j == 0u) j = 0x80000000u;
         v5SwbJ_ = j;
-        for (std::size_t i = 0; i < 32; ++i) {
-            double s = 0.0;
-            double t = 0.5;
+        for (keel::usize i = 0; i < 32; ++i) {
+            keel::f64 s = 0.0;
+            keel::f64 t = 0.5;
             for (int b = 0; b < 53; ++b) {
                 j ^= (j << 13);
                 j ^= (j >> 17);
@@ -150,30 +151,30 @@ public:
         v5SwbIdx_ = 0;
         v5SwbBorrow_ = 0.0;
     }
-    void setLegacyV5RandState(const double z[32], std::size_t idx, double borrow, std::uint32_t j)
+    void setLegacyV5RandState(const keel::f64 z[32], keel::usize idx, keel::f64 borrow, keel::u32 j)
     {
         const bool wasLegacy = legacyMode_;
         legacyMode_ = true;
         if (!wasLegacy) setLegacyV5Randn(0);
         legacyV4Rand_ = false;
         legacyV5Rand_ = true;
-        for (std::size_t i = 0; i < 32; ++i)
+        for (keel::usize i = 0; i < 32; ++i)
             v5SwbZ_[i] = z[i];
         v5SwbIdx_ = idx & 31u;
         v5SwbBorrow_ = borrow;
         v5SwbJ_ = (j == 0u) ? 0x80000000u : j;
     }
-    void setLegacyV5Randn(std::uint64_t seed)
+    void setLegacyV5Randn(keel::u64 seed)
     {
         const bool wasLegacy = legacyMode_;
         legacyMode_ = true;
         if (!wasLegacy) setLegacyV5Rand(0);
         legacyV4Randn_ = false;
         v5Icng_ = 362436069u;
-        const std::uint32_t s32 = static_cast<std::uint32_t>(seed);
+        const keel::u32 s32 = static_cast<keel::u32>(seed);
         v5Jsr_ = (s32 == 0u) ? 521288629u : s32;
     }
-    void setLegacyV5RandnState(std::uint32_t icng, std::uint32_t jsr)
+    void setLegacyV5RandnState(keel::u32 icng, keel::u32 jsr)
     {
         const bool wasLegacy = legacyMode_;
         legacyMode_ = true;
@@ -183,21 +184,21 @@ public:
         v5Jsr_ = (jsr == 0u) ? 521288629u : jsr;
     }
     /// `rand('seed')` / `randn('seed')` — query the last legacy seed.
-    std::uint64_t legacySeed() const noexcept { return v4RandSeed_; }
-    std::uint64_t legacyRandSeed() const noexcept { return v4RandSeed_; }
-    std::uint64_t legacyRandnSeed() const noexcept { return v4RandnSeed_; }
-    std::uint32_t v5RandnIcng() const noexcept { return v5Icng_; }
-    std::uint32_t v5RandnJsr() const noexcept { return v5Jsr_; }
+    keel::u64 legacySeed() const noexcept { return v4RandSeed_; }
+    keel::u64 legacyRandSeed() const noexcept { return v4RandSeed_; }
+    keel::u64 legacyRandnSeed() const noexcept { return v4RandnSeed_; }
+    keel::u32 v5RandnIcng() const noexcept { return v5Icng_; }
+    keel::u32 v5RandnJsr() const noexcept { return v5Jsr_; }
     bool legacyV4() const noexcept { return legacyMode_ && (legacyV4Rand_ || legacyV4Randn_); }
-    double v4Uniform()
+    keel::f64 v4Uniform()
     {
         v4RandState_ = 16807ull * v4RandState_ % 2147483647ull;
-        return static_cast<double>(v4RandState_) / 2147483647.0;
+        return static_cast<keel::f64>(v4RandState_) / 2147483647.0;
     }
-    double v5Uniform()
+    keel::f64 v5Uniform()
     {
-        const std::size_t i = v5SwbIdx_;
-        double x = v5SwbZ_[(i + 20) & 31] - v5SwbZ_[(i + 5) & 31] - v5SwbBorrow_;
+        const keel::usize i = v5SwbIdx_;
+        keel::f64 x = v5SwbZ_[(i + 20) & 31] - v5SwbZ_[(i + 5) & 31] - v5SwbBorrow_;
         if (x < 0.0) {
             x += 1.0;
             v5SwbBorrow_ = 1.1102230246251565e-16; // 2^-53
@@ -206,48 +207,48 @@ public:
         }
         v5SwbZ_[i] = x;
         v5SwbIdx_ = (i + 1) & 31;
-        const std::uint32_t jPrev = v5SwbJ_;
-        std::uint32_t j = jPrev;
+        const keel::u32 jPrev = v5SwbJ_;
+        keel::u32 j = jPrev;
         j ^= (j << 13);
         j ^= (j >> 17);
         j ^= (j << 5);
         v5SwbJ_ = j;
-        std::uint64_t xb = 0;
+        keel::u64 xb = 0;
         std::memcpy(&xb, &x, sizeof(xb));
-        const std::uint64_t mask = (static_cast<std::uint64_t>(j & 0xFFFFFu) << 32)
-                                 | static_cast<std::uint64_t>(jPrev);
+        const keel::u64 mask = (static_cast<keel::u64>(j & 0xFFFFFu) << 32)
+                                 | static_cast<keel::u64>(jPrev);
         xb ^= mask;
-        double r = 0.0;
+        keel::f64 r = 0.0;
         std::memcpy(&r, &xb, sizeof(r));
         return r;
     }
-    const double *v5SwbZ() const noexcept { return v5SwbZ_; }
-    std::size_t v5SwbIdx() const noexcept { return v5SwbIdx_; }
-    double v5SwbBorrow() const noexcept { return v5SwbBorrow_; }
-    std::uint32_t v5SwbJ() const noexcept { return v5SwbJ_; }
-    double v4RandnUniform()
+    const keel::f64 *v5SwbZ() const noexcept { return v5SwbZ_; }
+    keel::usize v5SwbIdx() const noexcept { return v5SwbIdx_; }
+    keel::f64 v5SwbBorrow() const noexcept { return v5SwbBorrow_; }
+    keel::u32 v5SwbJ() const noexcept { return v5SwbJ_; }
+    keel::f64 v4RandnUniform()
     {
         v4RandnState_ = 16807ull * v4RandnState_ % 2147483647ull;
-        return static_cast<double>(v4RandnState_) / 2147483647.0;
+        return static_cast<keel::f64>(v4RandnState_) / 2147483647.0;
     }
-    double v4Normal()
+    keel::f64 v4Normal()
     {
         for (;;) {
-            const double v1 = 2.0 * v4RandnUniform() - 1.0;
-            const double v2 = 2.0 * v4RandnUniform() - 1.0;
-            const double s = v1 * v1 + v2 * v2;
+            const keel::f64 v1 = 2.0 * v4RandnUniform() - 1.0;
+            const keel::f64 v2 = 2.0 * v4RandnUniform() - 1.0;
+            const keel::f64 s = v1 * v1 + v2 * v2;
             if (s > 0.0 && s < 1.0)
                 return v1 * std::sqrt(-2.0 * std::log(s) / s);
         }
     }
-    double v5Normal();
+    keel::f64 v5Normal();
 
     /// Escape hatch: the underlying MT19937 (e.g. for getState/setState).
     MatlabMT19937 &engine() noexcept { return gen_; }
     const MatlabMT19937 &engine() const noexcept { return gen_; }
 
 private:
-    std::uint32_t shr3Step() noexcept
+    keel::u32 shr3Step() noexcept
     {
         v5Icng_ = 69069u * v5Icng_ + 1234567u;
         v5Jsr_ ^= (v5Jsr_ << 13);
@@ -261,16 +262,16 @@ private:
     bool legacyV4Rand_ = false;
     bool legacyV5Rand_ = false;
     bool legacyV4Randn_ = false;
-    double v5SwbZ_[32] = {};
-    std::size_t v5SwbIdx_ = 0;
-    double v5SwbBorrow_ = 0.0;
-    std::uint32_t v5SwbJ_ = 0x80000000u;
-    std::uint64_t v4RandSeed_ = 0;
-    std::uint64_t v4RandState_ = 1144108930ull;
-    std::uint64_t v4RandnSeed_ = 0;
-    std::uint64_t v4RandnState_ = 1144108930ull;
-    std::uint32_t v5Icng_ = 362436069u;
-    std::uint32_t v5Jsr_ = 521288629u;
+    keel::f64 v5SwbZ_[32] = {};
+    keel::usize v5SwbIdx_ = 0;
+    keel::f64 v5SwbBorrow_ = 0.0;
+    keel::u32 v5SwbJ_ = 0x80000000u;
+    keel::u64 v4RandSeed_ = 0;
+    keel::u64 v4RandState_ = 1144108930ull;
+    keel::u64 v4RandnSeed_ = 0;
+    keel::u64 v4RandnState_ = 1144108930ull;
+    keel::u32 v5Icng_ = 362436069u;
+    keel::u32 v5Jsr_ = 521288629u;
 };
 
 } // namespace numkit::ops

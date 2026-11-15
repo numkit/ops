@@ -17,6 +17,9 @@
 // family fell back to scalar libm). Parity vs MATLAB R2025b verified
 // at ULP <= 1e-10 for the test domains.
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/complex.h>
 #include <numkit/builtin/elfun.hpp>
 
 #include <numkit/value/value.hpp>
@@ -26,7 +29,6 @@
 #include <numkit/ops/helpers.hpp>
 
 #include <cmath>
-#include <complex>
 #include <cstddef>
 
 #undef HWY_TARGET_INCLUDE
@@ -48,12 +50,12 @@ constexpr double kRad2Deg = 180.0 / 3.14159265358979323846;
 
 // â”€â”€ Forward reciprocal: sec / csc / cot â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-void SecLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_t n)
+void SecLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, keel::usize n)
 {
     const hn::ScalableTag<double> d;
-    const std::size_t N = hn::Lanes(d);
+    const keel::usize N = hn::Lanes(d);
     const auto one = hn::Set(d, 1.0);
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i + N <= n; i += N) {
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Div(one, hn::Cos(d, v)), d, out + i);
@@ -61,12 +63,12 @@ void SecLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_
     for (; i < n; ++i) out[i] = 1.0 / std::cos(in[i]);
 }
 
-void CscLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_t n)
+void CscLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, keel::usize n)
 {
     const hn::ScalableTag<double> d;
-    const std::size_t N = hn::Lanes(d);
+    const keel::usize N = hn::Lanes(d);
     const auto one = hn::Set(d, 1.0);
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i + N <= n; i += N) {
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Div(one, hn::Sin(d, v)), d, out + i);
@@ -74,11 +76,11 @@ void CscLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_
     for (; i < n; ++i) out[i] = 1.0 / std::sin(in[i]);
 }
 
-void CotLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_t n)
+void CotLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, keel::usize n)
 {
     const hn::ScalableTag<double> d;
-    const std::size_t N = hn::Lanes(d);
-    std::size_t i = 0;
+    const keel::usize N = hn::Lanes(d);
+    keel::usize i = 0;
     for (; i + N <= n; i += N) {
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Div(hn::Cos(d, v), hn::Sin(d, v)), d, out + i);
@@ -97,12 +99,12 @@ static HWY_INLINE auto CoshVec(const hn::ScalableTag<double> d, hn::Vec<hn::Scal
     return hn::Mul(half, hn::Add(ep, en));
 }
 
-void SechLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_t n)
+void SechLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, keel::usize n)
 {
     const hn::ScalableTag<double> d;
-    const std::size_t N = hn::Lanes(d);
+    const keel::usize N = hn::Lanes(d);
     const auto one = hn::Set(d, 1.0);
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i + N <= n; i += N) {
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Div(one, CoshVec(d, v)), d, out + i);
@@ -110,12 +112,12 @@ void SechLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size
     for (; i < n; ++i) out[i] = 1.0 / std::cosh(in[i]);
 }
 
-void CschLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_t n)
+void CschLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, keel::usize n)
 {
     const hn::ScalableTag<double> d;
-    const std::size_t N = hn::Lanes(d);
+    const keel::usize N = hn::Lanes(d);
     const auto one = hn::Set(d, 1.0);
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i + N <= n; i += N) {
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Div(one, hn::Sinh(d, v)), d, out + i);
@@ -123,11 +125,11 @@ void CschLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size
     for (; i < n; ++i) out[i] = 1.0 / std::sinh(in[i]);
 }
 
-void CothLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_t n)
+void CothLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, keel::usize n)
 {
     const hn::ScalableTag<double> d;
-    const std::size_t N = hn::Lanes(d);
-    std::size_t i = 0;
+    const keel::usize N = hn::Lanes(d);
+    keel::usize i = 0;
     for (; i + N <= n; i += N) {
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Div(CoshVec(d, v), hn::Sinh(d, v)), d, out + i);
@@ -140,13 +142,13 @@ void CothLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size
 // degree forms in trig_highway.cpp). Scalar fast-path in trig_recip_*.cpp
 // keeps the snap.
 
-void SecdLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_t n)
+void SecdLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, keel::usize n)
 {
     const hn::ScalableTag<double> d;
-    const std::size_t N = hn::Lanes(d);
+    const keel::usize N = hn::Lanes(d);
     const auto k = hn::Set(d, recip_consts::kDeg2Rad);
     const auto one = hn::Set(d, 1.0);
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i + N <= n; i += N) {
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Div(one, hn::Cos(d, hn::Mul(v, k))), d, out + i);
@@ -154,13 +156,13 @@ void SecdLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size
     for (; i < n; ++i) out[i] = 1.0 / std::cos(in[i] * recip_consts::kDeg2Rad);
 }
 
-void CscdLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_t n)
+void CscdLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, keel::usize n)
 {
     const hn::ScalableTag<double> d;
-    const std::size_t N = hn::Lanes(d);
+    const keel::usize N = hn::Lanes(d);
     const auto k = hn::Set(d, recip_consts::kDeg2Rad);
     const auto one = hn::Set(d, 1.0);
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i + N <= n; i += N) {
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Div(one, hn::Sin(d, hn::Mul(v, k))), d, out + i);
@@ -168,12 +170,12 @@ void CscdLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size
     for (; i < n; ++i) out[i] = 1.0 / std::sin(in[i] * recip_consts::kDeg2Rad);
 }
 
-void CotdLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_t n)
+void CotdLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, keel::usize n)
 {
     const hn::ScalableTag<double> d;
-    const std::size_t N = hn::Lanes(d);
+    const keel::usize N = hn::Lanes(d);
     const auto k = hn::Set(d, recip_consts::kDeg2Rad);
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i + N <= n; i += N) {
         auto v   = hn::LoadU(d, in + i);
         auto vrad = hn::Mul(v, k);
@@ -188,12 +190,12 @@ void CotdLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size
 // Vector path produces NaN there; scalar fallback in trig_recip_*.cpp
 // detects this and returns a complex Value.
 
-void AsecLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_t n)
+void AsecLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, keel::usize n)
 {
     const hn::ScalableTag<double> d;
-    const std::size_t N = hn::Lanes(d);
+    const keel::usize N = hn::Lanes(d);
     const auto one = hn::Set(d, 1.0);
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i + N <= n; i += N) {
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Acos(d, hn::Div(one, v)), d, out + i);
@@ -201,12 +203,12 @@ void AsecLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size
     for (; i < n; ++i) out[i] = std::acos(1.0 / in[i]);
 }
 
-void AcscLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_t n)
+void AcscLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, keel::usize n)
 {
     const hn::ScalableTag<double> d;
-    const std::size_t N = hn::Lanes(d);
+    const keel::usize N = hn::Lanes(d);
     const auto one = hn::Set(d, 1.0);
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i + N <= n; i += N) {
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Asin(d, hn::Div(one, v)), d, out + i);
@@ -214,12 +216,12 @@ void AcscLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size
     for (; i < n; ++i) out[i] = std::asin(1.0 / in[i]);
 }
 
-void AcotLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_t n)
+void AcotLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, keel::usize n)
 {
     const hn::ScalableTag<double> d;
-    const std::size_t N = hn::Lanes(d);
+    const keel::usize N = hn::Lanes(d);
     const auto one = hn::Set(d, 1.0);
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i + N <= n; i += N) {
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Atan(d, hn::Div(one, v)), d, out + i);
@@ -229,12 +231,12 @@ void AcotLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size
 
 // â”€â”€ Inverse hyperbolic reciprocal: asech / acsch / acoth â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-void AsechLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_t n)
+void AsechLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, keel::usize n)
 {
     const hn::ScalableTag<double> d;
-    const std::size_t N = hn::Lanes(d);
+    const keel::usize N = hn::Lanes(d);
     const auto one = hn::Set(d, 1.0);
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i + N <= n; i += N) {
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Acosh(d, hn::Div(one, v)), d, out + i);
@@ -242,12 +244,12 @@ void AsechLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::siz
     for (; i < n; ++i) out[i] = std::acosh(1.0 / in[i]);
 }
 
-void AcschLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_t n)
+void AcschLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, keel::usize n)
 {
     const hn::ScalableTag<double> d;
-    const std::size_t N = hn::Lanes(d);
+    const keel::usize N = hn::Lanes(d);
     const auto one = hn::Set(d, 1.0);
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i + N <= n; i += N) {
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Asinh(d, hn::Div(one, v)), d, out + i);
@@ -255,12 +257,12 @@ void AcschLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::siz
     for (; i < n; ++i) out[i] = std::asinh(1.0 / in[i]);
 }
 
-void AcothLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_t n)
+void AcothLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, keel::usize n)
 {
     const hn::ScalableTag<double> d;
-    const std::size_t N = hn::Lanes(d);
+    const keel::usize N = hn::Lanes(d);
     const auto one = hn::Set(d, 1.0);
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i + N <= n; i += N) {
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Atanh(d, hn::Div(one, v)), d, out + i);
@@ -270,13 +272,13 @@ void AcothLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::siz
 
 // â”€â”€ Inverse degree reciprocal: asecd / acscd / acotd â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-void AsecdLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_t n)
+void AsecdLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, keel::usize n)
 {
     const hn::ScalableTag<double> d;
-    const std::size_t N = hn::Lanes(d);
+    const keel::usize N = hn::Lanes(d);
     const auto one = hn::Set(d, 1.0);
     const auto r2d = hn::Set(d, recip_consts::kRad2Deg);
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i + N <= n; i += N) {
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Mul(hn::Acos(d, hn::Div(one, v)), r2d), d, out + i);
@@ -284,13 +286,13 @@ void AsecdLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::siz
     for (; i < n; ++i) out[i] = std::acos(1.0 / in[i]) * recip_consts::kRad2Deg;
 }
 
-void AcscdLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_t n)
+void AcscdLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, keel::usize n)
 {
     const hn::ScalableTag<double> d;
-    const std::size_t N = hn::Lanes(d);
+    const keel::usize N = hn::Lanes(d);
     const auto one = hn::Set(d, 1.0);
     const auto r2d = hn::Set(d, recip_consts::kRad2Deg);
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i + N <= n; i += N) {
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Mul(hn::Asin(d, hn::Div(one, v)), r2d), d, out + i);
@@ -298,13 +300,13 @@ void AcscdLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::siz
     for (; i < n; ++i) out[i] = std::asin(1.0 / in[i]) * recip_consts::kRad2Deg;
 }
 
-void AcotdLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, std::size_t n)
+void AcotdLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, keel::usize n)
 {
     const hn::ScalableTag<double> d;
-    const std::size_t N = hn::Lanes(d);
+    const keel::usize N = hn::Lanes(d);
     const auto one = hn::Set(d, 1.0);
     const auto r2d = hn::Set(d, recip_consts::kRad2Deg);
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i + N <= n; i += N) {
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Mul(hn::Atan(d, hn::Div(one, v)), r2d), d, out + i);
@@ -371,7 +373,7 @@ inline double cosd_scalar(double x)
 // in trig_highway.cpp; complex / scalar inputs delegate to the
 // reference path via scalarOp / complexOp lambdas.
 template <typename LoopDispatch, typename ScalarOp, typename ComplexOp>
-Value unaryRealDoubleRecip(const Value &x, LoopDispatch loop, ScalarOp scalarOp, ComplexOp complexOp, std::pmr::memory_resource *mr)
+Value unaryRealDoubleRecip(const Value &x, LoopDispatch loop, ScalarOp scalarOp, ComplexOp complexOp, keel::Allocator *mr)
 {
     if (x.isComplex()) {
         if (x.isScalar())
@@ -386,7 +388,7 @@ Value unaryRealDoubleRecip(const Value &x, LoopDispatch loop, ScalarOp scalarOp,
     const double *in  = x.doubleData();
     double       *out = r.doubleDataMut();
     numkit::detail::parallel_for(x.numel(), numkit::detail::kTranscendentalThreshold,
-        [=](std::size_t s, std::size_t e) {
+        [=](keel::usize s, keel::usize e) {
             loop(in + s, out + s, e - s);
         });
     return r;
@@ -396,189 +398,189 @@ Value unaryRealDoubleRecip(const Value &x, LoopDispatch loop, ScalarOp scalarOp,
 
 // â”€â”€ Forward reciprocal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-Value sec(const Value &x, std::pmr::memory_resource *mr)
+Value sec(const Value &x, keel::Allocator *mr)
 {
-    return unaryRealDoubleRecip(x, [](const double *in, double *out, std::size_t n) {
+    return unaryRealDoubleRecip(x, [](const double *in, double *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(SecLoop)(in, out, n);
-        }, [](double v) { return 1.0 / std::cos(v); }, [](const Complex &c) { return Complex(1.0) / std::cos(c); }, mr);
+        }, [](double v) { return 1.0 / std::cos(v); }, [](const keel::c64 &c) { return keel::c64(1.0) / keel::cos(c); }, mr);
 }
 
-Value csc(const Value &x, std::pmr::memory_resource *mr)
+Value csc(const Value &x, keel::Allocator *mr)
 {
-    return unaryRealDoubleRecip(x, [](const double *in, double *out, std::size_t n) {
+    return unaryRealDoubleRecip(x, [](const double *in, double *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(CscLoop)(in, out, n);
-        }, [](double v) { return 1.0 / std::sin(v); }, [](const Complex &c) { return Complex(1.0) / std::sin(c); }, mr);
+        }, [](double v) { return 1.0 / std::sin(v); }, [](const keel::c64 &c) { return keel::c64(1.0) / keel::sin(c); }, mr);
 }
 
-Value cot(const Value &x, std::pmr::memory_resource *mr)
+Value cot(const Value &x, keel::Allocator *mr)
 {
-    return unaryRealDoubleRecip(x, [](const double *in, double *out, std::size_t n) {
+    return unaryRealDoubleRecip(x, [](const double *in, double *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(CotLoop)(in, out, n);
-        }, [](double v) { return std::cos(v) / std::sin(v); }, [](const Complex &c) { return std::cos(c) / std::sin(c); }, mr);
+        }, [](double v) { return std::cos(v) / std::sin(v); }, [](const keel::c64 &c) { return keel::cos(c) / keel::sin(c); }, mr);
 }
 
 // â”€â”€ Hyperbolic reciprocal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-Value sech(const Value &x, std::pmr::memory_resource *mr)
+Value sech(const Value &x, keel::Allocator *mr)
 {
-    return unaryRealDoubleRecip(x, [](const double *in, double *out, std::size_t n) {
+    return unaryRealDoubleRecip(x, [](const double *in, double *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(SechLoop)(in, out, n);
-        }, [](double v) { return 1.0 / std::cosh(v); }, [](const Complex &c) { return Complex(1.0) / std::cosh(c); }, mr);
+        }, [](double v) { return 1.0 / std::cosh(v); }, [](const keel::c64 &c) { return keel::c64(1.0) / keel::cosh(c); }, mr);
 }
 
-Value csch(const Value &x, std::pmr::memory_resource *mr)
+Value csch(const Value &x, keel::Allocator *mr)
 {
-    return unaryRealDoubleRecip(x, [](const double *in, double *out, std::size_t n) {
+    return unaryRealDoubleRecip(x, [](const double *in, double *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(CschLoop)(in, out, n);
-        }, [](double v) { return 1.0 / std::sinh(v); }, [](const Complex &c) { return Complex(1.0) / std::sinh(c); }, mr);
+        }, [](double v) { return 1.0 / std::sinh(v); }, [](const keel::c64 &c) { return keel::c64(1.0) / keel::sinh(c); }, mr);
 }
 
-Value coth(const Value &x, std::pmr::memory_resource *mr)
+Value coth(const Value &x, keel::Allocator *mr)
 {
-    return unaryRealDoubleRecip(x, [](const double *in, double *out, std::size_t n) {
+    return unaryRealDoubleRecip(x, [](const double *in, double *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(CothLoop)(in, out, n);
-        }, [](double v) { return std::cosh(v) / std::sinh(v); }, [](const Complex &c) { return std::cosh(c) / std::sinh(c); }, mr);
+        }, [](double v) { return std::cosh(v) / std::sinh(v); }, [](const keel::c64 &c) { return keel::cosh(c) / keel::sinh(c); }, mr);
 }
 
 // â”€â”€ Degree reciprocal: scalar path keeps the integer-multiple-of-90Â° snap.
 
-Value secd(const Value &x, std::pmr::memory_resource *mr)
+Value secd(const Value &x, keel::Allocator *mr)
 {
-    return unaryRealDoubleRecip(x, [](const double *in, double *out, std::size_t n) {
+    return unaryRealDoubleRecip(x, [](const double *in, double *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(SecdLoop)(in, out, n);
-        }, [](double v) { return 1.0 / cosd_scalar(v); }, [](const Complex &c) { return Complex(1.0) / std::cos(c * kDeg2Rad); }, mr);
+        }, [](double v) { return 1.0 / cosd_scalar(v); }, [](const keel::c64 &c) { return keel::c64(1.0) / keel::cos(c * kDeg2Rad); }, mr);
 }
 
-Value cscd(const Value &x, std::pmr::memory_resource *mr)
+Value cscd(const Value &x, keel::Allocator *mr)
 {
-    return unaryRealDoubleRecip(x, [](const double *in, double *out, std::size_t n) {
+    return unaryRealDoubleRecip(x, [](const double *in, double *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(CscdLoop)(in, out, n);
-        }, [](double v) { return 1.0 / sind_scalar(v); }, [](const Complex &c) { return Complex(1.0) / std::sin(c * kDeg2Rad); }, mr);
+        }, [](double v) { return 1.0 / sind_scalar(v); }, [](const keel::c64 &c) { return keel::c64(1.0) / keel::sin(c * kDeg2Rad); }, mr);
 }
 
-Value cotd(const Value &x, std::pmr::memory_resource *mr)
+Value cotd(const Value &x, keel::Allocator *mr)
 {
-    return unaryRealDoubleRecip(x, [](const double *in, double *out, std::size_t n) {
+    return unaryRealDoubleRecip(x, [](const double *in, double *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(CotdLoop)(in, out, n);
-        }, [](double v) { return cosd_scalar(v) / sind_scalar(v); }, [](const Complex &c) {
-            return std::cos(c * kDeg2Rad) / std::sin(c * kDeg2Rad);
+        }, [](double v) { return cosd_scalar(v) / sind_scalar(v); }, [](const keel::c64 &c) {
+            return keel::cos(c * kDeg2Rad) / keel::sin(c * kDeg2Rad);
         }, mr);
 }
 
 // â”€â”€ Inverse reciprocal: scalar fast-path keeps the in-domain
 // complex fallback (asec(0.5) â†’ complex in MATLAB).
 
-Value asec(const Value &x, std::pmr::memory_resource *mr)
+Value asec(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
-        return unaryComplex(x, [](const Complex &c) { return std::acos(Complex(1.0) / c); }, mr);
+        return unaryComplex(x, [](const keel::c64 &c) { return keel::acos(keel::c64(1.0) / c); }, mr);
     if (x.isScalar()) {
         const double v = x.toScalar();
         if (v > -1.0 && v < 1.0)
-            return Value::complexScalar(std::acos(Complex(1.0 / v, 0.0)), mr);
+            return Value::complexScalar(keel::acos(keel::c64(1.0 / v, 0.0)), mr);
     }
-    return unaryRealDoubleRecip(x, [](const double *in, double *out, std::size_t n) {
+    return unaryRealDoubleRecip(x, [](const double *in, double *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(AsecLoop)(in, out, n);
-        }, [](double v) { return std::acos(1.0 / v); }, [](const Complex &c) { return std::acos(Complex(1.0) / c); }, mr);
+        }, [](double v) { return std::acos(1.0 / v); }, [](const keel::c64 &c) { return keel::acos(keel::c64(1.0) / c); }, mr);
 }
 
-Value acsc(const Value &x, std::pmr::memory_resource *mr)
+Value acsc(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
-        return unaryComplex(x, [](const Complex &c) { return std::asin(Complex(1.0) / c); }, mr);
+        return unaryComplex(x, [](const keel::c64 &c) { return keel::asin(keel::c64(1.0) / c); }, mr);
     if (x.isScalar()) {
         const double v = x.toScalar();
         if (v > -1.0 && v < 1.0 && v != 0.0)
-            return Value::complexScalar(std::asin(Complex(1.0 / v, 0.0)), mr);
+            return Value::complexScalar(keel::asin(keel::c64(1.0 / v, 0.0)), mr);
     }
-    return unaryRealDoubleRecip(x, [](const double *in, double *out, std::size_t n) {
+    return unaryRealDoubleRecip(x, [](const double *in, double *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(AcscLoop)(in, out, n);
-        }, [](double v) { return std::asin(1.0 / v); }, [](const Complex &c) { return std::asin(Complex(1.0) / c); }, mr);
+        }, [](double v) { return std::asin(1.0 / v); }, [](const keel::c64 &c) { return keel::asin(keel::c64(1.0) / c); }, mr);
 }
 
-Value acot(const Value &x, std::pmr::memory_resource *mr)
+Value acot(const Value &x, keel::Allocator *mr)
 {
-    return unaryRealDoubleRecip(x, [](const double *in, double *out, std::size_t n) {
+    return unaryRealDoubleRecip(x, [](const double *in, double *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(AcotLoop)(in, out, n);
-        }, [](double v) { return std::atan(1.0 / v); }, [](const Complex &c) { return std::atan(Complex(1.0) / c); }, mr);
+        }, [](double v) { return std::atan(1.0 / v); }, [](const keel::c64 &c) { return keel::atan(keel::c64(1.0) / c); }, mr);
 }
 
 // â”€â”€ Inverse hyperbolic reciprocal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-Value asech(const Value &x, std::pmr::memory_resource *mr)
+Value asech(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
-        return unaryComplex(x, [](const Complex &c) { return std::acosh(Complex(1.0) / c); }, mr);
+        return unaryComplex(x, [](const keel::c64 &c) { return keel::acosh(keel::c64(1.0) / c); }, mr);
     if (x.isScalar()) {
         const double v = x.toScalar();
         if (v <= 0.0 || v > 1.0)
-            return Value::complexScalar(std::acosh(Complex(1.0 / v, 0.0)), mr);
+            return Value::complexScalar(keel::acosh(keel::c64(1.0 / v, 0.0)), mr);
     }
-    return unaryRealDoubleRecip(x, [](const double *in, double *out, std::size_t n) {
+    return unaryRealDoubleRecip(x, [](const double *in, double *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(AsechLoop)(in, out, n);
-        }, [](double v) { return std::acosh(1.0 / v); }, [](const Complex &c) { return std::acosh(Complex(1.0) / c); }, mr);
+        }, [](double v) { return std::acosh(1.0 / v); }, [](const keel::c64 &c) { return keel::acosh(keel::c64(1.0) / c); }, mr);
 }
 
-Value acsch(const Value &x, std::pmr::memory_resource *mr)
+Value acsch(const Value &x, keel::Allocator *mr)
 {
-    return unaryRealDoubleRecip(x, [](const double *in, double *out, std::size_t n) {
+    return unaryRealDoubleRecip(x, [](const double *in, double *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(AcschLoop)(in, out, n);
-        }, [](double v) { return std::asinh(1.0 / v); }, [](const Complex &c) { return std::asinh(Complex(1.0) / c); }, mr);
+        }, [](double v) { return std::asinh(1.0 / v); }, [](const keel::c64 &c) { return keel::asinh(keel::c64(1.0) / c); }, mr);
 }
 
-Value acoth(const Value &x, std::pmr::memory_resource *mr)
+Value acoth(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
-        return unaryComplex(x, [](const Complex &c) { return std::atanh(Complex(1.0) / c); }, mr);
+        return unaryComplex(x, [](const keel::c64 &c) { return keel::atanh(keel::c64(1.0) / c); }, mr);
     if (x.isScalar()) {
         const double v = x.toScalar();
         if (v >= -1.0 && v <= 1.0)
-            return Value::complexScalar(std::atanh(Complex(1.0 / v, 0.0)), mr);
+            return Value::complexScalar(keel::atanh(keel::c64(1.0 / v, 0.0)), mr);
     }
-    return unaryRealDoubleRecip(x, [](const double *in, double *out, std::size_t n) {
+    return unaryRealDoubleRecip(x, [](const double *in, double *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(AcothLoop)(in, out, n);
-        }, [](double v) { return std::atanh(1.0 / v); }, [](const Complex &c) { return std::atanh(Complex(1.0) / c); }, mr);
+        }, [](double v) { return std::atanh(1.0 / v); }, [](const keel::c64 &c) { return keel::atanh(keel::c64(1.0) / c); }, mr);
 }
 
 // â”€â”€ Inverse degree reciprocal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-Value asecd(const Value &x, std::pmr::memory_resource *mr)
+Value asecd(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
-        return unaryComplex(x, [](const Complex &c) {
-            return std::acos(Complex(1.0) / c) * kRad2Deg;
+        return unaryComplex(x, [](const keel::c64 &c) {
+            return keel::acos(keel::c64(1.0) / c) * kRad2Deg;
         }, mr);
     if (x.isScalar()) {
         const double v = x.toScalar();
         if (v > -1.0 && v < 1.0)
-            return Value::complexScalar(std::acos(Complex(1.0 / v, 0.0)) * kRad2Deg, mr);
+            return Value::complexScalar(keel::acos(keel::c64(1.0 / v, 0.0)) * kRad2Deg, mr);
     }
-    return unaryRealDoubleRecip(x, [](const double *in, double *out, std::size_t n) {
+    return unaryRealDoubleRecip(x, [](const double *in, double *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(AsecdLoop)(in, out, n);
-        }, [](double v) { return std::acos(1.0 / v) * kRad2Deg; }, [](const Complex &c) { return std::acos(Complex(1.0) / c) * kRad2Deg; }, mr);
+        }, [](double v) { return std::acos(1.0 / v) * kRad2Deg; }, [](const keel::c64 &c) { return keel::acos(keel::c64(1.0) / c) * kRad2Deg; }, mr);
 }
 
-Value acscd(const Value &x, std::pmr::memory_resource *mr)
+Value acscd(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
-        return unaryComplex(x, [](const Complex &c) {
-            return std::asin(Complex(1.0) / c) * kRad2Deg;
+        return unaryComplex(x, [](const keel::c64 &c) {
+            return keel::asin(keel::c64(1.0) / c) * kRad2Deg;
         }, mr);
     if (x.isScalar()) {
         const double v = x.toScalar();
         if (v > -1.0 && v < 1.0 && v != 0.0)
-            return Value::complexScalar(std::asin(Complex(1.0 / v, 0.0)) * kRad2Deg, mr);
+            return Value::complexScalar(keel::asin(keel::c64(1.0 / v, 0.0)) * kRad2Deg, mr);
     }
-    return unaryRealDoubleRecip(x, [](const double *in, double *out, std::size_t n) {
+    return unaryRealDoubleRecip(x, [](const double *in, double *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(AcscdLoop)(in, out, n);
-        }, [](double v) { return std::asin(1.0 / v) * kRad2Deg; }, [](const Complex &c) { return std::asin(Complex(1.0) / c) * kRad2Deg; }, mr);
+        }, [](double v) { return std::asin(1.0 / v) * kRad2Deg; }, [](const keel::c64 &c) { return keel::asin(keel::c64(1.0) / c) * kRad2Deg; }, mr);
 }
 
-Value acotd(const Value &x, std::pmr::memory_resource *mr)
+Value acotd(const Value &x, keel::Allocator *mr)
 {
-    return unaryRealDoubleRecip(x, [](const double *in, double *out, std::size_t n) {
+    return unaryRealDoubleRecip(x, [](const double *in, double *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(AcotdLoop)(in, out, n);
-        }, [](double v) { return std::atan(1.0 / v) * kRad2Deg; }, [](const Complex &c) { return std::atan(Complex(1.0) / c) * kRad2Deg; }, mr);
+        }, [](double v) { return std::atan(1.0 / v) * kRad2Deg; }, [](const keel::c64 &c) { return keel::atan(keel::c64(1.0) / c) * kRad2Deg; }, mr);
 }
 
 } // namespace numkit::builtin

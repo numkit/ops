@@ -3,7 +3,7 @@
 // toolboxes/signal/include/numkit/signal/convolution/convolution.hpp
 #pragma once
 
-#include <memory_resource>
+#include <keel/memory.h>
 #include <numkit/value/value.hpp>
 
 #include <string>
@@ -41,7 +41,7 @@ namespace numkit::signal {
 Value conv(const Value &                a,
            const Value &                b,
            const std::string &          shape = "full",
-           std::pmr::memory_resource *  mr    = nullptr);
+           keel::Allocator *  mr    = nullptr);
 
 /// Polynomial long-division: `b = conv(a, q) + r`.
 ///
@@ -60,7 +60,7 @@ Value conv(const Value &                a,
 std::tuple<Value, Value>
 deconv(const Value &                b,
        const Value &                a,
-       std::pmr::memory_resource *  mr = nullptr);
+       keel::Allocator *  mr = nullptr);
 
 /// Cross-correlation of two real vectors.
 ///
@@ -85,7 +85,7 @@ deconv(const Value &                b,
 std::tuple<Value, Value>
 xcorr(const Value &                x,
       const Value &                y,
-      std::pmr::memory_resource *  mr = nullptr);
+      keel::Allocator *  mr = nullptr);
 
 /// @brief Auto-correlation — equivalent to `xcorr(x, x)`.
 ///
@@ -95,7 +95,7 @@ xcorr(const Value &                x,
 ///            `c` has length `2 · numel(x) - 1`.
 /// @see xcorr(const Value &, const Value &, std::pmr::memory_resource *)
 inline std::tuple<Value, Value>
-xcorr(const Value &x, std::pmr::memory_resource *mr = nullptr)
+xcorr(const Value &x, keel::Allocator *mr = nullptr)
 {
     return xcorr(x, x, mr);
 }
@@ -122,11 +122,11 @@ xcov(const Value &                x,
      const Value &                y,
      int                          maxlag,
      const std::string &          scaleopt,
-     std::pmr::memory_resource *  mr = nullptr);
+     keel::Allocator *  mr = nullptr);
 
 /// @brief Cross-covariance with full lags and `"none"` scaling.
 inline std::tuple<Value, Value>
-xcov(const Value &x, const Value &y, std::pmr::memory_resource *mr = nullptr)
+xcov(const Value &x, const Value &y, keel::Allocator *mr = nullptr)
 {
     return xcov(x, y, -1, std::string("none"), mr);
 }
@@ -139,7 +139,7 @@ xcov(const Value &x, const Value &y, std::pmr::memory_resource *mr = nullptr)
 ///            shape as the two-arg form.
 /// @see xcov(const Value &, const Value &, std::pmr::memory_resource *)
 inline std::tuple<Value, Value>
-xcov(const Value &x, std::pmr::memory_resource *mr = nullptr)
+xcov(const Value &x, keel::Allocator *mr = nullptr)
 {
     return xcov(x, x, mr);
 }
@@ -167,7 +167,7 @@ xcov(const Value &x, std::pmr::memory_resource *mr = nullptr)
 Value conv2(const Value &                A,
             const Value &                B,
             const std::string &          shape = "full",
-            std::pmr::memory_resource *  mr    = nullptr);
+            keel::Allocator *  mr    = nullptr);
 
 /// 2-D filter — `filter2(h, X[, shape])`.
 ///
@@ -185,7 +185,7 @@ Value conv2(const Value &                A,
 Value filter2(const Value &                h,
               const Value &                X,
               const std::string &          shape = "same",
-              std::pmr::memory_resource *  mr    = nullptr);
+              keel::Allocator *  mr    = nullptr);
 
 /// N-D convolution.
 ///
@@ -203,7 +203,7 @@ Value filter2(const Value &                h,
 Value convn(const Value &                A,
             const Value &                B,
             const std::string &          shape = "full",
-            std::pmr::memory_resource *  mr    = nullptr);
+            keel::Allocator *  mr    = nullptr);
 
 
 /// @}

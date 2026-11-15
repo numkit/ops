@@ -7,7 +7,8 @@
 
 #pragma once
 
-#include <memory_resource>
+#include <keel/core.h>
+#include <keel/memory.h>
 #include <tuple>
 #include <numkit/value/value.hpp>
 
@@ -25,36 +26,36 @@ namespace numkit::linalg {
 /// @param mr  Memory resource (nullptr â†’ process default).
 /// @return    Upper-triangular factor `R`.
 /// @throws Error  Non-square or not positive-definite (`m:chol:notPosDef`).
-Value chol(const Value &A, std::pmr::memory_resource *mr = nullptr);
+Value chol(const Value &A, keel::Allocator *mr = nullptr);
 
 /// @brief LU with partial pivoting (`[L, U, P] = lu_decompose(A)`).
 ///
 /// `P Â· A == L Â· U` where `L` is unit-lower-triangular, `U` is
 /// upper-triangular, `P` is a permutation matrix.
 std::tuple<Value, Value, Value>
-lu_decompose(const Value &A, std::pmr::memory_resource *mr = nullptr);
+lu_decompose(const Value &A, keel::Allocator *mr = nullptr);
 
 /// @brief Combined L+U output (`LU = lu(A)` single-output form).
-Value lu_combined(const Value &A, std::pmr::memory_resource *mr = nullptr);
+Value lu_combined(const Value &A, keel::Allocator *mr = nullptr);
 
 /// @brief QR via Householder reflections (`[Q, R] = qr_decompose(A)`).
 ///
 /// Full-size form (not `"econ"`). `A == Q Â· R`. `Q` is `m Ã— m`
 /// orthogonal, `R` is `m Ã— n` upper-triangular.
 std::tuple<Value, Value>
-qr_decompose(const Value &A, std::pmr::memory_resource *mr = nullptr);
+qr_decompose(const Value &A, keel::Allocator *mr = nullptr);
 
 /// @brief R-only QR output (`R = qr(A)` single-output form).
-Value qr_R_only(const Value &A, std::pmr::memory_resource *mr = nullptr);
+Value qr_R_only(const Value &A, keel::Allocator *mr = nullptr);
 
 /// @brief Singular value decomposition (`[U, S, V] = svd_decompose(A)`).
 ///
 /// `A = U Â· S Â· V'`. One-sided Jacobi rotations.
 std::tuple<Value, Value, Value>
-svd_decompose(const Value &A, std::pmr::memory_resource *mr = nullptr);
+svd_decompose(const Value &A, keel::Allocator *mr = nullptr);
 
 /// @brief Singular values only (`s = svd(A)` single-output form).
-Value svd_values(const Value &A, std::pmr::memory_resource *mr = nullptr);
+Value svd_values(const Value &A, keel::Allocator *mr = nullptr);
 
 /// @brief Rank-1 QR update (`[Q1, R1] = qrupdate(Q, R, u, v)`).
 ///
@@ -63,27 +64,27 @@ Value svd_values(const Value &A, std::pmr::memory_resource *mr = nullptr);
 /// (Daniel/Gragg/Kaufman/Stewart 1976), O(mÂ·n).
 std::tuple<Value, Value>
 qrupdate(const Value &Q, const Value &R, const Value &u, const Value &v,
-         std::pmr::memory_resource *mr = nullptr);
+         keel::Allocator *mr = nullptr);
 
 /// @brief Insert column into QR (`[Q1, R1] = qrinsert(Q, R, k, x)`).
 std::tuple<Value, Value>
-qrinsert(const Value &Q, const Value &R, std::size_t k_1based, const Value &x,
-         std::pmr::memory_resource *mr = nullptr);
+qrinsert(const Value &Q, const Value &R, keel::usize k_1based, const Value &x,
+         keel::Allocator *mr = nullptr);
 
 /// @brief Insert row into QR (`[Q1, R1] = qrinsert(Q, R, k, x, 'row')`).
 std::tuple<Value, Value>
-qrinsert_row(const Value &Q, const Value &R, std::size_t k_1based, const Value &x,
-             std::pmr::memory_resource *mr = nullptr);
+qrinsert_row(const Value &Q, const Value &R, keel::usize k_1based, const Value &x,
+             keel::Allocator *mr = nullptr);
 
 /// @brief Delete column from QR (`[Q1, R1] = qrdelete(Q, R, k)`).
 std::tuple<Value, Value>
-qrdelete(const Value &Q, const Value &R, std::size_t k_1based,
-         std::pmr::memory_resource *mr = nullptr);
+qrdelete(const Value &Q, const Value &R, keel::usize k_1based,
+         keel::Allocator *mr = nullptr);
 
 /// @brief Delete row from QR (`[Q1, R1] = qrdelete(Q, R, k, 'row')`).
 std::tuple<Value, Value>
-qrdelete_row(const Value &Q, const Value &R, std::size_t k_1based,
-             std::pmr::memory_resource *mr = nullptr);
+qrdelete_row(const Value &Q, const Value &R, keel::usize k_1based,
+             keel::Allocator *mr = nullptr);
 
 /// @brief Rank-1 Cholesky update / downdate
 /// (`R1 = cholupdate(R, x[, sign])`).
@@ -104,7 +105,7 @@ qrdelete_row(const Value &Q, const Value &R, std::size_t k_1based,
 /// @return        Updated upper-triangular factor.
 /// @throws Error  Shape mismatch, or downdate breaks positive-definiteness.
 Value cholupdate(const Value &R, const Value &x, int sign = 1,
-                 std::pmr::memory_resource *mr = nullptr);
+                 keel::Allocator *mr = nullptr);
 
 
 /// @}

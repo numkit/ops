@@ -14,7 +14,7 @@
 
 #pragma once
 
-#include <memory_resource>
+#include <keel/memory.h>
 #include <numkit/value/fn_handle.hpp>
 #include <numkit/value/value.hpp>
 
@@ -55,7 +55,7 @@ namespace numkit::ode {
 ///               times; `y` is an `m Ã— d` matrix with each row a state.
 std::tuple<Value, Value>
 ode45(FnHandle rhs, const Value &tspan, const Value &y0,
-      const Value &opts, std::pmr::memory_resource *mr = nullptr);
+      const Value &opts, keel::Allocator *mr = nullptr);
 
 /// @brief Explicit Bogacki-Shampine 3(2) RK solver
 /// (`[t, y] = ode23(f, tspan, y0[, opts])`).
@@ -84,7 +84,7 @@ ode45(FnHandle rhs, const Value &tspan, const Value &y0,
 ///               times; `y` is an `m Ã— d` matrix with each row a state.
 std::tuple<Value, Value>
 ode23(FnHandle rhs, const Value &tspan, const Value &y0,
-      const Value &opts, std::pmr::memory_resource *mr = nullptr);
+      const Value &opts, keel::Allocator *mr = nullptr);
 
 
 /// @}

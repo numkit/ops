@@ -5,10 +5,15 @@
 // (MATLAB `rng(seed)`); two Engines are independent. Bit-identical with MATLAB
 // R2025b's rng()+rand()+randn()+randperm() under 'twister' and legacy v4.
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/ref.h>
+#include <keel/arena.h>
+#include <keel/array.h>
+#include <keel/math.h>
 #include <numkit/ops/rng.hpp>
 
 #include <numkit/value/error.hpp>
-#include <numkit/value/scratch.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -31,12 +36,12 @@ namespace {
 // Serialise / restore MT19937 state as a text blob: "mt19937 <624 words> <idx>".
 std::string serializeState(const MatlabMT19937 &gen)
 {
-    uint32_t state[MatlabMT19937::STATE_SIZE];
+    keel::u32 state[MatlabMT19937::STATE_SIZE];
     int idx;
     gen.getState(state, idx);
     std::ostringstream os;
     os << "mt19937";
-    for (std::size_t i = 0; i < MatlabMT19937::STATE_SIZE; ++i)
+    for (keel::usize i = 0; i < MatlabMT19937::STATE_SIZE; ++i)
         os << ' ' << state[i];
     os << ' ' << idx;
     return os.str();
@@ -50,8 +55,8 @@ void deserializeState(MatlabMT19937 &gen, const std::string &blob)
     if (tag != "mt19937")
         throw Error("rng: malformed state blob",
                      0, 0, "rng", "", "numkit:rng:badState");
-    uint32_t state[MatlabMT19937::STATE_SIZE];
-    for (std::size_t i = 0; i < MatlabMT19937::STATE_SIZE; ++i) {
+    keel::u32 state[MatlabMT19937::STATE_SIZE];
+    for (keel::usize i = 0; i < MatlabMT19937::STATE_SIZE; ++i) {
         if (!(is >> state[i]))
             throw Error("rng: malformed state blob",
                          0, 0, "rng", "", "numkit:rng:badState");
@@ -61,7 +66,7 @@ void deserializeState(MatlabMT19937 &gen, const std::string &blob)
         throw Error("rng: malformed state blob",
                      0, 0, "rng", "", "numkit:rng:badState");
     bool anyNonZero = ((state[0] & 0x80000000UL) != 0);
-    for (std::size_t i = 1; i < MatlabMT19937::STATE_SIZE && !anyNonZero; ++i)
+    for (keel::usize i = 1; i < MatlabMT19937::STATE_SIZE && !anyNonZero; ++i)
         if (state[i] != 0)
             anyNonZero = true;
     if (!anyNonZero)
@@ -224,15 +229,15 @@ double RngContext::v5Normal()
         2.3795008, 2.4402218, 2.5075117, 2.5834658, 2.6713916, 2.7769942, 2.7769942, 2.7769942,
         2.7769942
     };
-    const std::uint32_t u32 = shr3Step();
-    const std::int32_t hz = static_cast<std::int32_t>(u32);
-    const std::uint32_t iz = u32 & 63u;
+    const keel::u32 u32 = shr3Step();
+    const keel::i32 hz = static_cast<keel::i32>(u32);
+    const keel::u32 iz = u32 & 63u;
     const double x = static_cast<double>(hz) * vt[iz + 1] * 4.6566128730773926e-10;
-    if (std::abs(x) < vt[iz])
+    if (keel::abs(x) < vt[iz])
         return x;
 
-    const double y = 0.4878992 * (vt[iz + 1] - std::abs(x)) / (vt[iz + 1] - vt[iz]);
-    const double u1 = 0.5 + static_cast<double>(static_cast<std::int32_t>(shr3Step())) * 2.3283064365386963e-10;
+    const double y = 0.4878992 * (vt[iz + 1] - keel::abs(x)) / (vt[iz + 1] - vt[iz]);
+    const double u1 = 0.5 + static_cast<double>(static_cast<keel::i32>(shr3Step())) * 2.3283064365386963e-10;
     const double f0 = std::exp(-0.5 * vt[iz] * vt[iz]);
     const double f1 = std::exp(-0.5 * vt[iz + 1] * vt[iz + 1]);
     if (u1 < (std::exp(-0.5 * x * x) - f1) / (f0 - f1))
@@ -243,8 +248,8 @@ double RngContext::v5Normal()
         return (x < 0.0) ? -y : y;
 
     for (;;) {
-        const double u2 = 0.5 + static_cast<double>(static_cast<std::int32_t>(shr3Step())) * 2.3283064365386963e-10;
-        const double u3 = 0.5 + static_cast<double>(static_cast<std::int32_t>(shr3Step())) * 2.3283064365386963e-10;
+        const double u2 = 0.5 + static_cast<double>(static_cast<keel::i32>(shr3Step())) * 2.3283064365386963e-10;
+        const double u3 = 0.5 + static_cast<double>(static_cast<keel::i32>(shr3Step())) * 2.3283064365386963e-10;
         const double tx = -std::log(u2) / 2.776994;
         if (-2.0 * std::log(u3) > tx * tx) {
             const double res = 2.776994 + tx;
@@ -259,16 +264,16 @@ double RngContext::nextNormal()
         return legacyV4Randn_ ? v4Normal() : v5Normal();
 
     for (;;) {
-        const std::uint32_t w0 = gen_.genUint32();
-        const std::uint32_t w1 = gen_.genUint32();
-        const std::uint32_t k = (w1 >> 24) & 0xFFu;
-        const std::int64_t u53 =
-            static_cast<std::int64_t>((static_cast<std::uint64_t>(w0 >> 3) << 24)
-                                      | static_cast<std::uint64_t>(w1 & 0x00FFFFFFu))
+        const keel::u32 w0 = gen_.genUint32();
+        const keel::u32 w1 = gen_.genUint32();
+        const keel::u32 k = (w1 >> 24) & 0xFFu;
+        const keel::i64 u53 =
+            static_cast<keel::i64>((static_cast<keel::u64>(w0 >> 3) << 24)
+                                      | static_cast<keel::u64>(w1 & 0x00FFFFFFu))
             - (1LL << 52);
         const double u = static_cast<double>(u53) * (1.0 / 4503599627370496.0);
         const double z = u * kZigguratX[k + 1];
-        if (std::abs(z) < kZigguratX[k])
+        if (keel::abs(z) < kZigguratX[k])
             return z;
 
         if (k == 255u) {
@@ -299,7 +304,7 @@ void RngContext::shuffle()
     gen_.seed(rd());
 }
 
-Value RngContext::state(std::pmr::memory_resource *mr) const
+Value RngContext::state(keel::Allocator *mr) const
 {
     auto blob = serializeState(gen_);
     auto s = Value::structure();
@@ -331,44 +336,44 @@ void RngContext::restore(const Value &state)
 // Real-valued random (uniform / standard-normal)
 // ────────────────────────────────────────────────────────────────────
 
-Value rand(RngContext &rng, size_t rows, size_t cols, size_t pages, std::pmr::memory_resource *mr)
+Value rand(RngContext &rng, keel::usize rows, keel::usize cols, keel::usize pages, keel::Allocator *mr)
 {
     auto m = (pages > 0) ? Value::matrix3d(rows, cols, pages, ValueType::DOUBLE, mr)
                          : Value::matrix(rows, cols, ValueType::DOUBLE, mr);
     double *dst = m.doubleDataMut();
-    const size_t n = m.numel();
-    for (size_t i = 0; i < n; ++i)
+    const keel::usize n = m.numel();
+    for (keel::usize i = 0; i < n; ++i)
         dst[i] = rng.nextUniform();
     return m;
 }
 
-Value randn(RngContext &rng, size_t rows, size_t cols, size_t pages, std::pmr::memory_resource *mr)
+Value randn(RngContext &rng, keel::usize rows, keel::usize cols, keel::usize pages, keel::Allocator *mr)
 {
     auto m = (pages > 0) ? Value::matrix3d(rows, cols, pages, ValueType::DOUBLE, mr)
                          : Value::matrix(rows, cols, ValueType::DOUBLE, mr);
     double *dst = m.doubleDataMut();
-    const size_t n = m.numel();
-    for (size_t i = 0; i < n; ++i)
+    const keel::usize n = m.numel();
+    for (keel::usize i = 0; i < n; ++i)
         dst[i] = rng.nextNormal();
     return m;
 }
 
-Value randND(RngContext &rng, Span<const size_t> dims, std::pmr::memory_resource *mr)
+Value randND(RngContext &rng, keel::ArrayRef<keel::usize> dims, keel::Allocator *mr)
 {
     auto m = Value::matrixND(dims.data(), static_cast<int>(dims.size()), ValueType::DOUBLE, mr);
     double *dst = m.doubleDataMut();
-    const size_t n = m.numel();
-    for (size_t i = 0; i < n; ++i)
+    const keel::usize n = m.numel();
+    for (keel::usize i = 0; i < n; ++i)
         dst[i] = rng.nextUniform();
     return m;
 }
 
-Value randnND(RngContext &rng, Span<const size_t> dims, std::pmr::memory_resource *mr)
+Value randnND(RngContext &rng, keel::ArrayRef<keel::usize> dims, keel::Allocator *mr)
 {
     auto m = Value::matrixND(dims.data(), static_cast<int>(dims.size()), ValueType::DOUBLE, mr);
     double *dst = m.doubleDataMut();
-    const size_t n = m.numel();
-    for (size_t i = 0; i < n; ++i)
+    const keel::usize n = m.numel();
+    for (keel::usize i = 0; i < n; ++i)
         dst[i] = rng.nextNormal();
     return m;
 }
@@ -379,23 +384,23 @@ Value randnND(RngContext &rng, Span<const size_t> dims, std::pmr::memory_resourc
 
 namespace {
 
-void fillUniformInt(RngContext &rng, double *dst, size_t n, int64_t lo, int64_t hi)
+void fillUniformInt(RngContext &rng, double *dst, keel::usize n, keel::i64 lo, keel::i64 hi)
 {
     if (lo > hi)
         throw Error("randi: low bound must be <= high bound",
                      0, 0, "randi", "", "numkit:randi:badRange");
-    const std::uint64_t uSpan =
-        static_cast<std::uint64_t>(hi) - static_cast<std::uint64_t>(lo) + 1ULL;
+    const keel::u64 uSpan =
+        static_cast<keel::u64>(hi) - static_cast<keel::u64>(lo) + 1ULL;
     const double span = (uSpan == 0ULL) ? 18446744073709551616.0
                                         : static_cast<double>(uSpan);
-    for (size_t i = 0; i < n; ++i) {
+    for (keel::usize i = 0; i < n; ++i) {
         const double u = rng.nextUniform();
         dst[i] = static_cast<double>(lo) + std::floor(u * span);
     }
 }
 
-Value makeIntMatrix(RngContext &rng, int64_t lo, int64_t hi, size_t rows, size_t cols,
-                    size_t pages, std::pmr::memory_resource *mr)
+Value makeIntMatrix(RngContext &rng, keel::i64 lo, keel::i64 hi, keel::usize rows, keel::usize cols,
+                    keel::usize pages, keel::Allocator *mr)
 {
     auto m = (pages > 0) ? Value::matrix3d(rows, cols, pages, ValueType::DOUBLE, mr)
                          : Value::matrix(rows, cols, ValueType::DOUBLE, mr);
@@ -405,19 +410,19 @@ Value makeIntMatrix(RngContext &rng, int64_t lo, int64_t hi, size_t rows, size_t
 
 } // namespace
 
-Value randi(RngContext &rng, int64_t imax, std::pmr::memory_resource *mr)
+Value randi(RngContext &rng, keel::i64 imax, keel::Allocator *mr)
 {
     double v = 0.0;
     fillUniformInt(rng, &v, 1, 1, imax);
     return Value::scalar(v, mr);
 }
 
-Value randi(RngContext &rng, int64_t imax, size_t rows, size_t cols, size_t pages, std::pmr::memory_resource *mr)
+Value randi(RngContext &rng, keel::i64 imax, keel::usize rows, keel::usize cols, keel::usize pages, keel::Allocator *mr)
 {
     return makeIntMatrix(rng, 1, imax, rows, cols, pages, mr);
 }
 
-Value randi(RngContext &rng, int64_t imin, int64_t imax, size_t rows, size_t cols, size_t pages, std::pmr::memory_resource *mr)
+Value randi(RngContext &rng, keel::i64 imin, keel::i64 imax, keel::usize rows, keel::usize cols, keel::usize pages, keel::Allocator *mr)
 {
     return makeIntMatrix(rng, imin, imax, rows, cols, pages, mr);
 }
@@ -428,29 +433,29 @@ Value randi(RngContext &rng, int64_t imin, int64_t imax, size_t rows, size_t col
 // 1-arg randperm(n)    : [~, p] = sort(rand(1, n)) — matches MATLAB's 1-arg form.
 // 2-arg randperm(n, k) : inside-out / partial shuffle using nextUniform().
 
-Value randperm(RngContext &rng, size_t n, std::pmr::memory_resource *mr)
+Value randperm(RngContext &rng, keel::usize n, keel::Allocator *mr)
 {
     auto r = Value::matrix(1, n, ValueType::DOUBLE, mr);
     if (n == 0) return r;
 
-    ScratchArena scratch(mr);
-    auto u = ScratchVec<double>(n, &scratch);
-    auto idx = ScratchVec<size_t>(n, &scratch);
-    for (size_t i = 0; i < n; ++i) {
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    auto u = keel::Array<double>(n, scratch.allocator());
+    auto idx = keel::Array<keel::usize>(n, scratch.allocator());
+    for (keel::usize i = 0; i < n; ++i) {
         u[i] = rng.nextUniform();
         idx[i] = i;
     }
-    std::stable_sort(idx.begin(), idx.end(), [&](size_t a, size_t b) {
+    std::stable_sort(idx.begin(), idx.end(), [&](keel::usize a, keel::usize b) {
         return u[a] < u[b];
     });
 
     double *dst = r.doubleDataMut();
-    for (size_t i = 0; i < n; ++i)
+    for (keel::usize i = 0; i < n; ++i)
         dst[i] = static_cast<double>(idx[i] + 1);
     return r;
 }
 
-Value randperm(RngContext &rng, size_t n, size_t k, std::pmr::memory_resource *mr)
+Value randperm(RngContext &rng, keel::usize n, keel::usize k, keel::Allocator *mr)
 {
     if (k > n)
         throw Error("randperm: k must not exceed n",
@@ -461,8 +466,8 @@ Value randperm(RngContext &rng, size_t n, size_t k, std::pmr::memory_resource *m
     double *dst = r.doubleDataMut();
     if (k == n) {
         dst[0] = 1.0;
-        for (size_t i = 1; i < n; ++i) {
-            const size_t j = static_cast<size_t>(
+        for (keel::usize i = 1; i < n; ++i) {
+            const keel::usize j = static_cast<keel::usize>(
                 std::floor(rng.nextUniform() * static_cast<double>(i + 1)));
             if (j != i)
                 dst[i] = dst[j];
@@ -472,28 +477,28 @@ Value randperm(RngContext &rng, size_t n, size_t k, std::pmr::memory_resource *m
     }
 
     if (4 * k < n) {
-        std::unordered_map<size_t, size_t> H;
+        std::unordered_map<keel::usize, keel::usize> H;
         H.reserve(k * 2);
-        for (size_t i = 0; i < k; ++i) {
-            const size_t m = n - i;
-            const size_t j = 1 + static_cast<size_t>(
+        for (keel::usize i = 0; i < k; ++i) {
+            const keel::usize m = n - i;
+            const keel::usize j = 1 + static_cast<keel::usize>(
                 std::floor(rng.nextUniform() * static_cast<double>(m)));
             auto itJ = H.find(j);
-            const size_t valJ = (itJ != H.end()) ? itJ->second : j;
+            const keel::usize valJ = (itJ != H.end()) ? itJ->second : j;
             auto itM = H.find(m);
-            const size_t valM = (itM != H.end()) ? itM->second : m;
+            const keel::usize valM = (itM != H.end()) ? itM->second : m;
             dst[i] = static_cast<double>(valJ);
             H[j] = valM;
         }
         return r;
     }
 
-    size_t t = 0;
+    keel::usize t = 0;
     double nrem = static_cast<double>(n);
     double krem = static_cast<double>(k);
-    for (size_t i = 0; i < k; ++i) {
+    for (keel::usize i = 0; i < k; ++i) {
         const double v = 1.0 - rng.nextUniform();
-        size_t s = 0;
+        keel::usize s = 0;
         double quot = (nrem - krem) / nrem;
         while (quot > v) {
             ++s;
@@ -503,7 +508,7 @@ Value randperm(RngContext &rng, size_t n, size_t k, std::pmr::memory_resource *m
         t += s + 1;
         nrem -= 1.0;
         krem -= 1.0;
-        const size_t j = static_cast<size_t>(
+        const keel::usize j = static_cast<keel::usize>(
             std::floor(rng.nextUniform() * static_cast<double>(i + 1)));
         if (j != i)
             dst[i] = dst[j];

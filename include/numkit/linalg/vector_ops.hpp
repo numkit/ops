@@ -9,7 +9,7 @@
 
 #pragma once
 
-#include <memory_resource>
+#include <keel/memory.h>
 #include <numkit/value/value.hpp>
 
 namespace numkit::linalg {
@@ -29,7 +29,7 @@ namespace numkit::linalg {
 /// @return    Cross product.
 /// @throws Error  Shape mismatch, or no dimension of length 3.
 /// @see dot
-Value cross(const Value &a, const Value &b, std::pmr::memory_resource *mr = nullptr);
+Value cross(const Value &a, const Value &b, keel::Allocator *mr = nullptr);
 
 /// @brief Cross product along a given dimension (`cross(A, B, dim)`).
 ///
@@ -45,7 +45,7 @@ Value cross(const Value &a, const Value &b, std::pmr::memory_resource *mr = null
 /// @return    Cross product (same shape as the inputs).
 /// @throws Error  Shape mismatch, `dim` length â‰  3, or invalid `dim`.
 /// @see cross, dot
-Value cross(const Value &a, const Value &b, int dim, std::pmr::memory_resource *mr = nullptr);
+Value cross(const Value &a, const Value &b, int dim, keel::Allocator *mr = nullptr);
 
 /// @brief Dot product of two equal-length vectors.
 ///
@@ -55,7 +55,7 @@ Value cross(const Value &a, const Value &b, int dim, std::pmr::memory_resource *
 /// @return    Scalar dot product.
 /// @throws Error  Length mismatch.
 /// @see cross
-Value dot(const Value &a, const Value &b, std::pmr::memory_resource *mr = nullptr);
+Value dot(const Value &a, const Value &b, keel::Allocator *mr = nullptr);
 
 /// @brief Dot product along a given dimension (`dot(A, B, dim)`).
 ///
@@ -72,7 +72,7 @@ Value dot(const Value &a, const Value &b, std::pmr::memory_resource *mr = nullpt
 /// @return    Dot product reduced along `dim`.
 /// @throws Error  Shape mismatch, 3-D input, or invalid `dim`.
 /// @see dot
-Value dot(const Value &a, const Value &b, int dim, std::pmr::memory_resource *mr = nullptr);
+Value dot(const Value &a, const Value &b, int dim, keel::Allocator *mr = nullptr);
 
 /// @brief Kronecker product (`K = kron(A, B)`).
 ///
@@ -84,7 +84,7 @@ Value dot(const Value &a, const Value &b, int dim, std::pmr::memory_resource *mr
 /// @param mr  Memory resource (nullptr â†’ process default).
 /// @return    Kronecker product.
 /// @throws Error  COMPLEX input, or rank > 2.
-Value kron(const Value &a, const Value &b, std::pmr::memory_resource *mr = nullptr);
+Value kron(const Value &a, const Value &b, keel::Allocator *mr = nullptr);
 
 
 /// @}

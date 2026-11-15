@@ -11,29 +11,30 @@
 
 #pragma once
 
+#include <keel/core.h>
 #include <cstddef>
 
 namespace numkit::ops {
 
 // Single pass over [p, p+n). NaN positions contribute 0. Returns the
 // sum of the non-NaN values. Empty / all-NaN input returns 0.
-double nanSumScan(const double *p, std::size_t n);
+keel::f64 nanSumScan(const keel::f64 *p, keel::usize n);
 
 struct NanSumCount {
-    double sum;
-    std::size_t count;
+    keel::f64 sum;
+    keel::usize count;
 };
 
 // Single pass returning both the sum (NaN→0) and the count of non-NaN
 // elements. The caller computes mean = count > 0 ? sum/count : NaN.
-NanSumCount nanSumCountScan(const double *p, std::size_t n);
+NanSumCount nanSumCountScan(const keel::f64 *p, keel::usize n);
 
 // Single-pass min / max over [p, p+n) skipping NaN. NaN lanes are
 // masked to the neutral element (+inf for min, -inf for max) before the
 // SIMD reduction. Returns NaN for empty / all-NaN slices (matches
 // MATLAB's nanmin / nanmax convention).
-double nanMaxScan(const double *p, std::size_t n);
-double nanMinScan(const double *p, std::size_t n);
+keel::f64 nanMaxScan(const keel::f64 *p, keel::usize n);
+keel::f64 nanMinScan(const keel::f64 *p, keel::usize n);
 
 // Two-pass NaN-skipping variance:
 //   pass 1: nanSumCountScan -> mean (NaN if count == 0)
@@ -41,6 +42,6 @@ double nanMinScan(const double *p, std::size_t n);
 // Result divided by (count - {0,1}) per the normFlag (matches MATLAB
 // var(x, 0/1) semantics). All-NaN -> NaN; one valid value -> 0 for
 // normFlag==1, NaN for normFlag==0.
-double nanVarianceTwoPass(const double *p, std::size_t n, int normFlag);
+keel::f64 nanVarianceTwoPass(const keel::f64 *p, keel::usize n, int normFlag);
 
 } // namespace numkit::ops

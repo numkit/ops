@@ -6,6 +6,9 @@
 // exactly this behaviour for small / complex / scalar inputs; the
 // SIMD backend only diverges on the real-vector fast path.
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/math.h>
 #include <numkit/builtin/elfun.hpp>
 
 #include <numkit/value/value.hpp>
@@ -14,11 +17,10 @@
 #include <numkit/ops/helpers.hpp>
 
 #include <cmath>
-#include <complex>
 
 namespace numkit::builtin {
 
-Value abs(const Value &x, Value *hint, std::pmr::memory_resource *mr)
+Value abs(const Value &x, Value *hint, keel::Allocator *mr)
 {
     // Integer types keep their class and saturate (abs(int8(-128))=127 int8).
     if (isIntegerType(x.type()))
@@ -27,15 +29,15 @@ Value abs(const Value &x, Value *hint, std::pmr::memory_resource *mr)
         if (x.isSingleComplex()) {
             auto r = createLike(x, ValueType::SINGLE, mr);
             float *dst = r.singleDataMut();
-            for (size_t i = 0; i < x.numel(); ++i)
-                dst[i] = static_cast<float>(std::abs(x.complexData()[i]));
+            for (keel::usize i = 0; i < x.numel(); ++i)
+                dst[i] = static_cast<float>(keel::abs(x.complexData()[i]));
             return r;
         }
         if (x.isScalar())
-            return Value::scalar(std::abs(x.toComplex()), mr);
+            return Value::scalar(keel::abs(x.toComplex()), mr);
         auto r = createLike(x, ValueType::DOUBLE, mr);
-        for (size_t i = 0; i < x.numel(); ++i)
-            r.doubleDataMut()[i] = std::abs(x.complexData()[i]);
+        for (keel::usize i = 0; i < x.numel(); ++i)
+            r.doubleDataMut()[i] = keel::abs(x.complexData()[i]);
         return r;
     }
     // Single stays single; logical / char widen to double — see
@@ -44,7 +46,7 @@ Value abs(const Value &x, Value *hint, std::pmr::memory_resource *mr)
         Value r = createLike(x, ValueType::SINGLE, mr);
         const float *in = x.singleData();
         float *out = r.singleDataMut();
-        for (size_t i = 0; i < x.numel(); ++i)
+        for (keel::usize i = 0; i < x.numel(); ++i)
             out[i] = std::fabs(in[i]);
         return r;
     }
@@ -53,11 +55,11 @@ Value abs(const Value &x, Value *hint, std::pmr::memory_resource *mr)
         double *out = r.doubleDataMut();
         if (x.type() == ValueType::LOGICAL) {
             const auto *in = x.logicalData();
-            for (size_t i = 0; i < x.numel(); ++i)
+            for (keel::usize i = 0; i < x.numel(); ++i)
                 out[i] = in[i] ? 1.0 : 0.0;
         } else {
             const auto *in = x.charData();
-            for (size_t i = 0; i < x.numel(); ++i)
+            for (keel::usize i = 0; i < x.numel(); ++i)
                 out[i] = static_cast<double>(
                     static_cast<unsigned char>(in[i]));
         }
@@ -73,11 +75,11 @@ Value abs(const Value &x, Value *hint, std::pmr::memory_resource *mr)
         Value r = std::move(*hint);
         const double *in  = x.doubleData();
         double       *out = r.doubleDataMut();
-        for (size_t i = 0; i < x.numel(); ++i)
+        for (keel::usize i = 0; i < x.numel(); ++i)
             out[i] = std::fabs(in[i]);
         return r;
     }
-    return unaryDouble(x, [](double v) { return std::abs(v); }, mr);
+    return unaryDouble(x, [](double v) { return keel::abs(v); }, mr);
 }
 
 } // namespace numkit::builtin

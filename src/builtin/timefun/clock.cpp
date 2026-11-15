@@ -2,9 +2,9 @@
 //
 // Clock, current date, CPU time, and execution pausing for numkit::builtin.
 
+#include <keel/memory.h>
 #include <numkit/builtin/timefun.hpp>
 #include <numkit/value/value.hpp>
-#include <numkit/value/span.hpp>
 
 #include <chrono>
 #include <ctime>
@@ -43,7 +43,7 @@ std::string date() {
     return std::string(buf);
 }
 
-Value clock(std::pmr::memory_resource *mr) {
+Value clock(keel::Allocator *mr) {
     auto now_tp = std::chrono::system_clock::now();
     auto t = std::chrono::system_clock::to_time_t(now_tp);
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now_tp.time_since_epoch()) % 1000;

@@ -10,15 +10,16 @@
 // interpolants, the stepping loops) stay in their own TUs.
 #pragma once
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/ref.h>
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
-#include <numkit/value/span.hpp>
 #include <numkit/value/fn_handle.hpp>
 
 #include <array>
 #include <cstddef>
 #include <limits>
-#include <memory_resource>
 #include <string>
 #include <vector>
 
@@ -71,9 +72,9 @@ inline OdeOpts read_opts(const Value &opts, int refine_default)
     if (opts.hasField("AbsTol")) {
         const Value &v = opts.field("AbsTol");
         if (!v.isEmpty()) {
-            const std::size_t n = v.numel();
+            const keel::usize n = v.numel();
             o.abs_tol.resize(n);
-            for (std::size_t i = 0; i < n; ++i) o.abs_tol[i] = v.elemAsDouble(i);
+            for (keel::usize i = 0; i < n; ++i) o.abs_tol[i] = v.elemAsDouble(i);
         }
     }
     if (opts.hasField("Stats")) {
@@ -91,22 +92,22 @@ inline OdeOpts read_opts(const Value &opts, int refine_default)
 // "ode23") names the caller in the size-mismatch error so each integrator keeps
 // its own message + identifier. The per-TU `eval_rhs` wrapper binds it.
 inline void callOdeRhs(FnHandle rhs, double t, const std::vector<double> &y,
-                       std::vector<double> &dydt, std::pmr::memory_resource *mr,
+                       std::vector<double> &dydt, keel::Allocator *mr,
                        const char *solver)
 {
-    const std::size_t d = y.size();
+    const keel::usize d = y.size();
     Value tv = Value::scalar(t, mr);
     Value yv = Value::matrix(d, 1, ValueType::DOUBLE, mr);
-    for (std::size_t i = 0; i < d; ++i) yv.doubleDataMut()[i] = y[i];
+    for (keel::usize i = 0; i < d; ++i) yv.doubleDataMut()[i] = y[i];
     std::array<Value, 2> args_buf{tv, yv};
     Value                out_buf;
-    rhs(Span<const Value>(args_buf.data(), 2), Span<Value>(&out_buf, 1), mr);
+    rhs(keel::ArrayRef<Value>(args_buf.data(), 2), keel::MutArrayRef<Value>(&out_buf, 1), mr);
     if (out_buf.numel() != d)
         throw Error(std::string(solver) + ": RHS returned " + std::to_string(out_buf.numel())
                   + " values but expected " + std::to_string(d),
                     0, 0, solver, "", "numkit:" + std::string(solver) + ":badRhsSize");
     dydt.resize(d);
-    for (std::size_t i = 0; i < d; ++i) dydt[i] = out_buf.elemAsDouble(i);
+    for (keel::usize i = 0; i < d; ++i) dydt[i] = out_buf.elemAsDouble(i);
 }
 
 } // namespace numkit::ode

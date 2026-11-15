@@ -6,7 +6,8 @@
 
 #pragma once
 
-#include <memory_resource>
+#include <keel/core.h>
+#include <keel/memory.h>
 #include <numkit/value/value.hpp>
 
 #include <algorithm>
@@ -25,30 +26,30 @@ struct SizeSpec
 {
     enum class Kind { Flat, Matrix };
     Kind kind;
-    size_t limit;
-    size_t rows;
-    size_t cols;
+    keel::usize limit;
+    keel::usize rows;
+    keel::usize cols;
     bool matrix() const { return kind == Kind::Matrix; }
 };
 
 inline SizeSpec parseReadSize(const Value &sz, const char *fn)
 {
     if (sz.isScalar()) {
-        double s = sz.toScalar();
+        keel::f64 s = sz.toScalar();
         if (std::isinf(s))
             return SizeSpec{SizeSpec::Kind::Flat, SIZE_MAX, 0, 0};
         if (s < 0 || !std::isfinite(s))
             throw Error(std::string(fn) + ": size must be Inf or a non-negative integer");
-        return SizeSpec{SizeSpec::Kind::Flat, static_cast<size_t>(s), 0, 0};
+        return SizeSpec{SizeSpec::Kind::Flat, static_cast<keel::usize>(s), 0, 0};
     }
     if (sz.numel() == 2) {
-        double r = sz(0);
-        double c = sz(1);
+        keel::f64 r = sz(0);
+        keel::f64 c = sz(1);
         if (r < 0 || !std::isfinite(r) || std::isinf(r))
             throw Error(std::string(fn) + ": rows in [m n] must be finite non-negative");
-        size_t rows = static_cast<size_t>(r);
-        size_t cols;
-        size_t limit;
+        keel::usize rows = static_cast<keel::usize>(r);
+        keel::usize cols;
+        keel::usize limit;
         if (std::isinf(c)) {
             cols = SIZE_MAX;
             limit = SIZE_MAX;
@@ -56,7 +57,7 @@ inline SizeSpec parseReadSize(const Value &sz, const char *fn)
             if (c < 0 || !std::isfinite(c))
                 throw Error(std::string(fn)
                              + ": cols in [m n] must be finite non-negative or Inf");
-            cols = static_cast<size_t>(c);
+            cols = static_cast<keel::usize>(c);
             limit = rows * cols;
         }
         return SizeSpec{SizeSpec::Kind::Matrix, limit, rows, cols};
@@ -64,29 +65,29 @@ inline SizeSpec parseReadSize(const Value &sz, const char *fn)
     throw Error(std::string(fn) + ": size must be scalar, Inf, or a 2-element vector");
 }
 
-inline Value shapeFreadOutput(const double *values, size_t n,
-                              SizeSpec sz, std::pmr::memory_resource *mr = nullptr)
+inline Value shapeFreadOutput(const keel::f64 *values, keel::usize n,
+                              SizeSpec sz, keel::Allocator *mr = nullptr)
 {
     if (!sz.matrix()) {
         if (n == 0)
             return Value::matrix(0, 0, ValueType::DOUBLE, mr);
         Value M = Value::matrix(n, 1, ValueType::DOUBLE, mr);
-        std::memcpy(M.doubleDataMut(), values, n * sizeof(double));
+        std::memcpy(M.doubleDataMut(), values, n * sizeof(keel::f64));
         return M;
     }
-    size_t cols_out = (sz.cols == SIZE_MAX)
+    keel::usize cols_out = (sz.cols == SIZE_MAX)
                           ? (sz.rows == 0 ? 0 : (n + sz.rows - 1) / sz.rows)
                           : sz.cols;
     if (sz.rows == 0 || cols_out == 0)
         return Value::matrix(sz.rows, cols_out, ValueType::DOUBLE, mr);
     Value M = Value::matrix(sz.rows, cols_out, ValueType::DOUBLE, mr);
-    std::memcpy(M.doubleDataMut(), values, n * sizeof(double));
+    std::memcpy(M.doubleDataMut(), values, n * sizeof(keel::f64));
     return M;
 }
 
 // ── Precision + endian parsing (fread / fwrite) ──────────────────────
 // kind: 0 = unsigned, 1 = signed, 2 = float. byteSize in bytes.
-inline std::optional<std::pair<int, size_t>> parsePrecision(const std::string &raw)
+inline std::optional<std::pair<int, keel::usize>> parsePrecision(const std::string &raw)
 {
     std::string p = raw;
     auto arrow = p.find("=>");
@@ -98,25 +99,25 @@ inline std::optional<std::pair<int, size_t>> parsePrecision(const std::string &r
     for (char &c : p) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
 
     if (p == "uint8" || p == "uchar" || p == "unsigned char" || p == "char" || p == "char*1")
-        return std::make_pair(0, size_t{1});
+        return std::make_pair(0, keel::usize{1});
     if (p == "int8" || p == "schar" || p == "signed char" || p == "integer*1")
-        return std::make_pair(1, size_t{1});
+        return std::make_pair(1, keel::usize{1});
     if (p == "uint16" || p == "ushort" || p == "unsigned short")
-        return std::make_pair(0, size_t{2});
+        return std::make_pair(0, keel::usize{2});
     if (p == "int16" || p == "short" || p == "integer*2")
-        return std::make_pair(1, size_t{2});
+        return std::make_pair(1, keel::usize{2});
     if (p == "uint32" || p == "uint" || p == "unsigned int" || p == "ulong" || p == "unsigned long")
-        return std::make_pair(0, size_t{4});
+        return std::make_pair(0, keel::usize{4});
     if (p == "int32" || p == "int" || p == "long" || p == "integer*4")
-        return std::make_pair(1, size_t{4});
+        return std::make_pair(1, keel::usize{4});
     if (p == "uint64")
-        return std::make_pair(0, size_t{8});
+        return std::make_pair(0, keel::usize{8});
     if (p == "int64" || p == "integer*8")
-        return std::make_pair(1, size_t{8});
+        return std::make_pair(1, keel::usize{8});
     if (p == "single" || p == "float" || p == "float32" || p == "real*4")
-        return std::make_pair(2, size_t{4});
+        return std::make_pair(2, keel::usize{4});
     if (p == "double" || p == "float64" || p == "real*8")
-        return std::make_pair(2, size_t{8});
+        return std::make_pair(2, keel::usize{8});
     return std::nullopt;
 }
 
@@ -134,9 +135,9 @@ inline bool parseEndian(const std::string &raw, const char *fn)
     throw Error(std::string(fn) + ": unsupported machine format '" + raw + "'");
 }
 
-inline void byteSwap(char *p, size_t n)
+inline void byteSwap(char *p, keel::usize n)
 {
-    for (size_t i = 0, j = n - 1; i < j; ++i, --j) std::swap(p[i], p[j]);
+    for (keel::usize i = 0, j = n - 1; i < j; ++i, --j) std::swap(p[i], p[j]);
 }
 
 } // namespace numkit::ops

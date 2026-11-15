@@ -4,6 +4,8 @@
 //
 // Reference: Shampine & Reichelt, "The MATLAB ODE Suite", 1997.
 
+#include <keel/core.h>
+#include <keel/memory.h>
 #include <numkit/ode/options.hpp>
 
 #include <numkit/value/error.hpp>
@@ -26,7 +28,7 @@ const char *const kOptionNames[] = {
     "NormControl", "OutputFcn", "OutputSel", "Refine", "RelTol",
     "Stats", "Vectorized",
 };
-constexpr std::size_t kNumOptions = sizeof(kOptionNames) / sizeof(kOptionNames[0]);
+constexpr keel::usize kNumOptions = sizeof(kOptionNames) / sizeof(kOptionNames[0]);
 
 std::string to_lower(std::string s)
 {
@@ -39,17 +41,17 @@ std::string to_lower(std::string s)
 std::string canonical_name(const std::string &raw)
 {
     const std::string lower = to_lower(raw);
-    for (std::size_t i = 0; i < kNumOptions; ++i) {
+    for (keel::usize i = 0; i < kNumOptions; ++i) {
         if (to_lower(kOptionNames[i]) == lower) return std::string(kOptionNames[i]);
     }
     return {};
 }
 
 // Build the default options struct (all fields = []).
-Value default_struct(std::pmr::memory_resource *mr)
+Value default_struct(keel::Allocator *mr)
 {
     Value s = Value::structure(mr);
-    for (std::size_t i = 0; i < kNumOptions; ++i) {
+    for (keel::usize i = 0; i < kNumOptions; ++i) {
         s.field(kOptionNames[i]) = Value::Empty;
     }
     return s;
@@ -57,17 +59,17 @@ Value default_struct(std::pmr::memory_resource *mr)
 
 } // anonymous
 
-Value odeset(const Value *args, std::size_t nargs,
-             std::pmr::memory_resource *mr)
+Value odeset(const Value *args, keel::usize nargs,
+             keel::Allocator *mr)
 {
     // Start from defaults, optionally merge in an existing struct, then
     // process name-value pairs.
     Value out = default_struct(mr);
-    std::size_t i = 0;
+    keel::usize i = 0;
     // First-arg-is-struct cases.
     while (i < nargs && args[i].isStruct()) {
         const Value &src = args[i];
-        for (std::size_t k = 0; k < kNumOptions; ++k) {
+        for (keel::usize k = 0; k < kNumOptions; ++k) {
             const char *name = kOptionNames[k];
             if (src.hasField(name)) {
                 out.field(name) = src.field(name);
@@ -96,7 +98,7 @@ Value odeset(const Value *args, std::size_t nargs,
 }
 
 Value odeget(const Value &opts, const Value &name,
-             const Value &default_v, std::pmr::memory_resource *mr)
+             const Value &default_v, keel::Allocator *mr)
 {
     // Probed R2025b resolution model:
     //   1. [] options â†’ the default (or []).
@@ -139,7 +141,7 @@ Value odeget(const Value &opts, const Value &name,
     if (lowerRaw.empty()) {
         matches = static_cast<int>(kNumOptions);   // every name matches ""
     } else {
-        for (std::size_t i = 0; i < kNumOptions; ++i) {
+        for (keel::usize i = 0; i < kNumOptions; ++i) {
             const std::string lo = to_lower(kOptionNames[i]);
             if (lo.size() >= lowerRaw.size()
                 && lo.compare(0, lowerRaw.size(), lowerRaw) == 0) {

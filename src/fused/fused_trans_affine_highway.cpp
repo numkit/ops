@@ -10,6 +10,7 @@
 // The affine is Mul-then-Add (two roundings, NOT FMA) to match the affine
 // fallback. exp/expm1 of any real is real → no complex-promotion domain.
 
+#include <keel/core.h>
 #include <numkit/ops/fused/fused_kernels.hpp>
 #include <numkit/ops/parallel_for.hpp>
 
@@ -72,7 +73,7 @@ HWY_INLINE hn::VFromD<D> TanVec(D d, DI di, hn::VFromD<D> v)
     const auto u = hn::MulAdd(s2, hn::Mul(p, x), x);    // s2*(p*x) + x
     const auto y = hn::MulAdd(u, u, hn::Set(d, -1.0));  // u^2 - 1
     const auto xx = hn::Mul(u, hn::Set(d, -2.0));       // -2u
-    const auto odd = hn::RebindMask(d, hn::Ne(hn::And(qi, hn::Set(di, std::int64_t(1))), hn::Zero(di)));
+    const auto odd = hn::RebindMask(d, hn::Ne(hn::And(qi, hn::Set(di, keel::i64(1))), hn::Zero(di)));
     auto r = hn::Div(hn::IfThenElse(odd, hn::Neg(y), xx), hn::IfThenElse(odd, xx, y));
     return hn::IfThenElse(hn::Eq(v, hn::Zero(d)), v, r); // tan(0)=0, tan(-0)=-0
 }
@@ -82,14 +83,14 @@ HWY_INLINE hn::VFromD<D> TanVec(D d, DI di, hn::VFromD<D> v)
 // std::tan on each lane; the scalar tail is std::tan. Block boundaries and inner
 // values match the per-op tan(temp), so the per-block decision is identical.
 void TanInnerLoop(const double *x, double p0, double p1, bool divide,
-                  double *out, std::size_t n)
+                  double *out, keel::usize n)
 {
     const hn::ScalableTag<double> d;
     const hn::RebindToSigned<decltype(d)> di;
-    const std::size_t L = hn::Lanes(d);
+    const keel::usize L = hn::Lanes(d);
     const auto vp0 = hn::Set(d, p0), vp1 = hn::Set(d, p1);
     const auto rempiThreshold = hn::Set(d, 1.0e6);
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i + L <= n; i += L) {
         const auto xv = hn::LoadU(d, x + i);
         const auto inner = divide ? hn::Div(hn::Sub(xv, vp0), vp1)
@@ -97,7 +98,7 @@ void TanInnerLoop(const double *x, double p0, double p1, bool divide,
         if (hn::AllTrue(d, hn::Lt(hn::Abs(inner), rempiThreshold))) {
             hn::StoreU(TanVec(d, di, inner), d, out + i);
         } else { // |inner| >= 1e6 or non-finite: scalar reference for the block
-            for (std::size_t j = 0; j < L; ++j) {
+            for (keel::usize j = 0; j < L; ++j) {
                 const double iv = divide ? (x[i + j] - p0) / p1 : p0 * x[i + j] + p1;
                 out[i + j] = std::tan(iv);
             }
@@ -113,11 +114,11 @@ void TanInnerLoop(const double *x, double p0, double p1, bool divide,
 // → the affine path is unchanged).
 template <class Vec, class Scalar>
 void transLoop(const double *x, double p0, double p1, bool divide, double *out,
-               std::size_t n, Vec vop, Scalar sop) {
+               keel::usize n, Vec vop, Scalar sop) {
     const hn::ScalableTag<double> d;
-    const std::size_t L = hn::Lanes(d);
+    const keel::usize L = hn::Lanes(d);
     const auto vp0 = hn::Set(d, p0), vp1 = hn::Set(d, p1);
-    std::size_t i = 0;
+    keel::usize i = 0;
     for (; i + L <= n; i += L) {
         const auto x_ = hn::LoadU(d, x + i);
         const auto v = divide ? hn::Div(hn::Sub(x_, vp0), vp1)
@@ -129,7 +130,7 @@ void transLoop(const double *x, double p0, double p1, bool divide, double *out,
 }
 
 void TransAffineImpl(const double *x, double p0, double p1, bool divide,
-                     TransAffineFn fn, double *out, std::size_t n) {
+                     TransAffineFn fn, double *out, keel::usize n) {
     auto safeLog = [](auto d, auto v, auto f) {
         const auto zero = hn::Zero(d);
         const auto inf = hn::Inf(d);
@@ -261,23 +262,23 @@ namespace numkit::ops {
 HWY_EXPORT(TransAffineImpl);
 
 void fusedTransAffine(const double *x, double scale, double offset,
-                      TransAffineFn fn, double *out, std::size_t n) {
+                      TransAffineFn fn, double *out, keel::usize n) {
     if (n == 0) return;
     // kTranscendentalThreshold (not the arithmetic 1<<16) so the chunk
     // boundaries match nk's exp/expm1 parallel_for — the per-chunk
     // hn::/std:: split must land on the same elements for bit-exactness.
     detail::parallel_for(n, detail::kTranscendentalThreshold,
-                         [&](std::size_t s, std::size_t e) {
+                         [&](keel::usize s, keel::usize e) {
         HWY_DYNAMIC_DISPATCH(TransAffineImpl)(x + s, scale, offset, /*divide=*/false,
                                               fn, out + s, e - s);
     });
 }
 
 void fusedTransShiftDiv(const double *x, double sub, double div,
-                        TransAffineFn fn, double *out, std::size_t n) {
+                        TransAffineFn fn, double *out, keel::usize n) {
     if (n == 0) return;
     detail::parallel_for(n, detail::kTranscendentalThreshold,
-                         [&](std::size_t s, std::size_t e) {
+                         [&](keel::usize s, keel::usize e) {
         HWY_DYNAMIC_DISPATCH(TransAffineImpl)(x + s, sub, div, /*divide=*/true,
                                               fn, out + s, e - s);
     });

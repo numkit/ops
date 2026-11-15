@@ -3,6 +3,7 @@
 // Accurate sinpi / cospi scalar kernel.
 #pragma once
 
+#include <keel/core.h>
 #include <cmath>
 #include <cstdint>
 #include <limits>
@@ -45,11 +46,11 @@ inline double sinpi_poly(bool o, double s)
 }
 
 // Nearest even integer to u, via SLEEF's (trunc(u) + (u>=0)) & ~1.
-inline std::int64_t sinpi_octant(double u)
+inline keel::i64 sinpi_octant(double u)
 {
-    std::int64_t q = static_cast<std::int64_t>(u); // truncate toward zero
+    keel::i64 q = static_cast<keel::i64>(u); // truncate toward zero
     q += (q < 0) ? 0 : 1;
-    return q & ~static_cast<std::int64_t>(1);
+    return q & ~static_cast<keel::i64>(1);
 }
 
 inline double sinpi_kernel(double d)
@@ -59,7 +60,7 @@ inline double sinpi_kernel(double d)
     if (std::fabs(d) >= kSinpiIntThreshold) return std::copysign(0.0, d);
 
     const double        u = d * 4.0;
-    const std::int64_t  q = sinpi_octant(u);
+    const keel::i64  q = sinpi_octant(u);
     const bool          o = (q & 2) != 0;
     const double        t = u - static_cast<double>(q);
     const double        s = t * t;
@@ -79,7 +80,7 @@ inline double cospi_kernel(double d)
     if (std::fabs(d) >= kSinpiIntThreshold) return 1.0;
 
     const double        u = d * 4.0;
-    const std::int64_t  q = sinpi_octant(u);
+    const keel::i64  q = sinpi_octant(u);
     const bool          o = (q & 2) == 0;
     const double        t = u - static_cast<double>(q);
     const double        s = t * t;

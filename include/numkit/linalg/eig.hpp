@@ -8,7 +8,9 @@
 
 #pragma once
 
-#include <memory_resource>
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/ref.h>
 #include <tuple>
 #include <numkit/value/value.hpp>
 
@@ -24,10 +26,10 @@ namespace numkit::linalg {
 /// `V` orthogonal, `D` diagonal (ascending real eigenvalues). Throws if
 /// `A` is not symmetric within tolerance.
 std::tuple<Value, Value>
-eig_symmetric(const Value &A, std::pmr::memory_resource *mr = nullptr);
+eig_symmetric(const Value &A, keel::Allocator *mr = nullptr);
 
 /// @brief Eigenvalues only (`e = eig(A)` single-output form, symmetric).
-Value eig_values(const Value &A, std::pmr::memory_resource *mr = nullptr);
+Value eig_values(const Value &A, keel::Allocator *mr = nullptr);
 
 /// @brief Approximate-symmetry test used to pick the symmetric (Jacobi)
 /// vs general (char-poly) eig path.
@@ -35,54 +37,54 @@ Value eig_values(const Value &A, std::pmr::memory_resource *mr = nullptr);
 /// True iff `A` is square and every off-diagonal pair matches within
 /// `tolÂ·(1 + max(|A(i,j)|, |A(j,i)|))`. Shared by `eig_symmetric`'s own
 /// guard and the eig register-side auto-dispatch.
-bool isSymmetricApprox(const Value &A, double tol);
+bool isSymmetricApprox(const Value &A, keel::f64 tol);
 
 /// @brief Characteristic polynomial of a matrix (`p = poly(A)`).
 ///
 /// Souriau-Faddeev-LeVerrier. `roots(p) == eig(A)`.
-Value poly_of_matrix(const Value &A, std::pmr::memory_resource *mr = nullptr);
+Value poly_of_matrix(const Value &A, keel::Allocator *mr = nullptr);
 
 /// @brief General (non-symmetric) eigenvalues via characteristic polynomial.
 ///
 /// Less numerically stable than QR iteration but works for moderate `n`.
-Value eig_general_values(const Value &A, std::pmr::memory_resource *mr = nullptr);
+Value eig_general_values(const Value &A, keel::Allocator *mr = nullptr);
 
 /// @brief General `[V, D]` eig for real-eigenvalue asymmetric `A`.
 ///
 /// Throws if any eigenvalue has non-zero imaginary part (Francis QR
 /// for complex eigvec extraction is deferred).
 std::tuple<Value, Value>
-eig_general_VD(const Value &A, std::pmr::memory_resource *mr = nullptr);
+eig_general_VD(const Value &A, keel::Allocator *mr = nullptr);
 
 /// @brief Generalized eigenvalues `e = eig(A, B)` as a column vector.
 Value eig_generalized_values(const Value &A, const Value &B,
-                             std::pmr::memory_resource *mr = nullptr);
+                             keel::Allocator *mr = nullptr);
 
 /// @brief Generalized eigendecomposition `[V, D] = eig(A, B)` solving `A*V = B*V*D`.
 std::tuple<Value, Value>
 eig_generalized_VD(const Value &A, const Value &B,
-                   std::pmr::memory_resource *mr = nullptr);
+                   keel::Allocator *mr = nullptr);
 
 /// @brief Fast Cholesky-Lanczos shift-invert solver for `eigs(A, B, k, 'smallestabs')`
 /// when A, B are real symmetric, A is SPD, and k << n.
-bool try_eigs_generalized_smallestabs(const Value &A, const Value &B, std::size_t k,
+bool try_eigs_generalized_smallestabs(const Value &A, const Value &B, keel::usize k,
                                       Value &Vout, Value &Dout,
-                                      std::pmr::memory_resource *mr = nullptr);
+                                      keel::Allocator *mr = nullptr);
 
 /// @brief Hessenberg reduction (`[P, H] = hess(A)`).
 ///
 /// `A = PÂ·HÂ·P'`, `P` orthogonal, `H` upper-Hessenberg.
 std::tuple<Value, Value>
-hess(const Value &A, std::pmr::memory_resource *mr = nullptr);
+hess(const Value &A, keel::Allocator *mr = nullptr);
 
 /// @brief Hessenberg-only output (`H = hess(A)` single-output form).
-Value hess_H_only(const Value &A, std::pmr::memory_resource *mr = nullptr);
+Value hess_H_only(const Value &A, keel::Allocator *mr = nullptr);
 
 /// @brief Schur decomposition for symmetric A (`[U, T] = schur(A)`).
 ///
 /// Equivalent to eigendecomposition: `A = UÂ·TÂ·U'`, `T` diagonal.
 std::tuple<Value, Value>
-schur_sym(const Value &A, std::pmr::memory_resource *mr = nullptr);
+schur_sym(const Value &A, keel::Allocator *mr = nullptr);
 
 /// @brief Real Schur decomposition for general (nonsymmetric) A
 /// (`[U, T] = schur(A)`).
@@ -93,13 +95,13 @@ schur_sym(const Value &A, std::pmr::memory_resource *mr = nullptr);
 /// double-shift QR. (The Schur form is not unique; eigenvalues + `UÂ·TÂ·Uáµ€`
 /// are the invariants.)
 std::tuple<Value, Value>
-schur_general(const Value &A, std::pmr::memory_resource *mr = nullptr);
+schur_general(const Value &A, keel::Allocator *mr = nullptr);
 
 /// @brief Sylvester equation for symmetric A and B (`X = sylvester_sym(A, B, C)`).
 ///
 /// Solves `AÂ·X + XÂ·B = C` via simultaneous diagonalisation.
 Value sylvester_sym(const Value &A, const Value &B, const Value &C,
-                    std::pmr::memory_resource *mr = nullptr);
+                    keel::Allocator *mr = nullptr);
 
 /// @brief Polynomial eigenvalue problem
 /// (`e = polyeig(A0, A1, ..., Ak)`, possibly `[V, e]`).
@@ -124,14 +126,14 @@ Value sylvester_sym(const Value &A, const Value &B, const Value &C,
 ///                 non-singular.
 /// @param mr       Memory resource.
 /// @return         Eigenvalue column of length `kÂ·n` (possibly COMPLEX).
-Value polyeig_values(Span<const Value> coeffs, std::pmr::memory_resource *mr = nullptr);
+Value polyeig_values(keel::ArrayRef<Value> coeffs, keel::Allocator *mr = nullptr);
 
 /// @brief Polynomial eigenvalue problem, eigenvectors + eigenvalues
 /// (`[V, e] = polyeig(A0, ..., Ak)`).
 ///
 /// Throws if any eigenvalue is complex (needs Francis QR).
 std::tuple<Value, Value>
-polyeig_VE(Span<const Value> coeffs, std::pmr::memory_resource *mr = nullptr);
+polyeig_VE(keel::ArrayRef<Value> coeffs, keel::Allocator *mr = nullptr);
 
 /// @brief Eigenvalues from a (quasi-)triangular Schur factor
 /// (`e = ordeig(T)`).
@@ -145,7 +147,7 @@ polyeig_VE(Span<const Value> coeffs, std::pmr::memory_resource *mr = nullptr);
 /// Unlike `eig(T)`, `ordeig` does NOT sort; the result preserves the
 /// diagonal/block ordering of `T` exactly â€” useful for reading off
 /// eigenvalues from a manually-reordered Schur factor.
-Value ordeig(const Value &T, std::pmr::memory_resource *mr = nullptr);
+Value ordeig(const Value &T, keel::Allocator *mr = nullptr);
 
 
 /// @}

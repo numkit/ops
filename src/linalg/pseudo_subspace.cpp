@@ -3,6 +3,12 @@
 // pinv / orth / null / subspace â€” implementations and engine adapters.
 // All four are SVD-based; migrated alongside the SVD kernel.
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/arena.h>
+#include <keel/array.h>
+#include <keel/complex.h>
+#include <keel/math.h>
 #include <numkit/linalg/pseudo_subspace.hpp>
 #include "linalg_detail.hpp"
 
@@ -11,8 +17,6 @@
 // subspace builtins (CallContext wrappers) live in pseudo_subspace_reg.cpp.
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
-#include <numkit/value/scratch.hpp>
-#include <numkit/value/span.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -23,7 +27,7 @@ namespace numkit::linalg {
 namespace {
 
 // Default tolerance for rank-cutoff: max(m,n) * eps(sigma_max).
-double defaultRankTol(std::size_t m, std::size_t n, double sigma_max, bool isSingle = false)
+double defaultRankTol(keel::usize m, keel::usize n, double sigma_max, bool isSingle = false)
 {
     const double eps = isSingle
         ? static_cast<double>(std::numeric_limits<float>::epsilon())
@@ -33,55 +37,55 @@ double defaultRankTol(std::size_t m, std::size_t n, double sigma_max, bool isSin
 
 } // anonymous namespace
 
-Value pinv(const Value &A, double tol, std::pmr::memory_resource *mr)
+Value pinv(const Value &A, double tol, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "pinv");
     detail::require2DMatrix(A, "pinv", "A", "pagepinv");
     const bool wantSingle = (A.type() == ValueType::SINGLE);
     const Value Aw = detail::widenSingleToDouble(A, mr);
     auto [U, S, V] = svd_decompose(Aw, mr);
-    const std::size_t m = static_cast<std::size_t>(Aw.dims().dim(0));
-    const std::size_t n = static_cast<std::size_t>(Aw.dims().dim(1));
-    const std::size_t k = std::min(m, n);
+    const keel::usize m = static_cast<keel::usize>(Aw.dims().dim(0));
+    const keel::usize n = static_cast<keel::usize>(Aw.dims().dim(1));
+    const keel::usize k = std::min(m, n);
 
     if (Aw.isComplex() || U.isComplex() || V.isComplex()) {
-        ScratchArena scratch(mr);
-        ScratchVec<double> Splus(k, 0.0, &scratch);
+        keel::ArenaTemp scratch = keel::get_scratch(mr);
+        keel::Array<double> Splus(k, 0.0, scratch.allocator());
         double sigma_max = 0.0;
-        const Complex *sd = S.isComplex() ? S.complexData() : nullptr;
+        const keel::c64 *sd = S.isComplex() ? S.complexData() : nullptr;
         const double *sdd = S.isComplex() ? nullptr : S.doubleData();
-        const std::size_t Srows = static_cast<std::size_t>(S.dims().dim(0));
+        const keel::usize Srows = static_cast<keel::usize>(S.dims().dim(0));
 
-        for (std::size_t i = 0; i < k; ++i) {
-            double sig = sd ? std::abs(sd[i + i * Srows]) : sdd[i + i * Srows];
+        for (keel::usize i = 0; i < k; ++i) {
+            double sig = sd ? keel::abs(sd[i + i * Srows]) : sdd[i + i * Srows];
             sigma_max = std::max(sigma_max, sig);
         }
         const double cutoff = (tol < 0.0) ? defaultRankTol(m, n, sigma_max, wantSingle) : tol;
 
-        for (std::size_t i = 0; i < k; ++i) {
-            double sig = sd ? std::abs(sd[i + i * Srows]) : sdd[i + i * Srows];
+        for (keel::usize i = 0; i < k; ++i) {
+            double sig = sd ? keel::abs(sd[i + i * Srows]) : sdd[i + i * Srows];
             if (sig > cutoff) Splus[i] = 1.0 / sig;
         }
 
         auto out = Value::complexMatrix(n, m, mr);
-        Complex *P = out.complexDataMut();
-        std::fill(P, P + n * m, Complex(0.0, 0.0));
+        keel::c64 *P = out.complexDataMut();
+        std::fill(P, P + n * m, keel::c64(0.0, 0.0));
 
-        const Complex *Vd = V.isComplex() ? V.complexData() : nullptr;
+        const keel::c64 *Vd = V.isComplex() ? V.complexData() : nullptr;
         const double *Vdd = V.isComplex() ? nullptr : V.doubleData();
-        const Complex *Ud = U.isComplex() ? U.complexData() : nullptr;
+        const keel::c64 *Ud = U.isComplex() ? U.complexData() : nullptr;
         const double *Udd = U.isComplex() ? nullptr : U.doubleData();
-        const std::size_t Vrows = static_cast<std::size_t>(V.dims().dim(0));
-        const std::size_t Urows = static_cast<std::size_t>(U.dims().dim(0));
+        const keel::usize Vrows = static_cast<keel::usize>(V.dims().dim(0));
+        const keel::usize Urows = static_cast<keel::usize>(U.dims().dim(0));
 
-        for (std::size_t i = 0; i < n; ++i) {
-            for (std::size_t j = 0; j < m; ++j) {
-                Complex s(0.0, 0.0);
-                for (std::size_t a = 0; a < k; ++a) {
+        for (keel::usize i = 0; i < n; ++i) {
+            for (keel::usize j = 0; j < m; ++j) {
+                keel::c64 s(0.0, 0.0);
+                for (keel::usize a = 0; a < k; ++a) {
                     if (Splus[a] == 0.0) continue;
-                    Complex v_val = Vd ? Vd[i + a * Vrows] : Complex(Vdd[i + a * Vrows], 0.0);
-                    Complex u_val = Ud ? Ud[j + a * Urows] : Complex(Udd[j + a * Urows], 0.0);
-                    s += v_val * Splus[a] * std::conj(u_val);
+                    keel::c64 v_val = Vd ? Vd[i + a * Vrows] : keel::c64(Vdd[i + a * Vrows], 0.0);
+                    keel::c64 u_val = Ud ? Ud[j + a * Urows] : keel::c64(Udd[j + a * Urows], 0.0);
+                    s += v_val * Splus[a] * keel::conj(u_val);
                 }
                 P[i + j * n] = s;
             }
@@ -90,16 +94,16 @@ Value pinv(const Value &A, double tol, std::pmr::memory_resource *mr)
     }
 
     const double *S_data = S.doubleData();
-    const std::size_t Srows = static_cast<std::size_t>(S.dims().dim(0));
+    const keel::usize Srows = static_cast<keel::usize>(S.dims().dim(0));
 
     double sigma_max = 0.0;
-    for (std::size_t i = 0; i < k; ++i)
+    for (keel::usize i = 0; i < k; ++i)
         sigma_max = std::max(sigma_max, S_data[i + i * Srows]);
     const double cutoff = (tol < 0.0) ? defaultRankTol(m, n, sigma_max, wantSingle) : tol;
 
-    ScratchArena scratch(mr);
-    ScratchVec<double> Splus(n * m, 0.0, &scratch);
-    for (std::size_t i = 0; i < k; ++i) {
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<double> Splus(n * m, 0.0, scratch.allocator());
+    for (keel::usize i = 0; i < k; ++i) {
         const double sig = S_data[i + i * Srows];
         if (sig > cutoff)
             Splus[i + i * n] = 1.0 / sig;
@@ -112,13 +116,13 @@ Value pinv(const Value &A, double tol, std::pmr::memory_resource *mr)
 
     const double *Vdata = V.doubleData();
     const double *Udata = U.doubleData();
-    const std::size_t Vrows = static_cast<std::size_t>(V.dims().dim(0));
-    const std::size_t Urows = static_cast<std::size_t>(U.dims().dim(0));
+    const keel::usize Vrows = static_cast<keel::usize>(V.dims().dim(0));
+    const keel::usize Urows = static_cast<keel::usize>(U.dims().dim(0));
 
-    for (std::size_t i = 0; i < n; ++i) {
-        for (std::size_t j = 0; j < m; ++j) {
+    for (keel::usize i = 0; i < n; ++i) {
+        for (keel::usize j = 0; j < m; ++j) {
             double s = 0.0;
-            for (std::size_t a = 0; a < k; ++a) {
+            for (keel::usize a = 0; a < k; ++a) {
                 const double sp = Splus[a + a * n];
                 if (sp == 0.0) continue;
                 s += Vdata[i + a * Vrows] * sp * Udata[j + a * Urows];
@@ -129,80 +133,80 @@ Value pinv(const Value &A, double tol, std::pmr::memory_resource *mr)
     return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
 
-Value orth(const Value &A, double tol, std::pmr::memory_resource *mr)
+Value orth(const Value &A, double tol, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "orth");
     detail::require2DMatrix(A, "orth", "A", "pagesvd");
     const bool wantSingle = (A.type() == ValueType::SINGLE);
     const Value Aw = detail::widenSingleToDouble(A, mr);
     auto [U, S, V] = svd_decompose(Aw, mr);
-    const std::size_t m = static_cast<std::size_t>(Aw.dims().dim(0));
-    const std::size_t n = static_cast<std::size_t>(Aw.dims().dim(1));
-    const std::size_t k = std::min(m, n);
+    const keel::usize m = static_cast<keel::usize>(Aw.dims().dim(0));
+    const keel::usize n = static_cast<keel::usize>(Aw.dims().dim(1));
+    const keel::usize k = std::min(m, n);
 
     const double *S_data = S.doubleData();
-    const std::size_t Srows = static_cast<std::size_t>(S.dims().dim(0));
+    const keel::usize Srows = static_cast<keel::usize>(S.dims().dim(0));
     const double sigma_max = (k > 0) ? S_data[0] : 0.0;
     const double cutoff = (tol < 0.0) ? defaultRankTol(m, n, sigma_max, wantSingle) : tol;
 
     int r = 0;
-    for (std::size_t i = 0; i < k; ++i)
+    for (keel::usize i = 0; i < k; ++i)
         if (S_data[i + i * Srows] > cutoff) ++r;
 
-    auto out = Value::matrix(m, static_cast<std::size_t>(r), ValueType::DOUBLE, mr);
+    auto out = Value::matrix(m, static_cast<keel::usize>(r), ValueType::DOUBLE, mr);
     if (r == 0) return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
     double *Q = out.doubleDataMut();
     const double *Udata = U.doubleData();
-    const std::size_t Urows = static_cast<std::size_t>(U.dims().dim(0));
-    for (std::size_t j = 0; j < static_cast<std::size_t>(r); ++j)
-        for (std::size_t i = 0; i < m; ++i)
+    const keel::usize Urows = static_cast<keel::usize>(U.dims().dim(0));
+    for (keel::usize j = 0; j < static_cast<keel::usize>(r); ++j)
+        for (keel::usize i = 0; i < m; ++i)
             Q[i + j * m] = Udata[i + j * Urows];
     return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
 
-Value null_basis(const Value &A, double tol, std::pmr::memory_resource *mr)
+Value null_basis(const Value &A, double tol, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "null");
     detail::require2DMatrix(A, "null");
     const bool wantSingle = (A.type() == ValueType::SINGLE);
     const Value Aw = detail::widenSingleToDouble(A, mr);
     auto [U, S, V] = svd_decompose(Aw, mr);
-    const std::size_t m = static_cast<std::size_t>(Aw.dims().dim(0));
-    const std::size_t n = static_cast<std::size_t>(Aw.dims().dim(1));
-    const std::size_t k = std::min(m, n);
+    const keel::usize m = static_cast<keel::usize>(Aw.dims().dim(0));
+    const keel::usize n = static_cast<keel::usize>(Aw.dims().dim(1));
+    const keel::usize k = std::min(m, n);
 
     const double *S_data = S.doubleData();
-    const std::size_t Srows = static_cast<std::size_t>(S.dims().dim(0));
+    const keel::usize Srows = static_cast<keel::usize>(S.dims().dim(0));
     const double sigma_max = (k > 0) ? S_data[0] : 0.0;
     const double cutoff = (tol < 0.0) ? defaultRankTol(m, n, sigma_max, wantSingle) : tol;
 
     int r = 0;
-    for (std::size_t i = 0; i < k; ++i)
+    for (keel::usize i = 0; i < k; ++i)
         if (S_data[i + i * Srows] > cutoff) ++r;
 
-    const std::size_t null_dim = n - static_cast<std::size_t>(r);
+    const keel::usize null_dim = n - static_cast<keel::usize>(r);
     auto out = Value::matrix(n, null_dim, ValueType::DOUBLE, mr);
     if (null_dim == 0) return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
     double *N = out.doubleDataMut();
     const double *Vdata = V.doubleData();
-    const std::size_t Vrows = static_cast<std::size_t>(V.dims().dim(0));
-    for (std::size_t j = 0; j < null_dim; ++j) {
-        const std::size_t src = static_cast<std::size_t>(r) + j;
-        for (std::size_t i = 0; i < n; ++i)
+    const keel::usize Vrows = static_cast<keel::usize>(V.dims().dim(0));
+    for (keel::usize j = 0; j < null_dim; ++j) {
+        const keel::usize src = static_cast<keel::usize>(r) + j;
+        for (keel::usize i = 0; i < n; ++i)
             N[i + j * n] = Vdata[i + src * Vrows];
     }
     return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
 
-Value subspace(const Value &A, const Value &B, std::pmr::memory_resource *mr)
+Value subspace(const Value &A, const Value &B, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "subspace", "A", 1);
     detail::requireDoubleInput(B, "subspace", "B", 2);
     if (A.dims().ndim() != 2 || B.dims().ndim() != 2)
         throw Error("subspace: inputs must be 2D matrices",
                     0, 0, "subspace", "", "numkit:subspace:notMatrix");
-    const std::size_t mA = static_cast<std::size_t>(A.dims().dim(0));
-    const std::size_t mB = static_cast<std::size_t>(B.dims().dim(0));
+    const keel::usize mA = static_cast<keel::usize>(A.dims().dim(0));
+    const keel::usize mB = static_cast<keel::usize>(B.dims().dim(0));
     if (mA != mB)
         throw Error("subspace: inputs must have the same number of rows",
                     0, 0, "subspace", "", "numkit:subspace:dimMismatch");
@@ -210,8 +214,8 @@ Value subspace(const Value &A, const Value &B, std::pmr::memory_resource *mr)
     const bool wantSingle = (A.type() == ValueType::SINGLE || B.type() == ValueType::SINGLE);
     auto Qa = detail::widenSingleToDouble(orth(A, -1.0, mr), mr);
     auto Qb = detail::widenSingleToDouble(orth(B, -1.0, mr), mr);
-    const std::size_t na = static_cast<std::size_t>(Qa.dims().dim(1));
-    const std::size_t nb = static_cast<std::size_t>(Qb.dims().dim(1));
+    const keel::usize na = static_cast<keel::usize>(Qa.dims().dim(1));
+    const keel::usize nb = static_cast<keel::usize>(Qb.dims().dim(1));
     if (na == 0 || nb == 0) return detail::narrowDoubleToSingleIf(Value::scalar(0.0, mr), wantSingle, mr);
 
     // M = Qa' * Qb (na × nb).
@@ -219,21 +223,21 @@ Value subspace(const Value &A, const Value &B, std::pmr::memory_resource *mr)
     double *M = Mout.doubleDataMut();
     const double *Qad = Qa.doubleData();
     const double *Qbd = Qb.doubleData();
-    for (std::size_t i = 0; i < na; ++i)
-        for (std::size_t j = 0; j < nb; ++j) {
+    for (keel::usize i = 0; i < na; ++i)
+        for (keel::usize j = 0; j < nb; ++j) {
             double s = 0.0;
-            for (std::size_t k = 0; k < mA; ++k)
+            for (keel::usize k = 0; k < mA; ++k)
                 s += Qad[k + i * mA] * Qbd[k + j * mB];
             M[i + j * na] = s;
         }
 
     // SVD of M -- singular values are cosines of principal angles.
     auto s = svd_values(Mout, mr);
-    const std::size_t k = s.numel();
+    const keel::usize k = s.numel();
     if (k == 0) return detail::narrowDoubleToSingleIf(Value::scalar(0.0, mr), wantSingle, mr);
     const double *sd = s.doubleData();
     double smin = sd[0];
-    for (std::size_t i = 1; i < k; ++i)
+    for (keel::usize i = 1; i < k; ++i)
         if (sd[i] < smin) smin = sd[i];
     if (smin > 1.0) smin = 1.0;
     if (smin < 0.0) smin = 0.0;

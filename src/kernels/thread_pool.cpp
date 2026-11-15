@@ -1,3 +1,4 @@
+#include <keel/core.h>
 #include <numkit/ops/thread_pool.hpp>
 
 #include <algorithm>
@@ -32,7 +33,7 @@ ThreadPool::ThreadPool(int n_workers)
 {
     if (n_workers <= 1)
         return; // workers_ stays empty; run() degrades to fn(0, n)
-    workers_.reserve(static_cast<std::size_t>(n_workers));
+    workers_.reserve(static_cast<keel::usize>(n_workers));
     for (int i = 0; i < n_workers; ++i)
         workers_.emplace_back([this, i] { worker_loop(i); });
 }
@@ -50,7 +51,7 @@ ThreadPool::~ThreadPool()
             t.join();
 }
 
-void ThreadPool::run(std::size_t n, std::function<void(std::size_t, std::size_t)> fn,
+void ThreadPool::run(keel::usize n, std::function<void(keel::usize, keel::usize)> fn,
                      int max_workers)
 {
     if (n == 0)
@@ -94,7 +95,7 @@ void ThreadPool::run(std::size_t n, std::function<void(std::size_t, std::size_t)
             if (task_remaining_.load(std::memory_order_acquire) == 0) break;
             spin_pause();
         }
-        std::function<void(std::size_t, std::size_t)> cleanup;
+        std::function<void(keel::usize, keel::usize)> cleanup;
         {
             std::unique_lock<std::mutex> lock(mu_);
             if (task_remaining_.load(std::memory_order_acquire) != 0) {
@@ -115,10 +116,10 @@ void ThreadPool::run(std::size_t n, std::function<void(std::size_t, std::size_t)
 
 void ThreadPool::worker_loop(int id)
 {
-    std::uint64_t seen_epoch = 0;
+    keel::u64 seen_epoch = 0;
     while (true) {
-        std::function<void(std::size_t, std::size_t)> fn;
-        std::size_t n;
+        std::function<void(keel::usize, keel::usize)> fn;
+        keel::usize n;
         int         k;
 
         {
@@ -145,10 +146,10 @@ void ThreadPool::worker_loop(int id)
             k          = active_;
         }
 
-        const std::size_t chunk = (n + static_cast<std::size_t>(k) - 1)
-                                  / static_cast<std::size_t>(k);
-        const std::size_t start = static_cast<std::size_t>(id) * chunk;
-        const std::size_t end   = std::min(start + chunk, n);
+        const keel::usize chunk = (n + static_cast<keel::usize>(k) - 1)
+                                  / static_cast<keel::usize>(k);
+        const keel::usize start = static_cast<keel::usize>(id) * chunk;
+        const keel::usize end   = std::min(start + chunk, n);
         if (start < end) {
             t_inPool = true;     // mark so a nested run() on this thread inlines
             fn(start, end);

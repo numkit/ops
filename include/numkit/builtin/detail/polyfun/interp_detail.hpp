@@ -3,10 +3,14 @@
 // Phase 2b compute/register split — see project_layering_refactor memory.
 #pragma once
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/arena.h>
+#include <keel/array.h>
+#include <keel/complex.h>
+#include <keel/math.h>
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
-#include <numkit/value/scratch.hpp>
-#include <numkit/value/span.hpp>
 #include <numkit/ops/reductions.hpp>  // engine-free numkit::builtin::detail dim-infra (ops re-export)
 
 #include <algorithm>
@@ -15,7 +19,6 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
-#include <memory_resource>
 #include <numeric>
 #include <string>
 #include <tuple>
@@ -30,25 +33,25 @@ namespace numkit::builtin {
 
 namespace {
 
-size_t findInterval(const double *xData, size_t n, double xq)
+keel::usize findInterval(const double *xData, keel::usize n, double xq)
 {
     if (xq <= xData[0])
         return 0;
     if (xq >= xData[n - 1])
         return n - 2;
     auto it = std::upper_bound(xData, xData + n, xq);
-    size_t idx = static_cast<size_t>(it - xData);
+    keel::usize idx = static_cast<keel::usize>(it - xData);
     if (idx == 0)
         return 0;
     return idx - 1;
 }
 
-ScratchVec<double>
-interpLinear(const double *x, const double *y, size_t n, const double *xq, size_t nq, std::pmr::memory_resource *mr)
+keel::Array<double>
+interpLinear(const double *x, const double *y, keel::usize n, const double *xq, keel::usize nq, keel::Allocator *mr)
 {
-    ScratchVec<double> yq(nq, mr);
-    for (size_t k = 0; k < nq; ++k) {
-        const size_t i = findInterval(x, n, xq[k]);
+    keel::Array<double> yq(nq, mr);
+    for (keel::usize k = 0; k < nq; ++k) {
+        const keel::usize i = findInterval(x, n, xq[k]);
         const double dx = x[i + 1] - x[i];
         if (dx == 0.0) {
             yq[k] = y[i];
@@ -60,15 +63,15 @@ interpLinear(const double *x, const double *y, size_t n, const double *xq, size_
     return yq;
 }
 
-ScratchVec<double>
-interpNearest(const double *x, const double *y, size_t n, const double *xq, size_t nq, std::pmr::memory_resource *mr)
+keel::Array<double>
+interpNearest(const double *x, const double *y, keel::usize n, const double *xq, keel::usize nq, keel::Allocator *mr)
 {
-    ScratchVec<double> yq(nq, mr);
-    for (size_t k = 0; k < nq; ++k) {
-        const size_t i = findInterval(x, n, xq[k]);
+    keel::Array<double> yq(nq, mr);
+    for (keel::usize k = 0; k < nq; ++k) {
+        const keel::usize i = findInterval(x, n, xq[k]);
         // Tie-break: MATLAB rounds an exactly-halfway query UP to the
         // higher-index neighbor, so use strict '<' (a tie picks y[i+1]).
-        if (std::abs(xq[k] - x[i]) < std::abs(xq[k] - x[i + 1]))
+        if (keel::abs(xq[k] - x[i]) < keel::abs(xq[k] - x[i + 1]))
             yq[k] = y[i];
         else
             yq[k] = y[i + 1];
@@ -79,31 +82,31 @@ interpNearest(const double *x, const double *y, size_t n, const double *xq, size
 // 'previous': value at the largest knot <= xq. 'next': value at the
 // smallest knot >= xq. Queries outside [x[0], x[n-1]] -> NaN (MATLAB's
 // default, no extrapolation). x is assumed ascending.
-ScratchVec<double>
-interpPrevious(const double *x, const double *y, size_t n, const double *xq, size_t nq, std::pmr::memory_resource *mr)
+keel::Array<double>
+interpPrevious(const double *x, const double *y, keel::usize n, const double *xq, keel::usize nq, keel::Allocator *mr)
 {
     const double NaN = std::numeric_limits<double>::quiet_NaN();
-    ScratchVec<double> yq(nq, mr);
-    for (size_t k = 0; k < nq; ++k) {
+    keel::Array<double> yq(nq, mr);
+    for (keel::usize k = 0; k < nq; ++k) {
         const double q = xq[k];
         if (q < x[0] || q > x[n - 1]) { yq[k] = NaN; continue; }
-        size_t i = 0;
-        for (size_t j = 0; j < n && x[j] <= q; ++j) i = j;
+        keel::usize i = 0;
+        for (keel::usize j = 0; j < n && x[j] <= q; ++j) i = j;
         yq[k] = y[i];
     }
     return yq;
 }
 
-ScratchVec<double>
-interpNext(const double *x, const double *y, size_t n, const double *xq, size_t nq, std::pmr::memory_resource *mr)
+keel::Array<double>
+interpNext(const double *x, const double *y, keel::usize n, const double *xq, keel::usize nq, keel::Allocator *mr)
 {
     const double NaN = std::numeric_limits<double>::quiet_NaN();
-    ScratchVec<double> yq(nq, mr);
-    for (size_t k = 0; k < nq; ++k) {
+    keel::Array<double> yq(nq, mr);
+    for (keel::usize k = 0; k < nq; ++k) {
         const double q = xq[k];
         if (q < x[0] || q > x[n - 1]) { yq[k] = NaN; continue; }
-        size_t i = n - 1;
-        for (size_t j = 0; j < n; ++j) { if (x[j] >= q) { i = j; break; } }
+        keel::usize i = n - 1;
+        for (keel::usize j = 0; j < n; ++j) { if (x[j] >= q) { i = j; break; } }
         yq[k] = y[i];
     }
     return yq;
@@ -114,10 +117,10 @@ interpNext(const double *x, const double *y, size_t n, const double *xq, size_t 
 // (NaK reduces to the interpolating parabola). Tridiagonal system has the standard
 // interior rows (j=1..n-2) with the first/last rows modified to
 // substitute sigma_0 / sigma_{n-1} with their NaK linear combinations.
-ScratchVec<double>
-computeSplineSigma(const double * /*x*/, const double *y, size_t n, const double *h, std::pmr::memory_resource *mr)
+keel::Array<double>
+computeSplineSigma(const double * /*x*/, const double *y, keel::usize n, const double *h, keel::Allocator *mr)
 {
-    ScratchVec<double> sigma(n, 0.0, mr);
+    keel::Array<double> sigma(n, 0.0, mr);
     if (n < 3) return sigma;
 
     // n == 3: not-a-knot reduces to the unique interpolating PARABOLA, whose
@@ -134,11 +137,11 @@ computeSplineSigma(const double * /*x*/, const double *y, size_t n, const double
         return sigma;
     }
 
-    const size_t m = n - 2;
-    ScratchVec<double> diag(m, mr), upper(m, mr), lower(m, mr), rhs(m, mr);
+    const keel::usize m = n - 2;
+    keel::Array<double> diag(m, mr), upper(m, mr), lower(m, mr), rhs(m, mr);
 
-    for (size_t i = 0; i < m; ++i) {
-        const size_t j = i + 1;
+    for (keel::usize i = 0; i < m; ++i) {
+        const keel::usize j = i + 1;
         diag[i] = 2.0 * (h[j - 1] + h[j]);
         rhs[i] = 6.0 * ((y[j + 1] - y[j]) / h[j] - (y[j] - y[j - 1]) / h[j - 1]);
         if (i > 0)         lower[i] = h[j - 1];
@@ -163,7 +166,7 @@ computeSplineSigma(const double * /*x*/, const double *y, size_t n, const double
         lower[m - 1] = (hL * hL - hL1 * hL1) / hL;
     }
 
-    for (size_t i = 1; i < m; ++i) {
+    for (keel::usize i = 1; i < m; ++i) {
         const double w = lower[i] / diag[i - 1];
         diag[i] -= w * upper[i - 1];
         rhs[i]  -= w * rhs[i - 1];
@@ -185,23 +188,23 @@ computeSplineSigma(const double * /*x*/, const double *y, size_t n, const double
     return sigma;
 }
 
-ScratchVec<double>
-interpSpline(const double *x, const double *y, size_t n, const double *xq, size_t nq, std::pmr::memory_resource *mr)
+keel::Array<double>
+interpSpline(const double *x, const double *y, keel::usize n, const double *xq, keel::usize nq, keel::Allocator *mr)
 {
     if (n < 3)
         return interpLinear(x, y, n, xq, nq, mr);
 
-    const size_t nm1 = n - 1;
+    const keel::usize nm1 = n - 1;
 
-    ScratchVec<double> h(nm1, mr);
-    for (size_t i = 0; i < nm1; ++i)
+    keel::Array<double> h(nm1, mr);
+    for (keel::usize i = 0; i < nm1; ++i)
         h[i] = x[i + 1] - x[i];
 
     auto sigma = computeSplineSigma(x, y, n, h.data(), mr);
 
-    ScratchVec<double> yq(nq, mr);
-    for (size_t k = 0; k < nq; ++k) {
-        const size_t i = findInterval(x, n, xq[k]);
+    keel::Array<double> yq(nq, mr);
+    for (keel::usize k = 0; k < nq; ++k) {
+        const keel::usize i = findInterval(x, n, xq[k]);
         const double dx = xq[k] - x[i];
         const double dx1 = x[i + 1] - xq[k];
         const double hi = h[i];
@@ -214,23 +217,23 @@ interpSpline(const double *x, const double *y, size_t n, const double *xq, size_
     return yq;
 }
 
-ScratchVec<double>
-interpPchip(const double *x, const double *y, size_t n, const double *xq, size_t nq, std::pmr::memory_resource *mr)
+keel::Array<double>
+interpPchip(const double *x, const double *y, keel::usize n, const double *xq, keel::usize nq, keel::Allocator *mr)
 {
     if (n < 3)
         return interpLinear(x, y, n, xq, nq, mr);
 
-    const size_t nm1 = n - 1;
+    const keel::usize nm1 = n - 1;
 
-    ScratchVec<double> h(nm1, mr), delta(nm1, mr);
-    for (size_t i = 0; i < nm1; ++i) {
+    keel::Array<double> h(nm1, mr), delta(nm1, mr);
+    for (keel::usize i = 0; i < nm1; ++i) {
         h[i] = x[i + 1] - x[i];
         delta[i] = (y[i + 1] - y[i]) / h[i];
     }
 
-    ScratchVec<double> d(n, 0.0, mr);
+    keel::Array<double> d(n, 0.0, mr);
 
-    for (size_t i = 1; i < nm1; ++i) {
+    for (keel::usize i = 1; i < nm1; ++i) {
         if (delta[i - 1] * delta[i] <= 0.0) {
             d[i] = 0.0;
         } else {
@@ -243,7 +246,7 @@ interpPchip(const double *x, const double *y, size_t n, const double *xq, size_t
     d[0] = ((2.0 * h[0] + h[1]) * delta[0] - h[0] * delta[1]) / (h[0] + h[1]);
     if (d[0] * delta[0] < 0.0)
         d[0] = 0.0;
-    else if (delta[0] * delta[1] < 0.0 && std::abs(d[0]) > std::abs(3.0 * delta[0]))
+    else if (delta[0] * delta[1] < 0.0 && keel::abs(d[0]) > keel::abs(3.0 * delta[0]))
         d[0] = 3.0 * delta[0];
 
     d[nm1] = ((2.0 * h[nm1 - 1] + h[nm1 - 2]) * delta[nm1 - 1] - h[nm1 - 1] * delta[nm1 - 2])
@@ -251,12 +254,12 @@ interpPchip(const double *x, const double *y, size_t n, const double *xq, size_t
     if (d[nm1] * delta[nm1 - 1] < 0.0)
         d[nm1] = 0.0;
     else if (delta[nm1 - 2] * delta[nm1 - 1] < 0.0
-             && std::abs(d[nm1]) > std::abs(3.0 * delta[nm1 - 1]))
+             && keel::abs(d[nm1]) > keel::abs(3.0 * delta[nm1 - 1]))
         d[nm1] = 3.0 * delta[nm1 - 1];
 
-    ScratchVec<double> yq(nq, mr);
-    for (size_t k = 0; k < nq; ++k) {
-        const size_t i = findInterval(x, n, xq[k]);
+    keel::Array<double> yq(nq, mr);
+    for (keel::usize k = 0; k < nq; ++k) {
+        const keel::usize i = findInterval(x, n, xq[k]);
         const double t = (xq[k] - x[i]) / h[i];
         const double t2 = t * t;
         const double t3 = t2 * t;
@@ -286,9 +289,9 @@ interpPchip(const double *x, const double *y, size_t n, const double *xq, size_t
 // Boundary slopes m_{-1}, m_0, m_n, m_{n+1} use Akima's quadratic
 // extrapolation: m_0 = 2*m_1 - m_2; m_{-1} = 2*m_0 - m_1; symmetric at
 // the right edge.
-ScratchVec<double>
-interpMakima(const double *x, const double *y, size_t n,
-              const double *xq, size_t nq, std::pmr::memory_resource *mr)
+keel::Array<double>
+interpMakima(const double *x, const double *y, keel::usize n,
+              const double *xq, keel::usize nq, keel::Allocator *mr)
 {
     if (n < 2)
         throw Error("makima: need at least 2 data points",
@@ -296,18 +299,18 @@ interpMakima(const double *x, const double *y, size_t n,
     if (n < 3)
         return interpLinear(x, y, n, xq, nq, mr);
 
-    const size_t nm1 = n - 1;
+    const keel::usize nm1 = n - 1;
 
-    ScratchVec<double> h(nm1, mr);
-    for (size_t i = 0; i < nm1; ++i)
+    keel::Array<double> h(nm1, mr);
+    for (keel::usize i = 0; i < nm1; ++i)
         h[i] = x[i + 1] - x[i];
 
     // Slopes m[0..n-2] = (y[i+1] - y[i]) / h[i]. Extend by 2 on each
     // side using Akima's quadratic extrapolation. Store in mExt of
     // length n+3 with indexing offset = 2 (so mExt[2 + i] == m[i] for
     // i ∈ [-2 .. n], where m[-1], m[-2], m[n-1], m[n] are extrapolated).
-    ScratchVec<double> mExt(n + 3, mr);
-    for (size_t i = 0; i < nm1; ++i)
+    keel::Array<double> mExt(n + 3, mr);
+    for (keel::usize i = 0; i < nm1; ++i)
         mExt[2 + i] = (y[i + 1] - y[i]) / h[i];
 
     // Quadratic extrapolation at the left:  m[-1] = 2*m[0] - m[1]
@@ -320,24 +323,24 @@ interpMakima(const double *x, const double *y, size_t n,
     mExt[2 + nm1 + 1] = 2.0 * mExt[2 + nm1]     - mExt[2 + nm1 - 1];
 
     // Derivative at each data point i ∈ [0..n-1].
-    ScratchVec<double> d(n, mr);
-    for (size_t i = 0; i < n; ++i) {
+    keel::Array<double> d(n, mr);
+    for (keel::usize i = 0; i < n; ++i) {
         // mExt indices for the 4 slopes around point i:
         //   ml2 = m[i - 2], ml1 = m[i - 1], mr1 = m[i], mr2 = m[i + 1]
         const double ml2 = mExt[i];
         const double ml1 = mExt[i + 1];
         const double mr1 = mExt[i + 2];
         const double mr2 = mExt[i + 3];
-        const double w1 = std::abs(mr2 - mr1) + std::abs(mr2 + mr1) * 0.5;
-        const double w2 = std::abs(ml1 - ml2) + std::abs(ml1 + ml2) * 0.5;
+        const double w1 = keel::abs(mr2 - mr1) + keel::abs(mr2 + mr1) * 0.5;
+        const double w2 = keel::abs(ml1 - ml2) + keel::abs(ml1 + ml2) * 0.5;
         const double wsum = w1 + w2;
         d[i] = (wsum == 0.0) ? 0.0 : (w1 * ml1 + w2 * mr1) / wsum;
     }
 
     // Evaluate with cubic Hermite basis (same as pchip).
-    ScratchVec<double> yq(nq, mr);
-    for (size_t k = 0; k < nq; ++k) {
-        const size_t i = findInterval(x, n, xq[k]);
+    keel::Array<double> yq(nq, mr);
+    for (keel::usize k = 0; k < nq; ++k) {
+        const keel::usize i = findInterval(x, n, xq[k]);
         const double t = (xq[k] - x[i]) / h[i];
         const double t2 = t * t;
         const double t3 = t2 * t;
@@ -368,9 +371,9 @@ inline double keys1d(double s)
     return 0.0;
 }
 
-ScratchVec<double>
-interpV5Cubic(const double *x, const double *y, size_t n,
-              const double *xq, size_t nq, std::pmr::memory_resource *mr)
+keel::Array<double>
+interpV5Cubic(const double *x, const double *y, keel::usize n,
+              const double *xq, keel::usize nq, keel::Allocator *mr)
 {
     if (n < 3)
         return interpLinear(x, y, n, xq, nq, mr);
@@ -378,8 +381,8 @@ interpV5Cubic(const double *x, const double *y, size_t n,
     // Uniform-grid check; fall back to spline (matching MATLAB) otherwise.
     const double step = x[1] - x[0];
     bool uniform = true;
-    for (size_t i = 2; i < n; ++i)
-        if (std::abs((x[i] - x[i - 1]) - step) > 1e-10 * std::max(1.0, std::abs(step))) {
+    for (keel::usize i = 2; i < n; ++i)
+        if (keel::abs((x[i] - x[i - 1]) - step) > 1e-10 * std::max(1.0, keel::abs(step))) {
             uniform = false;
             break;
         }
@@ -387,14 +390,14 @@ interpV5Cubic(const double *x, const double *y, size_t n,
         return interpSpline(x, y, n, xq, nq, mr);
 
     // One-cell padded copy: ypad[j+1] = y[j]; borders = 3·v1-3·v2+v3.
-    ScratchVec<double> ypad(n + 2, mr);
-    for (size_t j = 0; j < n; ++j) ypad[j + 1] = y[j];
+    keel::Array<double> ypad(n + 2, mr);
+    for (keel::usize j = 0; j < n; ++j) ypad[j + 1] = y[j];
     ypad[0]     = 3.0 * y[0]     - 3.0 * y[1]     + y[2];
     ypad[n + 1] = 3.0 * y[n - 1] - 3.0 * y[n - 2] + y[n - 3];
 
-    ScratchVec<double> yq(nq, mr);
-    for (size_t k = 0; k < nq; ++k) {
-        const size_t i = findInterval(x, n, xq[k]);   // clamped cell; OOR NaN'd by caller
+    keel::Array<double> yq(nq, mr);
+    for (keel::usize k = 0; k < nq; ++k) {
+        const keel::usize i = findInterval(x, n, xq[k]);   // clamped cell; OOR NaN'd by caller
         const double t = (xq[k] - x[i]) / step;
         const double w0 = keys1d(1.0 + t);
         const double w1 = keys1d(t);
@@ -407,13 +410,13 @@ interpV5Cubic(const double *x, const double *y, size_t n,
 
 // Helper for interp1 / spline / pchip — pack a yq buffer into a Value
 // preserving xq's row/column orientation.
-Value packInterpResult(const double *yq, std::size_t nq,
-                       const Value &xq, std::pmr::memory_resource *mr)
+Value packInterpResult(const double *yq, keel::usize nq,
+                       const Value &xq, keel::Allocator *mr)
 {
     const bool isRow = xq.dims().rows() == 1;
     auto r = isRow ? Value::matrix(1, nq, ValueType::DOUBLE, mr)
                    : Value::matrix(nq, 1, ValueType::DOUBLE, mr);
-    for (size_t i = 0; i < nq; ++i)
+    for (keel::usize i = 0; i < nq; ++i)
         r.doubleDataMut()[i] = yq[i];
     return r;
 }
@@ -432,8 +435,8 @@ enum class Interp1Extrap { Default, Method, Const };
 // helpers already produce method-extrapolated values out-of-range for
 // linear/nearest/spline/pchip/makima (findInterval clamps to the boundary
 // interval); previous/next emit NaN, so they get special handling.
-void applyInterp1Extrap(double *yq, const double *xqd, size_t nq,
-                        const double *xd, const double *yd, size_t n,
+void applyInterp1Extrap(double *yq, const double *xqd, keel::usize nq,
+                        const double *xd, const double *yd, keel::usize n,
                         const std::string &method, Interp1Extrap mode,
                         double fill)
 {
@@ -444,7 +447,7 @@ void applyInterp1Extrap(double *yq, const double *xqd, size_t nq,
         (method == "spline" || method == "pchip" || method == "makima");
     const bool isPrev = (method == "previous");
     const bool isNext = (method == "next");
-    for (size_t k = 0; k < nq; ++k) {
+    for (keel::usize k = 0; k < nq; ++k) {
         const double q = xqd[k];
         if (q >= lo && q <= hi)
             continue; // interior — the helper value already stands
@@ -475,10 +478,10 @@ void applyInterp1Extrap(double *yq, const double *xqd, size_t nq,
 // policy. Both the public interp1() and interp1_reg() funnel through here.
 Value interp1Dispatch(const Value &x, const Value &y, const Value &xq,
                       const std::string &method, Interp1Extrap mode,
-                      double fill, std::pmr::memory_resource *mr)
+                      double fill, keel::Allocator *mr)
 {
-    const size_t n = x.numel();
-    const size_t nq = xq.numel();
+    const keel::usize n = x.numel();
+    const keel::usize nq = xq.numel();
 
     if (n < 2)
         throw Error("interp1: need at least 2 data points",
@@ -488,44 +491,44 @@ Value interp1Dispatch(const Value &x, const Value &y, const Value &xq,
     // recombine (MATLAB). This wraps every method + the matrix-column path,
     // and inherits the same extrapolation policy (NaN out-of-range → NaN+NaNi).
     if (y.type() == ValueType::COMPLEX) {
-        const size_t m = y.numel();
+        const keel::usize m = y.numel();
         Value yr = createLike(y, ValueType::DOUBLE, mr);
         Value yi = createLike(y, ValueType::DOUBLE, mr);
         double *rp = yr.doubleDataMut();
         double *ip = yi.doubleDataMut();
-        const Complex *c = y.complexData();
-        for (size_t i = 0; i < m; ++i) { rp[i] = c[i].real(); ip[i] = c[i].imag(); }
+        const keel::c64 *c = y.complexData();
+        for (keel::usize i = 0; i < m; ++i) { rp[i] = c[i].real(); ip[i] = c[i].imag(); }
         Value rr = interp1Dispatch(x, yr, xq, method, mode, fill, mr);
         Value ri = interp1Dispatch(x, yi, xq, method, mode, fill, mr);
         Value out = createLike(rr, ValueType::COMPLEX, mr);
-        Complex *o = out.complexDataMut();
+        keel::c64 *o = out.complexDataMut();
         const double *re = rr.doubleData(), *im = ri.doubleData();
-        const size_t no = out.numel();
-        for (size_t i = 0; i < no; ++i) o[i] = Complex(re[i], im[i]);
+        const keel::usize no = out.numel();
+        for (keel::usize i = 0; i < no; ++i) o[i] = keel::c64(re[i], im[i]);
         return out;
     }
 
     const double *xd = x.doubleData();
     const double *xqd = xq.doubleData();
 
-    ScratchArena scratch(mr);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
 
     // Interpolate a single y-data column of length n, applying the
     // out-of-range extrapolation policy. Returns the nq query values.
-    auto runColumn = [&](const double *yd) -> ScratchVec<double> {
-        ScratchVec<double> yq = [&]() -> ScratchVec<double> {
-            if (method == "linear")   return interpLinear(xd, yd, n, xqd, nq, &scratch);
-            if (method == "nearest")  return interpNearest(xd, yd, n, xqd, nq, &scratch);
-            if (method == "previous") return interpPrevious(xd, yd, n, xqd, nq, &scratch);
-            if (method == "next")     return interpNext(xd, yd, n, xqd, nq, &scratch);
-            if (method == "spline")   return interpSpline(xd, yd, n, xqd, nq, &scratch);
-            if (method == "pchip")    return interpPchip(xd, yd, n, xqd, nq, &scratch);
-            if (method == "makima")   return interpMakima(xd, yd, n, xqd, nq, &scratch);
+    auto runColumn = [&](const double *yd) -> keel::Array<double> {
+        keel::Array<double> yq = [&]() -> keel::Array<double> {
+            if (method == "linear")   return interpLinear(xd, yd, n, xqd, nq, scratch.allocator());
+            if (method == "nearest")  return interpNearest(xd, yd, n, xqd, nq, scratch.allocator());
+            if (method == "previous") return interpPrevious(xd, yd, n, xqd, nq, scratch.allocator());
+            if (method == "next")     return interpNext(xd, yd, n, xqd, nq, scratch.allocator());
+            if (method == "spline")   return interpSpline(xd, yd, n, xqd, nq, scratch.allocator());
+            if (method == "pchip")    return interpPchip(xd, yd, n, xqd, nq, scratch.allocator());
+            if (method == "makima")   return interpMakima(xd, yd, n, xqd, nq, scratch.allocator());
             if (method == "cubic" || method == "v5cubic")
                 // Keys cubic convolution on a uniform grid (spline on
                 // non-uniform); out-of-range → NaN (NOT a method-
                 // extrapolator, see applyInterp1Extrap).
-                return interpV5Cubic(xd, yd, n, xqd, nq, &scratch);
+                return interpV5Cubic(xd, yd, n, xqd, nq, scratch.allocator());
             throw Error("interp1: unknown method '" + method + "'",
                          0, 0, "interp1", "", "numkit:interp1:badMethod");
         }();
@@ -549,17 +552,17 @@ Value interp1Dispatch(const Value &x, const Value &y, const Value &xq,
         throw Error("interp1: N-D Y arrays are not supported in this "
                     "revision (vector or 2-D matrix only)",
                      0, 0, "interp1", "", "numkit:interp1:ndY");
-    const size_t yr = static_cast<size_t>(y.dims().dim(0));
-    const size_t yc = static_cast<size_t>(y.dims().dim(1));
+    const keel::usize yr = static_cast<keel::usize>(y.dims().dim(0));
+    const keel::usize yc = static_cast<keel::usize>(y.dims().dim(1));
     if (yr != n)
         throw Error("interp1: for a matrix Y, size(Y,1) must equal length(X)",
                      0, 0, "interp1", "", "numkit:interp1:lengthMismatch");
     const double *yd = y.doubleData();
     auto out = Value::matrix(nq, yc, ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
-    for (size_t j = 0; j < yc; ++j) {
+    for (keel::usize j = 0; j < yc; ++j) {
         auto yq = runColumn(yd + j * yr);   // column j is contiguous (col-major)
-        for (size_t i = 0; i < nq; ++i) od[j * nq + i] = yq[i];
+        for (keel::usize i = 0; i < nq; ++i) od[j * nq + i] = yq[i];
     }
     return out;
 }
@@ -608,22 +611,22 @@ inline double keysCubic(double s)
 
 // Locate the cell index i such that grid[i] <= q <= grid[i+1]; returns
 // SIZE_MAX if q is outside [grid[0], grid[n-1]] (caller emits NaN).
-inline std::size_t findCell(const double *grid, std::size_t n, double q)
+inline keel::usize findCell(const double *grid, keel::usize n, double q)
 {
-    if (n < 2) return std::size_t(-1);
-    if (q < grid[0] || q > grid[n - 1]) return std::size_t(-1);
+    if (n < 2) return keel::usize(-1);
+    if (q < grid[0] || q > grid[n - 1]) return keel::usize(-1);
     // Binary search.
-    std::size_t lo = 0, hi = n - 1;
+    keel::usize lo = 0, hi = n - 1;
     while (hi - lo > 1) {
-        const std::size_t mid = (lo + hi) / 2;
+        const keel::usize mid = (lo + hi) / 2;
         if (grid[mid] <= q) lo = mid; else hi = mid;
     }
     return lo;
 }
 
-void validateMonotonicAscending(const double *g, std::size_t n, const char *axis)
+void validateMonotonicAscending(const double *g, keel::usize n, const char *axis)
 {
-    for (std::size_t i = 1; i < n; ++i)
+    for (keel::usize i = 1; i < n; ++i)
         if (g[i] <= g[i - 1])
             throw Error(std::string("interp2: ") + axis
                          + " must be strictly increasing",
@@ -634,12 +637,12 @@ void validateMonotonicAscending(const double *g, std::size_t n, const char *axis
 // padded grid (column-major; original element (i,j) lives at (i+1,j+1));
 // the one-cell border is the MATLAB cubic extrapolation 3·v1-3·v2+v3.
 // Assumes a uniformly-spaced grid (caller validates). NaN out of range.
-double cubicSample(const double *Vpad, std::size_t R, std::size_t C,
+double cubicSample(const double *Vpad, keel::usize R, keel::usize C,
                    const double *xGrid, const double *yGrid, double xq, double yq)
 {
-    const std::size_t ix = findCell(xGrid, C, xq);
-    const std::size_t iy = findCell(yGrid, R, yq);
-    if (ix == std::size_t(-1) || iy == std::size_t(-1))
+    const keel::usize ix = findCell(xGrid, C, xq);
+    const keel::usize iy = findCell(yGrid, R, yq);
+    if (ix == keel::usize(-1) || iy == keel::usize(-1))
         return std::nan("");
     const double tx = (xq - xGrid[ix]) / (xGrid[ix + 1] - xGrid[ix]);
     const double ty = (yq - yGrid[iy]) / (yGrid[iy + 1] - yGrid[iy]);
@@ -647,13 +650,13 @@ double cubicSample(const double *Vpad, std::size_t R, std::size_t C,
                            keysCubic(1.0 - tx), keysCubic(2.0 - tx) };
     const double wy[4] = { keysCubic(1.0 + ty), keysCubic(ty),
                            keysCubic(1.0 - ty), keysCubic(2.0 - ty) };
-    const std::size_t PR = R + 2;
+    const keel::usize PR = R + 2;
     double acc = 0.0;
     for (int a = 0; a < 4; ++a) {            // y-neighbours: padded rows iy..iy+3
         double rowAcc = 0.0;
         for (int b = 0; b < 4; ++b)          // x-neighbours: padded cols ix..ix+3
-            rowAcc += wx[b] * Vpad[(ix + static_cast<std::size_t>(b)) * PR
-                                   + (iy + static_cast<std::size_t>(a))];
+            rowAcc += wx[b] * Vpad[(ix + static_cast<keel::usize>(b)) * PR
+                                   + (iy + static_cast<keel::usize>(a))];
         acc += wy[a] * rowAcc;
     }
     return acc;
@@ -662,20 +665,20 @@ double cubicSample(const double *Vpad, std::size_t R, std::size_t C,
 // Fast path: V is column-major (rows = R, cols = C). Sample one bilinear,
 // nearest-neighbour, or bicubic value at (xq, yq) using x grid (length C)
 // and y grid (length R). For Cubic, Vpad (the padded grid) must be set.
-double interp2Sample(const double *V, std::size_t R, std::size_t C,
+double interp2Sample(const double *V, keel::usize R, keel::usize C,
                      const double *xGrid, const double *yGrid,
                      double xq, double yq, Interp2Method method,
                      const double *Vpad = nullptr)
 {
     if (method == Interp2Method::Cubic)
         return cubicSample(Vpad, R, C, xGrid, yGrid, xq, yq);
-    const std::size_t ix = findCell(xGrid, C, xq);
-    const std::size_t iy = findCell(yGrid, R, yq);
-    if (ix == std::size_t(-1) || iy == std::size_t(-1))
+    const keel::usize ix = findCell(xGrid, C, xq);
+    const keel::usize iy = findCell(yGrid, R, yq);
+    if (ix == keel::usize(-1) || iy == keel::usize(-1))
         return std::nan("");
     if (method == Interp2Method::Nearest) {
-        const std::size_t cx = (xq - xGrid[ix] <= xGrid[ix + 1] - xq) ? ix : ix + 1;
-        const std::size_t cy = (yq - yGrid[iy] <= yGrid[iy + 1] - yq) ? iy : iy + 1;
+        const keel::usize cx = (xq - xGrid[ix] <= xGrid[ix + 1] - xq) ? ix : ix + 1;
+        const keel::usize cy = (yq - yGrid[iy] <= yGrid[iy + 1] - yq) ? iy : iy + 1;
         return V[cx * R + cy];
     }
     // Bilinear. v(r, c) = V[c*R + r].
@@ -699,17 +702,17 @@ double interp2Sample(const double *V, std::size_t R, std::size_t C,
 // rows (dim 1) in ndgrid). The `axis` hint is used to pick a default
 // extraction direction when only one dim is non-trivial; otherwise the
 // varying-direction is detected automatically.
-void readGridAxis(const Value &g, ScratchVec<double> &out, const char *axis)
+void readGridAxis(const Value &g, keel::Array<double> &out, const char *axis)
 {
     if (g.dims().isVector() || g.isScalar()) {
         out.resize(g.numel());
-        for (std::size_t i = 0; i < g.numel(); ++i) out[i] = g.elemAsDouble(i);
+        for (keel::usize i = 0; i < g.numel(); ++i) out[i] = g.elemAsDouble(i);
         return;
     }
-    const std::size_t r = g.dims().rows();
-    const std::size_t c = g.dims().cols();
-    const std::size_t p = g.dims().is3D() ? g.dims().pages() : 1;
-    const std::size_t pageStride = r * c;
+    const keel::usize r = g.dims().rows();
+    const keel::usize c = g.dims().cols();
+    const keel::usize p = g.dims().is3D() ? g.dims().pages() : 1;
+    const keel::usize pageStride = r * c;
 
     // Try each possible varying direction and pick the one whose
     // extracted values are non-constant. For the AXIS hint
@@ -717,20 +720,19 @@ void readGridAxis(const Value &g, ScratchVec<double> &out, const char *axis)
     // fall through to other dims if that one is constant (ndgrid form).
     auto extractAlong = [&](int dim) {
         // dim: 0 = rows (varying along dim 1), 1 = cols (dim 2), 2 = pages (dim 3).
-        std::size_t n = (dim == 0) ? r : (dim == 1) ? c : p;
-        ScratchVec<double> v(out.get_allocator().resource());
-        v.resize(n);
-        for (std::size_t k = 0; k < n; ++k) {
-            std::size_t flat = (dim == 0) ? k
+        keel::usize n = (dim == 0) ? r : (dim == 1) ? c : p;
+        keel::Array<keel::f64> v(n, out.allocator());
+        for (keel::usize k = 0; k < n; ++k) {
+            keel::usize flat = (dim == 0) ? k
                               : (dim == 1) ? (k * r)
                               : (k * pageStride);
             v[k] = g.elemAsDouble(flat);
         }
         return v;
     };
-    auto isConst = [](const ScratchVec<double> &v) {
+    auto isConst = [](const keel::Array<double> &v) {
         if (v.size() < 2) return true;
-        for (std::size_t i = 1; i < v.size(); ++i)
+        for (keel::usize i = 1; i < v.size(); ++i)
             if (v[i] != v[0]) return false;
         return true;
     };
@@ -750,7 +752,7 @@ void readGridAxis(const Value &g, ScratchVec<double> &out, const char *axis)
     out = extractAlong(preferred);
 }
 
-Value interp2Impl(const Value &V, const double *xGrid, std::size_t xN, const double *yGrid, std::size_t yN, const Value &Xq, const Value &Yq, const std::string &method, std::pmr::memory_resource *mr)
+Value interp2Impl(const Value &V, const double *xGrid, keel::usize xN, const double *yGrid, keel::usize yN, const Value &Xq, const Value &Yq, const std::string &method, keel::Allocator *mr)
 {
     if (V.type() == ValueType::COMPLEX)
         throw Error("interp2: complex inputs are not supported",
@@ -759,8 +761,8 @@ Value interp2Impl(const Value &V, const double *xGrid, std::size_t xN, const dou
         throw Error("interp2: V must be a 2D matrix",
                      0, 0, "interp2", "", "numkit:interp2:rank");
 
-    const std::size_t R = V.dims().rows();
-    const std::size_t C = V.dims().cols();
+    const keel::usize R = V.dims().rows();
+    const keel::usize C = V.dims().cols();
     if (xN != C)
         throw Error("interp2: length(X) must equal cols(V)",
                      0, 0, "interp2", "", "numkit:interp2:gridSize");
@@ -771,48 +773,48 @@ Value interp2Impl(const Value &V, const double *xGrid, std::size_t xN, const dou
     validateMonotonicAscending(yGrid, R, "Y");
 
     const Interp2Method m = parseInterp2Method(method, /*allowSeparable=*/true);
-    ScratchArena scratch(mr);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
     // V as DOUBLE (promote if needed).
-    ScratchVec<double> Vd(R * C, &scratch);
+    keel::Array<double> Vd(R * C, scratch.allocator());
     if (V.type() == ValueType::DOUBLE)
         std::memcpy(Vd.data(), V.doubleData(), R * C * sizeof(double));
     else
-        for (std::size_t i = 0; i < R * C; ++i) Vd[i] = V.elemAsDouble(i);
+        for (keel::usize i = 0; i < R * C; ++i) Vd[i] = V.elemAsDouble(i);
 
     // Bicubic convolution needs a uniformly-spaced grid and a one-cell
     // padded copy (border = MATLAB cubic extrapolation 3·v1-3·v2+v3).
-    ScratchVec<double> Vpad(&scratch);
+    keel::Array<double> Vpad(scratch.allocator());
     const double *VpadPtr = nullptr;
     if (m == Interp2Method::Cubic) {
         if (R < 3 || C < 3)
             throw Error("interp2: 'cubic' requires at least 3 points in each dimension",
                          0, 0, "interp2", "", "numkit:interp2:cubicSize");
-        auto isUniform = [](const double *g, std::size_t n) {
+        auto isUniform = [](const double *g, keel::usize n) {
             if (n < 2) return true;
             const double step = g[1] - g[0];
-            for (std::size_t i = 2; i < n; ++i)
-                if (std::abs((g[i] - g[i - 1]) - step) > 1e-10 * std::max(1.0, std::abs(step)))
+            for (keel::usize i = 2; i < n; ++i)
+                if (keel::abs((g[i] - g[i - 1]) - step) > 1e-10 * std::max(1.0, keel::abs(step)))
                     return false;
             return true;
         };
         if (!isUniform(xGrid, C) || !isUniform(yGrid, R))
             throw Error("interp2: 'cubic' requires a uniformly-spaced grid",
                          0, 0, "interp2", "", "numkit:interp2:cubicNonUniform");
-        const std::size_t PR = R + 2, PC = C + 2;
+        const keel::usize PR = R + 2, PC = C + 2;
         Vpad.assign(PR * PC, 0.0);
-        auto at = [&](std::size_t i, std::size_t j) -> double & { return Vpad[j * PR + i]; };
+        auto at = [&](keel::usize i, keel::usize j) -> double & { return Vpad[j * PR + i]; };
         // Centre.
-        for (std::size_t j = 0; j < C; ++j)
-            for (std::size_t i = 0; i < R; ++i)
+        for (keel::usize j = 0; j < C; ++j)
+            for (keel::usize i = 0; i < R; ++i)
                 at(i + 1, j + 1) = Vd[j * R + i];
         // Pad top/bottom rows across the original columns.
-        for (std::size_t j = 0; j < C; ++j) {
+        for (keel::usize j = 0; j < C; ++j) {
             const double *col = &Vd[j * R];
             at(0,     j + 1) = 3.0 * col[0]     - 3.0 * col[1]     + col[2];
             at(R + 1, j + 1) = 3.0 * col[R - 1] - 3.0 * col[R - 2] + col[R - 3];
         }
         // Pad left/right columns across ALL padded rows (corners included).
-        for (std::size_t i = 0; i < PR; ++i) {
+        for (keel::usize i = 0; i < PR; ++i) {
             at(i, 0)     = 3.0 * at(i, 1)     - 3.0 * at(i, 2)     + at(i, 3);
             at(i, C + 1) = 3.0 * at(i, C)     - 3.0 * at(i, C - 1) + at(i, C - 2);
         }
@@ -826,25 +828,25 @@ Value interp2Impl(const Value &V, const double *xGrid, std::size_t xN, const dou
     // out-of-range extrapolation, non-uniform grids, and the <3-point
     // linear fallback, all inherited from the verified 1-D interpSpline.
     // A row-major copy of V makes per-row access contiguous.
-    ScratchVec<double> Vrow(&scratch);
+    keel::Array<double> Vrow(scratch.allocator());
     if (m == Interp2Method::Spline) {
         Vrow.resize(R * C);
-        for (std::size_t i = 0; i < R; ++i)
-            for (std::size_t j = 0; j < C; ++j)
+        for (keel::usize i = 0; i < R; ++i)
+            for (keel::usize j = 0; j < C; ++j)
                 Vrow[i * C + j] = Vd[j * R + i];
     }
 
     auto sampleAt = [&](double xq, double yq) -> double {
         if (m != Interp2Method::Spline)
             return interp2Sample(Vd.data(), R, C, xGrid, yGrid, xq, yq, m, VpadPtr);
-        ScratchArena local(mr);
-        ScratchVec<double> col(R, &local);
-        for (std::size_t i = 0; i < R; ++i) {
+        keel::ArenaTemp local = keel::get_scratch(mr);
+        keel::Array<double> col(R, local.allocator());
+        for (keel::usize i = 0; i < R; ++i) {
             const double *rowData = &Vrow[i * C];
-            auto v = interpSpline(xGrid, rowData, C, &xq, 1, &local);
+            auto v = interpSpline(xGrid, rowData, C, &xq, 1, local.allocator());
             col[i] = v[0];
         }
-        auto outv = interpSpline(yGrid, col.data(), R, &yq, 1, &local);
+        auto outv = interpSpline(yGrid, col.data(), R, &yq, 1, local.allocator());
         return outv[0];
     };
 
@@ -865,11 +867,11 @@ Value interp2Impl(const Value &V, const double *xGrid, std::size_t xN, const dou
     if (sameShape || Xq.isScalar() || Yq.isScalar()) {
         // Pointwise (scalar operands broadcast against the other's shape).
         const Value &shapeRef = (Xq.numel() >= Yq.numel()) ? Xq : Yq;
-        const std::size_t nq = shapeRef.numel();
+        const keel::usize nq = shapeRef.numel();
         auto out = Value::matrix(shapeRef.dims().rows(), shapeRef.dims().cols(),
                                  ValueType::DOUBLE, mr);
         double *dst = out.doubleDataMut();
-        for (std::size_t i = 0; i < nq; ++i) {
+        for (keel::usize i = 0; i < nq; ++i) {
             const double xq = Xq.isScalar() ? Xq.elemAsDouble(0)
                                             : Xq.elemAsDouble(i);
             const double yq = Yq.isScalar() ? Yq.elemAsDouble(0)
@@ -883,13 +885,13 @@ Value interp2Impl(const Value &V, const double *xGrid, std::size_t xN, const dou
     const bool yqRow = (yd.rows() == 1), yqCol = (yd.cols() == 1);
     if (xqIsVec && yqIsVec && ((xqRow && yqCol) || (xqCol && yqRow))) {
         // Implicit expansion: Xq supplies the columns, Yq supplies the rows.
-        const std::size_t nx = Xq.numel();
-        const std::size_t ny = Yq.numel();
+        const keel::usize nx = Xq.numel();
+        const keel::usize ny = Yq.numel();
         auto out = Value::matrix(ny, nx, ValueType::DOUBLE, mr);
         double *dst = out.doubleDataMut();
-        for (std::size_t j = 0; j < nx; ++j) {
+        for (keel::usize j = 0; j < nx; ++j) {
             const double xq = Xq.elemAsDouble(j);
-            for (std::size_t i = 0; i < ny; ++i)
+            for (keel::usize i = 0; i < ny; ++i)
                 dst[j * ny + i] = sampleAt(xq, Yq.elemAsDouble(i));
         }
         return out;
@@ -905,24 +907,24 @@ namespace {
 // Trilinear / nearest sample at (xq, yq, zq) given a 3D V (rows R,
 // cols C, pages P) in column-major page-major layout: V[k*R*C + j*R + i]
 // for (row=i, col=j, page=k).
-double interp3Sample(const double *V, std::size_t R, std::size_t C, std::size_t P,
+double interp3Sample(const double *V, keel::usize R, keel::usize C, keel::usize P,
                      const double *xGrid, const double *yGrid, const double *zGrid,
                      double xq, double yq, double zq, Interp2Method method)
 {
-    const std::size_t ix = findCell(xGrid, C, xq);
-    const std::size_t iy = findCell(yGrid, R, yq);
-    const std::size_t iz = findCell(zGrid, P, zq);
-    if (ix == std::size_t(-1) || iy == std::size_t(-1) || iz == std::size_t(-1))
+    const keel::usize ix = findCell(xGrid, C, xq);
+    const keel::usize iy = findCell(yGrid, R, yq);
+    const keel::usize iz = findCell(zGrid, P, zq);
+    if (ix == keel::usize(-1) || iy == keel::usize(-1) || iz == keel::usize(-1))
         return std::nan("");
 
-    auto val = [&](std::size_t i, std::size_t j, std::size_t k) {
+    auto val = [&](keel::usize i, keel::usize j, keel::usize k) {
         return V[k * R * C + j * R + i];
     };
 
     if (method == Interp2Method::Nearest) {
-        const std::size_t cx = (xq - xGrid[ix] <= xGrid[ix + 1] - xq) ? ix : ix + 1;
-        const std::size_t cy = (yq - yGrid[iy] <= yGrid[iy + 1] - yq) ? iy : iy + 1;
-        const std::size_t cz = (zq - zGrid[iz] <= zGrid[iz + 1] - zq) ? iz : iz + 1;
+        const keel::usize cx = (xq - xGrid[ix] <= xGrid[ix + 1] - xq) ? ix : ix + 1;
+        const keel::usize cy = (yq - yGrid[iy] <= yGrid[iy + 1] - yq) ? iy : iy + 1;
+        const keel::usize cz = (zq - zGrid[iz] <= zGrid[iz + 1] - zq) ? iz : iz + 1;
         return val(cy, cx, cz);
     }
     const double tx = (xq - xGrid[ix]) / (xGrid[ix + 1] - xGrid[ix]);
@@ -946,7 +948,7 @@ double interp3Sample(const double *V, std::size_t R, std::size_t C, std::size_t 
     return (1 - tz) * c0 + tz * c1;
 }
 
-Value interp3Impl(const Value &V, const double *xGrid, std::size_t xN, const double *yGrid, std::size_t yN, const double *zGrid, std::size_t zN, const Value &Xq, const Value &Yq, const Value &Zq, const std::string &method, std::pmr::memory_resource *mr)
+Value interp3Impl(const Value &V, const double *xGrid, keel::usize xN, const double *yGrid, keel::usize yN, const double *zGrid, keel::usize zN, const Value &Xq, const Value &Yq, const Value &Zq, const std::string &method, keel::Allocator *mr)
 {
     if (V.type() == ValueType::COMPLEX)
         throw Error("interp3: complex inputs are not supported",
@@ -958,9 +960,9 @@ Value interp3Impl(const Value &V, const double *xGrid, std::size_t xN, const dou
         throw Error("interp3: Xq, Yq, Zq must have the same numel",
                      0, 0, "interp3", "", "numkit:interp3:queryShape");
 
-    const std::size_t R = V.dims().rows();
-    const std::size_t C = V.dims().cols();
-    const std::size_t P = V.dims().pages();
+    const keel::usize R = V.dims().rows();
+    const keel::usize C = V.dims().cols();
+    const keel::usize P = V.dims().pages();
     if (xN != C || yN != R || zN != P)
         throw Error("interp3: grid lengths must equal V's dim sizes",
                      0, 0, "interp3", "", "numkit:interp3:gridSize");
@@ -969,18 +971,18 @@ Value interp3Impl(const Value &V, const double *xGrid, std::size_t xN, const dou
     validateMonotonicAscending(zGrid, P, "Z");
 
     const Interp2Method m = parseInterp2Method(method);
-    ScratchArena scratch(mr);
-    ScratchVec<double> Vd(R * C * P, &scratch);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<double> Vd(R * C * P, scratch.allocator());
     if (V.type() == ValueType::DOUBLE)
         std::memcpy(Vd.data(), V.doubleData(), R * C * P * sizeof(double));
     else
-        for (std::size_t i = 0; i < R * C * P; ++i) Vd[i] = V.elemAsDouble(i);
+        for (keel::usize i = 0; i < R * C * P; ++i) Vd[i] = V.elemAsDouble(i);
 
     const auto &qd = Xq.dims();
-    const std::size_t nq = Xq.numel();
+    const keel::usize nq = Xq.numel();
     auto out = Value::matrix(qd.rows(), qd.cols(), ValueType::DOUBLE, mr);
     double *dst = out.doubleDataMut();
-    for (std::size_t i = 0; i < nq; ++i) {
+    for (keel::usize i = 0; i < nq; ++i) {
         const double xq = Xq.elemAsDouble(i);
         const double yq = Yq.elemAsDouble(i);
         const double zq = Zq.elemAsDouble(i);

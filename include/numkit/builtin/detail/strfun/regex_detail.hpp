@@ -3,12 +3,12 @@
 // Phase 2b compute/register split — see project_layering_refactor memory.
 #pragma once
 
+#include <keel/core.h>
+#include <keel/memory.h>
 #include <numkit/value/value.hpp>
 
 #include <regex>
 #include <numkit/value/error.hpp>
-#include <numkit/value/scratch.hpp>
-#include <numkit/value/span.hpp>
 #include <numkit/ops/reductions.hpp>  // engine-free numkit::builtin::detail dim-infra (ops re-export)
 
 #include <algorithm>
@@ -17,7 +17,6 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
-#include <memory_resource>
 #include <numeric>
 #include <string>
 #include <tuple>
@@ -52,16 +51,16 @@ std::regex compileRegex(const std::string &pat, bool ignoreCase)
 // character classes are honoured so `\(` and `[(]` are not miscounted.
 struct NamedGroups {
     std::string cleaned;
-    std::vector<std::pair<std::string, std::size_t>> names;  // name → group #
+    std::vector<std::pair<std::string, keel::usize>> names;  // name → group #
 };
 
 NamedGroups extractNamedGroups(const std::string &pat)
 {
     NamedGroups ng;
     ng.cleaned.reserve(pat.size());
-    std::size_t group = 0;
+    keel::usize group = 0;
     bool inClass = false;
-    for (std::size_t i = 0; i < pat.size();) {
+    for (keel::usize i = 0; i < pat.size();) {
         const char c = pat[i];
         if (c == '\\' && i + 1 < pat.size()) {           // escaped pair
             ng.cleaned += c;
@@ -82,7 +81,7 @@ NamedGroups extractNamedGroups(const std::string &pat)
                                && (std::isalpha(static_cast<unsigned char>(pat[i + 3]))
                                    || pat[i + 3] == '_');
             if (named) {
-                std::size_t j = i + 3;
+                keel::usize j = i + 3;
                 std::string name;
                 while (j < pat.size() && pat[j] != '>') name += pat[j++];
                 ++group;
@@ -107,18 +106,18 @@ NamedGroups extractNamedGroups(const std::string &pat)
     return ng;
 }
 
-Value rowFromIndices(const double *v, std::size_t n, std::pmr::memory_resource *mr)
+Value rowFromIndices(const double *v, keel::usize n, keel::Allocator *mr)
 {
     auto out = Value::matrix(1, n, ValueType::DOUBLE, mr);
-    for (std::size_t i = 0; i < n; ++i)
+    for (keel::usize i = 0; i < n; ++i)
         out.doubleDataMut()[i] = v[i];
     return out;
 }
 
-Value rowCellOfStrings(const std::string *v, std::size_t n, std::pmr::memory_resource *mr)
+Value rowCellOfStrings(const std::string *v, keel::usize n, keel::Allocator *mr)
 {
     auto out = Value::cell(1, n);
-    for (std::size_t i = 0; i < n; ++i)
+    for (keel::usize i = 0; i < n; ++i)
         out.cellAt(i) = Value::fromString(v[i], mr);
     return out;
 }
@@ -127,6 +126,6 @@ Value rowCellOfStrings(const std::string *v, std::size_t n, std::pmr::memory_res
 
 // regexp single-match worker (def in regex.cpp, external).
 Value regexpFindOnce(const Value &s, const Value &pat, const std::string &option,
-                     bool ignoreCase, std::pmr::memory_resource *mr);
+                     bool ignoreCase, keel::Allocator *mr);
 
 } // namespace numkit::builtin

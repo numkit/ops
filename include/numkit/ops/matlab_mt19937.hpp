@@ -23,6 +23,7 @@
 
 #pragma once
 
+#include <keel/core.h>
 #include <cstddef>
 #include <cstdint>
 
@@ -35,7 +36,7 @@ public:
     // this engine directly without a wrapper. Note: std distributions
     // are still implementation-defined in their uint32 -> output map;
     // for MATLAB-bit-identical doubles, use genRes53() instead.
-    using result_type = uint32_t;
+    using result_type = keel::u32;
     static constexpr result_type min() { return 0; }
     static constexpr result_type max() { return 0xFFFFFFFFUL; }
     result_type operator()() { return genUint32(); }
@@ -50,7 +51,7 @@ public:
     // `rng(seed, 'twister')`:
     //   rng(0)    -> initGenrand(5489)  [MATLAB's seed=0 special case]
     //   rng(N>0)  -> initGenrand(N)     [direct]
-    void seed(uint32_t s) {
+    void seed(keel::u32 s) {
         // MATLAB's quirk: seed 0 maps to MT default 5489.
         // (Verified empirically: rng(0); rand() == 0.8147236863931789
         //  which matches initGenrand(5489), not initGenrand(0).)
@@ -58,32 +59,32 @@ public:
     }
 
     // Generate next uint32 from the MT stream.
-    uint32_t genUint32();
+    keel::u32 genUint32();
 
     // Generate next 53-bit double in [0, 1) -- two uint32 draws combined.
     // This is what MATLAB's rand() returns under 'twister'.
-    double genRes53();
+    keel::f64 genRes53();
 
     // State serialisation -- 624 uint32 state words + the index pointer.
     // Used by rng() to snapshot/restore.
-    static constexpr std::size_t STATE_SIZE = 624;
-    void getState(uint32_t out[STATE_SIZE], int &outIndex) const;
-    void setState(const uint32_t in[STATE_SIZE], int inIndex);
+    static constexpr keel::usize STATE_SIZE = 624;
+    void getState(keel::u32 out[STATE_SIZE], int &outIndex) const;
+    void setState(const keel::u32 in[STATE_SIZE], int inIndex);
 
 private:
     // Reference algorithm constants.
-    static constexpr std::size_t N = 624;
-    static constexpr std::size_t M = 397;
-    static constexpr uint32_t MATRIX_A   = 0x9908b0dfUL;
-    static constexpr uint32_t UPPER_MASK = 0x80000000UL;
-    static constexpr uint32_t LOWER_MASK = 0x7fffffffUL;
+    static constexpr keel::usize N = 624;
+    static constexpr keel::usize M = 397;
+    static constexpr keel::u32 MATRIX_A   = 0x9908b0dfUL;
+    static constexpr keel::u32 UPPER_MASK = 0x80000000UL;
+    static constexpr keel::u32 LOWER_MASK = 0x7fffffffUL;
 
-    uint32_t mt_[N];
+    keel::u32 mt_[N];
     int mti_;  // index; mti_ == N means "regenerate the whole array"
 
     // Reference seeders.
-    void initGenrand(uint32_t s);
-    void initByArray_single(uint32_t key);   // kept for reference / future use
+    void initGenrand(keel::u32 s);
+    void initByArray_single(keel::u32 key);   // kept for reference / future use
 
     void generateNextBatch();
 };

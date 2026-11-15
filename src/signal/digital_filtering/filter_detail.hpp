@@ -15,12 +15,14 @@
 // Phase 2b compute/register split — see project_layering_refactor memory.
 #pragma once
 
+#include <keel/core.h>
+#include <keel/memory.h>
+#include <keel/array.h>
+#include <keel/complex.h>
 #include <numkit/ops/iir_filter.hpp>
 #include <numkit/value/value.hpp>
-#include <numkit/value/scratch.hpp>
 
 #include <cstddef>
-#include <memory_resource>
 
 namespace numkit::signal {
 
@@ -29,11 +31,11 @@ using numkit::ops::applyFilterDf2t;
 using numkit::ops::applyFilterDf2tComplex;
 
 // Marshal a Value's first n elements into a complex scratch buffer.
-ScratchVec<Complex> toComplexBuf(const Value &v, size_t n,
-                                 std::pmr::memory_resource *mr);
+keel::Array<keel::c64> toComplexBuf(const Value &v, keel::usize n,
+                                 keel::Allocator *mr);
 
 // Length of x along its first non-singleton dimension.
-size_t firstNonSingletonExtent(const Value &x);
+keel::usize firstNonSingletonExtent(const Value &x);
 
 // filter's checker + dispatch-plan resolver (the argcheck-separation
 // pattern): validates the b/a/x/zi contracts with numkit-voiced
@@ -43,10 +45,10 @@ size_t firstNonSingletonExtent(const Value &x);
 struct FilterPlan
 {
     bool   complex;    // any of b/a/x/zi complex
-    size_t nb, na, nx;
-    size_t sigLen;     // first non-singleton extent of x
-    size_t nSig;       // nx / sigLen (0 for empty x)
-    size_t stateLen;   // max(nb, na) - 1
+    keel::usize nb, na, nx;
+    keel::usize sigLen;     // first non-singleton extent of x
+    keel::usize nSig;       // nx / sigLen (0 for empty x)
+    keel::usize stateLen;   // max(nb, na) - 1
 };
 
 // checker+resolver, deliberately one pass (the <fn>_argcheck shape for

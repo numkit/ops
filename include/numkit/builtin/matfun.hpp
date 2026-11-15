@@ -3,10 +3,9 @@
 // Pure C++ Matrix functions and integer division (MATLAB parity).
 #pragma once
 
-#include <memory_resource>
+#include <keel/memory.h>
 #include <string>
 #include <numkit/value/value.hpp>
-#include <numkit/value/span.hpp>
 
 namespace numkit::builtin {
 
@@ -37,7 +36,7 @@ namespace numkit::builtin {
 /// @return Quotient after integer division, maintaining integer type of operands.
 /// @throws std::runtime_error If neither argument is an integer class or if invalid mode is passed.
 /// @see numkit::builtin::rdivide, numkit::builtin::ldivide
-Value idivide(const Value &a, const Value &b, const std::string &mode = "fix", std::pmr::memory_resource *mr = nullptr);
+Value idivide(const Value &a, const Value &b, const std::string &mode = "fix", keel::Allocator *mr = nullptr);
 
 
 /// @}
