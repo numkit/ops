@@ -12,10 +12,9 @@
 #include <keel/string.h>
 #include <keel/optional.h>
 #include <keel/format.h>
+#include <keel/utf8.h>
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
-
-#include <cctype>
 #include <cmath>
 #include <cstring>
 #include <limits>
@@ -101,7 +100,7 @@ inline keel::Optional<PrecisionInfo> parsePrecision(keel::StringRef raw)
     s = s.trim();
     if (!s.empty() && s[0] == '*') s = s.substr(1).trim();
     keel::SmallString<64> p;
-    for (char c : s) p.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+    for (char c : s) p.push_back(keel::to_ascii_lower(c));
 
     if (p == "uint8" || p == "uchar" || p == "unsigned char" || p == "char" || p == "char*1")
         return PrecisionInfo{0, 1};
@@ -131,7 +130,7 @@ inline keel::Optional<PrecisionInfo> parsePrecision(keel::StringRef raw)
 inline bool parseEndian(keel::StringRef raw, const char *fn)
 {
     keel::SmallString<32> lo;
-    for (char c : raw) lo.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+    for (char c : raw) lo.push_back(keel::to_ascii_lower(c));
     if (lo == "b" || lo == "ieee-be" || lo == "ieee-be.l64") return true;
     if (lo == "l" || lo == "ieee-le" || lo == "ieee-le.l64"
         || lo == "n" || lo == "native")

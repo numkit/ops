@@ -11,6 +11,7 @@
 #include <keel/array.h>
 #include <keel/complex.h>
 #include <keel/math.h>
+#include <keel/utf8.h>
 #include <numkit/linalg/eigs.hpp>
 #include <numkit/linalg/eig.hpp>
 #include <numkit/linalg/decompositions.hpp>
@@ -20,7 +21,6 @@
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
-#include <cctype>
 #include <cmath>
 #include <numeric>
 
@@ -55,7 +55,7 @@ void sortEigenPairsBySigma(keel::Array<EigenPair> &pairs, keel::usize k, const V
             else {
                 keel::String lower;
                 for (char c : sr)
-                    lower.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+                    lower.push_back(keel::to_ascii_lower(c));
                 throw Error(keel::format("eigs: unknown sigma option '{}'", lower),
                             0, 0, "eigs", "", "numkit:eigs:badSigma");
             }

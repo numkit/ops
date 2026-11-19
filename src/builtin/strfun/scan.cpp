@@ -10,6 +10,7 @@
 #include <keel/array.h>
 #include <keel/format.h>
 #include <keel/string.h>
+#include <keel/utf8.h>
 #include <numkit/builtin/strfun.hpp>
 #include "scan_core.hpp"
 
@@ -20,7 +21,6 @@
 
 #include <algorithm>
 #include <array>
-#include <cctype>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
@@ -46,7 +46,7 @@ bool formatHasNumeric(keel::StringRef fmt)
         if (fmt[i] != '%') continue;
         ++i;
         if (i < fmt.size() && fmt[i] == '*') ++i;
-        while (i < fmt.size() && std::isdigit(static_cast<unsigned char>(fmt[i]))) ++i;
+        while (i < fmt.size() && keel::is_ascii_digit(fmt[i])) ++i;
         if (i >= fmt.size()) break;
         char spec = fmt[i];
         if (spec == 'd' || spec == 'i' || spec == 'u' ||
@@ -72,9 +72,9 @@ ScanfOut scanfCycle(const keel::String &input, keel::StringRef fmt, keel::usize 
 
         while (fmtPos < fmt.size() && ok) {
             char fc = fmt[fmtPos];
-            if (std::isspace(static_cast<unsigned char>(fc))) {
+            if (keel::is_ascii_space(fc)) {
                 while (inPos < input.size() &&
-                       std::isspace(static_cast<unsigned char>(input[inPos])))
+                       keel::is_ascii_space(input[inPos]))
                     ++inPos;
                 ++fmtPos;
                 continue;
@@ -92,7 +92,7 @@ ScanfOut scanfCycle(const keel::String &input, keel::StringRef fmt, keel::usize 
             if (fmt[fmtPos] == '*') { suppress = true; ++fmtPos; }
             int width = -1;
             while (fmtPos < fmt.size() &&
-                   std::isdigit(static_cast<unsigned char>(fmt[fmtPos]))) {
+                   keel::is_ascii_digit(fmt[fmtPos])) {
                 if (width < 0) width = 0;
                 width = width * 10 + (fmt[fmtPos] - '0');
                 ++fmtPos;
@@ -158,7 +158,7 @@ ScanfOut scanfCycle(const keel::String &input, keel::StringRef fmt, keel::usize 
             // it matches literal characters including whitespace.
             if (spec != 'c') {
                 while (inPos < input.size() &&
-                       std::isspace(static_cast<unsigned char>(input[inPos])))
+                       keel::is_ascii_space(input[inPos]))
                     ++inPos;
             }
             if (inPos >= input.size()) { ok = false; break; }
@@ -170,7 +170,7 @@ ScanfOut scanfCycle(const keel::String &input, keel::StringRef fmt, keel::usize 
                                     : std::min(inPos + static_cast<keel::usize>(width),
                                                input.size());
                 while (inPos < maxEnd &&
-                       !std::isspace(static_cast<unsigned char>(input[inPos])))
+                       !keel::is_ascii_space(input[inPos]))
                     ++inPos;
                 if (inPos == tokenStart) { ok = false; break; }
                 if (!suppress) {

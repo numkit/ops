@@ -13,8 +13,6 @@
 
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
-
-#include <cctype>
 #include <iterator>
 #include <regex>
 #include <utility>

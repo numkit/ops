@@ -12,10 +12,8 @@
 #include <keel/memory.h>
 #include <keel/ref.h>
 #include <keel/string.h>
+#include <keel/utf8.h>
 #include <numkit/value/value.hpp>
-
-#include <cctype>
-
 namespace numkit::image {
 
 // Lower-cased file extension (without the dot), or "" if none. Used by both
@@ -27,7 +25,7 @@ inline keel::String lowerExt(keel::StringRef pathRef) {
     keel::String e;
     e.reserve(tail.size());
     for (keel::usize i = 0; i < tail.size(); ++i) {
-        e.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(tail[i]))));
+        e.push_back(keel::to_ascii_lower(tail[i]));
     }
     return e;
 }

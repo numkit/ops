@@ -16,7 +16,6 @@
 #include <numkit/ops/helpers.hpp>
 
 #include <algorithm>
-#include <cctype>
 #include <cmath>
 #include <cstring>
 #include <limits>

@@ -9,6 +9,7 @@
 #include <keel/array.h>
 #include <keel/format.h>
 #include <keel/string.h>
+#include <keel/utf8.h>
 #include <numkit/value/value.hpp>
 
 #include <regex>
@@ -16,7 +17,6 @@
 #include <numkit/ops/reductions.hpp>  // engine-free numkit::builtin::detail dim-infra (ops re-export)
 
 #include <algorithm>
-#include <cctype>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -84,7 +84,7 @@ NamedGroups extractNamedGroups(keel::StringRef pat,
         if (c == '(') {
             const bool named = i + 3 < pat.size() && pat[i + 1] == '?'
                                && pat[i + 2] == '<'
-                               && (std::isalpha(static_cast<unsigned char>(pat[i + 3]))
+                               && (keel::is_ascii_alpha(pat[i + 3])
                                    || pat[i + 3] == '_');
             if (named) {
                 keel::usize j = i + 3;

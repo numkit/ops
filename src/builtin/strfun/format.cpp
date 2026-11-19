@@ -6,13 +6,13 @@
 #include <keel/arena.h>
 #include <keel/array.h>
 #include <keel/string.h>
+#include <keel/utf8.h>
 #include <numkit/builtin/strfun.hpp>
 
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
-#include <cctype>
 #include <cmath>
 #include <cstdio>
 
@@ -42,13 +42,13 @@ void applyStringSpec(keel::StringRef spec, keel::StringRef sv, keel::String &out
         else break;
     }
     keel::usize width = 0;
-    for (; k < spec.size() && std::isdigit(static_cast<unsigned char>(spec[k])); ++k)
+    for (; k < spec.size() && keel::is_ascii_digit(spec[k]); ++k)
         width = width * 10 + static_cast<keel::usize>(spec[k] - '0');
     long precision = -1;
     if (k < spec.size() && spec[k] == '.') {
         ++k;
         precision = 0;
-        for (; k < spec.size() && std::isdigit(static_cast<unsigned char>(spec[k])); ++k)
+        for (; k < spec.size() && keel::is_ascii_digit(spec[k]); ++k)
             precision = precision * 10 + (spec[k] - '0');
     }
 
@@ -93,7 +93,7 @@ void formatNonFinite(keel::StringRef spec, double v, keel::String &out)
         else break;
     }
     keel::usize width = 0;
-    for (; k < spec.size() && std::isdigit(static_cast<unsigned char>(spec[k])); ++k)
+    for (; k < spec.size() && keel::is_ascii_digit(spec[k]); ++k)
         width = width * 10 + static_cast<keel::usize>(spec[k] - '0');
 
     if (word == "Inf") {
@@ -314,12 +314,12 @@ keel::usize countFormatSpecs(keel::StringRef fmt)
             ++i;
         // width: '*' consumes one arg from the list, else literal digits
         if (i < fmt.size() && fmt[i] == '*') { ++n; ++i; }
-        else while (i < fmt.size() && std::isdigit(static_cast<unsigned char>(fmt[i]))) ++i;
+        else while (i < fmt.size() && keel::is_ascii_digit(fmt[i])) ++i;
         // precision: '.' then '*' (one arg) or literal digits
         if (i < fmt.size() && fmt[i] == '.') {
             ++i;
             if (i < fmt.size() && fmt[i] == '*') { ++n; ++i; }
-            else while (i < fmt.size() && std::isdigit(static_cast<unsigned char>(fmt[i]))) ++i;
+            else while (i < fmt.size() && keel::is_ascii_digit(fmt[i])) ++i;
         }
         while (i < fmt.size() && (fmt[i] == 'l' || fmt[i] == 'h'))
             ++i;

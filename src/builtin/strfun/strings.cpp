@@ -13,6 +13,7 @@
 #include <keel/string.h>
 #include <keel/complex.h>
 #include <keel/format.h>
+#include <keel/utf8.h>
 #include <numkit/builtin/strfun.hpp>
 #include <numkit/builtin/iofun.hpp>
 
@@ -22,7 +23,6 @@
 #include <numkit/ops/helpers.hpp>
 
 #include <algorithm>
-#include <cctype>
 #include <cerrno>
 #include <cmath>
 #include <cstdio>
@@ -734,7 +734,7 @@ Value upper(const Value &s, keel::Allocator *mr)
     auto op = [](keel::StringRef r) -> keel::String {
         keel::String out = keel::String::from(r);
         for (char &ch : out)
-            ch = static_cast<char>(std::toupper(static_cast<unsigned char>(ch)));
+            ch = keel::to_ascii_upper(ch);
         return out;
     };
     return mapStringPreserveClass(s, op, mr);
@@ -745,7 +745,7 @@ Value lower(const Value &s, keel::Allocator *mr)
     auto op = [](keel::StringRef r) -> keel::String {
         keel::String out = keel::String::from(r);
         for (char &ch : out)
-            ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+            ch = keel::to_ascii_lower(ch);
         return out;
     };
     return mapStringPreserveClass(s, op, mr);
@@ -1459,27 +1459,29 @@ Value isstrprop(const Value &s, const Value &category, keel::Allocator *mr)
     const keel::String catStr = category.toString();
     const keel::StringRef cat = catStr.as_ref();
     if (cat.equals_ignore_ascii_case("alpha"))
-        return applyCharPred(s, [](unsigned char c) { return std::isalpha(c) != 0; }, mr);
+        return applyCharPred(s, [](unsigned char c) { return keel::is_ascii_alpha(static_cast<char>(c)); }, mr);
     if (cat.equals_ignore_ascii_case("digit"))
-        return applyCharPred(s, [](unsigned char c) { return std::isdigit(c) != 0; }, mr);
+        return applyCharPred(s, [](unsigned char c) { return keel::is_ascii_digit(static_cast<char>(c)); }, mr);
     if (cat.equals_ignore_ascii_case("alphanum"))
-        return applyCharPred(s, [](unsigned char c) { return std::isalnum(c) != 0; }, mr);
+        return applyCharPred(s, [](unsigned char c) { return keel::is_ascii_alnum(static_cast<char>(c)); }, mr);
     if (cat.equals_ignore_ascii_case("lower"))
-        return applyCharPred(s, [](unsigned char c) { return std::islower(c) != 0; }, mr);
+        return applyCharPred(s, [](unsigned char c) { return keel::is_ascii_lower(static_cast<char>(c)); }, mr);
     if (cat.equals_ignore_ascii_case("upper"))
-        return applyCharPred(s, [](unsigned char c) { return std::isupper(c) != 0; }, mr);
+        return applyCharPred(s, [](unsigned char c) { return keel::is_ascii_upper(static_cast<char>(c)); }, mr);
     if (cat.equals_ignore_ascii_case("punct"))
-        return applyCharPred(s, [](unsigned char c) { return std::ispunct(c) != 0; }, mr);
+        return applyCharPred(s, [](unsigned char c) {
+            return c >= 0x21u && c <= 0x7Eu && !keel::is_ascii_alnum(static_cast<char>(c));
+        }, mr);
     if (cat.equals_ignore_ascii_case("space") || cat.equals_ignore_ascii_case("wspace"))
-        return applyCharPred(s, [](unsigned char c) { return std::isspace(c) != 0; }, mr);
+        return applyCharPred(s, [](unsigned char c) { return keel::is_ascii_space(static_cast<char>(c)); }, mr);
     if (cat.equals_ignore_ascii_case("xdigit"))
-        return applyCharPred(s, [](unsigned char c) { return std::isxdigit(c) != 0; }, mr);
+        return applyCharPred(s, [](unsigned char c) { return keel::is_ascii_hex_digit(static_cast<char>(c)); }, mr);
     if (cat.equals_ignore_ascii_case("cntrl"))
-        return applyCharPred(s, [](unsigned char c) { return std::iscntrl(c) != 0; }, mr);
+        return applyCharPred(s, [](unsigned char c) { return c < 0x20u || c == 0x7Fu; }, mr);
     if (cat.equals_ignore_ascii_case("graphic"))
-        return applyCharPred(s, [](unsigned char c) { return std::isgraph(c) != 0; }, mr);
+        return applyCharPred(s, [](unsigned char c) { return c >= 0x21u && c <= 0x7Eu; }, mr);
     if (cat.equals_ignore_ascii_case("print"))
-        return applyCharPred(s, [](unsigned char c) { return std::isprint(c) != 0; }, mr);
+        return applyCharPred(s, [](unsigned char c) { return c >= 0x20u && c <= 0x7Eu; }, mr);
     keel::String catLow = catStr.clone();
     asciiLowerInPlace(catLow);
     throw Error(keel::format("isstrprop: unknown category '{}'", catLow.as_ref()),
@@ -1493,12 +1495,12 @@ Value isstrprop(const Value &s, keel::StringRef category, keel::Allocator *mr)
 
 Value isletter(const Value &s, keel::Allocator *mr)
 {
-    return applyCharPred(s, [](unsigned char c) { return std::isalpha(c) != 0; }, mr);
+    return applyCharPred(s, [](unsigned char c) { return keel::is_ascii_alpha(c); }, mr);
 }
 
 Value isspaceFn(const Value &s, keel::Allocator *mr)
 {
-    return applyCharPred(s, [](unsigned char c) { return std::isspace(c) != 0; }, mr);
+    return applyCharPred(s, [](unsigned char c) { return keel::is_ascii_space(c); }, mr);
 }
 
 // ── Pack 22 ──────────────────────────────────────────────────────────

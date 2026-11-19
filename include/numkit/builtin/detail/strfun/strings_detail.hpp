@@ -12,13 +12,13 @@
 #include <keel/format.h>
 #include <keel/complex.h>
 #include <keel/math.h>
+#include <keel/utf8.h>
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
 #include <numkit/ops/reductions.hpp>  // engine-free numkit::builtin::detail dim-infra (ops re-export)
 
 #include <algorithm>
 #include <array>
-#include <cctype>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -443,7 +443,7 @@ void collectMatchPatterns(const Value &pat, keel::Array<keel::String> &out)
 inline void asciiLowerInPlace(keel::String &x)
 {
     for (char &c : x)
-        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        c = keel::to_ascii_lower(c);
 }
 
 } // namespace
@@ -454,7 +454,7 @@ inline keel::String readSide(const Value &side, const char *def)
     if (!side.isChar() && !side.isString())
         throw std::runtime_error("string-side argument must be a string");
     keel::String s = side.toString();
-    for (char &c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    for (char &c : s) c = keel::to_ascii_lower(c);
     return s;
 }
 } // anon
@@ -603,7 +603,7 @@ keel::u64 parseBase(keel::StringRef s, int base)
 {
     keel::u64 v = 0;
     for (char c : s) {
-        if (std::isspace(static_cast<unsigned char>(c))) continue;
+        if (keel::is_ascii_space(c)) continue;
         int d;
         if (c >= '0' && c <= '9') d = c - '0';
         else if (c >= 'a' && c <= 'f') d = 10 + (c - 'a');
@@ -667,7 +667,7 @@ double hexBitsToDouble(keel::StringRef raw)
     char h[16];
     int hlen = 0;
     for (char c : raw) {
-        if (std::isspace(static_cast<unsigned char>(c))) continue;
+        if (keel::is_ascii_space(c)) continue;
         if (hlen < 16) h[hlen++] = c;
     }
     while (hlen < 16) h[hlen++] = '0';  // right-pad with zeros
@@ -694,7 +694,7 @@ keel::u64 parseBaseN(keel::StringRef s, int base)
 {
     keel::u64 v = 0;
     for (char c : s) {
-        if (std::isspace(static_cast<unsigned char>(c))) continue;
+        if (keel::is_ascii_space(c)) continue;
         int d;
         if      (c >= '0' && c <= '9') d = c - '0';
         else if (c >= 'a' && c <= 'z') d = 10 + (c - 'a');

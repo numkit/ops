@@ -9,16 +9,15 @@
 #include <keel/array.h>
 #include <keel/format.h>
 #include <keel/string.h>
+#include <keel/time.h>
+#include <keel/utf8.h>
 #include <numkit/builtin/timefun.hpp>
 #include <numkit/value/value.hpp>
 
 #include <algorithm>
-#include <cctype>
-#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
-#include <ctime>
 #include <stdexcept>
 
 namespace numkit::builtin {
@@ -285,7 +284,7 @@ Value datenum(keel::ArrayRef<Value> args, keel::Allocator *mr) {
             keel::usize si = 0, fi = 0;
             auto readNum = [&](int maxD) -> long {
                 long v = 0; int n = 0;
-                while (si < s.size() && n < maxD && std::isdigit(static_cast<unsigned char>(s[si]))) {
+                while (si < s.size() && n < maxD && keel::is_ascii_digit(s[si])) {
                     v = v * 10 + (s[si] - '0'); ++si; ++n;
                 }
                 return n > 0 ? v : -1;
@@ -298,14 +297,8 @@ Value datenum(keel::ArrayRef<Value> args, keel::Allocator *mr) {
                     long v = readNum(4); if (v < 0) return false; Y = v; fi += 4;
                 } else if (fAt("yy")) {
                     long v = readNum(2); if (v < 0) return false;
-                    time_t nowSec = time(nullptr);
-                    tm tmNow{};
-#if defined(_WIN32)
-                    localtime_s(&tmNow, &nowSec);
-#else
-                    localtime_r(&nowSec, &tmNow);
-#endif
-                    long curCent = (1900 + tmNow.tm_year) / 100 * 100;
+                    const keel::CalendarTime nowCal = keel::local_time();
+                    long curCent = (static_cast<long>(nowCal.year) / 100) * 100;
                     Y = curCent + v; fi += 2;
                 } else if (fAt("mmmm") || fAt("mmm")) {
                     keel::usize mlen = fAt("mmmm") ? 4 : 3;
@@ -315,7 +308,7 @@ Value datenum(keel::ArrayRef<Value> args, keel::Allocator *mr) {
                     for (int i = 0; i < 12; ++i) { if (m3.equals_ignore_ascii_case(MON3[i])) { mIdx = i + 1; break; } }
                     if (mIdx < 0) return false;
                     Mo = mIdx; si += 3;
-                    if (mlen == 4) { while (si < s.size() && std::isalpha(static_cast<unsigned char>(s[si]))) ++si; }
+                    if (mlen == 4) { while (si < s.size() && keel::is_ascii_alpha(s[si])) ++si; }
                     fi += mlen;
                 } else if (fAt("mm")) {
                     long v = readNum(2); if (v < 0) return false; Mo = v; fi += 2;
@@ -329,7 +322,7 @@ Value datenum(keel::ArrayRef<Value> args, keel::Allocator *mr) {
                     long v = readNum(2); if (v < 0) return false; S = v; fi += 2;
                     if (si < s.size() && (s[si] == '.' || s[si] == ',')) {
                         ++si; double scale = 0.1;
-                        while (si < s.size() && std::isdigit(static_cast<unsigned char>(s[si]))) {
+                        while (si < s.size() && keel::is_ascii_digit(s[si])) {
                             S += (s[si] - '0') * scale; scale *= 0.1; ++si;
                         }
                     }
@@ -338,7 +331,7 @@ Value datenum(keel::ArrayRef<Value> args, keel::Allocator *mr) {
                     ++si; ++fi;
                 }
             }
-            while (si < s.size() && std::isspace(static_cast<unsigned char>(s[si]))) ++si;
+            while (si < s.size() && keel::is_ascii_space(s[si])) ++si;
             return si == s.size();
         };
 
@@ -519,16 +512,9 @@ Value eomday(const Value &y, const Value &m, keel::Allocator *mr) {
 Value calendar(keel::ArrayRef<Value> args, keel::Allocator *mr) {
     double yr = 0, mo = 0;
     if (args.empty()) {
-        auto now_tp = std::chrono::system_clock::now();
-        time_t t = std::chrono::system_clock::to_time_t(now_tp);
-        std::tm tmNow{};
-#if defined(_WIN32)
-        localtime_s(&tmNow, &t);
-#else
-        localtime_r(&t, &tmNow);
-#endif
-        yr = 1900.0 + tmNow.tm_year;
-        mo = 1.0 + tmNow.tm_mon;
+        const keel::CalendarTime nowCal = keel::local_time();
+        yr = static_cast<double>(nowCal.year);
+        mo = static_cast<double>(nowCal.month);
     } else if (args.size() == 1) {
         double d, h, mi, s;
         serialToCivil(args[0].toScalar(), yr, mo, d, h, mi, s);
@@ -605,7 +591,7 @@ Value datestr(keel::ArrayRef<Value> args, keel::Allocator *mr) {
             keel::usize si = 0, fi = 0;
             auto readNum = [&](int maxD) -> long {
                 long v = 0; int n = 0;
-                while (si < s.size() && n < maxD && std::isdigit(static_cast<unsigned char>(s[si]))) {
+                while (si < s.size() && n < maxD && keel::is_ascii_digit(s[si])) {
                     v = v * 10 + (s[si] - '0'); ++si; ++n;
                 }
                 return n > 0 ? v : -1;
@@ -733,8 +719,8 @@ Value datestr(keel::ArrayRef<Value> args, keel::Allocator *mr) {
     static const int dt[] = {0,3,2,5,0,3,5,1,4,6,2,4};
     bool hour12 = false;
     for (keel::usize k = 0; k + 1 < fmt.size(); ++k) {
-        char a = (char)std::tolower((unsigned char)fmt[k]);
-        char b = (char)std::tolower((unsigned char)fmt[k+1]);
+        char a = keel::to_ascii_lower(fmt[k]);
+        char b = keel::to_ascii_lower(fmt[k+1]);
         if ((a == 'a' || a == 'p') && b == 'm') { hour12 = true; break; }
     }
 
@@ -770,9 +756,9 @@ Value datestr(keel::ArrayRef<Value> args, keel::Allocator *mr) {
             else if (at("MM", 2)) { std::snprintf(buf,sizeof buf,"%02d",mii); out.append(buf); i+=2; }
             else if (at("SS", 2)) { std::snprintf(buf,sizeof buf,"%02d",si); out.append(buf); i+=2; }
             else if (hour12 && i + 1 < fmt.size()
-                     && ((std::tolower((unsigned char)fmt[i])=='a'
-                          || std::tolower((unsigned char)fmt[i])=='p')
-                         && std::tolower((unsigned char)fmt[i+1])=='m')) {
+                     && ((keel::to_ascii_lower(fmt[i])=='a'
+                          || keel::to_ascii_lower(fmt[i])=='p')
+                         && keel::to_ascii_lower(fmt[i+1])=='m')) {
                 out.append((hi < 12) ? "AM" : "PM"); i += 2;
             }
             else { out.push_back(fmt[i]); ++i; }
@@ -814,7 +800,7 @@ Value datevec(keel::ArrayRef<Value> args, keel::Allocator *mr) {
             keel::usize si = 0, fi = 0;
             auto readNum = [&](int maxD) -> long {
                 long v = 0; int n = 0;
-                while (si < s.size() && n < maxD && std::isdigit(static_cast<unsigned char>(s[si]))) {
+                while (si < s.size() && n < maxD && keel::is_ascii_digit(s[si])) {
                     v = v * 10 + (s[si] - '0'); ++si; ++n;
                 }
                 return n > 0 ? v : -1;
@@ -834,7 +820,7 @@ Value datevec(keel::ArrayRef<Value> args, keel::Allocator *mr) {
                     if (mi < 0) return false;
                     Mo = static_cast<double>(mi); si += 3;
                     if (full) {
-                        while (si < s.size() && std::isalpha(static_cast<unsigned char>(s[si]))) ++si;
+                        while (si < s.size() && keel::is_ascii_alpha(s[si])) ++si;
                         fi += 4;
                     } else { fi += 3; }
                 } else if (fAt("mm")) {

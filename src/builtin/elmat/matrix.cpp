@@ -26,7 +26,6 @@
 #include <numkit/builtin/ops.hpp>  // transposeNC()
 
 #include <algorithm>
-#include <cctype>
 #include <cmath>
 #include <cstdint>
 #include <cstring>

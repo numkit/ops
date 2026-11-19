@@ -8,12 +8,12 @@
 #include <keel/ref.h>
 #include <keel/string.h>
 #include <keel/complex.h>
+#include <keel/utf8.h>
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
 #include <numkit/ops/reductions.hpp>  // engine-free numkit::builtin::detail dim-infra (ops re-export)
 
 #include <algorithm>
-#include <cctype>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -223,7 +223,7 @@ inline bool readSortMode(const Value &m, SortMode &out)
     if (m.isEmpty()) return true;
     if (!m.isChar() && !m.isString()) return false;
     auto s = m.toString();
-    for (auto &c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    for (auto &c : s) c = keel::to_ascii_lower(c);
     if (s == "ascend")        { out = SortMode::Ascend;        return true; }
     if (s == "descend")       { out = SortMode::Descend;       return true; }
     if (s == "monotonic")     { out = SortMode::Monotonic;     return true; }
@@ -273,7 +273,7 @@ inline keel::String readTypeName(const Value &t, const char *def)
     if (!t.isChar() && !t.isString())
         throw std::runtime_error("numeric-limit: type argument must be a string");
     keel::String s = t.toString();
-    for (auto &c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    for (auto &c : s) c = keel::to_ascii_lower(c);
     return s;
 }
 
