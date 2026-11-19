@@ -4,6 +4,7 @@
 // factories, never Engine/CallContext. Keeping it off <nk/core/engine.hpp>
 // is what lets toolbox compute files include it without dragging in the engine.
 #include <keel/core.h>
+#include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
 #include <keel/array.h>
@@ -210,8 +211,11 @@ inline Value emptyResultForBinary(const Value &a, const Value &b,
 {
     const bool aShaper = !a.isScalar();
     const bool bShaper = !b.isScalar();
-    if (aShaper && bShaper && a.dims() != b.dims())
-        throw std::runtime_error("Matrix dimensions must agree. a=[" + std::to_string(a.dims().rows()) + "x" + std::to_string(a.dims().cols()) + "], b=[" + std::to_string(b.dims().rows()) + "x" + std::to_string(b.dims().cols()) + "] (line 211)");
+    if (aShaper && bShaper && a.dims() != b.dims()) {
+        auto msg = keel::format("Matrix dimensions must agree. a=[{}x{}], b=[{}x{}] (line 211)",
+                                a.dims().rows(), a.dims().cols(), b.dims().rows(), b.dims().cols());
+        throw std::runtime_error(msg.c_str());
+    }
     const Value &shape = aShaper ? a : (bShaper ? b : a);
     return createLike(shape, outType, mr);
 }
@@ -346,8 +350,11 @@ Value elementwiseDouble(const Value &a, const Value &b, Op op, keel::Allocator *
     keel::usize ar = a.dims().rows(), ac = a.dims().cols();
     keel::usize br = b.dims().rows(), bc = b.dims().cols();
     keel::usize outR, outC;
-    if (!broadcastDims(ar, ac, br, bc, outR, outC))
-        throw std::runtime_error("Matrix dimensions must agree. a=[" + std::to_string(ar) + "x" + std::to_string(ac) + "], b=[" + std::to_string(br) + "x" + std::to_string(bc) + "] (line 332)");
+    if (!broadcastDims(ar, ac, br, bc, outR, outC)) {
+        auto msg = keel::format("Matrix dimensions must agree. a=[{}x{}], b=[{}x{}] (line 332)",
+                                ar, ac, br, bc);
+        throw std::runtime_error(msg.c_str());
+    }
 
     // Fast path: same dimensions, no broadcasting needed
     if (ar == br && ac == bc) {
@@ -474,8 +481,11 @@ Value elementwiseComplexImpl(const Value &a, const Value &b, Op op, keel::Alloca
     keel::usize ar = ca.dims().rows(), ac = ca.dims().cols();
     keel::usize br = cb.dims().rows(), bc = cb.dims().cols();
     keel::usize outR, outC;
-    if (!broadcastDims(ar, ac, br, bc, outR, outC))
-        throw std::runtime_error("Matrix dimensions must agree. a=[" + std::to_string(ar) + "x" + std::to_string(ac) + "], b=[" + std::to_string(br) + "x" + std::to_string(bc) + "] (line 454)");
+    if (!broadcastDims(ar, ac, br, bc, outR, outC)) {
+        auto msg = keel::format("Matrix dimensions must agree. a=[{}x{}], b=[{}x{}] (line 454)",
+                                ar, ac, br, bc);
+        throw std::runtime_error(msg.c_str());
+    }
 
     if (ar == br && ac == bc) {
         auto r = Value::complexMatrix(outR, outC, mr);
@@ -942,8 +952,11 @@ Value elementwiseTyped(const Value &a, const Value &b, ValueType targetType, Op 
     keel::usize ar = a.dims().rows(), ac = a.dims().cols();
     keel::usize br = b.dims().rows(), bc = b.dims().cols();
     keel::usize outR, outC;
-    if (!broadcastDims(ar, ac, br, bc, outR, outC))
-        throw std::runtime_error("Matrix dimensions must agree. a=[" + std::to_string(ar) + "x" + std::to_string(ac) + "], b=[" + std::to_string(br) + "x" + std::to_string(bc) + "] (line 913)");
+    if (!broadcastDims(ar, ac, br, bc, outR, outC)) {
+        auto msg = keel::format("Matrix dimensions must agree. a=[{}x{}], b=[{}x{}] (line 913)",
+                                ar, ac, br, bc);
+        throw std::runtime_error(msg.c_str());
+    }
 
     auto r = Value::matrix(outR, outC, targetType, mr);
     T *dst = static_cast<T *>(r.rawDataMut());
