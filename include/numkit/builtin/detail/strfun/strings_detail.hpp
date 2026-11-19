@@ -475,7 +475,7 @@ Value applyCharPred(const Value &s, PredFn pred, keel::Allocator *mr)
                      : Value::matrix(d.rows(), d.cols(),
                                      ValueType::LOGICAL, mr));
         for (keel::usize i = 0; i < n && i < r.numel(); ++i)
-            r.logicalDataMut()[i] = pred(static_cast<unsigned char>(str[i])) ? 1 : 0;
+            r.logicalDataMut()[i] = pred(str[i]) ? 1 : 0;
         return r;
     }
     if (s.isString()) {
@@ -485,7 +485,7 @@ Value applyCharPred(const Value &s, PredFn pred, keel::Allocator *mr)
             const auto str = s.toString();
             auto r = Value::matrix(1, str.size(), ValueType::LOGICAL, mr);
             for (keel::usize i = 0; i < str.size(); ++i)
-                r.logicalDataMut()[i] = pred(static_cast<unsigned char>(str[i])) ? 1 : 0;
+                r.logicalDataMut()[i] = pred(str[i]) ? 1 : 0;
             return r;
         }
         throw Error("char-predicate: string-array form not supported",
