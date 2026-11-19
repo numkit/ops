@@ -341,18 +341,17 @@ Value int2str(const Value &x, keel::Allocator *mr)
 Value validatestring(const Value &str, const Value &valid,
                      keel::Allocator *mr)
 {
-    const keel::String s = str.toString();
-    const keel::StringRef sRef = s.as_ref();
+    const keel::StringRef sRef = str.asStringRef();
 
     // Candidates (original case) from a cell array, string array, or a lone
     // char vector.
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<keel::String> cands(scratch.allocator());
+    keel::Array<keel::StringRef> cands(scratch.allocator());
     if (valid.isCell() || valid.isString()) {
         const auto &vec = valid.cellDataVec();
-        for (const auto &e : vec) cands.push_back(e.toString());
+        for (const auto &e : vec) cands.push_back(e.asStringRef());
     } else if (valid.isChar()) {
-        cands.push_back(valid.toString());
+        cands.push_back(valid.asStringRef());
     } else {
         throw Error("validatestring: second argument must be a cell array of "
                     "char vectors or a string array",
@@ -361,38 +360,37 @@ Value validatestring(const Value &str, const Value &valid,
 
     // 1) Exact (case-insensitive) match wins.
     for (const auto &c : cands)
-        if (c.as_ref().equals_ignore_ascii_case(sRef))
+        if (c.equals_ignore_ascii_case(sRef))
             return Value::fromString(c, mr);
 
     // 2) Case-insensitive leading-substring (prefix) matches.
-    keel::Array<const keel::String *> pre(scratch.allocator());
+    keel::Array<keel::StringRef> pre(scratch.allocator());
     for (const auto &c : cands) {
         if (c.size() >= sRef.size() &&
-            c.as_ref().substr(0, sRef.size()).equals_ignore_ascii_case(sRef))
-            pre.push_back(&c);
+            c.substr(0, sRef.size()).equals_ignore_ascii_case(sRef))
+            pre.push_back(c);
     }
     if (pre.empty())
         throw Error(keel::format("validatestring: '{}' did not match any valid string", sRef),
                      0, 0, "validatestring", "", "numkit:validatestring:unrecognized");
     if (pre.size() == 1)
-        return Value::fromString(*pre[0], mr);
+        return Value::fromString(pre[0], mr);
 
     // 3) Multiple prefix matches: unambiguous only if the shortest is itself a
     //    leading substring of every other match (then return the shortest).
-    const keel::String *shortest = pre[0];
-    for (auto *p : pre)
-        if (p->size() < shortest->size()) shortest = p;
-    const keel::StringRef shRef = shortest->as_ref();
+    keel::StringRef shortest = pre[0];
+    for (const auto p : pre)
+        if (p.size() < shortest.size()) shortest = p;
     bool prefixOfAll = true;
-    for (auto *p : pre) {
-        if (!(p->size() >= shRef.size() &&
-              p->as_ref().substr(0, shRef.size()).equals_ignore_ascii_case(shRef))) {
+    for (const auto p : pre) {
+        if (!(p.size() >= shortest.size() &&
+              p.substr(0, shortest.size()).equals_ignore_ascii_case(shortest))) {
             prefixOfAll = false;
             break;
         }
     }
     if (prefixOfAll)
-        return Value::fromString(*shortest, mr);
+        return Value::fromString(shortest, mr);
     throw Error(keel::format("validatestring: '{}' matches multiple valid strings", sRef),
                  0, 0, "validatestring", "", "numkit:validatestring:ambiguous");
 }
@@ -509,10 +507,10 @@ Value str2double(const Value &s, keel::Allocator *mr)
             if (s.isCell()) {
                 const Value &el = s.cellAt(i);
                 res[i] = (el.isChar() || el.isString())
-                             ? str2doubleParse(el.toString())
+                             ? str2doubleParse(el.asStringRef())
                              : Str2DoubleResult{nan, 0.0, false};
             } else {
-                res[i] = str2doubleParse(s.stringElem(i));
+                res[i] = str2doubleParse(s.stringElemRef(i));
             }
             anyComplex = anyComplex || res[i].isComplex;
         }
@@ -529,7 +527,7 @@ Value str2double(const Value &s, keel::Allocator *mr)
     }
 
     // Scalar char array / string scalar → scalar double (or complex scalar).
-    const Str2DoubleResult res = str2doubleParse(s.toString());
+    const Str2DoubleResult res = str2doubleParse(s.asStringRef());
     if (res.isComplex) {
         Value out = Value::matrix(1, 1, ValueType::COMPLEX, mr);
         out.complexDataMut()[0] = keel::c64(res.re, res.im);
@@ -551,7 +549,7 @@ Value toString(const Value &x, keel::Allocator *mr)
     if (x.isString())
         return x;
     if (x.isChar())
-        return Value::stringScalar(x.toString(), p);
+        return Value::stringScalar(x.asStringRef(), p);
     if (x.isNumeric()) {
         if (x.isScalar()) {
             return Value::stringScalar(fmtNum(x.toScalar()), p);
@@ -572,7 +570,7 @@ Value toString(const Value &x, keel::Allocator *mr)
         for (keel::usize i = 0; i < n; ++i) {
             const Value &el = x.cellAt(i);
             if (el.isChar() || el.isString())
-                result.stringElemSet(i, el.toString());
+                result.stringElemSet(i, el.asStringRef());
             else if (el.isNumeric() && el.isScalar()) {
                 char buf[64];
                 std::snprintf(buf, sizeof(buf), "%.6g", el.toScalar());
@@ -599,13 +597,13 @@ Value toChar(const Value &x, keel::Allocator *mr)
         if (n == 0)
             return Value::matrix(0, 0, ValueType::CHAR, p);
         keel::ArenaTemp scratch = keel::get_scratch(p);
-        keel::Array<keel::String> rows(n, scratch.allocator());
+        keel::Array<keel::StringRef> rows(n, scratch.allocator());
         keel::usize maxCols = 0;
         for (keel::usize i = 0; i < n; ++i) {
             const Value &el = x.cellAt(i);
             if (!el.isChar() && !el.isString() && !el.isEmpty())
                 throw Error("Cannot convert to char", 0, 0, "char", "", "numkit:char:unsupportedType");
-            rows[i] = el.isEmpty() ? keel::String() : el.toString();
+            rows[i] = el.isEmpty() ? keel::StringRef{} : el.asStringRef();
             maxCols = std::max(maxCols, rows[i].size());
         }
         if (n == 1)
@@ -621,15 +619,15 @@ Value toChar(const Value &x, keel::Allocator *mr)
     if (x.isString()) {
         const keel::usize n = x.numel();
         if (n <= 1)
-            return Value::fromString(x.toString(), p);
+            return Value::fromString(x.asStringRef(), p);
         keel::usize maxCols = 0;
         for (keel::usize i = 0; i < n; ++i)
-            maxCols = std::max(maxCols, x.stringElem(i).size());
+            maxCols = std::max(maxCols, x.stringElemRef(i).size());
         Value out = Value::matrix(n, maxCols, ValueType::CHAR, p);
         char *dst = out.charDataMut();
         std::memset(dst, ' ', n * maxCols);
         for (keel::usize r = 0; r < n; ++r) {
-            const auto s = x.stringElem(r);
+            const keel::StringRef s = x.stringElemRef(r);
             for (keel::usize c = 0; c < s.size(); ++c)
                 dst[c * n + r] = s[c];
         }
@@ -699,8 +697,7 @@ static Value mapStringCell(const Value &s, Op op, keel::Allocator *mr)
     auto out = Value::cell(r, c, mr);
     const keel::usize n = s.numel();
     for (keel::usize i = 0; i < n; ++i) {
-        const keel::String elem = s.cellAt(i).toString();
-        out.cellAt(i) = Value::fromString(op(elem.as_ref()), mr);
+        out.cellAt(i) = Value::fromString(op(s.cellAt(i).asStringRef()), mr);
     }
     return out;
 }
@@ -722,11 +719,10 @@ static Value mapStringPreserveClass(const Value &s, Op op, keel::Allocator *mr)
         Value out = Value::stringArray(r, c, mr);
         const keel::usize n = s.numel();
         for (keel::usize i = 0; i < n; ++i)
-            out.stringElemSet(i, op(keel::StringRef(s.stringElem(i))));
+            out.stringElemSet(i, op(s.stringElemRef(i)));
         return out;
     }
-    const keel::String str = s.toString();
-    return Value::fromString(op(str.as_ref()), mr);
+    return Value::fromString(op(s.asStringRef()), mr);
 }
 
 Value upper(const Value &s, keel::Allocator *mr)
@@ -796,7 +792,7 @@ Value strsplit(const Value &s, keel::Allocator *mr)
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     keel::Array<keel::String> delims(scratch.allocator());
     appendDefaultWhitespace(delims);
-    return strsplitImpl(s.toString(), delims, /*collapse=*/true, mr);
+    return strsplitImpl(s.asStringRef(), delims, /*collapse=*/true, mr);
 }
 
 Value strsplit(const Value &s, keel::StringRef delim, keel::Allocator *mr)
@@ -804,7 +800,7 @@ Value strsplit(const Value &s, keel::StringRef delim, keel::Allocator *mr)
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     keel::Array<keel::String> delims(scratch.allocator());
     delims.push_back(keel::String::from(delim));
-    return strsplitImpl(s.toString(), delims, /*collapse=*/true, mr);
+    return strsplitImpl(s.asStringRef(), delims, /*collapse=*/true, mr);
 }
 
 Value strsplit(const Value &s, const Value &delim, keel::Allocator *mr)
@@ -812,7 +808,7 @@ Value strsplit(const Value &s, const Value &delim, keel::Allocator *mr)
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     keel::Array<keel::String> delims(scratch.allocator());
     appendDelims(delim, delims);
-    return strsplitImpl(s.toString(), delims, /*collapse=*/true, mr);
+    return strsplitImpl(s.asStringRef(), delims, /*collapse=*/true, mr);
 }
 
 Value strcat(keel::ArrayRef<Value> parts, keel::Allocator *mr)
@@ -841,18 +837,15 @@ Value strcat(keel::ArrayRef<Value> parts, keel::Allocator *mr)
             for (const auto &p : parts) {
                 if (p.isCell()) {
                     if (p.numel() == 1) {
-                        const keel::String tmp = p.cellAt(0).toString();
-                        s.append(tmp.as_ref());
+                        s.append(p.cellAt(0).asStringRef());
                     } else if (i < p.numel()) {
-                        const keel::String tmp = p.cellAt(i).toString();
-                        s.append(tmp.as_ref());
+                        s.append(p.cellAt(i).asStringRef());
                     }
                 } else if (p.isString() && p.numel() != 1) {
                     if (i < p.numel())
-                        s.append(keel::StringRef(p.stringElem(i)));
+                        s.append(p.stringElemRef(i));
                 } else {
-                    const keel::String tmp = p.toString();
-                    s.append(tmp.as_ref());
+                    s.append(p.asStringRef());
                 }
             }
             out.cellAt(i) = Value::fromString(s, mr);
@@ -867,10 +860,9 @@ Value strcat(keel::ArrayRef<Value> parts, keel::Allocator *mr)
             for (const auto &p : parts) {
                 if (p.isString() && p.numel() != 1) {
                     if (i < p.numel())
-                        s.append(keel::StringRef(p.stringElem(i)));
+                        s.append(p.stringElemRef(i));
                 } else {
-                    const keel::String tmp = p.toString();
-                    s.append(tmp.as_ref());
+                    s.append(p.asStringRef());
                 }
             }
             out.stringElemSet(i, s);
@@ -879,8 +871,7 @@ Value strcat(keel::ArrayRef<Value> parts, keel::Allocator *mr)
     }
     keel::String result;
     for (const auto &p : parts) {
-        const keel::String tmp = p.toString();
-        result.append(tmp.as_ref());
+        result.append(p.asStringRef());
     }
     return Value::fromString(result, mr);
 }
@@ -892,10 +883,10 @@ Value strlength(const Value &s, keel::Allocator *mr)
     keel::Allocator *p = mr;
     if (s.isString()) {
         if (s.isScalar())
-            return Value::scalar(static_cast<double>(s.toString().size()), p);
+            return Value::scalar(static_cast<double>(s.asStringRef().size()), p);
         auto result = createLike(s, ValueType::DOUBLE, p);
         for (keel::usize i = 0; i < s.numel(); ++i)
-            result.doubleDataMut()[i] = static_cast<double>(s.stringElem(i).size());
+            result.doubleDataMut()[i] = static_cast<double>(s.stringElemRef(i).size());
         return result;
     }
     if (s.isChar())
@@ -909,7 +900,7 @@ Value strlength(const Value &s, keel::Allocator *mr)
 
 Value strfind(const Value &s, const Value &pat, keel::Allocator *mr)
 {
-    const auto pp = pat.toString();
+    const keel::StringRef pp = pat.asStringRef();
     // A cell / non-scalar string array source -> same-shape CELL of index
     // vectors (MATLAB); a scalar char / string -> a 1×k DOUBLE row vector.
     if (s.isCell() || (s.isString() && !s.isScalar())) {
@@ -919,16 +910,14 @@ Value strfind(const Value &s, const Value &pat, keel::Allocator *mr)
         const keel::usize n = s.numel();
         for (keel::usize i = 0; i < n; ++i) {
             if (s.isCell()) {
-                const keel::String el = s.cellAt(i).toString();
-                out.cellAt(i) = strfindOne(el.as_ref(), pp.as_ref(), mr);
+                out.cellAt(i) = strfindOne(s.cellAt(i).asStringRef(), pp, mr);
             } else {
-                out.cellAt(i) = strfindOne(s.stringElem(i), pp.as_ref(), mr);
+                out.cellAt(i) = strfindOne(s.stringElemRef(i), pp, mr);
             }
         }
         return out;
     }
-    const keel::String ss = s.toString();
-    return strfindOne(ss.as_ref(), pp.as_ref(), mr);
+    return strfindOne(s.asStringRef(), pp, mr);
 }
 
 Value mat2str(const Value &x, int precision, keel::Allocator *mr)
@@ -1082,19 +1071,16 @@ Value strjoin(const Value &c, const Value &delim, keel::Allocator *mr)
                          0, 0, "strjoin", "", "numkit:strjoin:badDelimCount");
         for (keel::usize i = 0; i < n; ++i) {
             if (i > 0) {
-                const keel::String ds = delim.cellAt(i - 1).toString();
-                out.append(ds.as_ref());
+                out.append(delim.cellAt(i - 1).asStringRef());
             }
-            const keel::String cs = c.cellAt(i).toString();
-            out.append(cs.as_ref());
+            out.append(c.cellAt(i).asStringRef());
         }
     } else {
-        const keel::String sep =
-            delim.isEmpty() ? keel::String::from(" ") : delim.toString();
+        const keel::StringRef sep =
+            delim.isEmpty() ? keel::StringRef(" ") : delim.asStringRef();
         for (keel::usize i = 0; i < n; ++i) {
-            if (i > 0) out.append(sep.as_ref());
-            const keel::String cs = c.cellAt(i).toString();
-            out.append(cs.as_ref());
+            if (i > 0) out.append(sep);
+            out.append(c.cellAt(i).asStringRef());
         }
     }
     return Value::fromString(out, mr);
@@ -1114,8 +1100,7 @@ Value append(keel::ArrayRef<Value> parts, keel::Allocator *mr)
     // variant that script users reach for).
     keel::String out;
     for (const auto &p : parts) {
-        const keel::String ps = p.toString();
-        out.append(ps.as_ref());
+        out.append(p.asStringRef());
     }
     return Value::fromString(out, mr);
 }
@@ -1151,8 +1136,7 @@ Value count(const Value &s, const Value &pat, keel::Allocator *mr)
         double *od = out.doubleDataMut();
         const keel::usize nn = s.numel();
         for (keel::usize i = 0; i < nn; ++i) {
-            const keel::String cs = s.cellAt(i).toString();
-            od[i] = countOne(cs.as_ref());
+            od[i] = countOne(s.cellAt(i).asStringRef());
         }
         return out;
     }
@@ -1163,11 +1147,10 @@ Value count(const Value &s, const Value &pat, keel::Allocator *mr)
         auto out = Value::matrix(r, c, ValueType::DOUBLE, mr);
         double *od = out.doubleDataMut();
         const keel::usize nn = s.numel();
-        for (keel::usize i = 0; i < nn; ++i) od[i] = countOne(s.stringElem(i));
+        for (keel::usize i = 0; i < nn; ++i) od[i] = countOne(s.stringElemRef(i));
         return out;
     }
-    const keel::String ss = s.toString();
-    return Value::scalar(countOne(ss.as_ref()), mr);
+    return Value::scalar(countOne(s.asStringRef()), mr);
 }
 
 Value erase(const Value &s, const Value &pat, keel::Allocator *mr)
@@ -1211,8 +1194,7 @@ Value replace(const Value &s, const Value &oldPat, const Value &newPat, keel::Al
     // corresponding new text, then the scan advances past the matched source
     // (no re-scanning, no chain-replacement). A single NEW applies to every
     // OLD; otherwise NEW must pair 1:1 with OLD.
-    const keel::String ssStr = s.toString();
-    const keel::StringRef ss = ssStr.as_ref();
+    const keel::StringRef ss = s.asStringRef();
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     keel::Array<keel::String> olds(scratch.allocator()), news(scratch.allocator());
     collectMatchPatterns(oldPat, olds);
@@ -1258,8 +1240,7 @@ Value reverse(const Value &s, keel::Allocator *mr)
 
 Value splitlines(const Value &s, keel::Allocator *mr)
 {
-    const keel::String ssStr = s.toString();
-    const keel::StringRef ss = ssStr.as_ref();
+    const keel::StringRef ss = s.asStringRef();
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     auto *salloc = scratch.allocator();
     keel::Array<keel::String> parts(salloc);
@@ -1320,7 +1301,7 @@ Value pad(const Value &s, keel::usize n, const Value &side, const Value &padChar
                      0, 0, "pad", "", "numkit:pad:badSide");
     char ch = ' ';
     if (!padChar.isEmpty() && (padChar.isChar() || padChar.isString())) {
-        const auto p = padChar.toString();
+        const keel::StringRef p = padChar.asStringRef();
         if (!p.empty()) ch = p[0];
     }
     // string array -> string array same shape; char -> char; cell -> cell
@@ -1333,13 +1314,12 @@ Value strip(const Value &s, const Value &side, const Value &ch, keel::Allocator 
 {
     const keel::String sd = readSide(side, "both");
     const keel::StringRef sdRef = sd.as_ref();
-    keel::String charsToStrip = keel::String::from(" \t\r\n\f\v");
+    keel::StringRef csRef(" \t\r\n\f\v");
     bool noStrip = false;  // explicit empty strip-set => no-op
     if (!ch.isEmpty() && (ch.isChar() || ch.isString())) {
-        charsToStrip = ch.toString();
-        if (charsToStrip.empty()) noStrip = true;
+        csRef = ch.asStringRef();
+        if (csRef.empty()) noStrip = true;
     }
-    const keel::StringRef csRef = charsToStrip.as_ref();
     auto stripOne = [&](keel::StringRef r) -> keel::String {
         if (noStrip) return keel::String::from(r);
         keel::usize beg = 0;
@@ -1376,16 +1356,14 @@ Value matches(const Value &s, const Value &pat, keel::Allocator *mr)
         const keel::usize nn = s.numel();
         for (keel::usize i = 0; i < nn; ++i) {
             if (s.isCell()) {
-                const keel::String el = s.cellAt(i).toString();
-                od[i] = matchOne(el.as_ref()) ? 1 : 0;
+                od[i] = matchOne(s.cellAt(i).asStringRef()) ? 1 : 0;
             } else {
-                od[i] = matchOne(s.stringElem(i)) ? 1 : 0;
+                od[i] = matchOne(s.stringElemRef(i)) ? 1 : 0;
             }
         }
         return out;
     }
-    const keel::String ss = s.toString();
-    return Value::logicalScalar(matchOne(ss.as_ref()), mr);
+    return Value::logicalScalar(matchOne(s.asStringRef()), mr);
 }
 
 // ── Pack 21 ──────────────────────────────────────────────────────────
@@ -1393,7 +1371,7 @@ Value matches(const Value &s, const Value &pat, keel::Allocator *mr)
 Value convertCharsToStrings(const Value &x, keel::Allocator *mr)
 {
     if (x.isString()) return x;
-    if (x.isChar())   return Value::stringScalar(x.toString(), mr);
+    if (x.isChar())   return Value::stringScalar(x.asStringRef(), mr);
     if (x.isCell()) {
         const auto &d = x.dims();
         auto c = d.is3D()
@@ -1402,7 +1380,7 @@ Value convertCharsToStrings(const Value &x, keel::Allocator *mr)
         for (keel::usize i = 0; i < x.numel(); ++i) {
             const auto &e = x.cellAt(i);
             if (e.isChar())
-                c.cellAt(i) = Value::stringScalar(e.toString(), mr);
+                c.cellAt(i) = Value::stringScalar(e.asStringRef(), mr);
             else
                 c.cellAt(i) = e;
         }
@@ -1417,7 +1395,7 @@ Value convertStringsToChars(const Value &x, keel::Allocator *mr)
     if (x.isChar()) return x;
     if (x.isString()) {
         if (x.numel() <= 1) {
-            return Value::fromString(x.toString(), mr);
+            return Value::fromString(x.asStringRef(), mr);
         }
         // Multi-element string → cell of char rows.
         const auto &d = x.dims();
@@ -1425,7 +1403,7 @@ Value convertStringsToChars(const Value &x, keel::Allocator *mr)
                     ? Value::cell3D(d.rows(), d.cols(), d.pages(), mr)
                     : Value::cell(d.rows(), d.cols(), mr);
         for (keel::usize i = 0; i < x.numel(); ++i)
-            c.cellAt(i) = Value::fromString(x.stringElem(i), mr);
+            c.cellAt(i) = Value::fromString(x.stringElemRef(i), mr);
         return c;
     }
     if (x.isCell()) {
@@ -1436,7 +1414,7 @@ Value convertStringsToChars(const Value &x, keel::Allocator *mr)
         for (keel::usize i = 0; i < x.numel(); ++i) {
             const auto &e = x.cellAt(i);
             if (e.isString())
-                c.cellAt(i) = Value::fromString(e.toString(), mr);
+                c.cellAt(i) = Value::fromString(e.asStringRef(), mr);
             else
                 c.cellAt(i) = e;
         }
@@ -1456,8 +1434,7 @@ Value isstrprop(const Value &s, const Value &category, keel::Allocator *mr)
     if (!category.isChar() && !category.isString())
         throw Error("isstrprop: category must be a string",
                      0, 0, "isstrprop", "", "numkit:isstrprop:cat");
-    const keel::String catStr = category.toString();
-    const keel::StringRef cat = catStr.as_ref();
+    const keel::StringRef cat = category.asStringRef();
     if (cat.equals_ignore_ascii_case("alpha"))
         return applyCharPred(s, keel::is_ascii_alpha, mr);
     if (cat.equals_ignore_ascii_case("digit"))
@@ -1480,7 +1457,7 @@ Value isstrprop(const Value &s, const Value &category, keel::Allocator *mr)
         return applyCharPred(s, keel::is_ascii_graph, mr);
     if (cat.equals_ignore_ascii_case("print"))
         return applyCharPred(s, keel::is_ascii_print, mr);
-    keel::String catLow = catStr.clone();
+    keel::String catLow = keel::String::from(cat);
     asciiLowerInPlace(catLow);
     throw Error(keel::format("isstrprop: unknown category '{}'", catLow.as_ref()),
                  0, 0, "isstrprop", "", "numkit:isstrprop:badCat");
@@ -1532,8 +1509,7 @@ Value extractBefore(const Value &s, const Value &p, keel::Allocator *mr)
 
 Value extractBetween(const Value &s, const Value &start, const Value &end, bool inclusive, keel::Allocator *mr)
 {
-    const keel::String ssStr = s.toString();
-    const keel::StringRef ss = ssStr.as_ref();
+    const keel::StringRef ss = s.asStringRef();
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     const auto matches = findAllBetweenPairs(ss, start, end, scratch.allocator());
     // MATLAB returns an M-by-1 cell of inner strings — even for a
@@ -1559,14 +1535,14 @@ Value insertAfter(const Value &s, const Value &p, const Value &newText, keel::Al
     // A cell str is processed element-wise (cell of char vectors); the anchor
     // p and inserted text are scalar and apply to every element. An element
     // with no match is left unchanged.
-    const keel::String nt = newText.toString();
+    const keel::StringRef nt = newText.asStringRef();
     auto op = [&](keel::StringRef ss) -> keel::String {
         const auto r = resolvePos(ss, p);
         if (!r.found) return keel::String::from(ss);
         keel::String out;
         out.reserve(ss.size() + nt.size());
         out.append(ss.substr(0, r.end));
-        out.append(nt.as_ref());
+        out.append(nt);
         out.append(ss.substr(r.end, ss.size() - r.end));
         return out;
     };
@@ -1575,14 +1551,14 @@ Value insertAfter(const Value &s, const Value &p, const Value &newText, keel::Al
 
 Value insertBefore(const Value &s, const Value &p, const Value &newText, keel::Allocator *mr)
 {
-    const keel::String nt = newText.toString();
+    const keel::StringRef nt = newText.asStringRef();
     auto op = [&](keel::StringRef ss) -> keel::String {
         const auto r = resolvePos(ss, p);
         if (!r.found) return keel::String::from(ss);
         keel::String out;
         out.reserve(ss.size() + nt.size());
         out.append(ss.substr(0, r.begin));
-        out.append(nt.as_ref());
+        out.append(nt);
         out.append(ss.substr(r.begin, ss.size() - r.begin));
         return out;
     };
@@ -1591,8 +1567,7 @@ Value insertBefore(const Value &s, const Value &p, const Value &newText, keel::A
 
 Value eraseBetween(const Value &s, const Value &start, const Value &end, bool inclusive, keel::Allocator *mr)
 {
-    const keel::String ssStr = s.toString();
-    const keel::StringRef ss = ssStr.as_ref();
+    const keel::StringRef ss = s.asStringRef();
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     const auto matches = findAllBetweenPairs(ss, start, end, scratch.allocator());
     if (matches.empty()) return s;
@@ -1618,9 +1593,8 @@ Value eraseBetween(const Value &s, const Value &start, const Value &end, keel::A
 
 Value replaceBetween(const Value &s, const Value &start, const Value &end, const Value &newText, bool inclusive, keel::Allocator *mr)
 {
-    const keel::String ssStr = s.toString();
-    const keel::StringRef ss = ssStr.as_ref();
-    const keel::String nt = newText.toString();
+    const keel::StringRef ss = s.asStringRef();
+    const keel::StringRef nt = newText.asStringRef();
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     const auto matches = findAllBetweenPairs(ss, start, end, scratch.allocator());
     if (matches.empty()) return s;
@@ -1631,7 +1605,7 @@ Value replaceBetween(const Value &s, const Value &start, const Value &end, const
         const keel::usize keepUntil = inclusive ? m.openBegin : m.openEnd;
         const keel::usize resumeAt  = inclusive ? m.closeEnd  : m.closeBegin;
         out.append(ss.substr(cursor, keepUntil - cursor));
-        out.append(nt.as_ref());
+        out.append(nt);
         cursor = resumeAt;
     }
     out.append(ss.substr(cursor, ss.size() - cursor));
@@ -1682,16 +1656,14 @@ Value base2decFixed(const Value &s, int base, keel::Allocator *mr)
         double *od = out.doubleDataMut();
         for (keel::usize i = 0; i < n; ++i) {
             if (s.isCell()) {
-                const keel::String str = s.cellAt(i).toString();
-                od[i] = static_cast<double>(parseBase(str.as_ref(), base));
+                od[i] = static_cast<double>(parseBase(s.cellAt(i).asStringRef(), base));
             } else {
-                od[i] = static_cast<double>(parseBase(s.stringElem(i), base));
+                od[i] = static_cast<double>(parseBase(s.stringElemRef(i), base));
             }
         }
         return out;
     }
-    const keel::String str = s.toString();
-    return Value::scalar(static_cast<double>(parseBase(str.as_ref(), base)), mr);
+    return Value::scalar(static_cast<double>(parseBase(s.asStringRef(), base)), mr);
 }
 } // namespace
 
@@ -1733,17 +1705,15 @@ Value hex2num(const Value &s, keel::Allocator *mr)
         double *od = out.doubleDataMut();
         for (keel::usize i = 0; i < n; ++i) {
             if (s.isCell()) {
-                const keel::String str = s.cellAt(i).toString();
-                od[i] = hexBitsToDouble(str.as_ref());
+                od[i] = hexBitsToDouble(s.cellAt(i).asStringRef());
             } else {
-                od[i] = hexBitsToDouble(s.stringElem(i));
+                od[i] = hexBitsToDouble(s.stringElemRef(i));
             }
         }
         return out;
     }
     // Scalar char row / string scalar -> scalar double.
-    const keel::String str = s.toString();
-    return Value::scalar(hexBitsToDouble(str.as_ref()), mr);
+    return Value::scalar(hexBitsToDouble(s.asStringRef()), mr);
 }
 
 Value num2hex(const Value &x, keel::Allocator *mr)
@@ -1813,8 +1783,7 @@ Value base2dec(const Value &s, int base, keel::Allocator *mr)
         }
         return out;
     }
-    const keel::String str = s.toString();
-    return Value::scalar(static_cast<double>(parseBaseN(str.as_ref(), base)), mr);
+    return Value::scalar(static_cast<double>(parseBaseN(s.asStringRef(), base)), mr);
 }
 
 
@@ -1927,10 +1896,7 @@ Value strrep(const Value &s, const Value &oldPat, const Value &newPat, keel::All
     // Scalar path: no cell arguments — return a char (or string) scalar,
     // preserving the original behaviour exactly.
     if (!sc && !oc && !nc) {
-        const keel::String ss = s.toString();
-        const keel::String os = oldPat.toString();
-        const keel::String ns = newPat.toString();
-        const keel::String r = strrepOne(ss.as_ref(), os.as_ref(), ns.as_ref());
+        const keel::String r = strrepOne(s.asStringRef(), oldPat.asStringRef(), newPat.asStringRef());
         if (s.isString())
             return Value::stringScalar(r, p);
         return Value::fromString(r, p);
@@ -1967,16 +1933,15 @@ Value strrep(const Value &s, const Value &oldPat, const Value &newPat, keel::All
     else if (oc)                       setShape(oldPat);
     else                               setShape(newPat);
 
-    const keel::String ss0 = sc ? keel::String() : s.toString();
-    const keel::String os0 = oc ? keel::String() : oldPat.toString();
-    const keel::String ns0 = nc ? keel::String() : newPat.toString();
+    const keel::StringRef ss0 = sc ? keel::StringRef{} : s.asStringRef();
+    const keel::StringRef os0 = oc ? keel::StringRef{} : oldPat.asStringRef();
+    const keel::StringRef ns0 = nc ? keel::StringRef{} : newPat.asStringRef();
 
     auto out = Value::cell(rr, cc, p);
     for (keel::usize i = 0; i < n; ++i) {
-        keel::String tmpS, tmpO, tmpN;
-        const keel::StringRef si = sc ? (tmpS = s.cellAt(ns == 1 ? 0 : i).toString()).as_ref() : ss0.as_ref();
-        const keel::StringRef oi = oc ? (tmpO = oldPat.cellAt(no == 1 ? 0 : i).toString()).as_ref() : os0.as_ref();
-        const keel::StringRef ni = nc ? (tmpN = newPat.cellAt(nn == 1 ? 0 : i).toString()).as_ref() : ns0.as_ref();
+        const keel::StringRef si = sc ? s.cellAt(ns == 1 ? 0 : i).asStringRef() : ss0;
+        const keel::StringRef oi = oc ? oldPat.cellAt(no == 1 ? 0 : i).asStringRef() : os0;
+        const keel::StringRef ni = nc ? newPat.cellAt(nn == 1 ? 0 : i).asStringRef() : ns0;
         out.cellAt(i) = Value::fromString(strrepOne(si, oi, ni), p);
     }
     return out;
@@ -2006,8 +1971,7 @@ Value compose(const Value &fmt, const Value &x, keel::Allocator *mr)
     if (!fmt.isChar() && !fmt.isString())
         throw Error("compose: format must be a char or string",
                      0, 0, "compose", "", "numkit:compose:badFmt");
-    const keel::String fmtStr = fmt.toString();
-    const keel::StringRef fmtRef = fmtStr.as_ref();
+    const keel::StringRef fmtRef = fmt.asStringRef();
     // MATLAB: the output class mirrors the FORMAT class — a string format
     // yields a string array, a char format yields a cell of char vectors.
     const bool wantString = fmt.isString();
@@ -2067,7 +2031,7 @@ Value strjust(const Value &M, keel::StringRef side, keel::Allocator *mr)
     const auto &dims = M.dims();
     const keel::usize rows = dims.rows();
     const keel::usize cols = dims.cols();
-    const auto src = M.toString();
+    const keel::StringRef src = M.asStringRef();
     if (rows == 0 || cols == 0) return M;
 
     Value res = Value::matrix(rows, cols, ValueType::CHAR, mr);
@@ -2103,12 +2067,12 @@ Value strjust(const Value &M, keel::StringRef side, keel::Allocator *mr)
 
 Value extract(const Value &s, const Value &pat, keel::Allocator *mr)
 {
-    const keel::String sStr = strInput(s);
-    const keel::String pStr = strInput(pat);
+    const keel::StringRef sRef = strInputRef(s);
+    const keel::StringRef pRef = strInputRef(pat);
 
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     keel::Array<keel::StringRef> hits(scratch.allocator());
-    findAllLiteral(sStr.as_ref(), pStr.as_ref(), hits);
+    findAllLiteral(sRef, pRef, hits);
 
     if (hits.empty()) return Value::cell(0, 0, mr);
     Value c = Value::cell(hits.size(), 1, mr);
@@ -2119,12 +2083,12 @@ Value extract(const Value &s, const Value &pat, keel::Allocator *mr)
 
 Value split(const Value &s, const Value &delim, keel::Allocator *mr)
 {
-    const keel::String sStr = strInput(s);
-    const keel::String dStr = strInput(delim);
+    const keel::StringRef sRef = strInputRef(s);
+    const keel::StringRef dRef = strInputRef(delim);
 
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     keel::Array<keel::StringRef> parts(scratch.allocator());
-    splitKeepEmpty(sStr.as_ref(), dStr.as_ref(), parts);
+    splitKeepEmpty(sRef, dRef, parts);
 
     // MATLAB: a STRING input yields a string-array result; a char or cellstr
     // input yields a cell array of character vectors. The values and shape
@@ -2144,17 +2108,15 @@ Value split(const Value &s, const Value &delim, keel::Allocator *mr)
 
 Value join(const Value &arr, const Value &delim, keel::Allocator *mr)
 {
-    const keel::String d = delim.isEmpty() ? keel::String::from(" ") : strInput(delim);
+    const keel::StringRef d = delim.isEmpty() ? keel::StringRef(" ") : strInputRef(delim);
 
     auto appendElem = [&](keel::String &dst, keel::usize i) {
         if (arr.isString()) {
-            dst.append(keel::StringRef(arr.stringElem(i)));
+            dst.append(arr.stringElemRef(i));
         } else if (arr.isCell()) {
-            const keel::String es = arr.cellAt(i).toString();
-            dst.append(es.as_ref());
+            dst.append(arr.cellAt(i).asStringRef());
         } else {
-            const keel::String es = arr.toString();
-            dst.append(es.as_ref());  // scalar char/string fallback
+            dst.append(arr.asStringRef());  // scalar char/string fallback
         }
     };
 
@@ -2173,7 +2135,7 @@ Value join(const Value &arr, const Value &delim, keel::Allocator *mr)
         keel::String out;
         const keel::usize n = arr.numel();
         for (keel::usize i = 0; i < n; ++i) {
-            if (i > 0) out.append(d.as_ref());
+            if (i > 0) out.append(d);
             appendElem(out, i);
         }
         return Value::stringScalar(out, mr);
@@ -2184,7 +2146,7 @@ Value join(const Value &arr, const Value &delim, keel::Allocator *mr)
     for (keel::usize row = 0; row < rows; ++row) {
         keel::String out;
         for (keel::usize col = 0; col < cols; ++col) {
-            if (col > 0) out.append(d.as_ref());
+            if (col > 0) out.append(d);
             appendElem(out, col * rows + row);
         }
         r.stringElemSet(row, out);
@@ -2225,8 +2187,7 @@ Value stringsND(keel::ArrayRef<keel::usize> dims, keel::Allocator *mr)
 std::pair<Value, Value> strtok(const Value &str, keel::StringRef delim,
                                keel::Allocator *mr)
 {
-    const keel::String sStr = str.toString();
-    const keel::StringRef s = sStr.as_ref();
+    const keel::StringRef s = str.asStringRef();
     auto isDelim = [&](char c) { return delim.find(c) != keel::kInvalidIndex; };
 
     // Skip leading delim chars.
@@ -2247,10 +2208,10 @@ Value convertContainedStringsToChars(const Value &v, keel::Allocator *mr)
 {
     if (v.isString()) {
         if (v.numel() <= 1)
-            return Value::fromString(v.toString(), mr);
+            return Value::fromString(v.asStringRef(), mr);
         auto c = Value::cell(v.numel(), 1, mr);
         for (keel::usize i = 0; i < v.numel(); ++i)
-            c.cellAt(i) = Value::fromString(v.stringElem(i), mr);
+            c.cellAt(i) = Value::fromString(v.stringElemRef(i), mr);
         return c;
     }
     if (v.isCell()) {

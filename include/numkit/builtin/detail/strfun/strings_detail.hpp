@@ -263,9 +263,7 @@ Value strCmpElementwise(const Value &a, const Value &b, Pred cmp,
     if (!ac && !bc) {
         if (!isText(a) || !isText(b))
             return Value::logicalScalar(false, mr);
-        const keel::String sa = a.toString();
-        const keel::String sb = b.toString();
-        return Value::logicalScalar(cmp(sa.as_ref(), sb.as_ref()), mr);
+        return Value::logicalScalar(cmp(a.asStringRef(), b.asStringRef()), mr);
     }
 
     const keel::usize na = ac ? a.numel() : 1;
@@ -291,8 +289,8 @@ Value strCmpElementwise(const Value &a, const Value &b, Pred cmp,
         std::memset(od, 0, n);
         return out;
     }
-    const keel::String scalA = ac ? keel::String() : a.toString();
-    const keel::String scalB = bc ? keel::String() : b.toString();
+    const keel::StringRef scalA = ac ? keel::StringRef{} : a.asStringRef();
+    const keel::StringRef scalB = bc ? keel::StringRef{} : b.asStringRef();
     for (keel::usize i = 0; i < n; ++i) {
         const keel::usize ia = (na == 1 ? 0 : i);
         const keel::usize ib = (nb == 1 ? 0 : i);
@@ -300,13 +298,12 @@ Value strCmpElementwise(const Value &a, const Value &b, Pred cmp,
             od[i] = 0;
             continue;
         }
-        keel::String tmpA, tmpB;
-        const keel::StringRef sa = !ac ? scalA.as_ref()
-            : (a.isCell() ? (tmpA = a.cellAt(ia).toString()).as_ref()
-                          : keel::StringRef(a.stringElem(ia)));
-        const keel::StringRef sb = !bc ? scalB.as_ref()
-            : (b.isCell() ? (tmpB = b.cellAt(ib).toString()).as_ref()
-                          : keel::StringRef(b.stringElem(ib)));
+        const keel::StringRef sa = !ac ? scalA
+            : (a.isCell() ? a.cellAt(ia).asStringRef()
+                          : a.stringElemRef(ia));
+        const keel::StringRef sb = !bc ? scalB
+            : (b.isCell() ? b.cellAt(ib).asStringRef()
+                          : b.stringElemRef(ib));
         od[i] = cmp(sa, sb) ? 1 : 0;
     }
     return out;
@@ -465,7 +462,7 @@ template <typename PredFn>
 Value applyCharPred(const Value &s, PredFn pred, keel::Allocator *mr)
 {
     if (s.isChar()) {
-        const auto str = s.toString();
+        const keel::StringRef str = s.asStringRef();
         const keel::usize n = str.size();
         // Mirror char's shape (1×N for typical char rows).
         const auto &d = s.dims();
@@ -482,7 +479,7 @@ Value applyCharPred(const Value &s, PredFn pred, keel::Allocator *mr)
         // For string array, MATLAB returns a cell array of logical
         // arrays (one per element). For now support scalar strings.
         if (s.numel() == 1) {
-            const auto str = s.toString();
+            const keel::StringRef str = s.asStringRef();
             auto r = Value::matrix(1, str.size(), ValueType::LOGICAL, mr);
             for (keel::usize i = 0; i < str.size(); ++i)
                 r.logicalDataMut()[i] = pred(str[i]) ? 1 : 0;
@@ -504,9 +501,9 @@ struct PosRange { keel::usize begin; keel::usize end; bool found; };
 PosRange resolvePos(keel::StringRef s, const Value &p)
 {
     if (p.isChar() || p.isString()) {
-        const auto pat = p.toString();
+        const keel::StringRef pat = p.asStringRef();
         if (pat.empty()) return {0, 0, false};
-        const keel::usize pos = s.find(pat.as_ref());
+        const keel::usize pos = s.find(pat);
         if (pos == keel::kInvalidIndex) return {0, 0, false};
         return {pos, pos + pat.size(), true};
     }
@@ -556,17 +553,17 @@ findAllBetweenPairs(keel::StringRef ss, const Value &start, const Value &end,
         return matches;
     }
 
-    const keel::String sp = start.toString();
-    const keel::String ep = end.toString();
+    const keel::StringRef sp = start.asStringRef();
+    const keel::StringRef ep = end.asStringRef();
     if (sp.empty() || ep.empty()) return matches;
 
     keel::usize cursor = 0;
     while (cursor < ss.size()) {
-        const keel::usize relS = ss.substr(cursor, ss.size() - cursor).find(sp.as_ref());
+        const keel::usize relS = ss.substr(cursor, ss.size() - cursor).find(sp);
         if (relS == keel::kInvalidIndex) break;
         const keel::usize sPos = cursor + relS;
         const keel::usize innerBeg = sPos + sp.size();
-        const keel::usize relE = ss.substr(innerBeg, ss.size() - innerBeg).find(ep.as_ref());
+        const keel::usize relE = ss.substr(innerBeg, ss.size() - innerBeg).find(ep);
         if (relE == keel::kInvalidIndex) break;
         const keel::usize ePos = innerBeg + relE;
         matches.push_back({sPos, innerBeg, ePos, ePos + ep.size()});
@@ -857,17 +854,15 @@ bool strMatchAny(keel::StringRef srcRef, keel::ArrayRef<keel::String> pats,
         keel::u8 *od = out.logicalDataMut();
         const keel::usize n = s.numel();
         for (keel::usize i = 0; i < n; ++i) {
-            keel::String tmp;
             const keel::StringRef el = s.isCell()
-                ? (tmp = s.cellAt(i).toString()).as_ref()
-                : keel::StringRef(s.stringElem(i));
+                ? s.cellAt(i).asStringRef()
+                : s.stringElemRef(i);
             od[i] = strMatchAny(el, pats, ignoreCase, pred) ? 1 : 0;
         }
         return out;
     }
-    const keel::String ss = s.toString();
     return Value::logicalScalar(
-        strMatchAny(ss.as_ref(), pats, ignoreCase, pred), mr);
+        strMatchAny(s.asStringRef(), pats, ignoreCase, pred), mr);
 }
 } // namespace
 namespace {
@@ -881,17 +876,23 @@ namespace {
     if (x.isLogical()) {
         return Value::logicalScalar(x.elemAsDouble(i) != 0, mr);
     }
-    if (x.isString())  return Value::stringScalar(x.stringElem(i), mr);
+    if (x.isString())  return Value::stringScalar(x.stringElemRef(i), mr);
     if (x.isCell())    return x.cellAt(i);  // cell-of-strings allowed
     return Value::scalar(0.0, mr);
+}
+
+// Get a char input string view from char or string-scalar.
+[[maybe_unused]] keel::StringRef strInputRef(const Value &v)
+{
+    if (v.isChar() || (v.isString() && v.isScalar())) return v.asStringRef();
+    if (v.isString()) return v.stringElemRef(0);  // first elem of array
+    return v.asStringRef();  // last-resort coercion
 }
 
 // Get a char input string from char or string-scalar.
 [[maybe_unused]] keel::String strInput(const Value &v)
 {
-    if (v.isChar() || (v.isString() && v.isScalar())) return v.toString();
-    if (v.isString()) return keel::String::from(v.stringElem(0));  // first elem of array
-    return v.toString();  // last-resort coercion
+    return keel::String::from(strInputRef(v));
 }
 
 // Find every non-overlapping occurrence of `needle` in `hay` and append

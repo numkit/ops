@@ -637,7 +637,7 @@ Value classOf(const Value &x, keel::Allocator *mr)
 {
     // OBJECT instances report their registered class name, not "object".
     if (x.isObject())
-        return Value::fromString(x.objectClassName(), mr);
+        return Value::fromString(x.objectClassNameRef(), mr);
     if (x.isSingleComplex())
         return Value::fromString("single", mr);
     return Value::fromString(mtypeName(x.type()), mr);
