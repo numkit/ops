@@ -487,7 +487,7 @@ Value packDirectTerm(keel::ArrayRef<double> k, keel::Allocator *mr)
 
 // Evaluate B(z) at z = p, where B is in z^-1 ascending coefficient order
 // (MATLAB z-domain convention: b[0] + b[1]·z^-1 + ... + b[n]·z^-n).
-keel::c64 evalZPolyCx(const double *b, keel::usize n, keel::c64 p)
+[[maybe_unused]] keel::c64 evalZPolyCx(const double *b, keel::usize n, keel::c64 p)
 {
     if (n == 0) return keel::c64(0, 0);
     keel::c64 acc(0, 0);

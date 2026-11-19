@@ -331,7 +331,7 @@ namespace {
 
 struct TypeInfo { ValueType vt; keel::usize elemSize; };
 
-TypeInfo typeInfoFor(keel::StringRef classname)
+[[maybe_unused]] TypeInfo typeInfoFor(keel::StringRef classname)
 {
     if (classname == "double")  return { ValueType::DOUBLE,  sizeof(double)   };
     if (classname == "single")  return { ValueType::SINGLE,  sizeof(float)    };
@@ -348,7 +348,7 @@ TypeInfo typeInfoFor(keel::StringRef classname)
     return { ValueType::DOUBLE, 0u };  // sentinel: 0 size = unknown
 }
 
-keel::usize elemSizeOf(ValueType t)
+[[maybe_unused]] keel::usize elemSizeOf(ValueType t)
 {
     switch (t) {
     case ValueType::DOUBLE:  return sizeof(double);

@@ -64,7 +64,6 @@ inline T saturate_cast_scalar(double v)
 void DoubleToInt32Loop(const double *HWY_RESTRICT in, keel::i32 *HWY_RESTRICT out, keel::usize n)
 {
     const hn::ScalableTag<double>  d;
-    const hn::ScalableTag<keel::i32> di;
     const hn::Rebind<keel::i32, decltype(d)> di_rebind;
     const auto zero = hn::Zero(d);
     const auto lo   = hn::Set(d, static_cast<double>(std::numeric_limits<keel::i32>::min()));

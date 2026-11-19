@@ -179,8 +179,8 @@ inline DecimatedSeries decimateLTTB(const keel::f64 *x, const keel::f64 *y, keel
         for (keel::usize i = i0; i < i1; ++i) { out.x.push_back(x[i]); out.y.push_back(y[i]); }
         return out;
     }
-    out.x.reserve(static_cast<keel::usize>(threshold));
-    out.y.reserve(static_cast<keel::usize>(threshold));
+    out.x.reserve(threshold);
+    out.y.reserve(threshold);
     const keel::f64 bucketSize = static_cast<keel::f64>(cnt - 2) / (threshold - 2);
     keel::usize a = i0;                       // first point is always kept
     out.x.push_back(x[i0]); out.y.push_back(y[i0]);

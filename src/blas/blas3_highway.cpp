@@ -643,8 +643,8 @@ if (m == 0 || n == 0) return;
 
                                 auto v_alpha_r = hn::Set(d, alpha.real());
                                 auto v_alpha_i = hn::Set(d, alpha.imag());
-                                auto v_beta_r  = hn::Set(d, current_beta.real());
-                                auto v_beta_i  = hn::Set(d, current_beta.imag());
+                                [[maybe_unused]] auto v_beta_r = hn::Set(d, current_beta.real());
+                                [[maybe_unused]] auto v_beta_i = hn::Set(d, current_beta.imag());
 
                                 #define STORE_COMPLEX_COL(col_idx, cr0, cr1, ci0, ci1) \
                                 { \

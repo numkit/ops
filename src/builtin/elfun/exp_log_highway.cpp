@@ -69,7 +69,6 @@ template <class D, class V, class Fn>
 HWY_INLINE V SafeLogVec(D d, V v, Fn fn)
 {
     const V zero = hn::Zero(d);
-    const V inf = hn::Inf(d);
     const V neg_inf = hn::Set(d, -std::numeric_limits<double>::infinity());
     V res = fn(d, v);
     res = hn::IfThenElse(hn::Eq(v, zero), neg_inf, res);
@@ -81,7 +80,6 @@ template <class D, class V>
 HWY_INLINE V SafeLog1pVec(D d, V v)
 {
     const V neg_one = hn::Set(d, -1.0);
-    const V inf = hn::Inf(d);
     const V neg_inf = hn::Set(d, -std::numeric_limits<double>::infinity());
     V res = hn::Log1p(d, v);
     res = hn::IfThenElse(hn::Eq(v, neg_one), neg_inf, res);

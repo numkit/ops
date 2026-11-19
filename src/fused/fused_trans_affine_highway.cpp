@@ -133,7 +133,6 @@ void TransAffineImpl(const double *x, double p0, double p1, bool divide,
                      TransAffineFn fn, double *out, keel::usize n) {
     auto safeLog = [](auto d, auto v, auto f) {
         const auto zero = hn::Zero(d);
-        const auto inf = hn::Inf(d);
         const auto neg_inf = hn::Set(d, -std::numeric_limits<double>::infinity());
         auto res = f(d, v);
         res = hn::IfThenElse(hn::Eq(v, zero), neg_inf, res);
@@ -228,7 +227,6 @@ void TransAffineImpl(const double *x, double p0, double p1, bool divide,
             transLoop(x, p0, p1, divide, out, n,
                       [](auto d, auto v) {
                           const auto neg_one = hn::Set(d, -1.0);
-                          const auto inf = hn::Inf(d);
                           const auto neg_inf = hn::Set(d, -std::numeric_limits<double>::infinity());
                           auto res = hn::Log1p(d, v);
                           res = hn::IfThenElse(hn::Eq(v, neg_one), neg_inf, res);

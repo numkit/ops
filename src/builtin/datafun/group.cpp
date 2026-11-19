@@ -55,7 +55,7 @@ void groupOf(const Value &g, keel::Array<keel::usize> &out_groups,
                               [](double a, double b) {
                                   return a == b;
                               });
-    sorted.resize(static_cast<keel::usize>(newEnd - sorted.begin()));
+    sorted.resize(newEnd - sorted.begin());
     for (keel::usize i = 0; i < n; ++i) {
         if (std::isnan(vals[i])) { out_groups[i] = 0; continue; }
         const auto it = std::lower_bound(sorted.begin(), sorted.end(), vals[i]);

@@ -698,7 +698,7 @@ double interp2Sample(const double *V, keel::usize R, keel::usize C,
 // rows (dim 1) in ndgrid). The `axis` hint is used to pick a default
 // extraction direction when only one dim is non-trivial; otherwise the
 // varying-direction is detected automatically.
-void readGridAxis(const Value &g, keel::Array<double> &out, const char *axis)
+[[maybe_unused]] void readGridAxis(const Value &g, keel::Array<double> &out, const char *axis)
 {
     if (g.dims().isVector() || g.isScalar()) {
         out.resize(g.numel());
@@ -748,7 +748,7 @@ void readGridAxis(const Value &g, keel::Array<double> &out, const char *axis)
     out = extractAlong(preferred);
 }
 
-Value interp2Impl(const Value &V, const double *xGrid, keel::usize xN, const double *yGrid, keel::usize yN, const Value &Xq, const Value &Yq, keel::StringRef method, keel::Allocator *mr)
+[[maybe_unused]] Value interp2Impl(const Value &V, const double *xGrid, keel::usize xN, const double *yGrid, keel::usize yN, const Value &Xq, const Value &Yq, keel::StringRef method, keel::Allocator *mr)
 {
     if (V.type() == ValueType::COMPLEX)
         throw Error("interp2: complex inputs are not supported",
@@ -944,7 +944,7 @@ double interp3Sample(const double *V, keel::usize R, keel::usize C, keel::usize 
     return (1 - tz) * c0 + tz * c1;
 }
 
-Value interp3Impl(const Value &V, const double *xGrid, keel::usize xN, const double *yGrid, keel::usize yN, const double *zGrid, keel::usize zN, const Value &Xq, const Value &Yq, const Value &Zq, keel::StringRef method, keel::Allocator *mr)
+[[maybe_unused]] Value interp3Impl(const Value &V, const double *xGrid, keel::usize xN, const double *yGrid, keel::usize yN, const double *zGrid, keel::usize zN, const Value &Xq, const Value &Yq, const Value &Zq, keel::StringRef method, keel::Allocator *mr)
 {
     if (V.type() == ValueType::COMPLEX)
         throw Error("interp3: complex inputs are not supported",

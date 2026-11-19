@@ -307,7 +307,6 @@ void HypotLoop(const double *HWY_RESTRICT a, const double *HWY_RESTRICT b,
 namespace deg_consts {
 constexpr double kDeg2Rad = 3.14159265358979323846 / 180.0;
 constexpr double kRad2Deg = 180.0 / 3.14159265358979323846;
-constexpr double kPi      = 3.14159265358979323846;
 }
 
 void SindLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, keel::usize n)

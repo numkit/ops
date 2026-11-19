@@ -130,12 +130,12 @@ polyExpandFromRoots(const keel::c64 *roots, keel::usize rootsN,
                     keel::Allocator *mr = nullptr)
 {
     const int n = static_cast<int>(rootsN);
-    keel::Array<keel::c64> poly(static_cast<keel::usize>(n + 1), mr);
+    keel::Array<keel::c64> poly(n + 1, mr);
     poly[0] = keel::c64(1.0, 0.0);
     for (int i = 0; i < n; ++i)
         for (int j = i + 1; j >= 1; --j)
             poly[j] = poly[j] - roots[i] * poly[j - 1];
-    keel::Array<keel::f64> r(static_cast<keel::usize>(n + 1), mr);
+    keel::Array<keel::f64> r(n + 1, mr);
     for (int i = 0; i <= n; ++i)
         r[i] = poly[i].real();
     return r;

@@ -675,7 +675,7 @@ Value legendre(int n, const Value &x, keel::Allocator *mr)
     auto r = Value::matrix(static_cast<keel::usize>(n + 1), L, ValueType::DOUBLE, mr);
     double *dst = r.doubleDataMut();
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<double> P(static_cast<keel::usize>(n + 1), 0.0, scratch.allocator());
+    keel::Array<double> P(n + 1, 0.0, scratch.allocator());
     // Build P_n^m(x) for m = 0..n at each x_k.
     for (keel::usize k = 0; k < L; ++k) {
         const double xk = x.elemAsDouble(k);

@@ -1841,8 +1841,8 @@ Value sylvester_sym(const Value &A, const Value &B, const Value &C,
     if (B.dims().dim(0) != B.dims().dim(1))
         throw Error("sylvester: B must be square",
                     0, 0, "sylvester", "", "numkit:sylvester:badB");
-    if (C.dims().dim(0) != static_cast<int>(n) ||
-        C.dims().dim(1) != static_cast<int>(m))
+    if (C.dims().dim(0) != n ||
+        C.dims().dim(1) != m)
         throw Error("sylvester: C must be n Ã— m where A is nÃ—n, B is mÃ—m",
                     0, 0, "sylvester", "", "numkit:sylvester:badC");
 

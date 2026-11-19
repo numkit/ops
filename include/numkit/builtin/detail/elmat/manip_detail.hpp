@@ -90,7 +90,7 @@ Value flipCellStr(const Value &x, int axis, const char *fn, keel::Allocator *mr)
 // The slab stride is B = prod(dims[0..axis-1]) elements; outer count
 // O = prod(dims[axis+1..N-1]). Used by the ND fallback for fliplr
 // (axis=1) and flipud (axis=0). Type-preserving via byte-copy.
-Value flipNDAlongAxis(const Value &x, int axis, const char *fn, keel::Allocator *mr)
+[[maybe_unused]] Value flipNDAlongAxis(const Value &x, int axis, const char *fn, keel::Allocator *mr)
 {
     const ValueType t = x.type();
     if (isCellOrString(t)) return flipCellStr(x, axis, fn, mr);
@@ -223,7 +223,7 @@ inline void rot270PageBytes(const char *src, char *dst,
 
 // rot90 for CELL / STRING arrays (element-wise Value copy). kMod selects
 // the rotation (0/1/2/3 → 0/90/180/270° CCW). Supports up to 2-D.
-Value rot90CellStr(const Value &x, int kMod, keel::Allocator *mr)
+[[maybe_unused]] Value rot90CellStr(const Value &x, int kMod, keel::Allocator *mr)
 {
     const auto &d = x.dims();
     if (d.ndim() > 2)
@@ -269,7 +269,7 @@ inline keel::usize wrap(keel::i64 k, keel::usize n)
     return static_cast<keel::usize>(m);
 }
 
-void shift2D(const double *src, double *dst, keel::usize R, keel::usize C,
+[[maybe_unused]] void shift2D(const double *src, double *dst, keel::usize R, keel::usize C,
              keel::i64 kRow, keel::i64 kCol)
 {
     const keel::usize shR = wrap(kRow, R);
@@ -353,7 +353,7 @@ namespace {
 // Build the output→source index map for one dimension given a replication
 // count spec. `counts` is a scalar (broadcast to all `dimLen` entries) or a
 // DOUBLE vector of length `dimLen`. map[k] = source index for output slot k.
-keel::Array<keel::usize> repelemMap(const Value &counts, keel::usize dimLen, const keel::ArenaTemp &arena)
+[[maybe_unused]] keel::Array<keel::usize> repelemMap(const Value &counts, keel::usize dimLen, const keel::ArenaTemp &arena)
 {
     keel::Array<keel::usize> map(arena.allocator());
     auto checkCount = [](double c) -> keel::usize {

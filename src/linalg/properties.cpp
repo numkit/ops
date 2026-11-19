@@ -40,7 +40,7 @@ namespace {
 // Solve A_buf (mÃ—n column-major) against B_buf (mÃ—nrhs col-major) and
 // write the result (nÃ—nrhs) into outX. Returns false on singular /
 // rank-deficient / wide A.
-bool laSolveWrap(const double *A_buf, keel::usize m, keel::usize n,
+[[maybe_unused]] bool laSolveWrap(const double *A_buf, keel::usize m, keel::usize n,
                  const double *B_buf, keel::usize nrhs, double *outX,
                  keel::Allocator *mr)
 {

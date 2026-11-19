@@ -22,13 +22,13 @@ Value cos(const Value &x, keel::Allocator *mr) { return cos(x, nullptr, mr); }
 Value deg2rad(const Value &x, keel::Allocator *mr)
 {
     constexpr double k = 3.14159265358979323846 / 180.0;
-    return unaryDouble(x, [k](double v) { return v * k; }, mr);
+    return unaryDouble(x, [](double v) { return v * k; }, mr);
 }
 
 Value rad2deg(const Value &x, keel::Allocator *mr)
 {
     constexpr double k = 180.0 / 3.14159265358979323846;
-    return unaryDouble(x, [k](double v) { return v * k; }, mr);
+    return unaryDouble(x, [](double v) { return v * k; }, mr);
 }
 
 // ── Angle Wrapping ──────────────────────────────────────────────────────────

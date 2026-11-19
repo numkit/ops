@@ -60,7 +60,7 @@ void magicOdd(double *p, keel::usize N)
 // Doubly-even (N ≡ 0 mod 4): start with the natural 1..N² fill and
 // swap each cell whose (i mod 4, j mod 4) is on either of the two
 // 4×4-block diagonals.
-void magicDoublyEven(double *p, keel::usize N)
+[[maybe_unused]] void magicDoublyEven(double *p, keel::usize N)
 {
     const keel::usize total = N * N;
     for (keel::usize i = 0; i < N; ++i)
@@ -82,7 +82,7 @@ void magicDoublyEven(double *p, keel::usize N)
 //   Then for row mid = K (0-indexed = (p-1)/2):
 //     swap (mid, 0) ↔ (mid+p, 0)   -- undo the previous swap on this cell
 //     swap (mid, K) ↔ (mid+p, K)   -- and apply the strached swap instead
-void magicSinglyEven(double *p, keel::usize N)
+[[maybe_unused]] void magicSinglyEven(double *p, keel::usize N)
 {
     const keel::usize P = N / 2;          // odd
     const keel::usize S = P * P;
@@ -129,7 +129,7 @@ namespace {
 // Extract Value as a flat double buffer in linear element order via
 // elemAsDouble (handles every numeric/logical type). Returns the
 // buffer; live for the lifetime of `scratch`.
-keel::Array<double> valueToScratchDoubles(const Value &v, const keel::ArenaTemp &scratch)
+[[maybe_unused]] keel::Array<double> valueToScratchDoubles(const Value &v, const keel::ArenaTemp &scratch)
 {
     const keel::usize n = v.numel();
     keel::Array<double> out(n, scratch.allocator());
@@ -177,7 +177,7 @@ Value pageTransposeT(const Value &x, ValueType ty, bool conjugate, keel::Allocat
     return out;
 }
 
-Value pageTransposeAny(const Value &x, bool conjugate, keel::Allocator *mr)
+[[maybe_unused]] Value pageTransposeAny(const Value &x, bool conjugate, keel::Allocator *mr)
 {
     switch (x.type()) {
     case ValueType::DOUBLE:  return pageTransposeT<double>(x, ValueType::DOUBLE, conjugate, mr);
@@ -522,7 +522,7 @@ sortRowsComplex(const Value &x, const int *cols, keel::usize nCols,
     return std::make_tuple(std::move(out), std::move(idx));
 }
 
-std::tuple<Value, Value>
+[[maybe_unused]] std::tuple<Value, Value>
 sortRowsImpl(const Value &x, const int *cols, keel::usize nCols, keel::Allocator *mr)
 {
     if (x.type() == ValueType::COMPLEX)
@@ -724,7 +724,7 @@ void cumIntegerScanInto(const Value &x, T *dst, keel::usize strideD, keel::usize
     }
 }
 
-Value cumIntegerNative(const Value &x, int dim, bool isProd,
+[[maybe_unused]] Value cumIntegerNative(const Value &x, int dim, bool isProd,
                        keel::Allocator *mr)
 {
     const auto &dd = x.dims();
@@ -764,7 +764,7 @@ Value cumIntegerNative(const Value &x, int dim, bool isProd,
 // when isProd=false, product when isProd=true). Output shape == input shape.
 // Uniform inner-block (B) / outer-count (O) strides cover vector/2D/3D/ND.
 // (Complex isn't perf-critical here — correctness over a SIMD prefix scan.)
-Value cumComplexAlongDim(const Value &x, int d, bool isProd,
+[[maybe_unused]] Value cumComplexAlongDim(const Value &x, int d, bool isProd,
                          keel::Allocator *mr)
 {
     const auto &dd = x.dims();
@@ -805,7 +805,7 @@ Value cumComplexAlongDim(const Value &x, int d, bool isProd,
 // the first finite element. Mirrors complexMinMaxPick (omitNan=true) in
 // math/.../reductions_detail.hpp — keep the order rule in sync. (Complex isn't
 // perf-critical here — correctness over a SIMD scan.)
-Value cumComplexMinMaxAlongDim(const Value &x, int d, bool isMax,
+[[maybe_unused]] Value cumComplexMinMaxAlongDim(const Value &x, int d, bool isMax,
                                keel::Allocator *mr)
 {
     const auto &dd = x.dims();
@@ -852,7 +852,7 @@ Value cumComplexMinMaxAlongDim(const Value &x, int d, bool isMax,
 }
 
 // First non-singleton dimension (1-based), default 1 — MATLAB's default op dim.
-int firstNonSingletonDim(const Value &x)
+[[maybe_unused]] int firstNonSingletonDim(const Value &x)
 {
     const auto &dd = x.dims();
     for (int k = 0; k < dd.ndim(); ++k)
@@ -1041,7 +1041,7 @@ Value logicalizeCumResult(const Value &d, keel::Allocator *mr)
 // by code point, preserving the char class). Cannot reuse toChar(): it routes
 // through fromString and FLATTENS a matrix to a row. createLike preserves dims
 // (2-D / N-D); the column-major layout matches the double buffer 1:1.
-Value charizeSortResult(const Value &d, keel::Allocator *mr)
+[[maybe_unused]] Value charizeSortResult(const Value &d, keel::Allocator *mr)
 {
     Value r = createLike(d, ValueType::CHAR, mr);
     char *dst = r.charDataMut();
@@ -1057,7 +1057,7 @@ namespace {
 // One pass of forward differences along axis `d` (1-based). Source has
 // dim[d-1] = sliceLen; output has dim[d-1] = sliceLen - 1. Column-major
 // strides (innerStride = prod(dim[0..d-2])).
-void diffOnceDouble(const double *src, double *dst,
+[[maybe_unused]] void diffOnceDouble(const double *src, double *dst,
                     const Dims &srcDims, int d)
 {
     const int nd = srcDims.ndim();
@@ -1091,7 +1091,7 @@ void diffOnceDouble(const double *src, double *dst,
     }
 }
 
-Value makeDiffOutput(const Dims &srcDims, int d, keel::usize step, ValueType vt,
+[[maybe_unused]] Value makeDiffOutput(const Dims &srcDims, int d, keel::usize step, ValueType vt,
                      keel::Allocator *mr)
 {
     const int nd = srcDims.ndim();
@@ -1107,7 +1107,7 @@ Value makeDiffOutput(const Dims &srcDims, int d, keel::usize step, ValueType vt,
 
 // Complex counterpart of diffOnceDouble — successive differences over Complex
 // storage (real and imaginary differenced together), same strided layout.
-void diffOnceComplex(const keel::c64 *src, keel::c64 *dst, const Dims &srcDims, int d)
+[[maybe_unused]] void diffOnceComplex(const keel::c64 *src, keel::c64 *dst, const Dims &srcDims, int d)
 {
     const int nd = srcDims.ndim();
     const keel::usize sliceLen = srcDims.dim(d - 1);
@@ -1137,7 +1137,7 @@ void diffOnceComplex(const keel::c64 *src, keel::c64 *dst, const Dims &srcDims, 
 }
 
 // Identity copy of a COMPLEX value (preserves shape + both parts).
-Value copyComplexSameShape(const Value &x, keel::Allocator *mr)
+[[maybe_unused]] Value copyComplexSameShape(const Value &x, keel::Allocator *mr)
 {
     const auto &dd = x.dims();
     const int nd = dd.ndim();
@@ -1211,7 +1211,7 @@ void diffOnceIntegerT(const T *src, T *dst, const Dims &srcDims, int d)
 // n-th order diff of an integer-typed Value: keeps the class and saturates at
 // each pass (the saturated pass-k result feeds pass k+1). Caller guarantees
 // sliceLen > n along d.
-Value diffInteger(const Value &x, int n, int d, keel::Allocator *mr)
+[[maybe_unused]] Value diffInteger(const Value &x, int n, int d, keel::Allocator *mr)
 {
     const ValueType vt = x.type();
     Value cur = copyIntegerSameClass(x, mr);
@@ -1242,7 +1242,7 @@ Value diffInteger(const Value &x, int n, int d, keel::Allocator *mr)
 namespace {
 
 // Used by xor below — small inputs, no need for a SIMD path.
-Value promoteToDouble(const Value &x, keel::Allocator *mr)
+[[maybe_unused]] Value promoteToDouble(const Value &x, keel::Allocator *mr)
 {
     if (x.type() == ValueType::DOUBLE) return x;
     auto r = createLike(x, ValueType::DOUBLE, mr);

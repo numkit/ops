@@ -94,7 +94,7 @@ void trimLeadingZeros(keel::Array<keel::f64> &v)
 } // namespace
 namespace {
 
-keel::Array<keel::c64> readVecAsComplex(const Value &v, const char *fn, keel::Allocator *mr)
+[[maybe_unused]] keel::Array<keel::c64> readVecAsComplex(const Value &v, const char *fn, keel::Allocator *mr)
 {
     if (!v.dims().isVector() && !v.isScalar() && !v.isEmpty())
         throw Error(keel::format("{}: argument must be a vector", fn),
@@ -119,7 +119,7 @@ Value complexColFromVec(const keel::c64 *v, keel::usize n, keel::Allocator *mr)
     return out;
 }
 
-Value realColIfFlat(const keel::c64 *v, keel::usize n, keel::Allocator *mr)
+[[maybe_unused]] Value realColIfFlat(const keel::c64 *v, keel::usize n, keel::Allocator *mr)
 {
     bool anyComplex = false;
     for (keel::usize i = 0; i < n; ++i)

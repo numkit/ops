@@ -476,7 +476,7 @@ static Value allocLike(const Value &v, ValueType t, keel::Allocator *mr)
     const auto &d = v.dims();
     if (d.ndim() <= 2) return Value::matrix(d.rows(), d.cols(), t, mr);
     if (d.ndim() == 3) return Value::matrix3d(d.rows(), d.cols(), d.pages(), t, mr);
-    keel::Array<keel::usize> od(static_cast<keel::usize>(d.ndim()), mr);
+    keel::Array<keel::usize> od(d.ndim(), mr);
     for (int k = 0; k < d.ndim(); ++k) od[static_cast<keel::usize>(k)] = d.dim(k);
     return Value::matrixND(od.data(), d.ndim(), t, mr);
 }

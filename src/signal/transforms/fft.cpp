@@ -415,7 +415,7 @@ detail::requireFloatInput(x, "czt");
     }
 
     const int nd = d.ndim();
-    keel::Array<keel::usize> outDims(static_cast<keel::usize>(nd), mr);
+    keel::Array<keel::usize> outDims(nd, mr);
     outDims[0] = static_cast<keel::usize>(m);
     for (int i = 1; i < nd; ++i)
         outDims[static_cast<keel::usize>(i)] = d.dim(i);

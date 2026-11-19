@@ -177,7 +177,7 @@ void singularSquareSolve(T *A_lu, keel::usize n, T *B_work, keel::usize nrhs, T 
     }
 }
 
-Value matrixSolve(const Value &A, const Value &B, const char *opname, keel::Allocator *mr)
+[[maybe_unused]] Value matrixSolve(const Value &A, const Value &B, const char *opname, keel::Allocator *mr)
 {
     // Integer-class matrices reach here only when both operands are
     // integer matrices (scalar expansion was tried first) — the
@@ -252,7 +252,7 @@ keel::Array<keel::c64> A_buf(m * n, arena.allocator());
     return X;
 }
 
-Value transposeDouble(const Value &A, keel::Allocator *mr)
+[[maybe_unused]] Value transposeDouble(const Value &A, keel::Allocator *mr)
 {
     const keel::usize m = A.dims().rows();
     const keel::usize n = A.dims().cols();
@@ -299,7 +299,7 @@ inline bool applyCmp(Cmp c, double x, double y)
     return false;
 }
 
-Value compareImpl(Cmp c, const Value &a, const Value &b)
+[[maybe_unused]] Value compareImpl(Cmp c, const Value &a, const Value &b)
 {
     if (a.isChar() && b.isChar()) {
         if (c == Cmp::EQ)
@@ -514,7 +514,7 @@ Value compareImpl(Cmp c, const Value &a, const Value &b)
     return r;
 }
 
-keel::Array<keel::u8> toBoolArray(const Value &v, keel::Allocator *mr)
+[[maybe_unused]] keel::Array<keel::u8> toBoolArray(const Value &v, keel::Allocator *mr)
 {
     auto nanErr = [] {
         throw std::runtime_error("NaN values cannot be converted to logicals.");
@@ -549,7 +549,7 @@ keel::Array<keel::u8> toBoolArray(const Value &v, keel::Allocator *mr)
     return r;
 }
 
-bool scalarTruth(const Value &v)
+[[maybe_unused]] bool scalarTruth(const Value &v)
 {
     if (v.isComplex()) {
         keel::c64 c = v.toComplex();

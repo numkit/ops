@@ -87,7 +87,7 @@ inline bool cxUniqEqual(keel::c64 a, keel::c64 b)
     return a.real() == b.real() && a.imag() == b.imag();        // NaN never equal
 }
 
-std::tuple<Value, Value, Value>
+[[maybe_unused]] std::tuple<Value, Value, Value>
 uniqueComplexFull(const Value &x, bool stable, bool last = false,
                   keel::Allocator *alloc = nullptr)
 {
@@ -199,7 +199,7 @@ inline Value emptyRowsResult(keel::usize cols, keel::Allocator *alloc)
     return Value::matrix(0, cols, ValueType::DOUBLE, alloc);
 }
 
-void validateUniqueRowsInput(const Value &x, const char *fn)
+[[maybe_unused]] void validateUniqueRowsInput(const Value &x, const char *fn)
 {
     if (x.type() != ValueType::DOUBLE)
         throw Error(keel::format("{}: 'rows' flag requires a DOUBLE matrix", fn),
@@ -209,7 +209,7 @@ void validateUniqueRowsInput(const Value &x, const char *fn)
                      0, 0, fn, "", keel::format("numkit:{}:rowsND", fn));
 }
 
-keel::HashSet<keel::f64, DoubleHashEq0>
+[[maybe_unused]] keel::HashSet<keel::f64, DoubleHashEq0>
 hashSetNoNaN(const Value &x, keel::Allocator *alloc)
 {
     keel::HashSet<keel::f64, DoubleHashEq0> s(alloc);
@@ -221,7 +221,7 @@ hashSetNoNaN(const Value &x, keel::Allocator *alloc)
     return s;
 }
 
-void validateEdges(const Value &edges, const char *fn)
+[[maybe_unused]] void validateEdges(const Value &edges, const char *fn)
 {
     if (edges.numel() < 2)
         throw Error(keel::format("{}: edges must have length >= 2", fn),
@@ -233,7 +233,7 @@ void validateEdges(const Value &edges, const char *fn)
                          0, 0, fn, "", keel::format("numkit:{}:badEdges", fn));
 }
 
-bool edgesAreUniform(const double *e, keel::usize nEdges, double &outStep)
+[[maybe_unused]] bool edgesAreUniform(const double *e, keel::usize nEdges, double &outStep)
 {
     if (nEdges < 3) return false;
     const double step = e[1] - e[0];
@@ -287,7 +287,7 @@ bool isPrimeU64(keel::u64 n)
     return true;
 }
 
-bool isPrimeDouble(double v)
+[[maybe_unused]] bool isPrimeDouble(double v)
 {
     keel::u64 u;
     if (!isExactNonnegInt(v, u)) return false;
@@ -301,14 +301,14 @@ namespace {
 // Capping at n=11 is exactly MATLAB's documented hard limit on perms.
 constexpr int kPermMaxN = 11;
 
-keel::u64 permFactorial(int n)
+[[maybe_unused]] keel::u64 permFactorial(int n)
 {
     keel::u64 f = 1;
     for (int i = 2; i <= n; ++i) f *= static_cast<keel::u64>(i);
     return f;
 }
 
-double factorialDouble(double v, const char *fn)
+[[maybe_unused]] double factorialDouble(double v, const char *fn)
 {
     if (!std::isfinite(v) || v < 0 || v != std::floor(v))
         throw Error(keel::format("{}: entries must be non-negative integers", fn),

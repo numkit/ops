@@ -85,7 +85,7 @@ inline Value widenSingleToDouble(const Value &v, keel::Allocator *mr)
     } else if (d.ndim() == 3) {
         out = Value::matrix3d(d.rows(), d.cols(), d.pages(), ValueType::DOUBLE, mr);
     } else {
-        keel::Array<keel::usize> od(static_cast<keel::usize>(d.ndim()), mr);
+        keel::Array<keel::usize> od(d.ndim(), mr);
         for (int k = 0; k < d.ndim(); ++k) od[static_cast<keel::usize>(k)] = d.dim(k);
         out = Value::matrixND(od.data(), d.ndim(), ValueType::DOUBLE, mr);
     }
@@ -107,7 +107,7 @@ inline Value narrowDoubleToSingle(const Value &v, keel::Allocator *mr)
     } else if (d.ndim() == 3) {
         out = Value::matrix3d(d.rows(), d.cols(), d.pages(), ValueType::SINGLE, mr);
     } else {
-        keel::Array<keel::usize> od(static_cast<keel::usize>(d.ndim()), mr);
+        keel::Array<keel::usize> od(d.ndim(), mr);
         for (int k = 0; k < d.ndim(); ++k) od[static_cast<keel::usize>(k)] = d.dim(k);
         out = Value::matrixND(od.data(), d.ndim(), ValueType::SINGLE, mr);
     }

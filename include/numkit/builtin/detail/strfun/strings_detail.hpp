@@ -195,7 +195,7 @@ inline keel::String num2strComplexArray(const Value &x, int precOverride,
 // through the FMT overload, which performs MATLAB's common-blank-column
 // stripping and NaN/Inf spelling. Matches MATLAB R2025b across integer,
 // fractional, negative, and large/small-magnitude probes.
-keel::String num2strArrayFormat(const Value &x, int N)
+[[maybe_unused]] keel::String num2strArrayFormat(const Value &x, int N)
 {
     const keel::usize n = x.numel();
     char fmt[32];
@@ -398,7 +398,7 @@ void appendDelims(const Value &delim, keel::Array<keel::String> &delims)
 namespace {
 // All 1-based indices of `pp` in `ss` (overlapping, like MATLAB) as a 1×k
 // DOUBLE row vector; [] (0×0) if no match or `pp` is empty.
-Value strfindOne(keel::StringRef ss, keel::StringRef pp,
+[[maybe_unused]] Value strfindOne(keel::StringRef ss, keel::StringRef pp,
                  keel::Allocator *mr)
 {
     if (pp.empty())
@@ -537,7 +537,7 @@ struct BetweenMatch {
     keel::usize closeEnd;    // index just past closing delimiter
 };
 
-keel::Array<BetweenMatch>
+[[maybe_unused]] keel::Array<BetweenMatch>
 findAllBetweenPairs(keel::StringRef ss, const Value &start, const Value &end,
                     keel::Allocator *alloc = keel::default_allocator())
 {
@@ -585,7 +585,7 @@ keel::String toBaseString(keel::u64 v, int base, int minWidth,
     keel::String out(alloc);
     if (v == 0) {
         const int w = std::max(1, minWidth);
-        out.reserve(static_cast<keel::usize>(w));
+        out.reserve(w);
         for (int i = 0; i < w; ++i) out.push_back('0');
         return out;
     }
@@ -599,7 +599,7 @@ keel::String toBaseString(keel::u64 v, int base, int minWidth,
     return out;
 }
 
-keel::u64 parseBase(keel::StringRef s, int base)
+[[maybe_unused]] keel::u64 parseBase(keel::StringRef s, int base)
 {
     keel::u64 v = 0;
     for (char c : s) {
@@ -621,7 +621,7 @@ keel::u64 parseBase(keel::StringRef s, int base)
 // Convert an N-element double vector to a 2-D char matrix where each
 // row holds the base-`base` representation, padded to the maximum
 // observed width (and at least minWidth).
-Value vecToBaseMatrix(const Value &d, int base, int minWidth, keel::Allocator *mr)
+[[maybe_unused]] Value vecToBaseMatrix(const Value &d, int base, int minWidth, keel::Allocator *mr)
 {
     const keel::usize n = d.numel();
     if (n == 0) return Value::fromString("", mr);
@@ -662,7 +662,7 @@ namespace {
 // Interpret a hex string as the raw IEEE-754 bit pattern of a double.
 // Whitespace is skipped (a char matrix pads short rows with spaces); the
 // digits are right-padded with '0' to 16 (MATLAB: hex2num('4') == 2).
-double hexBitsToDouble(keel::StringRef raw)
+[[maybe_unused]] double hexBitsToDouble(keel::StringRef raw)
 {
     char h[16];
     int hlen = 0;
@@ -690,7 +690,7 @@ double hexBitsToDouble(keel::StringRef raw)
 namespace {
 // Parse a base-`base` (2..36) digit string: 0-9 then A-Z / a-z. Whitespace
 // is skipped (MATLAB pads short rows of a char matrix with spaces).
-keel::u64 parseBaseN(keel::StringRef s, int base)
+[[maybe_unused]] keel::u64 parseBaseN(keel::StringRef s, int base)
 {
     keel::u64 v = 0;
     for (char c : s) {
@@ -770,7 +770,7 @@ RatExpansion ratExpansion(double x, double tol)
 //   2 coeffs  →  "a0 + 1/(a1)"
 //   3 coeffs  →  "a0 + 1/(a1 + 1/(a2))"
 //   n coeffs  →  "a0 + 1/(a1 + 1/( ... + 1/(an-1)))"
-keel::String buildCFString(const RatExpansion &r)
+[[maybe_unused]] keel::String buildCFString(const RatExpansion &r)
 {
     if (r.n_coeffs == 0) return keel::String::from("0");
     char buf[32];
@@ -843,7 +843,7 @@ bool strMatchAny(keel::StringRef srcRef, keel::ArrayRef<keel::String> pats,
 // string-array SOURCE maps element-wise to a LOGICAL array of the same shape
 // (MATLAB); a scalar char/string source returns a logical scalar. The pattern
 // argument may itself be a scalar or a cell/string array (any-match).
-Value strPredicate(const Value &s, const Value &pat, bool ignoreCase,
+[[maybe_unused]] Value strPredicate(const Value &s, const Value &pat, bool ignoreCase,
                    StrPred pred, keel::Allocator *mr)
 {
     keel::ArenaTemp scratch = keel::get_scratch(mr);
@@ -873,7 +873,7 @@ Value strPredicate(const Value &s, const Value &pat, bool ignoreCase,
 namespace {
 
 // Read element i of x as a Value scalar to feed sprintf.
-Value elemScalar(const Value &x, keel::usize i, keel::Allocator *mr)
+[[maybe_unused]] Value elemScalar(const Value &x, keel::usize i, keel::Allocator *mr)
 {
     if (x.isNumeric()) {
         return Value::scalar(x.elemAsDouble(i), mr);
@@ -887,7 +887,7 @@ Value elemScalar(const Value &x, keel::usize i, keel::Allocator *mr)
 }
 
 // Get a char input string from char or string-scalar.
-keel::String strInput(const Value &v)
+[[maybe_unused]] keel::String strInput(const Value &v)
 {
     if (v.isChar() || (v.isString() && v.isScalar())) return v.toString();
     if (v.isString()) return keel::String::from(v.stringElem(0));  // first elem of array
@@ -896,7 +896,7 @@ keel::String strInput(const Value &v)
 
 // Find every non-overlapping occurrence of `needle` in `hay` and append
 // each matched substring to `out`.
-void findAllLiteral(keel::StringRef hay, keel::StringRef needle,
+[[maybe_unused]] void findAllLiteral(keel::StringRef hay, keel::StringRef needle,
                     keel::Array<keel::StringRef> &out)
 {
     if (needle.empty()) return;
@@ -910,7 +910,7 @@ void findAllLiteral(keel::StringRef hay, keel::StringRef needle,
 }
 
 // Split `s` by `delim` keeping empty tokens (MATLAB `split` semantics).
-void splitKeepEmpty(keel::StringRef s, keel::StringRef delim,
+[[maybe_unused]] void splitKeepEmpty(keel::StringRef s, keel::StringRef delim,
                     keel::Array<keel::StringRef> &out)
 {
     if (delim.empty()) { out.push_back(s); return; }

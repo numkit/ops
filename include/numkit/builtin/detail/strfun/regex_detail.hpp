@@ -34,7 +34,7 @@ namespace numkit::builtin {
 
 namespace {
 
-std::regex compileRegex(keel::StringRef pat, bool ignoreCase)
+[[maybe_unused]] std::regex compileRegex(keel::StringRef pat, bool ignoreCase)
 {
     auto flags = std::regex::ECMAScript;
     if (ignoreCase) flags |= std::regex::icase;
@@ -59,7 +59,7 @@ struct NamedGroups {
         : cleaned(alloc), names(alloc) {}
 };
 
-NamedGroups extractNamedGroups(keel::StringRef pat,
+[[maybe_unused]] NamedGroups extractNamedGroups(keel::StringRef pat,
                                keel::Allocator *alloc = keel::default_allocator())
 {
     NamedGroups ng(alloc);
@@ -112,7 +112,7 @@ NamedGroups extractNamedGroups(keel::StringRef pat,
     return ng;
 }
 
-Value rowFromIndices(const double *v, keel::usize n, keel::Allocator *mr)
+[[maybe_unused]] Value rowFromIndices(const double *v, keel::usize n, keel::Allocator *mr)
 {
     auto out = Value::matrix(1, n, ValueType::DOUBLE, mr);
     for (keel::usize i = 0; i < n; ++i)
@@ -120,7 +120,7 @@ Value rowFromIndices(const double *v, keel::usize n, keel::Allocator *mr)
     return out;
 }
 
-Value rowCellOfStrings(const keel::StringRef *v, keel::usize n, keel::Allocator *mr)
+[[maybe_unused]] Value rowCellOfStrings(const keel::StringRef *v, keel::usize n, keel::Allocator *mr)
 {
     auto out = Value::cell(1, n);
     for (keel::usize i = 0; i < n; ++i)

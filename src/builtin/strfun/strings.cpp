@@ -1884,7 +1884,7 @@ Value rats(const Value &x, int len, keel::Allocator *mr)
     if (n <= 1) {
         const double v = x.toScalar();
         keel::String out;
-        out.reserve(static_cast<keel::usize>(field_width));
+        out.reserve(field_width);
         appendOne(out, v);
         return Value::fromString(out, mr);
     }

@@ -182,7 +182,6 @@ rsf2csf(const Value &UR, const Value &TR, keel::Allocator *mr)
         const keel::c64 d  = sub;
         const keel::c64 disc = keel::sqrt((a - ap) * (a - ap) + keel::c64(4.0, 0.0) * c * d);
         const keel::c64 lam1 = (a + ap + disc) * keel::c64(0.5, 0.0);
-        const keel::c64 lam2 = (a + ap - disc) * keel::c64(0.5, 0.0);
 
         // Build the 2-component eigenvector of the 2Ã—2 block for lam1:
         // (A - lam1Â·I) Â· x = 0. Take x = [c; lam1 - a]; normalise.
