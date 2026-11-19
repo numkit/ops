@@ -29,7 +29,8 @@ keel::u32 adler32(const keel::u8 *data, keel::usize len);
 /// @throws                  numkit::Error on corrupted / truncated / oversized stream.
 keel::Array<keel::u8> inflateRaw(const keel::u8 *src, keel::usize len,
                                  keel::usize expectedSizeHint = 0,
-                                 keel::usize maxOutputBytes = 512ULL * 1024 * 1024);
+                                 keel::usize maxOutputBytes = 512ULL * 1024 * 1024,
+                                 keel::Allocator *alloc = nullptr);
 
 /// Compress uncompressed bytes using raw RFC 1951 Deflate.
 /// @param src    Input bytes.
@@ -37,7 +38,8 @@ keel::Array<keel::u8> inflateRaw(const keel::u8 *src, keel::usize len,
 /// @param level  Compression level: 0 = store uncompressed, 1..9 = LZ77 + Huffman.
 /// @return       Compressed Deflate bitstream.
 keel::Array<keel::u8> deflateRaw(const keel::u8 *src, keel::usize len,
-                                 int level = 6);
+                                 int level = 6,
+                                 keel::Allocator *alloc = nullptr);
 
 /// Decompress RFC 1950 ZLIB stream (2-byte header + Deflate stream + 4-byte Adler-32).
 /// @param src               ZLIB stream bytes.
@@ -48,7 +50,8 @@ keel::Array<keel::u8> deflateRaw(const keel::u8 *src, keel::usize len,
 /// @throws                  numkit::Error on bad header, corrupted data, oversized output, or Adler-32 mismatch.
 keel::Array<keel::u8> zlibDecompress(const keel::u8 *src, keel::usize len,
                                      keel::usize expectedSizeHint = 0,
-                                     keel::usize maxOutputBytes = 512ULL * 1024 * 1024);
+                                     keel::usize maxOutputBytes = 512ULL * 1024 * 1024,
+                                     keel::Allocator *alloc = nullptr);
 
 /// Compress payload into an RFC 1950 ZLIB stream.
 /// @param src    Input payload.
@@ -56,6 +59,7 @@ keel::Array<keel::u8> zlibDecompress(const keel::u8 *src, keel::usize len,
 /// @param level  Compression level (0..9).
 /// @return       Complete ZLIB stream (header + Deflate + Adler-32).
 keel::Array<keel::u8> zlibCompress(const keel::u8 *src, keel::usize len,
-                                   int level = 6);
+                                   int level = 6,
+                                   keel::Allocator *alloc = nullptr);
 
 } // namespace numkit::ops

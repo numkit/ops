@@ -48,10 +48,12 @@ keel::u32 adler32(const keel::u8 *data, keel::usize len) {
 
 keel::Array<keel::u8> inflateRaw(const keel::u8 *src, keel::usize len,
                                  keel::usize expectedSizeHint,
-                                 keel::usize maxOutputBytes) {
+                                 keel::usize maxOutputBytes,
+                                 keel::Allocator *alloc) {
     keel::InflateOptions opts;
     opts.expected_size_hint = expectedSizeHint;
     opts.max_output_bytes = maxOutputBytes;
+    opts.allocator = alloc;
 
     auto res = keel::inflate_raw(toRef(src, len), opts);
     if (!res) {
@@ -60,13 +62,15 @@ keel::Array<keel::u8> inflateRaw(const keel::u8 *src, keel::usize len,
     return std::move(res.value());
 }
 
-keel::Array<keel::u8> deflateRaw(const keel::u8 *src, keel::usize len, int level) {
-    return keel::deflate_raw(toRef(src, len), level);
+keel::Array<keel::u8> deflateRaw(const keel::u8 *src, keel::usize len, int level,
+                                 keel::Allocator *alloc) {
+    return keel::deflate_raw(toRef(src, len), level, alloc);
 }
 
 keel::Array<keel::u8> zlibDecompress(const keel::u8 *src, keel::usize len,
                                      keel::usize expectedSizeHint,
-                                     keel::usize maxOutputBytes) {
+                                     keel::usize maxOutputBytes,
+                                     keel::Allocator *alloc) {
     if (len < 6) {
         throw Error("zlib: stream too short (< 6 bytes)",
                     0, 0, "zlibDecompress", "", "numkit:zlib:truncated");
@@ -90,6 +94,7 @@ keel::Array<keel::u8> zlibDecompress(const keel::u8 *src, keel::usize len,
     keel::InflateOptions opts;
     opts.expected_size_hint = expectedSizeHint;
     opts.max_output_bytes = maxOutputBytes;
+    opts.allocator = alloc;
 
     auto inflated = keel::inflate_raw(toRef(src + 2, len - 6), opts);
     if (!inflated) {
@@ -111,8 +116,9 @@ keel::Array<keel::u8> zlibDecompress(const keel::u8 *src, keel::usize len,
     return std::move(payload);
 }
 
-keel::Array<keel::u8> zlibCompress(const keel::u8 *src, keel::usize len, int level) {
-    return keel::zlib_compress(toRef(src, len), level);
+keel::Array<keel::u8> zlibCompress(const keel::u8 *src, keel::usize len, int level,
+                                   keel::Allocator *alloc) {
+    return keel::zlib_compress(toRef(src, len), level, alloc);
 }
 
 } // namespace numkit::ops
