@@ -42,12 +42,13 @@ if(DEFINED _numkit_saved_warn_deprecated AND NOT "${_numkit_saved_warn_deprecate
     set(CMAKE_WARN_DEPRECATED "${_numkit_saved_warn_deprecated}" CACHE BOOL "" FORCE)
 endif()
 
-# Standalone keelcpp libraries (compress, image, fft) — strictly PRIVATE to numkit_ops
+# Standalone keelcpp libraries (compress, image, fft, random)
 foreach(_keel_pair
     "KEEL:keel"
     "KEEL_COMPRESS:compress"
     "KEEL_IMAGE:image"
     "KEEL_FFT:fft"
+    "KEEL_RANDOM:random"
 )
     string(REPLACE ":" ";" _keel_parts "${_keel_pair}")
     list(GET _keel_parts 0 _keel_var)
@@ -69,6 +70,7 @@ set(KEEL_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(KEEL_COMPRESS_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(KEEL_IMAGE_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(KEEL_FFT_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(KEEL_RANDOM_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(KEEL_FFT_WITH_HIGHWAY ${NUMKIT_WITH_SIMD} CACHE BOOL "" FORCE)
 
 if(NOT TARGET keel::keel)
@@ -126,6 +128,21 @@ if(NOT TARGET keel::fft)
         GIT_TAG        91357427ef2492fda4d1906add6bcd3fe2d3c260
     )
     FetchContent_MakeAvailable(keel_fft)
+endif()
+
+if(NOT TARGET keel::random)
+    find_package(keel_random QUIET CONFIG)
+    if(TARGET keel::keel_random AND NOT TARGET keel::random)
+        add_library(keel::random ALIAS keel::keel_random)
+    endif()
+endif()
+if(NOT TARGET keel::random)
+    FetchContent_Declare(
+        keel_random
+        GIT_REPOSITORY https://github.com/keelcpp/random.git
+        GIT_TAG        c880b7490075d251e2db892dea54448ce32af18a
+    )
+    FetchContent_MakeAvailable(keel_random)
 endif()
 
 set(NUMKIT_OPS_SOURCES
@@ -209,7 +226,7 @@ target_include_directories(numkit_ops
 )
 
 target_link_libraries(numkit_ops
-    PUBLIC numkit_value
+    PUBLIC numkit_value keel::random
     PRIVATE hwy hwy_contrib keel::compress keel::image keel::fft
 )
 

@@ -4,6 +4,7 @@
 
 #include <keel/core.h>
 #include <keel/memory.h>
+#include <keel/random.h>
 #include <numkit/linalg/svd_sketch.hpp>
 #include <numkit/linalg/decompositions.hpp>
 #include "linalg_detail.hpp"
@@ -13,7 +14,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <random>
 
 namespace numkit::linalg {
 
@@ -87,9 +87,8 @@ std::tuple<Value, Value, Value> svdsketch(const Value &A, double tol, keel::Allo
     auto Omega = Value::matrix(n, l, ValueType::DOUBLE, mr);
     double *od = Omega.doubleDataMut();
 
-    std::mt19937 gen(42); // fixed seed for deterministic reproducibility
-    std::normal_distribution<double> dist(0.0, 1.0);
-    for (keel::usize i = 0; i < n * l; ++i) od[i] = dist(gen);
+    keel::Mt19937 gen(42); // fixed seed for deterministic reproducibility
+    for (keel::usize i = 0; i < n * l; ++i) od[i] = keel::normal_f64(gen);
 
     // Step 2: Y = A * Omega (m x l)
     Value Y = matMulReal(Aw, Omega, mr);

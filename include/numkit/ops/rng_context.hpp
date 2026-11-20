@@ -23,7 +23,6 @@
 #include <cmath>    // v4Normal: std::sqrt / std::log
 #include <cstdint>
 #include <cstring>
-#include <random>   // RngContext models a URBG — callers draw via std::*_distribution(rng)
 
 namespace numkit::ops {
 
