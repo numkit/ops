@@ -253,7 +253,7 @@ eig_general_VD(const Value &A, keel::Allocator *mr)
 
     keel::Array<keel::c64> Uc(n * n, scratch.allocator());
     keel::Array<keel::c64> Tc(n * n, scratch.allocator());
-    if (!keel::schur_complex(Ac.data(), n, Uc.data(), Tc.data(), mr)) {
+    if (!keel::linalg::schur_complex(Ac.data(), n, Uc.data(), Tc.data(), mr)) {
         throw Error("eig: QR iteration failed to converge",
                     0, 0, "eig", "", "numkit:eig:qrNoConverge");
     }
@@ -287,7 +287,7 @@ eig_general_VD(const Value &A, keel::Allocator *mr)
     std::fill(Dd, Dd + n * n, keel::c64(0.0, 0.0));
 
     keel::Array<keel::c64> evals(n, scratch.allocator());
-    keel::schur_eigenvectors(Uc.data(), Tc.data(), n, Vd, evals.data(), mr);
+    keel::linalg::schur_eigenvectors(Uc.data(), Tc.data(), n, Vd, evals.data(), mr);
     for (keel::usize k = 0; k < n; ++k) Dd[k + k * n] = evals[k];
 
     if (!Aw.isComplex()) {
@@ -315,7 +315,7 @@ eig_general_VD(const Value &A, keel::Allocator *mr)
 }
 
 // ────────────────────────────────────────────────────────────────────────
-// Symmetric eig (via keel::eig_sym)
+// Symmetric eig (via keel::linalg::eig_sym)
 // ────────────────────────────────────────────────────────────────────────
 
 bool isSymmetricApprox(const Value &A, double tol)
@@ -372,7 +372,7 @@ eig_symmetric(const Value &A, keel::Allocator *mr)
 
     auto Vout = Value::matrix(n, n, ValueType::DOUBLE, mr);
     auto Dout = Value::matrix(n, n, ValueType::DOUBLE, mr);
-    keel::eig_sym(Aw.doubleData(), n, Vout.doubleDataMut(), evals.data(), mr);
+    keel::linalg::eig_sym(Aw.doubleData(), n, Vout.doubleDataMut(), evals.data(), mr);
 
     double *D = Dout.doubleDataMut();
     std::fill(D, D + n * n, 0.0);
@@ -428,7 +428,7 @@ eig_generalized_VD(const Value &A, const Value &B, keel::Allocator *mr)
         keel::ArenaTemp scratch = keel::get_scratch(mr);
         keel::Array<double> evals(n, scratch.allocator());
         auto V = Value::matrix(n, n, ValueType::DOUBLE, mr);
-        if (keel::eig_sym_generalized(Aw.doubleData(), Bw.doubleData(), n,
+        if (keel::linalg::eig_sym_generalized(Aw.doubleData(), Bw.doubleData(), n,
                                       V.doubleDataMut(), evals.data(), mr)) {
             auto D = Value::matrix(n, n, ValueType::DOUBLE, mr);
             double *dd = D.doubleDataMut();
@@ -458,7 +458,7 @@ eig_generalized_VD(const Value &A, const Value &B, keel::Allocator *mr)
     keel::Array<keel::c64> BBc(n * n, scratch.allocator());
     keel::Array<keel::c64> Qc(n * n, scratch.allocator());
     keel::Array<keel::c64> Zc(n * n, scratch.allocator());
-    if (!keel::qz_factor(Ac.data(), Bc.data(), n, AAc.data(), BBc.data(), Qc.data(), Zc.data())) {
+    if (!keel::linalg::qz_factor(Ac.data(), Bc.data(), n, AAc.data(), BBc.data(), Qc.data(), Zc.data())) {
         throw Error("qz: QZ iteration failed to converge", 0, 0, "qz", "", "numkit:qz:noConverge");
     }
 
@@ -469,7 +469,7 @@ eig_generalized_VD(const Value &A, const Value &B, keel::Allocator *mr)
     std::fill(Dd, Dd + n * n, keel::c64(0.0, 0.0));
 
     keel::Array<keel::c64> evals(n, scratch.allocator());
-    keel::qz_eigenvectors(AAc.data(), BBc.data(), Zc.data(), n, Vd, evals.data(), mr);
+    keel::linalg::qz_eigenvectors(AAc.data(), BBc.data(), Zc.data(), n, Vd, evals.data(), mr);
     for (keel::usize k = 0; k < n; ++k) Dd[k + k * n] = evals[k];
 
     if (!Aw.isComplex() && !Bw.isComplex()) {
@@ -541,7 +541,7 @@ bool try_eigs_generalized_smallestabs(const Value &A, const Value &B, keel::usiz
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     keel::Array<double> evals(k, scratch.allocator());
     auto V = Value::matrix(n, k, ValueType::DOUBLE, mr);
-    if (!keel::eigs_sym_generalized_smallest_abs(Aw.doubleData(), Bw.doubleData(), n, k,
+    if (!keel::linalg::eigs_sym_generalized_smallest_abs(Aw.doubleData(), Bw.doubleData(), n, k,
                                                  V.doubleDataMut(), evals.data(), mr)) {
         return false;
     }
@@ -557,7 +557,7 @@ bool try_eigs_generalized_smallestabs(const Value &A, const Value &B, keel::usiz
 }
 
 // ────────────────────────────────────────────────────────────────────────
-// Hessenberg reduction (via keel::hess_reduce)
+// Hessenberg reduction (via keel::linalg::hess_reduce)
 // ────────────────────────────────────────────────────────────────────────
 
 std::tuple<Value, Value>
@@ -577,7 +577,7 @@ hess(const Value &A, keel::Allocator *mr)
         auto Pout = Value::complexMatrix(n, n, mr);
         if (n == 0) return std::make_tuple(std::move(Pout), std::move(Hout));
         std::copy(A.complexData(), A.complexData() + n * n, Hout.complexDataMut());
-        keel::hess_reduce(Hout.complexDataMut(), n, Pout.complexDataMut(), mr);
+        keel::linalg::hess_reduce(Hout.complexDataMut(), n, Pout.complexDataMut(), mr);
         return std::make_tuple(detail::narrow_if_real(Pout, mr), detail::narrow_if_real(Hout, mr));
     }
     const bool wantSingle = (A.type() == ValueType::SINGLE);
@@ -590,7 +590,7 @@ hess(const Value &A, keel::Allocator *mr)
     auto Hout = Value::matrix(n, n, ValueType::DOUBLE, mr);
     auto Pout = Value::matrix(n, n, ValueType::DOUBLE, mr);
     std::copy(Aw.doubleData(), Aw.doubleData() + n * n, Hout.doubleDataMut());
-    keel::hess_reduce(Hout.doubleDataMut(), n, Pout.doubleDataMut(), mr);
+    keel::linalg::hess_reduce(Hout.doubleDataMut(), n, Pout.doubleDataMut(), mr);
     return std::make_tuple(
         detail::narrowDoubleToSingleIf(Pout, wantSingle, mr),
         detail::narrowDoubleToSingleIf(Hout, wantSingle, mr));
@@ -635,7 +635,7 @@ schur_general(const Value &A, keel::Allocator *mr)
         auto U = Value::complexMatrix(n, n, mr);
         auto T = Value::complexMatrix(n, n, mr);
         if (n == 0) return std::make_tuple(std::move(U), std::move(T));
-        if (!keel::schur_complex(A.complexData(), n, U.complexDataMut(), T.complexDataMut(), mr)) {
+        if (!keel::linalg::schur_complex(A.complexData(), n, U.complexDataMut(), T.complexDataMut(), mr)) {
             throw Error("eig: QR iteration failed to converge",
                         0, 0, "eig", "", "numkit:eig:qrNoConverge");
         }
@@ -651,7 +651,7 @@ schur_general(const Value &A, keel::Allocator *mr)
     Value Aw = detail::widenSingleToDouble(A, mr);
     auto U = Value::matrix(n, n, ValueType::DOUBLE, mr);
     auto T = Value::matrix(n, n, ValueType::DOUBLE, mr);
-    keel::schur_real(Aw.doubleData(), n, U.doubleDataMut(), T.doubleDataMut(), mr);
+    keel::linalg::schur_real(Aw.doubleData(), n, U.doubleDataMut(), T.doubleDataMut(), mr);
     return std::make_tuple(
         detail::narrowDoubleToSingleIf(U, wantSingle, mr),
         detail::narrowDoubleToSingleIf(T, wantSingle, mr));
@@ -695,9 +695,9 @@ Value sylvester_sym(const Value &A, const Value &B, const Value &C,
     keel::Array<double> Y(n * m, 0.0, scratch.allocator());
     keel::Array<double> tmp(n * m, 0.0, scratch.allocator());
     // tmp = Va^T * C; Y = tmp * Vb
-    keel::gemm(keel::MatrixTranspose::Trans, keel::MatrixTranspose::NoTrans,
+    keel::linalg::gemm(keel::linalg::MatrixTranspose::Trans, keel::linalg::MatrixTranspose::NoTrans,
                n, m, n, 1.0, Vad, n, Cd, n, 0.0, tmp.data(), n);
-    keel::gemm(keel::MatrixTranspose::NoTrans, keel::MatrixTranspose::NoTrans,
+    keel::linalg::gemm(keel::linalg::MatrixTranspose::NoTrans, keel::linalg::MatrixTranspose::NoTrans,
                n, m, m, 1.0, tmp.data(), n, Vbd, m, 0.0, Y.data(), n);
 
     for (keel::usize i = 0; i < n; ++i) {
@@ -714,9 +714,9 @@ Value sylvester_sym(const Value &A, const Value &B, const Value &C,
     auto out = Value::matrix(n, m, ValueType::DOUBLE, mr);
     double *X = out.doubleDataMut();
     // tmp = Va * Y; X = tmp * Vb^T
-    keel::gemm(keel::MatrixTranspose::NoTrans, keel::MatrixTranspose::NoTrans,
+    keel::linalg::gemm(keel::linalg::MatrixTranspose::NoTrans, keel::linalg::MatrixTranspose::NoTrans,
                n, m, n, 1.0, Vad, n, Y.data(), n, 0.0, tmp.data(), n);
-    keel::gemm(keel::MatrixTranspose::NoTrans, keel::MatrixTranspose::Trans,
+    keel::linalg::gemm(keel::linalg::MatrixTranspose::NoTrans, keel::linalg::MatrixTranspose::Trans,
                n, m, m, 1.0, tmp.data(), n, Vbd, m, 0.0, X, n);
     return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
@@ -750,7 +750,7 @@ Value buildCompanion(keel::ArrayRef<Value> coeffs, keel::Allocator *mr)
     for (keel::usize i = 0; i < k; ++i) {
         Value Ai_w = detail::widenSingleToDouble(coeffs[i], mr);
         const double *Aid = Ai_w.doubleData();
-        keel::gemm(keel::MatrixTranspose::NoTrans, keel::MatrixTranspose::NoTrans,
+        keel::linalg::gemm(keel::linalg::MatrixTranspose::NoTrans, keel::linalg::MatrixTranspose::NoTrans,
                    n, n, n, -1.0, Akid, n, Aid, n, 0.0, Ld + (k - 1) * n + (i * n) * N, N);
     }
     return L;

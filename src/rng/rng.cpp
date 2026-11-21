@@ -179,8 +179,8 @@ double RngContext::nextNormal()
                                       | static_cast<keel::u64>(w1 & 0x00FFFFFFu))
             - (1LL << 52);
         const double u = static_cast<double>(u53) * (1.0 / 4503599627370496.0);
-        const double z = u * keel::random_detail::kZigguratX[k + 1];
-        if (keel::abs(z) < keel::random_detail::kZigguratX[k])
+        const double z = u * keel::random::random_detail::kZigguratX[k + 1];
+        if (keel::abs(z) < keel::random::random_detail::kZigguratX[k])
             return z;
 
         if (k == 255u) {
@@ -193,8 +193,8 @@ double RngContext::nextNormal()
                     return (u53 >= 0) ? (r + tx) : -(r + tx);
             }
         } else {
-            if ((keel::random_detail::kZigguratF[k] - keel::random_detail::kZigguratF[k + 1]) * gen_.genRes53()
-                < std::exp(-0.5 * z * z) - keel::random_detail::kZigguratF[k + 1]) {
+            if ((keel::random::random_detail::kZigguratF[k] - keel::random::random_detail::kZigguratF[k + 1]) * gen_.genRes53()
+                < std::exp(-0.5 * z * z) - keel::random::random_detail::kZigguratF[k + 1]) {
                 return z;
             }
         }
@@ -207,7 +207,7 @@ void RngContext::shuffle()
     legacyV4Rand_ = false;
     legacyV5Rand_ = false;
     legacyV4Randn_ = false;
-    const auto r = keel::os_random_u32();
+    const auto r = keel::random::os_random_u32();
     gen_.seed(r.is_ok() ? r.value() : static_cast<keel::u32>(keel::monotonic_ns()));
 }
 

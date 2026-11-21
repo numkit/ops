@@ -1,6 +1,6 @@
 // toolboxes/linalg/src/misc.cpp
 //
-// Miscellaneous linalg utilities: rref (via keel::rref) + planerot.
+// Miscellaneous linalg utilities: rref (via keel::linalg::rref) + planerot.
 
 #include <keel/core.h>
 #include <keel/memory.h>
@@ -72,7 +72,7 @@ rref(const Value &A, bool have_tol, double tol_user, keel::Allocator *mr)
         std::copy(Aw.complexData(), Aw.complexData() + M * N, R.complexDataMut());
         const double tol = have_tol ? tol_user
             : (wantSingle ? single_rref_default_tol(R.complexData(), M, N) : -1.0);
-        const keel::usize rank = keel::rref(R.complexDataMut(), M, N, tol, piv_cols.data());
+        const keel::usize rank = keel::linalg::rref(R.complexDataMut(), M, N, tol, piv_cols.data());
         R = detail::narrow_if_real(R, mr);
 
         Value jb = Value::matrix(rank == 0 ? 0 : 1, rank, ValueType::DOUBLE, mr);
@@ -85,7 +85,7 @@ rref(const Value &A, bool have_tol, double tol_user, keel::Allocator *mr)
     std::copy(Aw.doubleData(), Aw.doubleData() + M * N, R.doubleDataMut());
     const double tol = have_tol ? tol_user
         : (wantSingle ? single_rref_default_tol(R.doubleData(), M, N) : -1.0);
-    const keel::usize rank = keel::rref(R.doubleDataMut(), M, N, tol, piv_cols.data());
+    const keel::usize rank = keel::linalg::rref(R.doubleDataMut(), M, N, tol, piv_cols.data());
 
     Value jb = Value::matrix(rank == 0 ? 0 : 1, rank, ValueType::DOUBLE, mr);
     double *jbd = jb.doubleDataMut();

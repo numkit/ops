@@ -1,6 +1,6 @@
 // toolboxes/linalg/src/ldl.cpp
 //
-// Block LDL' factorization Value adapter over keel::ldl_factor.
+// Block LDL' factorization Value adapter over keel::linalg::ldl_factor.
 //
 //   L * D * L' = A
 //
@@ -60,7 +60,7 @@ ldl(const Value &A, bool upper_form, bool p_as_vector, keel::Allocator *mr)
 
         keel::Array<keel::c64> L_buf(n * n, scratch.allocator());
         keel::Array<double> D_buf(n, scratch.allocator());
-        if (keel::ldl_factor(ad, n, L_buf.data(), D_buf.data(), mr) != 0)
+        if (keel::linalg::ldl_factor(ad, n, L_buf.data(), D_buf.data(), mr) != 0)
             throw Error("ldl: zero pivot encountered (matrix needs "
                         "Bunch-Kaufman pivoting; not supported in v1)",
                         0, 0, "ldl", "", "numkit:ldl:NeedsBKPivoting");
@@ -97,7 +97,7 @@ ldl(const Value &A, bool upper_form, bool p_as_vector, keel::Allocator *mr)
 
     keel::Array<double> L_buf(n * n, scratch.allocator());
     keel::Array<double> D_buf(n, scratch.allocator());
-    if (keel::ldl_factor(Aw.doubleData(), n, L_buf.data(), D_buf.data(), mr) != 0)
+    if (keel::linalg::ldl_factor(Aw.doubleData(), n, L_buf.data(), D_buf.data(), mr) != 0)
         throw Error("ldl: zero pivot encountered (matrix needs "
                     "Bunch-Kaufman pivoting; not supported in v1)",
                     0, 0, "ldl", "", "numkit:ldl:NeedsBKPivoting");

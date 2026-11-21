@@ -87,8 +87,8 @@ std::tuple<Value, Value, Value> svdsketch(const Value &A, double tol, keel::Allo
     auto Omega = Value::matrix(n, l, ValueType::DOUBLE, mr);
     double *od = Omega.doubleDataMut();
 
-    keel::Mt19937 gen(42); // fixed seed for deterministic reproducibility
-    for (keel::usize i = 0; i < n * l; ++i) od[i] = keel::normal_f64(gen);
+    keel::random::Mt19937 gen(42); // fixed seed for deterministic reproducibility
+    for (keel::usize i = 0; i < n * l; ++i) od[i] = keel::random::normal_f64(gen);
 
     // Step 2: Y = A * Omega (m x l)
     Value Y = matMulReal(Aw, Omega, mr);

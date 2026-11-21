@@ -39,23 +39,23 @@ keel::ArrayRef<keel::u8> toRef(const keel::u8 *data, keel::usize len) {
 } // anonymous namespace
 
 keel::u32 crc32(const keel::u8 *data, keel::usize len) {
-    return keel::crc32(toRef(data, len));
+    return keel::compress::crc32(toRef(data, len));
 }
 
 keel::u32 adler32(const keel::u8 *data, keel::usize len) {
-    return keel::adler32(toRef(data, len));
+    return keel::compress::adler32(toRef(data, len));
 }
 
 keel::Array<keel::u8> inflateRaw(const keel::u8 *src, keel::usize len,
                                  keel::usize expectedSizeHint,
                                  keel::usize maxOutputBytes,
                                  keel::Allocator *alloc) {
-    keel::InflateOptions opts;
+    keel::compress::InflateOptions opts;
     opts.expected_size_hint = expectedSizeHint;
     opts.max_output_bytes = maxOutputBytes;
     opts.allocator = alloc;
 
-    auto res = keel::inflate_raw(toRef(src, len), opts);
+    auto res = keel::compress::inflate_raw(toRef(src, len), opts);
     if (!res) {
         throwInflateError(res.error());
     }
@@ -64,7 +64,7 @@ keel::Array<keel::u8> inflateRaw(const keel::u8 *src, keel::usize len,
 
 keel::Array<keel::u8> deflateRaw(const keel::u8 *src, keel::usize len, int level,
                                  keel::Allocator *alloc) {
-    return keel::deflate_raw(toRef(src, len), level, alloc);
+    return keel::compress::deflate_raw(toRef(src, len), level, alloc);
 }
 
 keel::Array<keel::u8> zlibDecompress(const keel::u8 *src, keel::usize len,
@@ -91,12 +91,12 @@ keel::Array<keel::u8> zlibDecompress(const keel::u8 *src, keel::usize len,
                     0, 0, "zlibDecompress", "", "numkit:zlib:fdict");
     }
 
-    keel::InflateOptions opts;
+    keel::compress::InflateOptions opts;
     opts.expected_size_hint = expectedSizeHint;
     opts.max_output_bytes = maxOutputBytes;
     opts.allocator = alloc;
 
-    auto inflated = keel::inflate_raw(toRef(src + 2, len - 6), opts);
+    auto inflated = keel::compress::inflate_raw(toRef(src + 2, len - 6), opts);
     if (!inflated) {
         throwInflateError(inflated.error());
     }
@@ -107,7 +107,7 @@ keel::Array<keel::u8> zlibDecompress(const keel::u8 *src, keel::usize len,
         (static_cast<keel::u32>(src[len - 3]) << 16) |
         (static_cast<keel::u32>(src[len - 2]) << 8)  |
         static_cast<keel::u32>(src[len - 1]);
-    const keel::u32 actualAdler = keel::adler32(payload.as_ref());
+    const keel::u32 actualAdler = keel::compress::adler32(payload.as_ref());
     if (expectedAdler != actualAdler) {
         throw Error("zlib: Adler-32 checksum mismatch",
                     0, 0, "zlibDecompress", "", "numkit:zlib:adlerMismatch");
@@ -118,7 +118,7 @@ keel::Array<keel::u8> zlibDecompress(const keel::u8 *src, keel::usize len,
 
 keel::Array<keel::u8> zlibCompress(const keel::u8 *src, keel::usize len, int level,
                                    keel::Allocator *alloc) {
-    return keel::zlib_compress(toRef(src, len), level, alloc);
+    return keel::compress::zlib_compress(toRef(src, len), level, alloc);
 }
 
 } // namespace numkit::ops

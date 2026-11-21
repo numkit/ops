@@ -194,7 +194,7 @@ Value ppval(const Value &pp, const Value &x, keel::Allocator *mr)
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     keel::Array<double> xq(N, scratch.allocator());
     for (keel::usize i = 0; i < N; ++i) xq[i] = x.elemAsDouble(i);
-    (void)keel::ppval({bp, L + 1}, {cp, cR * order}, cR, order, xq.as_ref(),
+    (void)keel::interp::ppval({bp, L + 1}, {cp, cR * order}, cR, order, xq.as_ref(),
                       {out.doubleDataMut(), N});
     return out;
 }

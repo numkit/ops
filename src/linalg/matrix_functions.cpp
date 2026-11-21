@@ -65,7 +65,7 @@ Value applyScalarFnSym(const Value &A, double (*f)(double),
     }
 
     auto out = Value::matrix(n, n, ValueType::DOUBLE, mr);
-    keel::gemm(keel::MatrixTranspose::NoTrans, keel::MatrixTranspose::Trans,
+    keel::linalg::gemm(keel::linalg::MatrixTranspose::NoTrans, keel::linalg::MatrixTranspose::Trans,
                n, n, n, 1.0, VfD.data(), n, Vdata, n, 0.0, out.doubleDataMut(), n);
     return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
@@ -90,14 +90,14 @@ Value expm(const Value &A, keel::Allocator *mr)
 
     if (Aw.isComplex()) {
         auto out = Value::complexMatrix(n, n, mr);
-        if (!keel::expm(Aw.complexData(), n, out.complexDataMut(), mr))
+        if (!keel::linalg::expm(Aw.complexData(), n, out.complexDataMut(), mr))
             throw Error("expm: Padé denominator is singular",
                         0, 0, "expm", "", "numkit:expm:singular");
         return detail::narrow_if_real(out, mr);
     }
 
     auto out = Value::matrix(n, n, ValueType::DOUBLE, mr);
-    if (!keel::expm(Aw.doubleData(), n, out.doubleDataMut(), mr))
+    if (!keel::linalg::expm(Aw.doubleData(), n, out.doubleDataMut(), mr))
         throw Error("expm: Padé denominator is singular",
                     0, 0, "expm", "", "numkit:expm:singular");
     return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
@@ -132,7 +132,7 @@ Value sqrtm(const Value &A, keel::Allocator *mr)
     copyValueToComplex(Aw, n * n, Ac.data());
 
     auto out = Value::complexMatrix(n, n, mr);
-    if (!keel::sqrtm(Ac.data(), n, out.complexDataMut(), mr))
+    if (!keel::linalg::sqrtm(Ac.data(), n, out.complexDataMut(), mr))
         throw Error("sqrtm: Schur iteration failed to converge", 0, 0, "sqrtm", "", "numkit:sqrtm:noConverge");
 
     return detail::narrowDoubleToSingleIf(detail::narrow_if_real(out, mr), wantSingle, mr);
@@ -199,7 +199,7 @@ Value sylvester(const Value &A, const Value &B, const Value &C, keel::Allocator 
     copyValueToComplex(Cw, m * n, Cc.data());
 
     auto out = Value::complexMatrix(m, n, mr);
-    if (!keel::sylvester(Ac.data(), m, Bc.data(), n, Cc.data(), out.complexDataMut(), mr))
+    if (!keel::linalg::sylvester(Ac.data(), m, Bc.data(), n, Cc.data(), out.complexDataMut(), mr))
         throw Error("sylvester: Schur iteration failed to converge", 0, 0, "sylvester", "", "numkit:sylvester:noConverge");
 
     Value res = detail::narrow_if_real(std::move(out), mr);
@@ -235,7 +235,7 @@ Value logm(const Value &A, keel::Allocator *mr)
     copyValueToComplex(Aw, n * n, Ac.data());
 
     auto out = Value::complexMatrix(n, n, mr);
-    if (!keel::logm(Ac.data(), n, out.complexDataMut(), mr))
+    if (!keel::linalg::logm(Ac.data(), n, out.complexDataMut(), mr))
         throw Error("logm: Schur iteration failed to converge", 0, 0, "logm", "", "numkit:logm:noConverge");
 
     return detail::narrowDoubleToSingleIf(detail::narrow_if_real(out, mr), wantSingle, mr);
@@ -274,7 +274,7 @@ Value expmv(double t, const Value &A, const Value &v, keel::Allocator *mr)
     for (keel::usize i = 0; i < n; ++i) vb[i] = v.elemAsDouble(i);
 
     auto out = Value::matrix(n, 1, ValueType::DOUBLE, mr);
-    if (!keel::expmv(t, Aw.doubleData(), n, vb.data(), out.doubleDataMut(), mr))
+    if (!keel::linalg::expmv(t, Aw.doubleData(), n, vb.data(), out.doubleDataMut(), mr))
         throw Error("expmv: Padé denominator is singular", 0, 0, "expmv", "", "numkit:expmv:singular");
 
     return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
@@ -297,7 +297,7 @@ static Value funm_eval(const Value &A, keel::FunctionRef<keel::c64(keel::c64)> f
     copyValueToComplex(Aw, n * n, Ac.data());
 
     auto out = Value::complexMatrix(n, n, mr);
-    if (!keel::funm(Ac.data(), n, f, out.complexDataMut(), mr))
+    if (!keel::linalg::funm(Ac.data(), n, f, out.complexDataMut(), mr))
         throw Error("funm: Schur iteration failed to converge", 0, 0, "funm", "", "numkit:funm:noConverge");
 
     return detail::narrowDoubleToSingleIf(detail::narrow_if_real(out, mr), wantSingle, mr);

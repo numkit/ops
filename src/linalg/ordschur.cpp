@@ -1,6 +1,6 @@
 // toolboxes/linalg/src/ordschur.cpp
 //
-// ordschur — Reorder Schur decomposition A = U * T * U^H via keel::ordschur_complex.
+// ordschur — Reorder Schur decomposition A = U * T * U^H via keel::linalg::ordschur_complex.
 
 #include <keel/core.h>
 #include <keel/format.h>
@@ -79,7 +79,7 @@ std::tuple<Value, Value> ordschur(const Value &U, const Value &T,
         for (keel::usize i = 0; i < n; ++i) sel[i] = (select.elemAsDouble(i) != 0.0) ? 1 : 0;
     }
 
-    keel::ordschur_complex(Uc, Tc, n, sel.data(), mr);
+    keel::linalg::ordschur_complex(Uc, Tc, n, sel.data(), mr);
 
     return {detail::narrowDoubleToSingleIf(detail::narrow_if_real(U_out, mr), wantSingle, mr),
             detail::narrowDoubleToSingleIf(detail::narrow_if_real(T_out, mr), wantSingle, mr)};

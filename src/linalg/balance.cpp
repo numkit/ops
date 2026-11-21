@@ -1,7 +1,7 @@
 // toolboxes/linalg/src/balance.cpp
 //
 // Diagonal-similarity scaling and permutation for eigenvalue computations.
-// Parlett-Reinsch (1969) algorithm via keel::balance_matrix.
+// Parlett-Reinsch (1969) algorithm via keel::linalg::balance_matrix.
 
 #include <keel/core.h>
 #include <keel/memory.h>
@@ -51,10 +51,10 @@ balance_impl(const Value &A, bool noperm, keel::Allocator *mr)
 
     if (Aw.isComplex()) {
         std::copy(Aw.complexData(), Aw.complexData() + n * n, R.B.complexDataMut());
-        keel::balance_matrix(R.B.complexDataMut(), n, !noperm, d.data(), perm.data());
+        keel::linalg::balance_matrix(R.B.complexDataMut(), n, !noperm, d.data(), perm.data());
     } else {
         std::copy(Aw.doubleData(), Aw.doubleData() + n * n, R.B.doubleDataMut());
-        keel::balance_matrix(R.B.doubleDataMut(), n, !noperm, d.data(), perm.data());
+        keel::linalg::balance_matrix(R.B.doubleDataMut(), n, !noperm, d.data(), perm.data());
     }
 
     double *pd = R.perm_col.doubleDataMut();

@@ -5,11 +5,11 @@
 
 namespace numkit::ops {
 
-using keel::axpy;
-using keel::dot;
-using keel::dotc;
-using keel::dotu;
-using keel::nrm2;
-using keel::scal;
+using keel::linalg::axpy;
+using keel::linalg::dot;
+using keel::linalg::dotc;
+using keel::linalg::dotu;
+using keel::linalg::nrm2;
+using keel::linalg::scal;
 
 } // namespace numkit::ops

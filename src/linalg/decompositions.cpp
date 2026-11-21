@@ -59,13 +59,13 @@ Value chol(const Value &A, keel::Allocator *mr)
             }
         }
         auto R = Value::complexMatrix(n, n, mr);
-        if (keel::cholesky_upper(Aw.complexData(), R.complexDataMut(), n) != 0)
+        if (keel::linalg::cholesky_upper(Aw.complexData(), R.complexDataMut(), n) != 0)
             throw Error("chol: matrix is not positive-definite",
                         0, 0, "chol", "", "numkit:chol:notPosDef");
         return detail::narrowDoubleToSingleIf(detail::narrow_if_real(R), wantSingle, mr);
     } else {
         auto R = Value::matrix(n, n, ValueType::DOUBLE, mr);
-        if (keel::cholesky_upper(Aw.doubleData(), R.doubleDataMut(), n) != 0)
+        if (keel::linalg::cholesky_upper(Aw.doubleData(), R.doubleDataMut(), n) != 0)
             throw Error("chol: matrix is not positive-definite",
                         0, 0, "chol", "", "numkit:chol:notPosDef");
         return detail::narrowDoubleToSingleIf(R, wantSingle, mr);
@@ -91,12 +91,12 @@ lu_decompose_impl(const Value &A, keel::Allocator *mr)
     const T *src = detail::get_data<T>(A);
     std::copy(src, src + m * n, LU.begin());
     if (m >= n) {
-        if (!keel::lu_factor(LU.data(), m, piv.data(), m, n)) {
+        if (!keel::linalg::lu_factor(LU.data(), m, piv.data(), m, n)) {
             std::copy(src, src + m * n, LU.begin());
-            (void)keel::lu_factor_general(LU.data(), m, n, piv.data());
+            (void)keel::linalg::lu_factor_general(LU.data(), m, n, piv.data());
         }
     } else {
-        (void)keel::lu_factor_general(LU.data(), m, n, piv.data());
+        (void)keel::linalg::lu_factor_general(LU.data(), m, n, piv.data());
     }
 
     Value Lout = detail::make_matrix<T>(m, k, mr);
@@ -142,12 +142,12 @@ Value lu_combined_impl(const Value &A, keel::Allocator *mr)
     const T *src = detail::get_data<T>(A);
     std::copy(src, src + m * n, LU);
     if (m >= n) {
-        if (!keel::lu_factor(LU, m, piv.data(), m, n)) {
+        if (!keel::linalg::lu_factor(LU, m, piv.data(), m, n)) {
             std::copy(src, src + m * n, LU);
-            (void)keel::lu_factor_general(LU, m, n, piv.data());
+            (void)keel::linalg::lu_factor_general(LU, m, n, piv.data());
         }
     } else {
-        (void)keel::lu_factor_general(LU, m, n, piv.data());
+        (void)keel::linalg::lu_factor_general(LU, m, n, piv.data());
     }
     return detail::narrow_if_real(out);
 }
@@ -214,14 +214,14 @@ qr_decompose(const Value &A, keel::Allocator *mr)
     if (Aw.isComplex()) {
         auto Q = Value::complexMatrix(m, m, mr);
         auto R = Value::complexMatrix(m, n, mr);
-        keel::qr_householder(Aw.complexData(), m, n, Q.complexDataMut(), R.complexDataMut(), mr);
+        keel::linalg::qr_householder(Aw.complexData(), m, n, Q.complexDataMut(), R.complexDataMut(), mr);
         return std::make_tuple(
             detail::narrowDoubleToSingleIf(detail::narrow_if_real(Q, mr), wantSingle, mr),
             detail::narrowDoubleToSingleIf(detail::narrow_if_real(R, mr), wantSingle, mr));
     }
     auto Q = Value::matrix(m, m, ValueType::DOUBLE, mr);
     auto R = Value::matrix(m, n, ValueType::DOUBLE, mr);
-    keel::qr_householder(Aw.doubleData(), m, n, Q.doubleDataMut(), R.doubleDataMut(), mr);
+    keel::linalg::qr_householder(Aw.doubleData(), m, n, Q.doubleDataMut(), R.doubleDataMut(), mr);
     return std::make_tuple(
         detail::narrowDoubleToSingleIf(Q, wantSingle, mr),
         detail::narrowDoubleToSingleIf(R, wantSingle, mr));
@@ -242,11 +242,11 @@ Value qr_R_only(const Value &A, keel::Allocator *mr)
     const Value Aw = detail::widenSingleToDouble(A, mr);
     if (Aw.isComplex()) {
         auto R = Value::complexMatrix(m, n, mr);
-        keel::qr_householder(Aw.complexData(), m, n, nullptr, R.complexDataMut(), mr);
+        keel::linalg::qr_householder(Aw.complexData(), m, n, nullptr, R.complexDataMut(), mr);
         return detail::narrowDoubleToSingleIf(detail::narrow_if_real(R, mr), wantSingle, mr);
     }
     auto R = Value::matrix(m, n, ValueType::DOUBLE, mr);
-    keel::qr_householder(Aw.doubleData(), m, n, nullptr, R.doubleDataMut(), mr);
+    keel::linalg::qr_householder(Aw.doubleData(), m, n, nullptr, R.doubleDataMut(), mr);
     return detail::narrowDoubleToSingleIf(R, wantSingle, mr);
 }
 
@@ -270,7 +270,7 @@ qr_pivoted(const Value &A, keel::Array<keel::usize> &perm,
     if (Aw.isComplex()) {
         auto Q = Value::complexMatrix(m, m, mr);
         auto R = Value::complexMatrix(m, n, mr);
-        keel::qr_pivoted(Aw.complexData(), m, n,
+        keel::linalg::qr_pivoted(Aw.complexData(), m, n,
                          Q.complexDataMut(), R.complexDataMut(), perm.data(), mr);
         return std::make_tuple(
             detail::narrowDoubleToSingleIf(detail::narrow_if_real(Q, mr), wantSingle, mr),
@@ -278,7 +278,7 @@ qr_pivoted(const Value &A, keel::Array<keel::usize> &perm,
     }
     auto Q = Value::matrix(m, m, ValueType::DOUBLE, mr);
     auto R = Value::matrix(m, n, ValueType::DOUBLE, mr);
-    keel::qr_pivoted(Aw.doubleData(), m, n,
+    keel::linalg::qr_pivoted(Aw.doubleData(), m, n,
                      Q.doubleDataMut(), R.doubleDataMut(), perm.data(), mr);
     return std::make_tuple(
         detail::narrowDoubleToSingleIf(Q, wantSingle, mr),
@@ -286,7 +286,7 @@ qr_pivoted(const Value &A, keel::Array<keel::usize> &perm,
 }
 
 // ────────────────────────────────────────────────────────────────────────
-// SVD (one-sided Jacobi via keel::svd_full)
+// SVD (one-sided Jacobi via keel::linalg::svd_full)
 // ────────────────────────────────────────────────────────────────────────
 
 std::tuple<Value, Value, Value>
@@ -319,7 +319,7 @@ svd_decompose(const Value &A, keel::Allocator *mr)
     if (Aw.isComplex()) {
         auto Uout = Value::complexMatrix(m_in, m_in, mr);
         auto Vout = Value::complexMatrix(n_in, n_in, mr);
-        keel::svd_full(Aw.complexData(), m_in, n_in,
+        keel::linalg::svd_full(Aw.complexData(), m_in, n_in,
                        Uout.complexDataMut(), sigma.data(), Vout.complexDataMut(), mr);
         for (keel::usize i = 0; i < k; ++i) S[i + i * m_in] = sigma[i];
         return std::make_tuple(
@@ -330,7 +330,7 @@ svd_decompose(const Value &A, keel::Allocator *mr)
 
     auto Uout = Value::matrix(m_in, m_in, ValueType::DOUBLE, mr);
     auto Vout = Value::matrix(n_in, n_in, ValueType::DOUBLE, mr);
-    keel::svd_full(Aw.doubleData(), m_in, n_in,
+    keel::linalg::svd_full(Aw.doubleData(), m_in, n_in,
                    Uout.doubleDataMut(), sigma.data(), Vout.doubleDataMut(), mr);
     for (keel::usize i = 0; i < k; ++i) S[i + i * m_in] = sigma[i];
     return std::make_tuple(
@@ -393,7 +393,7 @@ qrupdate(const Value &Q, const Value &R, const Value &u, const Value &v,
     for (keel::usize i = 0; i < m; ++i) ub[i] = u.elemAsDouble(i);
     for (keel::usize j = 0; j < n; ++j) vb[j] = v.elemAsDouble(j);
 
-    keel::qr_update(Q1.doubleDataMut(), R1.doubleDataMut(), m, n, ub.data(), vb.data(), mr);
+    keel::linalg::qr_update(Q1.doubleDataMut(), R1.doubleDataMut(), m, n, ub.data(), vb.data(), mr);
     return std::make_tuple(
         detail::narrowDoubleToSingleIf(Q1, wantSingle, mr),
         detail::narrowDoubleToSingleIf(R1, wantSingle, mr));
@@ -430,7 +430,7 @@ qrinsert(const Value &Q, const Value &R, keel::usize k_1based, const Value &x,
 
     auto Q1 = Value::matrix(m, m, ValueType::DOUBLE, mr);
     auto R1 = Value::matrix(m, n + 1, ValueType::DOUBLE, mr);
-    keel::qr_insert_col(Qw.doubleData(), Rw.doubleData(), m, n, k_1based - 1,
+    keel::linalg::qr_insert_col(Qw.doubleData(), Rw.doubleData(), m, n, k_1based - 1,
                         xb.data(), Q1.doubleDataMut(), R1.doubleDataMut(), mr);
     return std::make_tuple(
         detail::narrowDoubleToSingleIf(Q1, wantSingle, mr),
@@ -463,7 +463,7 @@ qrdelete(const Value &Q, const Value &R, keel::usize k_1based,
 
     auto Q1 = Value::matrix(m, m, ValueType::DOUBLE, mr);
     auto R1 = Value::matrix(m, n - 1, ValueType::DOUBLE, mr);
-    keel::qr_delete_col(Qw.doubleData(), Rw.doubleData(), m, n, k_1based - 1,
+    keel::linalg::qr_delete_col(Qw.doubleData(), Rw.doubleData(), m, n, k_1based - 1,
                         Q1.doubleDataMut(), R1.doubleDataMut());
     return std::make_tuple(
         detail::narrowDoubleToSingleIf(Q1, wantSingle, mr),
@@ -501,7 +501,7 @@ qrinsert_row(const Value &Q, const Value &R, keel::usize k_1based, const Value &
 
     auto Q1 = Value::matrix(m + 1, m + 1, ValueType::DOUBLE, mr);
     auto R1 = Value::matrix(m + 1, n, ValueType::DOUBLE, mr);
-    keel::qr_insert_row(Qw.doubleData(), Rw.doubleData(), m, n, k_1based - 1,
+    keel::linalg::qr_insert_row(Qw.doubleData(), Rw.doubleData(), m, n, k_1based - 1,
                         xb.data(), Q1.doubleDataMut(), R1.doubleDataMut());
     return std::make_tuple(
         detail::narrowDoubleToSingleIf(Q1, wantSingle, mr),
@@ -534,7 +534,7 @@ qrdelete_row(const Value &Q, const Value &R, keel::usize k_1based,
 
     auto Q1 = Value::matrix(m - 1, m - 1, ValueType::DOUBLE, mr);
     auto R1 = Value::matrix(m - 1, n, ValueType::DOUBLE, mr);
-    keel::qr_delete_row(Qw.doubleData(), Rw.doubleData(), m, n, k_1based - 1,
+    keel::linalg::qr_delete_row(Qw.doubleData(), Rw.doubleData(), m, n, k_1based - 1,
                         Q1.doubleDataMut(), R1.doubleDataMut(), mr);
     return std::make_tuple(
         detail::narrowDoubleToSingleIf(Q1, wantSingle, mr),
@@ -542,7 +542,7 @@ qrdelete_row(const Value &Q, const Value &R, keel::usize k_1based,
 }
 
 // ────────────────────────────────────────────────────────────────────────
-// cholupdate — rank-1 Cholesky update/downdate (via keel::cholesky_update)
+// cholupdate — rank-1 Cholesky update/downdate (via keel::linalg::cholesky_update)
 // ────────────────────────────────────────────────────────────────────────
 
 Value cholupdate(const Value &R, const Value &x, int sign,
@@ -575,7 +575,7 @@ Value cholupdate(const Value &R, const Value &x, int sign,
     keel::Array<double> xb(n, scratch.allocator());
     for (keel::usize i = 0; i < n; ++i) xb[i] = x.elemAsDouble(i);
 
-    if (!keel::cholesky_update(out.doubleDataMut(), n, xb.data(), /*downdate=*/(sign == -1), mr)) {
+    if (!keel::linalg::cholesky_update(out.doubleDataMut(), n, xb.data(), /*downdate=*/(sign == -1), mr)) {
         throw Error("cholupdate: downdate would break positive-definiteness",
                     0, 0, "cholupdate", "", "numkit:cholupdate:downdateFailed");
     }

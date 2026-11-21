@@ -34,7 +34,7 @@ Value primes(double n, keel::Allocator *mr)
         return Value::matrix(1, 0, ValueType::DOUBLE, mr);
     const keel::u64 N = static_cast<keel::u64>(std::floor(n));
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<keel::u64> ps = keel::primes_up_to(N, scratch.allocator());
+    keel::Array<keel::u64> ps = keel::specfun::primes_up_to(N, scratch.allocator());
 
     auto out = Value::matrix(1, ps.size(), ValueType::DOUBLE, mr);
     double *dst = out.doubleDataMut();
@@ -53,7 +53,7 @@ Value isprime(const Value &x, keel::Allocator *mr)
     const keel::usize N = x.numel();
     for (keel::usize i = 0; i < N; ++i) {
         keel::u64 u = 0;
-        dst[i] = (isExactNonnegInt(x.elemAsDouble(i), u) && keel::is_prime_u64(u)) ? 1 : 0;
+        dst[i] = (isExactNonnegInt(x.elemAsDouble(i), u) && keel::specfun::is_prime_u64(u)) ? 1 : 0;
     }
     return out;
 }
@@ -65,7 +65,7 @@ Value factor(double n, keel::Allocator *mr)
         throw Error("factor: argument must be a non-negative integer scalar",
                      0, 0, "factor", "", "numkit:factor:badArg");
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<keel::u64> factors = keel::factor_u64(u, scratch.allocator());
+    keel::Array<keel::u64> factors = keel::specfun::factor_u64(u, scratch.allocator());
 
     auto out = Value::matrix(1, factors.size(), ValueType::DOUBLE, mr);
     double *dst = out.doubleDataMut();
@@ -143,7 +143,7 @@ Value nchoosek(double n, double k, keel::Allocator *mr)
         throw Error("nchoosek: k must satisfy 0 ≤ k ≤ n",
                      0, 0, "nchoosek", "", "numkit:nchoosek:kTooLarge");
 
-    return Value::scalar(keel::nchoosek(static_cast<keel::u64>(n), static_cast<keel::u64>(k)), mr);
+    return Value::scalar(keel::specfun::nchoosek(static_cast<keel::u64>(n), static_cast<keel::u64>(k)), mr);
 }
 
 // nchoosek(v, k) where v is a vector: all k-combinations of the elements of v,

@@ -52,9 +52,9 @@ Value gsvd_values(const Value &A, const Value &B, keel::Allocator *mr)
             Abuf[i] = Ac.isComplex() ? Ac.complexData()[i] : keel::c64(Ac.doubleData()[i], 0.0);
         for (keel::usize i = 0; i < p * n; ++i)
             Bbuf[i] = Bc.isComplex() ? Bc.complexData()[i] : keel::c64(Bc.doubleData()[i], 0.0);
-        keel::gsvd_values(Abuf.data(), m, Bbuf.data(), p, n, sigmas.doubleDataMut(), mr);
+        keel::linalg::gsvd_values(Abuf.data(), m, Bbuf.data(), p, n, sigmas.doubleDataMut(), mr);
     } else {
-        keel::gsvd_values(Ac.doubleData(), m, Bc.doubleData(), p, n, sigmas.doubleDataMut(), mr);
+        keel::linalg::gsvd_values(Ac.doubleData(), m, Bc.doubleData(), p, n, sigmas.doubleDataMut(), mr);
     }
 
     return detail::narrowDoubleToSingleIf(sigmas, wantSingle, mr);
@@ -105,7 +105,7 @@ std::tuple<Value, Value, Value, Value, Value> gsvd(const Value &A, const Value &
         auto U = Value::complexMatrix(m, m, mr);
         auto V = Value::complexMatrix(p, n, mr);
         auto X = Value::complexMatrix(n, n, mr);
-        keel::gsvd_full(Abuf.data(), m, Bbuf.data(), p, n,
+        keel::linalg::gsvd_full(Abuf.data(), m, Bbuf.data(), p, n,
                         U.complexDataMut(), V.complexDataMut(), X.complexDataMut(),
                         C.doubleDataMut(), S_out.doubleDataMut(), mr);
         return {detail::narrowDoubleToSingleIf(detail::narrow_if_real(U, mr), wantSingle, mr),
@@ -118,7 +118,7 @@ std::tuple<Value, Value, Value, Value, Value> gsvd(const Value &A, const Value &
     auto U = Value::matrix(m, m, ValueType::DOUBLE, mr);
     auto V = Value::matrix(p, n, ValueType::DOUBLE, mr);
     auto X = Value::matrix(n, n, ValueType::DOUBLE, mr);
-    keel::gsvd_full(Ac.doubleData(), m, Bc.doubleData(), p, n,
+    keel::linalg::gsvd_full(Ac.doubleData(), m, Bc.doubleData(), p, n,
                     U.doubleDataMut(), V.doubleDataMut(), X.doubleDataMut(),
                     C.doubleDataMut(), S_out.doubleDataMut(), mr);
     return {detail::narrowDoubleToSingleIf(U, wantSingle, mr),

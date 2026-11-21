@@ -1,6 +1,6 @@
 // toolboxes/linalg/src/qz.cpp
 //
-// qz — Generalized Schur decomposition [AA, BB, Q, Z] = qz(A, B) via keel::qz_factor.
+// qz — Generalized Schur decomposition [AA, BB, Q, Z] = qz(A, B) via keel::linalg::qz_factor.
 
 #include <keel/core.h>
 #include <keel/memory.h>
@@ -60,7 +60,7 @@ std::tuple<Value, Value, Value, Value> qz(const Value &A, const Value &B,
     auto Q_out  = Value::complexMatrix(n, n, mr);
     auto Z_out  = Value::complexMatrix(n, n, mr);
 
-    if (!keel::qz_factor(Ac.data(), Bc.data(), n,
+    if (!keel::linalg::qz_factor(Ac.data(), Bc.data(), n,
                          AA_out.complexDataMut(), BB_out.complexDataMut(),
                          Q_out.complexDataMut(), Z_out.complexDataMut())) {
         throw Error("qz: QZ iteration failed to converge", 0, 0, "qz", "", "numkit:qz:noConverge");

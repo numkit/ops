@@ -1,6 +1,6 @@
 // toolboxes/linalg/src/ordqz.cpp
 //
-// ordqz — Reorder Generalized Schur decomposition via keel::ordqz_complex.
+// ordqz — Reorder Generalized Schur decomposition via keel::linalg::ordqz_complex.
 
 #include <keel/core.h>
 #include <keel/format.h>
@@ -72,7 +72,7 @@ std::tuple<Value, Value, Value, Value> ordqz(const Value &AA, const Value &BB,
         sel[i] = select.isLogical() ? select.logicalData()[i] : (select.elemAsDouble(i) != 0.0 ? keel::u8(1) : keel::u8(0));
     }
 
-    keel::ordqz_complex(AAout.complexDataMut(), BBout.complexDataMut(),
+    keel::linalg::ordqz_complex(AAout.complexDataMut(), BBout.complexDataMut(),
                         Qout.complexDataMut(), Zout.complexDataMut(),
                         n, sel.data(), mr);
 

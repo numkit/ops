@@ -1,6 +1,6 @@
 // toolboxes/builtin/src/math/random/matlab_mt19937.cpp
 //
-// MATLAB-canonical MT19937 RNG delegating to keel::Mt19937.
+// MATLAB-canonical MT19937 RNG delegating to keel::random::Mt19937.
 
 #include <keel/core.h>
 #include <numkit/ops/matlab_mt19937.hpp>

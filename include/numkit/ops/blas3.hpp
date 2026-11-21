@@ -5,13 +5,13 @@
 
 namespace numkit::ops {
 
-using keel::MatrixSide;
-using keel::MatrixUplo;
-using keel::MatrixTranspose;
-using keel::MatrixDiag;
+using keel::linalg::MatrixSide;
+using keel::linalg::MatrixUplo;
+using keel::linalg::MatrixTranspose;
+using keel::linalg::MatrixDiag;
 
-using keel::gemm;
-using keel::trsm;
-using keel::syrk;
+using keel::linalg::gemm;
+using keel::linalg::trsm;
+using keel::linalg::syrk;
 
 } // namespace numkit::ops

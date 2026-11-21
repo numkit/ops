@@ -1,6 +1,6 @@
 // toolboxes/linalg/src/schur_convert.cpp
 //
-// cdf2rdf / rsf2csf — Value adapters over keel::cdf2rdf / keel::rsf2csf.
+// cdf2rdf / rsf2csf — Value adapters over keel::linalg::cdf2rdf / keel::linalg::rsf2csf.
 
 #include <keel/core.h>
 #include <keel/memory.h>
@@ -48,7 +48,7 @@ cdf2rdf(const Value &V, const Value &D, keel::Allocator *mr)
 
     auto VRout = Value::matrix(n, n, ValueType::DOUBLE, mr);
     auto DRout = Value::matrix(n, n, ValueType::DOUBLE, mr);
-    if (!keel::cdf2rdf(Vc.data(), Dc.data(), n, VRout.doubleDataMut(), DRout.doubleDataMut())) {
+    if (!keel::linalg::cdf2rdf(Vc.data(), Dc.data(), n, VRout.doubleDataMut(), DRout.doubleDataMut())) {
         throw Error("cdf2rdf: complex eigenvalues must come in conjugate pairs",
                     0, 0, "cdf2rdf", "", "numkit:cdf2rdf:badPair");
     }
@@ -84,7 +84,7 @@ rsf2csf(const Value &UR, const Value &TR, keel::Allocator *mr)
 
     auto Uout = Value::matrix(n, n, ValueType::COMPLEX, mr);
     auto Tout = Value::matrix(n, n, ValueType::COMPLEX, mr);
-    keel::rsf2csf(Ur.data(), Tr.data(), n, Uout.complexDataMut(), Tout.complexDataMut());
+    keel::linalg::rsf2csf(Ur.data(), Tr.data(), n, Uout.complexDataMut(), Tout.complexDataMut());
     return std::make_tuple(std::move(Uout), std::move(Tout));
 }
 

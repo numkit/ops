@@ -11,11 +11,11 @@
 
 namespace numkit::ops {
 
-using keel::lu_panel;
+using keel::linalg::lu_panel;
 
 /// @brief Returns the number of threads used in the most recent gemm call.
 inline keel::usize get_last_gemm_threads_used() noexcept {
-    return keel::linalg_last_gemm_threads_used();
+    return keel::linalg::linalg_last_gemm_threads_used();
 }
 
 } // namespace numkit::ops

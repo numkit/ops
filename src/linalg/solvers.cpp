@@ -70,7 +70,7 @@ Value linsolve(const Value &A, const Value &B, keel::Allocator *mr)
         }
 
         Value out = Value::complexMatrix(n, nrhs, mr);
-        if (!keel::la_solve(A_buf.data(), m, n, B_buf.data(), nrhs, out.complexDataMut(), mr)) {
+        if (!keel::linalg::la_solve(A_buf.data(), m, n, B_buf.data(), nrhs, out.complexDataMut(), mr)) {
             throw Error("linsolve: A is singular or rank-deficient",
                         0, 0, "linsolve", "", "numkit:linsolve:singular");
         }
@@ -79,7 +79,7 @@ Value linsolve(const Value &A, const Value &B, keel::Allocator *mr)
 
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     auto out = Value::matrix(n, nrhs, ValueType::DOUBLE, mr);
-    if (!keel::la_solve(Aw.doubleData(), m, n, Bw.doubleData(), nrhs,
+    if (!keel::linalg::la_solve(Aw.doubleData(), m, n, Bw.doubleData(), nrhs,
                         out.doubleDataMut(), scratch.allocator()))
         throw Error("linsolve: A is singular or rank-deficient",
                     0, 0, "linsolve", "", "numkit:linsolve:singular");
@@ -135,7 +135,7 @@ lsqnonneg_impl(const Value &C, const Value &d, keel::Allocator *mr)
     R.x = Value::matrix(N, 1, ValueType::DOUBLE, mr);
     R.residual = Value::matrix(M, 1, ValueType::DOUBLE, mr);
 
-    const keel::NnlsStats st = keel::lsqnonneg(Cw.doubleData(), M, N, db.data(),
+    const keel::linalg::NnlsStats st = keel::linalg::lsqnonneg(Cw.doubleData(), M, N, db.data(),
                                                R.x.doubleDataMut(), R.residual.doubleDataMut(), mr);
     R.resnorm = st.resnorm;
     R.iterations = static_cast<int>(st.iterations);

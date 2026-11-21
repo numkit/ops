@@ -49,7 +49,7 @@ Value polyarea(const Value &x, const Value &y, keel::Allocator *mr)
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     auto xd = toDoubleArray(x, scratch.allocator());
     auto yd = toDoubleArray(y, scratch.allocator());
-    return Value::scalar(keel::polyarea(xd.as_ref(), yd.as_ref()), mr);
+    return Value::scalar(keel::geom::polyarea(xd.as_ref(), yd.as_ref()), mr);
 }
 
 // ── inpolygon ────────────────────────────────────────────────────────
@@ -70,7 +70,7 @@ Value inpolygon(const Value &xq, const Value &yq, const Value &xv,
     auto yqd = toDoubleArray(yq, scratch.allocator());
     auto xvd = toDoubleArray(xv, scratch.allocator());
     auto yvd = toDoubleArray(yv, scratch.allocator());
-    keel::inpolygon(xqd.as_ref(), yqd.as_ref(), xvd.as_ref(), yvd.as_ref(),
+    keel::geom::inpolygon(xqd.as_ref(), yqd.as_ref(), xvd.as_ref(), yvd.as_ref(),
                     keel::MutArrayRef<keel::u8>(out.logicalDataMut(), nQ));
     return out;
 }
@@ -93,7 +93,7 @@ Value convhull(const Value &x, const Value &y, keel::Allocator *mr)
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     auto xd = toDoubleArray(x, scratch.allocator());
     auto yd = toDoubleArray(y, scratch.allocator());
-    keel::Array<keel::usize> hull = keel::convhull(xd.as_ref(), yd.as_ref(), scratch.allocator());
+    keel::Array<keel::usize> hull = keel::geom::convhull(xd.as_ref(), yd.as_ref(), scratch.allocator());
     auto out = Value::matrix(hull.size(), 1, ValueType::DOUBLE, mr);
     double *dst = out.doubleDataMut();
     for (keel::usize i = 0; i < hull.size(); ++i)
@@ -115,7 +115,7 @@ Value boundary(const Value &x, const Value &y, double shrink, keel::Allocator *m
     auto xd = toDoubleArray(x, scratch.allocator());
     auto yd = toDoubleArray(y, scratch.allocator());
     keel::Array<keel::usize> poly =
-        keel::boundary(xd.as_ref(), yd.as_ref(), shrink, scratch.allocator());
+        keel::geom::boundary(xd.as_ref(), yd.as_ref(), shrink, scratch.allocator());
     auto out = Value::matrix(poly.size(), 1, ValueType::DOUBLE, mr);
     double *dst = out.doubleDataMut();
     for (keel::usize i = 0; i < poly.size(); ++i)
@@ -136,8 +136,8 @@ Value delaunay(const Value &x, const Value &y, keel::Allocator *mr)
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     auto xd = toDoubleArray(x, scratch.allocator());
     auto yd = toDoubleArray(y, scratch.allocator());
-    keel::Array<keel::Triangle> tris =
-        keel::delaunay(xd.as_ref(), yd.as_ref(), scratch.allocator());
+    keel::Array<keel::geom::Triangle> tris =
+        keel::geom::delaunay(xd.as_ref(), yd.as_ref(), scratch.allocator());
     const keel::usize M = tris.size();
     auto out = Value::matrix(M, 3, ValueType::DOUBLE, mr);
     double *dst = out.doubleDataMut();
@@ -160,17 +160,17 @@ Value griddata(const Value &x, const Value &y, const Value &v,
         throw Error("griddata: x, y, v must have the same numel",
                      0, 0, "griddata", "", "numkit:griddata:shape");
 
-    keel::ScatteredMethod method = keel::ScatteredMethod::Linear;
+    keel::geom::ScatteredMethod method = keel::geom::ScatteredMethod::Linear;
     if (methodIn.empty() || methodIn.equals_ignore_ascii_case("linear")) {
-        method = keel::ScatteredMethod::Linear;
+        method = keel::geom::ScatteredMethod::Linear;
     } else if (methodIn.equals_ignore_ascii_case("nearest")) {
-        method = keel::ScatteredMethod::Nearest;
+        method = keel::geom::ScatteredMethod::Nearest;
     } else if (methodIn.equals_ignore_ascii_case("v4")) {
-        method = keel::ScatteredMethod::BiharmonicV4;
+        method = keel::geom::ScatteredMethod::BiharmonicV4;
     } else if (methodIn.equals_ignore_ascii_case("natural")) {
-        method = keel::ScatteredMethod::Natural;
+        method = keel::geom::ScatteredMethod::Natural;
     } else if (methodIn.equals_ignore_ascii_case("cubic")) {
-        method = keel::ScatteredMethod::Cubic;
+        method = keel::geom::ScatteredMethod::Cubic;
     } else {
         throw Error(keel::format("griddata: unknown method '{}'", methodIn),
                      0, 0, "griddata", "", "numkit:griddata:badMethod");
@@ -209,7 +209,7 @@ Value griddata(const Value &x, const Value &y, const Value &v,
     auto vd = toDoubleArray(v, scratch.allocator());
     auto xqd = toDoubleArray(xq, scratch.allocator());
     auto yqd = toDoubleArray(yq, scratch.allocator());
-    (void)keel::griddata(xd.as_ref(), yd.as_ref(), vd.as_ref(), xqd.as_ref(), yqd.as_ref(),
+    (void)keel::geom::griddata(xd.as_ref(), yd.as_ref(), vd.as_ref(), xqd.as_ref(), yqd.as_ref(),
                          keel::MutArrayRef<keel::f64>(out.doubleDataMut(), nq), method,
                          scratch.allocator());
     return out;
@@ -239,7 +239,7 @@ Value histcounts2(const Value &x, const Value &y, const Value &xedgesV,
     auto yd = toDoubleArray(y, scratch.allocator());
     auto xe = toDoubleArray(xedgesV, scratch.allocator());
     auto ye = toDoubleArray(yedgesV, scratch.allocator());
-    keel::histcounts2(xd.as_ref(), yd.as_ref(), xe.as_ref(), ye.as_ref(),
+    keel::geom::histcounts2(xd.as_ref(), yd.as_ref(), xe.as_ref(), ye.as_ref(),
                       keel::MutArrayRef<keel::f64>(out.doubleDataMut(), nx * ny));
     return out;
 }
@@ -266,7 +266,7 @@ Value griddatan(const Value &Xv, const Value &vv, const Value &xi,
         auto xd = toDoubleArray(Xv, scratch.allocator());
         auto vd = toDoubleArray(vv, scratch.allocator());
         auto xid = toDoubleArray(xi, scratch.allocator());
-        (void)keel::griddatan_nearest(xd.as_ref(), m, n, vd.as_ref(), xid.as_ref(), k,
+        (void)keel::geom::griddatan_nearest(xd.as_ref(), m, n, vd.as_ref(), xid.as_ref(), k,
                                       keel::MutArrayRef<keel::f64>(out.doubleDataMut(), k));
         return out;
     }
@@ -281,13 +281,13 @@ Value griddatan(const Value &Xv, const Value &vv, const Value &xi,
         auto xd = toDoubleArray(Xv, scratch.allocator());
         auto vd = toDoubleArray(vv, scratch.allocator());
         auto xid = toDoubleArray(xi, scratch.allocator());
-        (void)keel::griddata(keel::ArrayRef<keel::f64>(xd.data(), m),
+        (void)keel::geom::griddata(keel::ArrayRef<keel::f64>(xd.data(), m),
                              keel::ArrayRef<keel::f64>(xd.data() + m, m),
                              vd.as_ref(),
                              keel::ArrayRef<keel::f64>(xid.data(), k),
                              keel::ArrayRef<keel::f64>(xid.data() + k, k),
                              keel::MutArrayRef<keel::f64>(out.doubleDataMut(), k),
-                             keel::ScatteredMethod::Linear, scratch.allocator());
+                             keel::geom::ScatteredMethod::Linear, scratch.allocator());
         return out;
     }
 
@@ -318,8 +318,8 @@ MatchpairsResult matchpairs(const Value &C, double cU, keel::StringRef mode,
     const keel::usize cols = C.dims().cols();
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     auto cd = toDoubleArray(C, scratch.allocator());
-    keel::MatchpairsOutput mp =
-        keel::matchpairs(cd.as_ref(), rows, cols, cU, maximise, scratch.allocator());
+    keel::geom::MatchpairsOutput mp =
+        keel::geom::matchpairs(cd.as_ref(), rows, cols, cU, maximise, scratch.allocator());
 
     MatchpairsResult result;
     const keel::usize nm = mp.matches.size();

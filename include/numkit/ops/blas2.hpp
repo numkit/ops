@@ -5,7 +5,7 @@
 
 namespace numkit::ops {
 
-using keel::gemv;
-using keel::ger;
+using keel::linalg::gemv;
+using keel::linalg::ger;
 
 } // namespace numkit::ops

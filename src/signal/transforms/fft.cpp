@@ -23,27 +23,27 @@
 #include <algorithm>
 #include <cmath>
 
-// ── Low-level kernel forwarders to keel::fft_kernels ───────────────────
+// ── Low-level kernel forwarders to keel::fft::fft_kernels ───────────────────
 namespace numkit::ops::detail {
 
 void fftRadix2Impl(keel::c64 *buf, keel::usize N, const keel::c64 *W) {
-    keel::fft_kernels::fft_radix2_inplace(buf, N, W);
+    keel::fft::fft_kernels::fft_radix2_inplace(buf, N, W);
 }
 
 void fftStockhamDispatch(keel::c64 *buf, keel::usize N, const keel::c64 *W) {
-    keel::fft_kernels::fft_stockham_inplace(buf, N, W);
+    keel::fft::fft_kernels::fft_stockham_inplace(buf, N, W);
 }
 
 void fftRadix2SoaDispatch(keel::c64 *buf, keel::usize N, const keel::c64 *W) {
-    keel::fft_kernels::fft_radix2_soa_inplace(buf, N, W);
+    keel::fft::fft_kernels::fft_radix2_soa_inplace(buf, N, W);
 }
 
 void fftRadix4Pow4SoaDispatch(keel::c64 *buf, keel::usize N, const keel::c64 *W) {
-    keel::fft_kernels::fft_radix4_soa_inplace(buf, N, W);
+    keel::fft::fft_kernels::fft_radix4_soa_inplace(buf, N, W);
 }
 
 void fftSoaStagesDispatch(keel::f64 *re, keel::f64 *im, keel::usize N, const keel::c64 *W) {
-    keel::fft_kernels::fft_soa_stages_inplace(re, im, N, W);
+    keel::fft::fft_kernels::fft_soa_stages_inplace(re, im, N, W);
 }
 
 } // namespace numkit::ops::detail
@@ -111,7 +111,7 @@ static Value fftAlongDim(const Value &x_in, keel::usize N_req, int dim, int dir,
         : Value::complexMatrix(outR, outC, mr);
 
     const keel::usize dims[3] = {R, C, P};
-    const auto layout = keel::FftBatchLayout::from_col_major(
+    const auto layout = keel::fft::FftBatchLayout::from_col_major(
         keel::ArrayRef<keel::usize>(dims, 3),
         static_cast<keel::usize>(dim - 1),
         outAxisLen,
@@ -120,26 +120,26 @@ static Value fftAlongDim(const Value &x_in, keel::usize N_req, int dim, int dir,
     keel::MutArrayRef<keel::c64> dstRef(result.complexDataMut(), result.numel());
 
     if (x.isComplex()) {
-        const auto kdir = (dir == +1) ? keel::FftDirection::Forward : keel::FftDirection::Inverse;
-        keel::fft_batch(
+        const auto kdir = (dir == +1) ? keel::fft::FftDirection::Forward : keel::fft::FftDirection::Inverse;
+        keel::fft::fft_batch(
             keel::ArrayRef<keel::c64>(x.complexData(), x.numel()),
             dstRef,
             layout,
             kdir,
-            keel::FftNormalization::Backward);
+            keel::fft::FftNormalization::Backward);
     } else if (dir == +1) {
-        keel::fft_batch_real(
+        keel::fft::fft_batch_real(
             keel::ArrayRef<keel::f64>(x.doubleData(), x.numel()),
             dstRef,
             layout,
-            keel::FftNormalization::Backward);
+            keel::fft::FftNormalization::Backward);
     } else {
         // Real-input IFFT: IFFT(x) = conj(FFT(x)) / N since x is real.
-        keel::fft_batch_real(
+        keel::fft::fft_batch_real(
             keel::ArrayRef<keel::f64>(x.doubleData(), x.numel()),
             dstRef,
             layout,
-            keel::FftNormalization::None);
+            keel::fft::FftNormalization::None);
         const double invN = 1.0 / static_cast<double>(outAxisLen);
         keel::c64 *out = result.complexDataMut();
         const keel::usize total = result.numel();
