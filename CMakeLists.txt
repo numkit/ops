@@ -297,6 +297,25 @@ if(NOT TARGET keel::poly)
     FetchContent_MakeAvailable(keel_poly)
 endif()
 
+if(NOT TARGET keel::signal)
+    find_package(keel_signal QUIET CONFIG)
+    if(TARGET keel::keel_signal AND NOT TARGET keel::signal)
+        add_library(keel::signal ALIAS keel::keel_signal)
+    endif()
+endif()
+if(NOT TARGET keel::signal)
+    set(KEEL_SIGNAL_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../../../keelcpp/signal/CMakeLists.txt" AND NOT DEFINED FETCHCONTENT_SOURCE_DIR_KEEL_SIGNAL)
+        set(FETCHCONTENT_SOURCE_DIR_KEEL_SIGNAL "${CMAKE_CURRENT_SOURCE_DIR}/../../../keelcpp/signal" CACHE PATH "Local keel_signal checkout")
+    endif()
+    FetchContent_Declare(
+        keel_signal
+        GIT_REPOSITORY https://github.com/keelcpp/signal.git
+        GIT_TAG        5d4f4f3bb2bd20665f86317cfe173e5c00343c83
+    )
+    FetchContent_MakeAvailable(keel_signal)
+endif()
+
 set(NUMKIT_OPS_SOURCES
     src/rng/matlab_mt19937.cpp
     src/rng/rng.cpp
@@ -374,7 +393,7 @@ target_include_directories(numkit_ops
 )
 
 target_link_libraries(numkit_ops
-    PUBLIC numkit_value keel::random keel::linalg keel::specfun keel::geom keel::interp keel::ode keel::quad keel::optim keel::poly
+    PUBLIC numkit_value keel::random keel::linalg keel::specfun keel::geom keel::interp keel::ode keel::quad keel::optim keel::poly keel::signal
     PRIVATE hwy hwy_contrib keel::compress keel::image keel::fft
 )
 
