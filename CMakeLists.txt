@@ -259,6 +259,44 @@ if(NOT TARGET keel::quad)
     FetchContent_MakeAvailable(keel_quad)
 endif()
 
+if(NOT TARGET keel::optim)
+    find_package(keel_optim QUIET CONFIG)
+    if(TARGET keel::keel_optim AND NOT TARGET keel::optim)
+        add_library(keel::optim ALIAS keel::keel_optim)
+    endif()
+endif()
+if(NOT TARGET keel::optim)
+    set(KEEL_OPTIM_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../../../keelcpp/optim/CMakeLists.txt" AND NOT DEFINED FETCHCONTENT_SOURCE_DIR_KEEL_OPTIM)
+        set(FETCHCONTENT_SOURCE_DIR_KEEL_OPTIM "${CMAKE_CURRENT_SOURCE_DIR}/../../../keelcpp/optim" CACHE PATH "Local keel_optim checkout")
+    endif()
+    FetchContent_Declare(
+        keel_optim
+        GIT_REPOSITORY https://github.com/keelcpp/optim.git
+        GIT_TAG        830a6bcec17b132df065c76d7b5a558088371764
+    )
+    FetchContent_MakeAvailable(keel_optim)
+endif()
+
+if(NOT TARGET keel::poly)
+    find_package(keel_poly QUIET CONFIG)
+    if(TARGET keel::keel_poly AND NOT TARGET keel::poly)
+        add_library(keel::poly ALIAS keel::keel_poly)
+    endif()
+endif()
+if(NOT TARGET keel::poly)
+    set(KEEL_POLY_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../../../keelcpp/poly/CMakeLists.txt" AND NOT DEFINED FETCHCONTENT_SOURCE_DIR_KEEL_POLY)
+        set(FETCHCONTENT_SOURCE_DIR_KEEL_POLY "${CMAKE_CURRENT_SOURCE_DIR}/../../../keelcpp/poly" CACHE PATH "Local keel_poly checkout")
+    endif()
+    FetchContent_Declare(
+        keel_poly
+        GIT_REPOSITORY https://github.com/keelcpp/poly.git
+        GIT_TAG        79792af419ce3f1c108f4878e6edfbc9d70036db
+    )
+    FetchContent_MakeAvailable(keel_poly)
+endif()
+
 set(NUMKIT_OPS_SOURCES
     src/rng/matlab_mt19937.cpp
     src/rng/rng.cpp
@@ -336,7 +374,7 @@ target_include_directories(numkit_ops
 )
 
 target_link_libraries(numkit_ops
-    PUBLIC numkit_value keel::random keel::linalg keel::specfun keel::geom keel::interp keel::ode keel::quad
+    PUBLIC numkit_value keel::random keel::linalg keel::specfun keel::geom keel::interp keel::ode keel::quad keel::optim keel::poly
     PRIVATE hwy hwy_contrib keel::compress keel::image keel::fft
 )
 

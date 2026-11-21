@@ -48,7 +48,7 @@ keel::Array<double> readPolyAsDouble(const Value &p, const char *fn, keel::Alloc
 // Convolve two real polynomial coefficient vectors (length-N + length-M
 // → length-N+M-1). Pointer + size for inputs so the same helper composes
 // with std::vector and std::pmr::vector backings.
-keel::Array<double> polyConv(const double *a, keel::usize na, const double *b, keel::usize nb, keel::Allocator *mr)
+[[maybe_unused]] keel::Array<double> polyConv(const double *a, keel::usize na, const double *b, keel::usize nb, keel::Allocator *mr)
 {
     if (na == 0 || nb == 0) return keel::Array<double>(mr);
     keel::Array<double> r(na + nb - 1, mr);
@@ -59,7 +59,7 @@ keel::Array<double> polyConv(const double *a, keel::usize na, const double *b, k
 }
 
 // d/dx of a coefficient vector in MATLAB order.
-keel::Array<double> polyderRaw(const double *p, keel::usize pn, keel::Allocator *mr)
+[[maybe_unused]] keel::Array<double> polyderRaw(const double *p, keel::usize pn, keel::Allocator *mr)
 {
     if (pn <= 1) {
         keel::Array<double> r(1, mr);
@@ -75,7 +75,7 @@ keel::Array<double> polyderRaw(const double *p, keel::usize pn, keel::Allocator 
     return r;
 }
 
-Value rowFromVec(const double *v, keel::usize n, keel::Allocator *mr)
+[[maybe_unused]] Value rowFromVec(const double *v, keel::usize n, keel::Allocator *mr)
 {
     auto out = Value::matrix(1, n, ValueType::DOUBLE, mr);
     if (n > 0)
@@ -84,7 +84,7 @@ Value rowFromVec(const double *v, keel::usize n, keel::Allocator *mr)
 }
 
 // Trim trailing zeros that arise from a-b cancellation in polyder(b,a).
-void trimLeadingZeros(keel::Array<keel::f64> &v)
+[[maybe_unused]] void trimLeadingZeros(keel::Array<keel::f64> &v)
 {
     keel::usize lo = 0;
     while (lo + 1 < v.size() && v[lo] == 0.0) ++lo;
