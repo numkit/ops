@@ -159,7 +159,7 @@ if(NOT TARGET keel::linalg)
     FetchContent_Declare(
         keel_linalg
         GIT_REPOSITORY https://github.com/keelcpp/linalg.git
-        GIT_TAG        e6e29ad227ff97d01e837e281ab6a7d9c440f075
+        GIT_TAG        9573b42172fe359b47eeb2c5fc6b2d7fe2816cb3
     )
     FetchContent_MakeAvailable(keel_linalg)
 endif()

@@ -1,13 +1,13 @@
 // toolboxes/linalg/src/misc.cpp
 //
-// Miscellaneous linalg utilities: rref + planerot.
-// Migrated 2026-05-25 from toolboxes/builtin/src/language/arrays/linalg_extras.cpp.
+// Miscellaneous linalg utilities: rref (via keel::rref) + planerot.
 
 #include <keel/core.h>
 #include <keel/memory.h>
 #include <keel/arena.h>
 #include <keel/array.h>
 #include <keel/complex.h>
+#include <keel/linalg.h>
 #include <keel/math.h>
 #include <numkit/linalg/misc.hpp>
 
@@ -27,78 +27,20 @@ namespace numkit::linalg {
 namespace {
 
 template <typename T>
-double matrix_inf_norm(const T *A, keel::usize M, keel::usize N)
+double single_rref_default_tol(const T *A, keel::usize M, keel::usize N)
 {
-    if (M == 0 || N == 0) return 0.0;
-    double maxv = 0.0;
+    double anorm = 0.0;
     for (keel::usize i = 0; i < M; ++i) {
         double s = 0.0;
         for (keel::usize j = 0; j < N; ++j) s += keel::abs(A[i + j * M]);
-        if (s > maxv) maxv = s;
+        if (s > anorm) anorm = s;
     }
-    return maxv;
-}
-
-template <typename T>
-void rref_kernel(T *B, keel::usize M, keel::usize N, bool have_tol, double tol_user,
-                 keel::Array<double> &jb_buf, bool isSingle = false)
-{
-    double tol = tol_user;
-    if (!have_tol) {
-        const double anorm = matrix_inf_norm(B, M, N);
-        if (isSingle) {
-            const float anorm_f = static_cast<float>(anorm);
-            const float eps_f = std::numeric_limits<float>::epsilon();
-            const double eps_anorm = (anorm_f == 0.0f)
-                ? static_cast<double>(eps_f)
-                : static_cast<double>(std::nextafter(anorm_f, std::numeric_limits<float>::infinity()) - anorm_f);
-            tol = static_cast<double>(std::max(M, N)) * eps_anorm;
-        } else {
-            const double eps = std::numeric_limits<double>::epsilon();
-            const double eps_anorm = (anorm == 0.0) ? eps
-                                                     : std::nextafter(anorm,
-                                                           std::numeric_limits<double>::infinity()) - anorm;
-            tol = static_cast<double>(std::max(M, N)) * eps_anorm;
-        }
-    }
-
-    keel::usize i = 0;
-    for (keel::usize j = 0; j < N && i < M; ++j) {
-        keel::usize piv_row = i;
-        double piv_val = keel::abs(B[i + j * M]);
-        for (keel::usize k = i + 1; k < M; ++k) {
-            double v = keel::abs(B[k + j * M]);
-            if (v > piv_val) { piv_val = v; piv_row = k; }
-        }
-
-        if (piv_val <= tol) {
-            for (keel::usize k = i; k < M; ++k) B[k + j * M] = T(0.0);
-            continue;
-        }
-
-        if (piv_row != i) {
-            for (keel::usize jj = 0; jj < N; ++jj) {
-                std::swap(B[i + jj * M], B[piv_row + jj * M]);
-            }
-        }
-
-        T piv = B[i + j * M];
-        for (keel::usize jj = 0; jj < N; ++jj) B[i + jj * M] /= piv;
-        B[i + j * M] = T(1.0);
-
-        for (keel::usize k = 0; k < M; ++k) {
-            if (k == i) continue;
-            T f = B[k + j * M];
-            if (f == T(0.0)) continue;
-            for (keel::usize jj = 0; jj < N; ++jj) {
-                B[k + jj * M] -= f * B[i + jj * M];
-            }
-            B[k + j * M] = T(0.0);
-        }
-
-        jb_buf.push_back(static_cast<double>(j + 1));
-        ++i;
-    }
+    const float anorm_f = static_cast<float>(anorm);
+    const float eps_f = std::numeric_limits<float>::epsilon();
+    const double eps_anorm = (anorm_f == 0.0f)
+        ? static_cast<double>(eps_f)
+        : static_cast<double>(std::nextafter(anorm_f, std::numeric_limits<float>::infinity()) - anorm_f);
+    return static_cast<double>(std::max(M, N)) * eps_anorm;
 }
 
 } // namespace
@@ -123,35 +65,31 @@ rref(const Value &A, bool have_tol, double tol_user, keel::Allocator *mr)
 
     const Value Aw = detail::widenSingleToDouble(A, mr);
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<double> jb_buf(0, scratch.allocator());
+    keel::Array<keel::usize> piv_cols(std::min(M, N), scratch.allocator());
 
     if (Aw.isComplex()) {
-        keel::Array<keel::c64> B(M * N, scratch.allocator());
-        std::copy(Aw.complexData(), Aw.complexData() + M * N, B.begin());
-        rref_kernel(B.data(), M, N, have_tol, tol_user, jb_buf, wantSingle);
-
         Value R = Value::complexMatrix(M, N, mr);
-        std::copy(B.begin(), B.end(), R.complexDataMut());
+        std::copy(Aw.complexData(), Aw.complexData() + M * N, R.complexDataMut());
+        const double tol = have_tol ? tol_user
+            : (wantSingle ? single_rref_default_tol(R.complexData(), M, N) : -1.0);
+        const keel::usize rank = keel::rref(R.complexDataMut(), M, N, tol, piv_cols.data());
         R = detail::narrow_if_real(R, mr);
 
-        Value jb = Value::matrix(jb_buf.empty() ? 0 : 1, jb_buf.size(),
-                                 ValueType::DOUBLE, mr);
-        if (!jb_buf.empty())
-            std::copy(jb_buf.begin(), jb_buf.end(), jb.doubleDataMut());
+        Value jb = Value::matrix(rank == 0 ? 0 : 1, rank, ValueType::DOUBLE, mr);
+        double *jbd = jb.doubleDataMut();
+        for (keel::usize k = 0; k < rank; ++k) jbd[k] = static_cast<double>(piv_cols[k] + 1);
         return {detail::narrowDoubleToSingleIf(R, wantSingle, mr), jb};
     }
 
     Value R = Value::matrix(M, N, ValueType::DOUBLE, mr);
-    keel::Array<double> B(M * N, scratch.allocator());
-    std::copy(Aw.doubleData(), Aw.doubleData() + M * N, B.begin());
-    rref_kernel(B.data(), M, N, have_tol, tol_user, jb_buf, wantSingle);
+    std::copy(Aw.doubleData(), Aw.doubleData() + M * N, R.doubleDataMut());
+    const double tol = have_tol ? tol_user
+        : (wantSingle ? single_rref_default_tol(R.doubleData(), M, N) : -1.0);
+    const keel::usize rank = keel::rref(R.doubleDataMut(), M, N, tol, piv_cols.data());
 
-    std::copy(B.begin(), B.end(), R.doubleDataMut());
-
-    Value jb = Value::matrix(jb_buf.empty() ? 0 : 1, jb_buf.size(),
-                             ValueType::DOUBLE, mr);
-    if (!jb_buf.empty())
-        std::copy(jb_buf.begin(), jb_buf.end(), jb.doubleDataMut());
+    Value jb = Value::matrix(rank == 0 ? 0 : 1, rank, ValueType::DOUBLE, mr);
+    double *jbd = jb.doubleDataMut();
+    for (keel::usize k = 0; k < rank; ++k) jbd[k] = static_cast<double>(piv_cols[k] + 1);
     return {detail::narrowDoubleToSingleIf(R, wantSingle, mr), jb};
 }
 
@@ -194,9 +132,5 @@ planerot(const Value &xy, keel::Allocator *mr)
     return {detail::narrowDoubleToSingleIf(G, wantSingle, mr),
             detail::narrowDoubleToSingleIf(yo, wantSingle, mr)};
 }
-
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// Engine adapters
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 } // namespace numkit::linalg
