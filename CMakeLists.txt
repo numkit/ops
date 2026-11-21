@@ -311,7 +311,7 @@ if(NOT TARGET keel::signal)
     FetchContent_Declare(
         keel_signal
         GIT_REPOSITORY https://github.com/keelcpp/signal.git
-        GIT_TAG        5bed6cccdcdc4d214141d34054d2aaea8d99b2d7
+        GIT_TAG        abe4cfd103e818318bfeda72f673af3553fcd126
     )
     FetchContent_MakeAvailable(keel_signal)
 endif()
