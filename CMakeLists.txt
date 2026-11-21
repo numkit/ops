@@ -84,7 +84,7 @@ if(NOT TARGET keel::keel)
     FetchContent_Declare(
         keel
         GIT_REPOSITORY https://github.com/keelcpp/keel.git
-        GIT_TAG        17f70b799a9627d06038de3d6bc14efd2400a171
+        GIT_TAG        869a5c07a5d77341e5f6acbac5f8e024b274ea08
     )
     FetchContent_MakeAvailable(keel)
 endif()
