@@ -52,10 +52,10 @@ namespace hn = hwy::HWY_NAMESPACE;
 // most ops it's `hn::Lt(va, vb)` / `hn::Gt(...)` etc.; for Ne it's
 // `NUMKIT_IEEE_NE(d, va, vb)` to preserve IEEE NaN semantics.
 #define NUMKIT_CMP_LOOP(NAME, CMP_EXPR, SCALAR_OP)                                      \
-    void NAME##VV(const double *HWY_RESTRICT a, const double *HWY_RESTRICT b,           \
+    void NAME##VV(const keel::f64 *HWY_RESTRICT a, const keel::f64 *HWY_RESTRICT b,           \
                   keel::u8 *HWY_RESTRICT out, keel::usize n)                             \
     {                                                                                   \
-        const hn::ScalableTag<double> d;                                                \
+        const hn::ScalableTag<keel::f64> d;                                                \
         const keel::usize N = hn::Lanes(d);                                             \
         keel::usize i = 0;                                                              \
         for (; i + N <= n; i += N) {                                                    \
@@ -70,10 +70,10 @@ namespace hn = hwy::HWY_NAMESPACE;
         for (; i < n; ++i)                                                              \
             out[i] = (a[i] SCALAR_OP b[i]) ? 1 : 0;                                     \
     }                                                                                   \
-    void NAME##VS(const double *HWY_RESTRICT a, double s,                               \
+    void NAME##VS(const keel::f64 *HWY_RESTRICT a, keel::f64 s,                               \
                   keel::u8 *HWY_RESTRICT out, keel::usize n)                             \
     {                                                                                   \
-        const hn::ScalableTag<double> d;                                                \
+        const hn::ScalableTag<keel::f64> d;                                                \
         const keel::usize N = hn::Lanes(d);                                             \
         const auto sv = hn::Set(d, s);                                                  \
         keel::usize i = 0;                                                              \
@@ -88,10 +88,10 @@ namespace hn = hwy::HWY_NAMESPACE;
         for (; i < n; ++i)                                                              \
             out[i] = (a[i] SCALAR_OP s) ? 1 : 0;                                        \
     }                                                                                   \
-    void NAME##SV(double s, const double *HWY_RESTRICT b,                               \
+    void NAME##SV(keel::f64 s, const keel::f64 *HWY_RESTRICT b,                               \
                   keel::u8 *HWY_RESTRICT out, keel::usize n)                             \
     {                                                                                   \
-        const hn::ScalableTag<double> d;                                                \
+        const hn::ScalableTag<keel::f64> d;                                                \
         const keel::usize N = hn::Lanes(d);                                             \
         const auto sv = hn::Set(d, s);                                                  \
         keel::usize i = 0;                                                              \
@@ -184,13 +184,13 @@ Value dispatchFast(const Value &a, const Value &b,
     }
 
     if (a.isScalar()) {
-        const double s = a.toScalar();
+        const keel::f64 s = a.toScalar();
         auto r = createLike(b, ValueType::LOGICAL, nullptr);
         fnSV(s, b.doubleData(), r.logicalDataMut(), b.numel());
         return r;
     }
     if (b.isScalar()) {
-        const double s = b.toScalar();
+        const keel::f64 s = b.toScalar();
         auto r = createLike(a, ValueType::LOGICAL, nullptr);
         fnVS(a.doubleData(), s, r.logicalDataMut(), a.numel());
         return r;

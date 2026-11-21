@@ -69,7 +69,7 @@ Value poly_of_matrix(const Value &A, keel::Allocator *mr)
 
     if (!A.isComplex()) {
         auto out = Value::matrix(1, n + 1, ValueType::DOUBLE, mr);
-        double *c = out.doubleDataMut();
+        keel::f64 *c = out.doubleDataMut();
         for (keel::usize j = 0; j <= n; ++j)
             c[j] = coeff[j].real();
         return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
@@ -83,19 +83,19 @@ Value poly_of_matrix(const Value &A, keel::Allocator *mr)
     return detail::narrow_if_real(out, mr);
 }
 
-static bool isHermitianComplexApprox(const Value &A, double tol = 1e-10)
+static bool isHermitianComplexApprox(const Value &A, keel::f64 tol = 1e-10)
 {
     if (A.dims().ndim() != 2 || !A.isComplex()) return false;
     const keel::usize m = keel::as<keel::usize>(A.dims().dim(0));
     const keel::usize n = keel::as<keel::usize>(A.dims().dim(1));
     if (m != n) return false;
     const keel::c64 *ad = A.complexData();
-    double aMax = 1.0;
+    keel::f64 aMax = 1.0;
     for (keel::usize idx = 0; idx < n * n; ++idx) {
-        const double v = keel::abs(ad[idx]);
+        const keel::f64 v = keel::abs(ad[idx]);
         if (v > aMax) aMax = v;
     }
-    const double thresh = tol * aMax;
+    const keel::f64 thresh = tol * aMax;
     for (keel::usize i = 0; i < n; ++i) {
         if (std::fabs(ad[i + i * n].imag()) > thresh) return false;
         for (keel::usize j = i + 1; j < n; ++j) {
@@ -109,7 +109,7 @@ static bool isHermitianComplexApprox(const Value &A, double tol = 1e-10)
 namespace {
 
 // Clean tiny complex phases on real eigenvectors/eigenvalues for real input matrices.
-bool cleanRealSpectrum(keel::c64 *Vd, keel::c64 *Dd, keel::usize n, double imagTol, bool allowNonFinite)
+bool cleanRealSpectrum(keel::c64 *Vd, keel::c64 *Dd, keel::usize n, keel::f64 imagTol, bool allowNonFinite)
 {
     bool realSpectrum = true;
     for (keel::usize k = 0; k < n; ++k) {
@@ -120,27 +120,27 @@ bool cleanRealSpectrum(keel::c64 *Vd, keel::c64 *Dd, keel::usize n, double imagT
         if (isRealEig) {
             Dd[k + k * n] = keel::c64(dkk.real(), 0.0);
             keel::usize iMax = 0;
-            double maxAbs = 0.0;
+            keel::f64 maxAbs = 0.0;
             for (keel::usize i = 0; i < n; ++i) {
-                const double a = keel::abs(Vd[i + k * n]);
+                const keel::f64 a = keel::abs(Vd[i + k * n]);
                 if (a > maxAbs) { maxAbs = a; iMax = i; }
             }
             if (maxAbs > 0.0) {
                 const keel::c64 phase = keel::conj(Vd[iMax + k * n]) / maxAbs;
-                double colImax = 0.0;
+                keel::f64 colImax = 0.0;
                 for (keel::usize i = 0; i < n; ++i) {
                     const keel::c64 rotated = Vd[i + k * n] * phase;
                     Vd[i + k * n] = rotated;
                     colImax = std::max(colImax, keel::abs(rotated.imag()));
                 }
                 if (colImax <= 1e3 * imagTol) {
-                    double rNormSq = 0.0;
+                    keel::f64 rNormSq = 0.0;
                     for (keel::usize i = 0; i < n; ++i) {
-                        const double re = Vd[i + k * n].real();
+                        const keel::f64 re = Vd[i + k * n].real();
                         Vd[i + k * n] = keel::c64(re, 0.0);
                         rNormSq += re * re;
                     }
-                    const double rNorm = std::sqrt(rNormSq);
+                    const keel::f64 rNorm = std::sqrt(rNormSq);
                     if (rNorm > 0.0) {
                         for (keel::usize i = 0; i < n; ++i)
                             Vd[i + k * n] = keel::c64(Vd[i + k * n].real() / rNorm, 0.0);
@@ -151,7 +151,7 @@ bool cleanRealSpectrum(keel::c64 *Vd, keel::c64 *Dd, keel::usize n, double imagT
             realSpectrum = false;
         }
     }
-    double vImax = 0.0;
+    keel::f64 vImax = 0.0;
     for (keel::usize i = 0; i < n * n; ++i)
         vImax = std::max(vImax, keel::abs(Vd[i].imag()));
     return realSpectrum && vImax <= 1e3 * imagTol;
@@ -178,12 +178,12 @@ Value eig_general_values(const Value &A, keel::Allocator *mr)
 
     if (isHermitianComplexApprox(Aw)) {
         auto out = Value::matrix(n, 1, ValueType::DOUBLE, mr);
-        double *od = out.doubleDataMut();
+        keel::f64 *od = out.doubleDataMut();
         if (T.isComplex()) {
             const keel::c64 *td = T.complexData();
             for (keel::usize i = 0; i < n; ++i) od[i] = td[i + i * n].real();
         } else {
-            const double *td = T.doubleData();
+            const keel::f64 *td = T.doubleData();
             for (keel::usize i = 0; i < n; ++i) od[i] = td[i + i * n];
         }
         std::sort(od, od + n);
@@ -197,19 +197,19 @@ Value eig_general_values(const Value &A, keel::Allocator *mr)
         const keel::c64 *td = T.complexData();
         for (keel::usize i = 0; i < n; ++i) o[i] = td[i + i * n];
     } else {
-        const double *td = T.doubleData();
+        const keel::f64 *td = T.doubleData();
         keel::usize i = 0;
         while (i < n) {
             if (i + 1 < n && td[(i + 1) + i * n] != 0.0) {
-                double a = td[i + i * n];
-                double b = td[i + (i + 1) * n];
-                double c = td[(i + 1) + i * n];
-                double d = td[(i + 1) + (i + 1) * n];
-                double tr = a + d;
-                double det = a * d - b * c;
-                double disc = tr * tr - 4.0 * det;
-                double re = 0.5 * tr;
-                double im = 0.5 * std::sqrt(std::max(0.0, -disc));
+                keel::f64 a = td[i + i * n];
+                keel::f64 b = td[i + (i + 1) * n];
+                keel::f64 c = td[(i + 1) + i * n];
+                keel::f64 d = td[(i + 1) + (i + 1) * n];
+                keel::f64 tr = a + d;
+                keel::f64 det = a * d - b * c;
+                keel::f64 disc = tr * tr - 4.0 * det;
+                keel::f64 re = 0.5 * tr;
+                keel::f64 im = 0.5 * std::sqrt(std::max(0.0, -disc));
                 o[i] = keel::c64(re, im);
                 o[i + 1] = keel::c64(re, -im);
                 i += 2;
@@ -247,7 +247,7 @@ eig_general_VD(const Value &A, keel::Allocator *mr)
     if (Aw.isComplex()) {
         std::copy(Aw.complexData(), Aw.complexData() + n * n, Ac.begin());
     } else {
-        const double *ad = Aw.doubleData();
+        const keel::f64 *ad = Aw.doubleData();
         for (keel::usize i = 0; i < n * n; ++i) Ac[i] = keel::c64(ad[i], 0.0);
     }
 
@@ -267,7 +267,7 @@ eig_general_VD(const Value &A, keel::Allocator *mr)
         auto Vout = Value::complexMatrix(n, n, mr);
         auto Dout = Value::matrix(n, n, ValueType::DOUBLE, mr);
         keel::c64 *Vd = Vout.complexDataMut();
-        double *Dd = Dout.doubleDataMut();
+        keel::f64 *Dd = Dout.doubleDataMut();
         std::fill(Dd, Dd + n * n, 0.0);
         for (keel::usize k = 0; k < n; ++k) {
             const keel::usize src = order[k];
@@ -291,11 +291,11 @@ eig_general_VD(const Value &A, keel::Allocator *mr)
     for (keel::usize k = 0; k < n; ++k) Dd[k + k * n] = evals[k];
 
     if (!Aw.isComplex()) {
-        double aMax = 0.0;
+        keel::f64 aMax = 0.0;
         for (keel::usize i = 0; i < n * n; ++i)
             aMax = std::max(aMax, keel::abs(Ac[i].real()));
-        const double tol = 64.0 * keel::as<double>(n) *
-                           std::numeric_limits<double>::epsilon() * (1.0 + aMax);
+        const keel::f64 tol = 64.0 * keel::as<keel::f64>(n) *
+                           std::numeric_limits<keel::f64>::epsilon() * (1.0 + aMax);
         if (cleanRealSpectrum(Vd, Dd, n, tol, false)) {
             auto Vr = Value::matrix(n, n, ValueType::DOUBLE, mr);
             auto Dr = Value::matrix(n, n, ValueType::DOUBLE, mr);
@@ -318,7 +318,7 @@ eig_general_VD(const Value &A, keel::Allocator *mr)
 // Symmetric eig (via keel::linalg::eig_sym)
 // ────────────────────────────────────────────────────────────────────────
 
-bool isSymmetricApprox(const Value &A, double tol)
+bool isSymmetricApprox(const Value &A, keel::f64 tol)
 {
     if (A.dims().ndim() != 2) return false;
     if (A.isComplex()) return false;
@@ -326,17 +326,17 @@ bool isSymmetricApprox(const Value &A, double tol)
     const keel::usize m = keel::as<keel::usize>(A.dims().dim(0));
     const keel::usize n = keel::as<keel::usize>(A.dims().dim(1));
     if (m != n) return false;
-    double aMax = 1.0;
+    keel::f64 aMax = 1.0;
     for (keel::usize idx = 0; idx < n * n; ++idx) {
-        const double v = std::fabs(A.elemAsDouble(idx));
+        const keel::f64 v = std::fabs(A.elemAsDouble(idx));
         if (v > aMax) aMax = v;
     }
-    const double thresh = tol * aMax;
+    const keel::f64 thresh = tol * aMax;
     for (keel::usize i = 0; i < n; ++i)
         for (keel::usize j = i + 1; j < n; ++j) {
-            const double aij = A.elemAsDouble(i + j * m);
-            const double aji = A.elemAsDouble(j + i * m);
-            const double d = std::fabs(aij - aji);
+            const keel::f64 aij = A.elemAsDouble(i + j * m);
+            const keel::f64 aji = A.elemAsDouble(j + i * m);
+            const keel::f64 d = std::fabs(aij - aji);
             if (d > thresh) return false;
         }
     return true;
@@ -368,13 +368,13 @@ eig_symmetric(const Value &A, keel::Allocator *mr)
     Value Aw = detail::widenSingleToDouble(A, mr);
 
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<double> evals(n, scratch.allocator());
+    keel::Array<keel::f64> evals(n, scratch.allocator());
 
     auto Vout = Value::matrix(n, n, ValueType::DOUBLE, mr);
     auto Dout = Value::matrix(n, n, ValueType::DOUBLE, mr);
     keel::linalg::eig_sym(Aw.doubleData(), n, Vout.doubleDataMut(), evals.data(), mr);
 
-    double *D = Dout.doubleDataMut();
+    keel::f64 *D = Dout.doubleDataMut();
     std::fill(D, D + n * n, 0.0);
     for (keel::usize k = 0; k < n; ++k) D[k + k * n] = evals[k];
 
@@ -390,8 +390,8 @@ Value eig_values(const Value &A, keel::Allocator *mr)
     auto [V, D] = eig_symmetric(Aw, mr);
     const keel::usize n = keel::as<keel::usize>(D.dims().dim(0));
     auto out = Value::matrix(n, 1, ValueType::DOUBLE, mr);
-    const double *Ddata = D.doubleData();
-    double *o = out.doubleDataMut();
+    const keel::f64 *Ddata = D.doubleData();
+    keel::f64 *o = out.doubleDataMut();
     for (keel::usize i = 0; i < n; ++i) o[i] = Ddata[i + i * n];
     return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
@@ -426,12 +426,12 @@ eig_generalized_VD(const Value &A, const Value &B, keel::Allocator *mr)
     if (!Aw.isComplex() && !Bw.isComplex() &&
         isSymmetricApprox(Aw, 1e-8) && isSymmetricApprox(Bw, 1e-8)) {
         keel::ArenaTemp scratch = keel::get_scratch(mr);
-        keel::Array<double> evals(n, scratch.allocator());
+        keel::Array<keel::f64> evals(n, scratch.allocator());
         auto V = Value::matrix(n, n, ValueType::DOUBLE, mr);
         if (keel::linalg::eig_sym_generalized(Aw.doubleData(), Bw.doubleData(), n,
                                       V.doubleDataMut(), evals.data(), mr)) {
             auto D = Value::matrix(n, n, ValueType::DOUBLE, mr);
-            double *dd = D.doubleDataMut();
+            keel::f64 *dd = D.doubleDataMut();
             std::fill(dd, dd + n * n, 0.0);
             for (keel::usize k = 0; k < n; ++k) dd[k + k * n] = evals[k];
             return std::make_tuple(
@@ -473,14 +473,14 @@ eig_generalized_VD(const Value &A, const Value &B, keel::Allocator *mr)
     for (keel::usize k = 0; k < n; ++k) Dd[k + k * n] = evals[k];
 
     if (!Aw.isComplex() && !Bw.isComplex()) {
-        double aMax = 0.0, bMax = 0.0;
+        keel::f64 aMax = 0.0, bMax = 0.0;
         for (keel::usize i = 0; i < n * n; ++i) {
             aMax = std::max(aMax, keel::abs(AAc[i]));
             bMax = std::max(bMax, keel::abs(BBc[i]));
         }
-        const double abScale = std::max(1.0, std::max(aMax, bMax));
-        const double imagTol = 64.0 * keel::as<double>(n) *
-                               std::numeric_limits<double>::epsilon() * (1.0 + abScale);
+        const keel::f64 abScale = std::max(1.0, std::max(aMax, bMax));
+        const keel::f64 imagTol = 64.0 * keel::as<keel::f64>(n) *
+                               std::numeric_limits<keel::f64>::epsilon() * (1.0 + abScale);
         if (cleanRealSpectrum(Vd, Dd, n, imagTol, true)) {
             auto Vr = Value::matrix(n, n, ValueType::DOUBLE, mr);
             auto Dr = Value::matrix(n, n, ValueType::DOUBLE, mr);
@@ -539,7 +539,7 @@ bool try_eigs_generalized_smallestabs(const Value &A, const Value &B, keel::usiz
         return false;
 
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<double> evals(k, scratch.allocator());
+    keel::Array<keel::f64> evals(k, scratch.allocator());
     auto V = Value::matrix(n, k, ValueType::DOUBLE, mr);
     if (!keel::linalg::eigs_sym_generalized_smallest_abs(Aw.doubleData(), Bw.doubleData(), n, k,
                                                  V.doubleDataMut(), evals.data(), mr)) {
@@ -547,7 +547,7 @@ bool try_eigs_generalized_smallestabs(const Value &A, const Value &B, keel::usiz
     }
 
     auto D = Value::matrix(k, k, ValueType::DOUBLE, mr);
-    double *dd = D.doubleDataMut();
+    keel::f64 *dd = D.doubleDataMut();
     std::fill(dd, dd + k * k, 0.0);
     for (keel::usize col = 0; col < k; ++col) dd[col + col * k] = evals[col];
 
@@ -685,15 +685,15 @@ Value sylvester_sym(const Value &A, const Value &B, const Value &C,
     auto [Va, Da] = eig_symmetric(Aw, mr);
     auto [Vb, Db] = eig_symmetric(Bw, mr);
 
-    const double *Vad = Va.doubleData();
-    const double *Dad = Da.doubleData();
-    const double *Vbd = Vb.doubleData();
-    const double *Dbd = Db.doubleData();
-    const double *Cd  = Cw.doubleData();
+    const keel::f64 *Vad = Va.doubleData();
+    const keel::f64 *Dad = Da.doubleData();
+    const keel::f64 *Vbd = Vb.doubleData();
+    const keel::f64 *Dbd = Db.doubleData();
+    const keel::f64 *Cd  = Cw.doubleData();
 
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<double> Y(n * m, 0.0, scratch.allocator());
-    keel::Array<double> tmp(n * m, 0.0, scratch.allocator());
+    keel::Array<keel::f64> Y(n * m, 0.0, scratch.allocator());
+    keel::Array<keel::f64> tmp(n * m, 0.0, scratch.allocator());
     // tmp = Va^T * C; Y = tmp * Vb
     keel::linalg::gemm(keel::linalg::MatrixTranspose::Trans, keel::linalg::MatrixTranspose::NoTrans,
                n, m, n, 1.0, Vad, n, Cd, n, 0.0, tmp.data(), n);
@@ -701,9 +701,9 @@ Value sylvester_sym(const Value &A, const Value &B, const Value &C,
                n, m, m, 1.0, tmp.data(), n, Vbd, m, 0.0, Y.data(), n);
 
     for (keel::usize i = 0; i < n; ++i) {
-        const double dai = Dad[i + i * n];
+        const keel::f64 dai = Dad[i + i * n];
         for (keel::usize j = 0; j < m; ++j) {
-            const double denom = dai + Dbd[j + j * m];
+            const keel::f64 denom = dai + Dbd[j + j * m];
             if (std::fabs(denom) < 1e-300)
                 throw Error("sylvester: A and -B share an eigenvalue (no unique solution)",
                             0, 0, "sylvester", "", "numkit:sylvester:singular");
@@ -712,7 +712,7 @@ Value sylvester_sym(const Value &A, const Value &B, const Value &C,
     }
 
     auto out = Value::matrix(n, m, ValueType::DOUBLE, mr);
-    double *X = out.doubleDataMut();
+    keel::f64 *X = out.doubleDataMut();
     // tmp = Va * Y; X = tmp * Vb^T
     keel::linalg::gemm(keel::linalg::MatrixTranspose::NoTrans, keel::linalg::MatrixTranspose::NoTrans,
                n, m, n, 1.0, Vad, n, Y.data(), n, 0.0, tmp.data(), n);
@@ -737,7 +737,7 @@ Value buildCompanion(keel::ArrayRef<Value> coeffs, keel::Allocator *mr)
     Value Ak_inv = inv(Ak_w, mr);
 
     auto L = Value::matrix(N, N, ValueType::DOUBLE, mr);
-    double *Ld = L.doubleDataMut();
+    keel::f64 *Ld = L.doubleDataMut();
     std::fill(Ld, Ld + N * N, 0.0);
 
     for (keel::usize i = 0; i + 1 < k; ++i) {
@@ -746,10 +746,10 @@ Value buildCompanion(keel::ArrayRef<Value> coeffs, keel::Allocator *mr)
         }
     }
 
-    const double *Akid = Ak_inv.doubleData();
+    const keel::f64 *Akid = Ak_inv.doubleData();
     for (keel::usize i = 0; i < k; ++i) {
         Value Ai_w = detail::widenSingleToDouble(coeffs[i], mr);
-        const double *Aid = Ai_w.doubleData();
+        const keel::f64 *Aid = Ai_w.doubleData();
         keel::linalg::gemm(keel::linalg::MatrixTranspose::NoTrans, keel::linalg::MatrixTranspose::NoTrans,
                    n, n, n, -1.0, Akid, n, Aid, n, 0.0, Ld + (k - 1) * n + (i * n) * N, N);
     }
@@ -803,10 +803,10 @@ polyeig_VE(keel::ArrayRef<Value> coeffs, keel::Allocator *mr)
 
     auto V = Value::matrix(n, N, ValueType::DOUBLE, mr);
     auto e = Value::matrix(N, 1, ValueType::DOUBLE, mr);
-    double *Vd = V.doubleDataMut();
-    double *ed = e.doubleDataMut();
-    const double *Vbd = V_big.doubleData();
-    const double *Dbd = D_big.doubleData();
+    keel::f64 *Vd = V.doubleDataMut();
+    keel::f64 *ed = e.doubleDataMut();
+    const keel::f64 *Vbd = V_big.doubleData();
+    const keel::f64 *Dbd = D_big.doubleData();
 
     for (keel::usize j = 0; j < N; ++j) {
         ed[j] = Dbd[j + j * N];
@@ -848,14 +848,14 @@ Value ordeig(const Value &T, keel::Allocator *mr)
             return out;
         }
         auto out = Value::matrix(n, 1, ValueType::DOUBLE, mr);
-        double *od = out.doubleDataMut();
+        keel::f64 *od = out.doubleDataMut();
         for (keel::usize i = 0; i < n; ++i) od[i] = Tc[i + i * n].real();
         return out;
     }
 
     const bool wantSingle = (T.type() == ValueType::SINGLE);
     Value Tw = detail::widenSingleToDouble(T, mr);
-    const double *Td = Tw.doubleData();
+    const keel::f64 *Td = Tw.doubleData();
 
     bool any_complex = false;
     keel::ArenaTemp scratch = keel::get_scratch(mr);
@@ -864,23 +864,23 @@ Value ordeig(const Value &T, keel::Allocator *mr)
 
     keel::usize i = 0;
     while (i < n) {
-        const double sub = (i + 1 < n) ? Td[(i + 1) + i * n] : 0.0;
+        const keel::f64 sub = (i + 1 < n) ? Td[(i + 1) + i * n] : 0.0;
         if (std::fabs(sub) <= 1e-14 * (1.0 + std::fabs(Td[i + i * n]))) {
             out_complex.push_back(keel::c64(Td[i + i * n], 0.0));
             ++i;
         } else {
-            const double a  = Td[i + i * n];
-            const double ap = Td[(i + 1) + (i + 1) * n];
-            const double c  = Td[i + (i + 1) * n];
-            const double d  = sub;
-            const double disc_re = (a - ap) * (a - ap) + 4.0 * c * d;
-            const double mean = 0.5 * (a + ap);
+            const keel::f64 a  = Td[i + i * n];
+            const keel::f64 ap = Td[(i + 1) + (i + 1) * n];
+            const keel::f64 c  = Td[i + (i + 1) * n];
+            const keel::f64 d  = sub;
+            const keel::f64 disc_re = (a - ap) * (a - ap) + 4.0 * c * d;
+            const keel::f64 mean = 0.5 * (a + ap);
             if (disc_re >= 0.0) {
-                const double half_sqrt = 0.5 * std::sqrt(disc_re);
+                const keel::f64 half_sqrt = 0.5 * std::sqrt(disc_re);
                 out_complex.push_back(keel::c64(mean + half_sqrt, 0.0));
                 out_complex.push_back(keel::c64(mean - half_sqrt, 0.0));
             } else {
-                const double half_imag = 0.5 * std::sqrt(-disc_re);
+                const keel::f64 half_imag = 0.5 * std::sqrt(-disc_re);
                 out_complex.push_back(keel::c64(mean,  half_imag));
                 out_complex.push_back(keel::c64(mean, -half_imag));
                 any_complex = true;
@@ -896,7 +896,7 @@ Value ordeig(const Value &T, keel::Allocator *mr)
         return out;
     }
     auto out = Value::matrix(n, 1, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     for (keel::usize k = 0; k < n; ++k) od[k] = out_complex[k].real();
     return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }

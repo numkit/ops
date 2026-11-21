@@ -28,9 +28,9 @@ namespace hn = hwy::HWY_NAMESPACE;
 // inner is affine (p0*x + p1) or shift-divide ((x - p0)/p1) per `divide` (a
 // loop-invariant branch). abs is exact (a sign-bit clear), so each form is
 // bit-identical to its per-op spelling.
-void AbsAffineImpl(const double *x, double p0, double p1, bool divide,
-                   double *out, keel::usize n) {
-    const hn::ScalableTag<double> d;
+void AbsAffineImpl(const keel::f64 *x, keel::f64 p0, keel::f64 p1, bool divide,
+                   keel::f64 *out, keel::usize n) {
+    const hn::ScalableTag<keel::f64> d;
     const keel::usize L = hn::Lanes(d);
     const auto vp0 = hn::Set(d, p0), vp1 = hn::Set(d, p1);
     keel::usize i = 0;
@@ -44,8 +44,8 @@ void AbsAffineImpl(const double *x, double p0, double p1, bool divide,
         out[i] = std::fabs(divide ? (x[i] - p0) / p1 : p0 * x[i] + p1);
 }
 
-void AbsDiffImpl(const double *x, const double *y, double *out, keel::usize n) {
-    const hn::ScalableTag<double> d;
+void AbsDiffImpl(const keel::f64 *x, const keel::f64 *y, keel::f64 *out, keel::usize n) {
+    const hn::ScalableTag<keel::f64> d;
     const keel::usize L = hn::Lanes(d);
     keel::usize i = 0;
     for (; i + L <= n; i += L)
@@ -63,8 +63,8 @@ namespace numkit::ops {
 HWY_EXPORT(AbsAffineImpl);
 HWY_EXPORT(AbsDiffImpl);
 
-void fusedAbsAffine(const double *x, double scale, double offset,
-                    double *out, keel::usize n) {
+void fusedAbsAffine(const keel::f64 *x, keel::f64 scale, keel::f64 offset,
+                    keel::f64 *out, keel::usize n) {
     if (n == 0) return;
     // Small native arrays delegate to the shared scalar kernel (fused_scalar.cpp)
     // rather than an inline loop: one body shared with the portable fallback
@@ -81,8 +81,8 @@ void fusedAbsAffine(const double *x, double scale, double offset,
     });
 }
 
-void fusedAbsShiftDiv(const double *x, double sub, double div,
-                      double *out, keel::usize n) {
+void fusedAbsShiftDiv(const keel::f64 *x, keel::f64 sub, keel::f64 div,
+                      keel::f64 *out, keel::usize n) {
     if (n == 0) return;
     if (n < numkit::detail::kSimdInlineThreshold) {   // delegate (see fusedAbsAffine)
         fusedAbsShiftDivScalar(x, sub, div, out, n);
@@ -94,7 +94,7 @@ void fusedAbsShiftDiv(const double *x, double sub, double div,
     });
 }
 
-void fusedAbsDiff(const double *x, const double *y, double *out, keel::usize n) {
+void fusedAbsDiff(const keel::f64 *x, const keel::f64 *y, keel::f64 *out, keel::usize n) {
     if (n == 0) return;
     if (n < numkit::detail::kSimdInlineThreshold) {   // delegate (see fusedAbsAffine)
         fusedAbsDiffScalar(x, y, out, n);

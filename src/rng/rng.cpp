@@ -123,9 +123,9 @@ void deserializeState(MatlabMT19937 &gen, keel::StringRef blob)
 
 } // namespace
 
-double RngContext::v5Normal()
+keel::f64 RngContext::v5Normal()
 {
-    static constexpr double vt[65] = {
+    static constexpr keel::f64 vt[65] = {
         0.3409450, 0.4573146, 0.5397793, 0.6062427, 0.6631691, 0.7136975, 0.7596125, 0.8020356,
         0.8417227, 0.8792102, 0.9148948, 0.9490791, 0.9820005, 1.0138492, 1.0447810, 1.0749254,
         1.1043917, 1.1332738, 1.1616530, 1.1896010, 1.2171815, 1.2444516, 1.2714635, 1.2982650,
@@ -139,33 +139,33 @@ double RngContext::v5Normal()
     const keel::u32 u32 = shr3Step();
     const keel::i32 hz = keel::as<keel::i32>(u32);
     const keel::u32 iz = u32 & 63u;
-    const double x = keel::as<double>(hz) * vt[iz + 1] * 4.6566128730773926e-10;
+    const keel::f64 x = keel::as<keel::f64>(hz) * vt[iz + 1] * 4.6566128730773926e-10;
     if (keel::abs(x) < vt[iz])
         return x;
 
-    const double y = 0.4878992 * (vt[iz + 1] - keel::abs(x)) / (vt[iz + 1] - vt[iz]);
-    const double u1 = 0.5 + keel::as<double>(keel::as<keel::i32>(shr3Step())) * 2.3283064365386963e-10;
-    const double f0 = std::exp(-0.5 * vt[iz] * vt[iz]);
-    const double f1 = std::exp(-0.5 * vt[iz + 1] * vt[iz + 1]);
+    const keel::f64 y = 0.4878992 * (vt[iz + 1] - keel::abs(x)) / (vt[iz + 1] - vt[iz]);
+    const keel::f64 u1 = 0.5 + keel::as<keel::f64>(keel::as<keel::i32>(shr3Step())) * 2.3283064365386963e-10;
+    const keel::f64 f0 = std::exp(-0.5 * vt[iz] * vt[iz]);
+    const keel::f64 f1 = std::exp(-0.5 * vt[iz + 1] * vt[iz + 1]);
     if (u1 < (std::exp(-0.5 * x * x) - f1) / (f0 - f1))
         return x;
 
-    const double fv0 = std::exp(-0.5 * vt[0] * vt[0]);
+    const keel::f64 fv0 = std::exp(-0.5 * vt[0] * vt[0]);
     if ((1.0 - u1) < 12.37598359 * (std::exp(-0.5 * y * y) - fv0))
         return (x < 0.0) ? -y : y;
 
     for (;;) {
-        const double u2 = 0.5 + keel::as<double>(keel::as<keel::i32>(shr3Step())) * 2.3283064365386963e-10;
-        const double u3 = 0.5 + keel::as<double>(keel::as<keel::i32>(shr3Step())) * 2.3283064365386963e-10;
-        const double tx = -std::log(u2) / 2.776994;
+        const keel::f64 u2 = 0.5 + keel::as<keel::f64>(keel::as<keel::i32>(shr3Step())) * 2.3283064365386963e-10;
+        const keel::f64 u3 = 0.5 + keel::as<keel::f64>(keel::as<keel::i32>(shr3Step())) * 2.3283064365386963e-10;
+        const keel::f64 tx = -std::log(u2) / 2.776994;
         if (-2.0 * std::log(u3) > tx * tx) {
-            const double res = 2.776994 + tx;
+            const keel::f64 res = 2.776994 + tx;
             return (x < 0.0) ? -res : res;
         }
     }
 }
 
-double RngContext::nextNormal()
+keel::f64 RngContext::nextNormal()
 {
     if (legacyMode_)
         return legacyV4Randn_ ? v4Normal() : v5Normal();
@@ -178,17 +178,17 @@ double RngContext::nextNormal()
             keel::as<keel::i64>((keel::as<keel::u64>(w0 >> 3) << 24)
                                       | keel::as<keel::u64>(w1 & 0x00FFFFFFu))
             - (1LL << 52);
-        const double u = keel::as<double>(u53) * (1.0 / 4503599627370496.0);
-        const double z = u * keel::random::random_detail::kZigguratX[k + 1];
+        const keel::f64 u = keel::as<keel::f64>(u53) * (1.0 / 4503599627370496.0);
+        const keel::f64 z = u * keel::random::random_detail::kZigguratX[k + 1];
         if (keel::abs(z) < keel::random::random_detail::kZigguratX[k])
             return z;
 
         if (k == 255u) {
-            constexpr double r = 0x1.d3bb48209ad36p+1; // kZigguratX[255]
-            constexpr double invR = 1.0 / r;
+            constexpr keel::f64 r = 0x1.d3bb48209ad36p+1; // kZigguratX[255]
+            constexpr keel::f64 invR = 1.0 / r;
             for (;;) {
-                const double tx = -std::log(gen_.genRes53()) * invR;
-                const double ty = -std::log(gen_.genRes53());
+                const keel::f64 tx = -std::log(gen_.genRes53()) * invR;
+                const keel::f64 ty = -std::log(gen_.genRes53());
                 if (ty + ty >= tx * tx)
                     return (u53 >= 0) ? (r + tx) : -(r + tx);
             }
@@ -247,7 +247,7 @@ Value rand(RngContext &rng, keel::usize rows, keel::usize cols, keel::usize page
 {
     auto m = (pages > 0) ? Value::matrix3d(rows, cols, pages, ValueType::DOUBLE, mr)
                          : Value::matrix(rows, cols, ValueType::DOUBLE, mr);
-    double *dst = m.doubleDataMut();
+    keel::f64 *dst = m.doubleDataMut();
     const keel::usize n = m.numel();
     for (keel::usize i = 0; i < n; ++i)
         dst[i] = rng.nextUniform();
@@ -258,7 +258,7 @@ Value randn(RngContext &rng, keel::usize rows, keel::usize cols, keel::usize pag
 {
     auto m = (pages > 0) ? Value::matrix3d(rows, cols, pages, ValueType::DOUBLE, mr)
                          : Value::matrix(rows, cols, ValueType::DOUBLE, mr);
-    double *dst = m.doubleDataMut();
+    keel::f64 *dst = m.doubleDataMut();
     const keel::usize n = m.numel();
     for (keel::usize i = 0; i < n; ++i)
         dst[i] = rng.nextNormal();
@@ -268,7 +268,7 @@ Value randn(RngContext &rng, keel::usize rows, keel::usize cols, keel::usize pag
 Value randND(RngContext &rng, keel::ArrayRef<keel::usize> dims, keel::Allocator *mr)
 {
     auto m = Value::matrixND(dims.data(), keel::as<int>(dims.size()), ValueType::DOUBLE, mr);
-    double *dst = m.doubleDataMut();
+    keel::f64 *dst = m.doubleDataMut();
     const keel::usize n = m.numel();
     for (keel::usize i = 0; i < n; ++i)
         dst[i] = rng.nextUniform();
@@ -278,7 +278,7 @@ Value randND(RngContext &rng, keel::ArrayRef<keel::usize> dims, keel::Allocator 
 Value randnND(RngContext &rng, keel::ArrayRef<keel::usize> dims, keel::Allocator *mr)
 {
     auto m = Value::matrixND(dims.data(), keel::as<int>(dims.size()), ValueType::DOUBLE, mr);
-    double *dst = m.doubleDataMut();
+    keel::f64 *dst = m.doubleDataMut();
     const keel::usize n = m.numel();
     for (keel::usize i = 0; i < n; ++i)
         dst[i] = rng.nextNormal();
@@ -291,18 +291,18 @@ Value randnND(RngContext &rng, keel::ArrayRef<keel::usize> dims, keel::Allocator
 
 namespace {
 
-void fillUniformInt(RngContext &rng, double *dst, keel::usize n, keel::i64 lo, keel::i64 hi)
+void fillUniformInt(RngContext &rng, keel::f64 *dst, keel::usize n, keel::i64 lo, keel::i64 hi)
 {
     if (lo > hi)
         throw Error("randi: low bound must be <= high bound",
                      0, 0, "randi", "", "numkit:randi:badRange");
     const keel::u64 uSpan =
         keel::as<keel::u64>(hi) - keel::as<keel::u64>(lo) + 1ULL;
-    const double span = (uSpan == 0ULL) ? 18446744073709551616.0
-                                        : keel::as<double>(uSpan);
+    const keel::f64 span = (uSpan == 0ULL) ? 18446744073709551616.0
+                                        : keel::as<keel::f64>(uSpan);
     for (keel::usize i = 0; i < n; ++i) {
-        const double u = rng.nextUniform();
-        dst[i] = keel::as<double>(lo) + std::floor(u * span);
+        const keel::f64 u = rng.nextUniform();
+        dst[i] = keel::as<keel::f64>(lo) + std::floor(u * span);
     }
 }
 
@@ -319,7 +319,7 @@ Value makeIntMatrix(RngContext &rng, keel::i64 lo, keel::i64 hi, keel::usize row
 
 Value randi(RngContext &rng, keel::i64 imax, keel::Allocator *mr)
 {
-    double v = 0.0;
+    keel::f64 v = 0.0;
     fillUniformInt(rng, &v, 1, 1, imax);
     return Value::scalar(v, mr);
 }
@@ -346,7 +346,7 @@ Value randperm(RngContext &rng, keel::usize n, keel::Allocator *mr)
     if (n == 0) return r;
 
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    auto u = keel::Array<double>(n, scratch.allocator());
+    auto u = keel::Array<keel::f64>(n, scratch.allocator());
     auto idx = keel::Array<keel::usize>(n, scratch.allocator());
     for (keel::usize i = 0; i < n; ++i) {
         u[i] = rng.nextUniform();
@@ -356,9 +356,9 @@ Value randperm(RngContext &rng, keel::usize n, keel::Allocator *mr)
         return u[a] < u[b];
     });
 
-    double *dst = r.doubleDataMut();
+    keel::f64 *dst = r.doubleDataMut();
     for (keel::usize i = 0; i < n; ++i)
-        dst[i] = keel::as<double>(idx[i] + 1);
+        dst[i] = keel::as<keel::f64>(idx[i] + 1);
     return r;
 }
 
@@ -370,15 +370,15 @@ Value randperm(RngContext &rng, keel::usize n, keel::usize k, keel::Allocator *m
     auto r = Value::matrix(1, k, ValueType::DOUBLE, mr);
     if (k == 0) return r;
 
-    double *dst = r.doubleDataMut();
+    keel::f64 *dst = r.doubleDataMut();
     if (k == n) {
         dst[0] = 1.0;
         for (keel::usize i = 1; i < n; ++i) {
             const keel::usize j = keel::as<keel::usize>(
-                std::floor(rng.nextUniform() * keel::as<double>(i + 1)));
+                std::floor(rng.nextUniform() * keel::as<keel::f64>(i + 1)));
             if (j != i)
                 dst[i] = dst[j];
-            dst[j] = keel::as<double>(i + 1);
+            dst[j] = keel::as<keel::f64>(i + 1);
         }
         return r;
     }
@@ -389,24 +389,24 @@ Value randperm(RngContext &rng, keel::usize n, keel::usize k, keel::Allocator *m
         for (keel::usize i = 0; i < k; ++i) {
             const keel::usize m = n - i;
             const keel::usize j = 1 + keel::as<keel::usize>(
-                std::floor(rng.nextUniform() * keel::as<double>(m)));
+                std::floor(rng.nextUniform() * keel::as<keel::f64>(m)));
             const keel::usize *pJ = H.get(j);
             const keel::usize valJ = pJ ? *pJ : j;
             const keel::usize *pM = H.get(m);
             const keel::usize valM = pM ? *pM : m;
-            dst[i] = keel::as<double>(valJ);
+            dst[i] = keel::as<keel::f64>(valJ);
             H.put(j, valM);
         }
         return r;
     }
 
     keel::usize t = 0;
-    double nrem = keel::as<double>(n);
-    double krem = keel::as<double>(k);
+    keel::f64 nrem = keel::as<keel::f64>(n);
+    keel::f64 krem = keel::as<keel::f64>(k);
     for (keel::usize i = 0; i < k; ++i) {
-        const double v = 1.0 - rng.nextUniform();
+        const keel::f64 v = 1.0 - rng.nextUniform();
         keel::usize s = 0;
-        double quot = (nrem - krem) / nrem;
+        keel::f64 quot = (nrem - krem) / nrem;
         while (quot > v) {
             ++s;
             nrem -= 1.0;
@@ -416,10 +416,10 @@ Value randperm(RngContext &rng, keel::usize n, keel::usize k, keel::Allocator *m
         nrem -= 1.0;
         krem -= 1.0;
         const keel::usize j = keel::as<keel::usize>(
-            std::floor(rng.nextUniform() * keel::as<double>(i + 1)));
+            std::floor(rng.nextUniform() * keel::as<keel::f64>(i + 1)));
         if (j != i)
             dst[i] = dst[j];
-        dst[j] = keel::as<double>(t);
+        dst[j] = keel::as<keel::f64>(t);
     }
     return r;
 }

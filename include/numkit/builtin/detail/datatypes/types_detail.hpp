@@ -31,21 +31,21 @@
 namespace numkit::builtin::detail {
 // SIMD/portable cast + isfinite backend (defs in casts_{highway,portable}.cpp /
 // isfinite_{highway,portable}.cpp) — needed by the numericConstructor template below.
-void doubleToInt8 (const double *in, keel::i8   *out, keel::usize n);
-void doubleToInt16(const double *in, keel::i16  *out, keel::usize n);
-void doubleToInt32(const double *in, keel::i32  *out, keel::usize n);
-void doubleToInt64(const double *in, keel::i64  *out, keel::usize n);
-void doubleToUInt8 (const double *in, keel::u8  *out, keel::usize n);
-void doubleToUInt16(const double *in, keel::u16 *out, keel::usize n);
-void doubleToUInt32(const double *in, keel::u32 *out, keel::usize n);
-void doubleToUInt64(const double *in, keel::u64 *out, keel::usize n);
+void doubleToInt8 (const keel::f64 *in, keel::i8   *out, keel::usize n);
+void doubleToInt16(const keel::f64 *in, keel::i16  *out, keel::usize n);
+void doubleToInt32(const keel::f64 *in, keel::i32  *out, keel::usize n);
+void doubleToInt64(const keel::f64 *in, keel::i64  *out, keel::usize n);
+void doubleToUInt8 (const keel::f64 *in, keel::u8  *out, keel::usize n);
+void doubleToUInt16(const keel::f64 *in, keel::u16 *out, keel::usize n);
+void doubleToUInt32(const keel::f64 *in, keel::u32 *out, keel::usize n);
+void doubleToUInt64(const keel::f64 *in, keel::u64 *out, keel::usize n);
 } // namespace numkit::builtin::detail
 
 // isnan/isinf/isfinite backend lives in arithmetic → numkit::builtin::detail (C4).
 namespace numkit::builtin::detail {
-void doubleIsNaNLoop(const double *in, keel::u8 *out, keel::usize n);
-void doubleIsInfLoop(const double *in, keel::u8 *out, keel::usize n);
-void doubleIsFiniteLoop(const double *in, keel::u8 *out, keel::usize n);
+void doubleIsNaNLoop(const keel::f64 *in, keel::u8 *out, keel::usize n);
+void doubleIsInfLoop(const keel::f64 *in, keel::u8 *out, keel::usize n);
+void doubleIsFiniteLoop(const keel::f64 *in, keel::u8 *out, keel::usize n);
 } // namespace numkit::builtin::detail
 
 namespace numkit::builtin {
@@ -53,12 +53,12 @@ namespace numkit::builtin {
 namespace {
 
 template <typename T>
-T saturateCast(double v)
+T saturateCast(keel::f64 v)
 {
     if (std::isnan(v)) return 0;
     v = std::round(v);
-    constexpr double lo = keel::as<double>(std::numeric_limits<T>::min());
-    constexpr double hi = keel::as<double>(std::numeric_limits<T>::max());
+    constexpr keel::f64 lo = keel::as<keel::f64>(std::numeric_limits<T>::min());
+    constexpr keel::f64 hi = keel::as<keel::f64>(std::numeric_limits<T>::max());
     if (v < lo) return std::numeric_limits<T>::min();
     if (v > hi) return std::numeric_limits<T>::max();
     return static_cast<T>(v);
@@ -77,8 +77,8 @@ Value numericConstructor(ValueType targetType, const Value &x, keel::Allocator *
             const keel::c64 *src = x.complexData();
             keel::c64 *dstC = r.complexDataMut();
             for (keel::usize i = 0; i < n; ++i) {
-                dstC[i] = keel::c64(keel::as<double>(keel::as<float>(src[i].real())),
-                                  keel::as<double>(keel::as<float>(src[i].imag())));
+                dstC[i] = keel::c64(keel::as<keel::f64>(keel::as<keel::f32>(src[i].real())),
+                                  keel::as<keel::f64>(keel::as<keel::f32>(src[i].imag())));
             }
             return r;
         }
@@ -108,7 +108,7 @@ Value numericConstructor(ValueType targetType, const Value &x, keel::Allocator *
     // is type-conversion not iteration.
     if constexpr (std::is_integral_v<T>) {
         if (x.type() == ValueType::DOUBLE && n > 0) {
-            const double *src = x.doubleData();
+            const keel::f64 *src = x.doubleData();
             if constexpr (std::is_same_v<T, keel::i8>)        ::numkit::builtin::detail::doubleToInt8 (src, dst, n);
             else if constexpr (std::is_same_v<T, keel::i16>)  ::numkit::builtin::detail::doubleToInt16(src, dst, n);
             else if constexpr (std::is_same_v<T, keel::i32>)  ::numkit::builtin::detail::doubleToInt32(src, dst, n);
@@ -122,7 +122,7 @@ Value numericConstructor(ValueType targetType, const Value &x, keel::Allocator *
     }
 
     for (keel::usize i = 0; i < n; ++i) {
-        double v = x.elemAsDouble(i);
+        keel::f64 v = x.elemAsDouble(i);
         if constexpr (std::is_integral_v<T>)
             dst[i] = saturateCast<T>(v);
         else
@@ -142,7 +142,7 @@ bool valuesEqual(const Value &a, const Value &b, bool nanEqual)
     keel::usize n = a.numel();
 
     if (t == ValueType::DOUBLE) {
-        const double *da = a.doubleData(), *db = b.doubleData();
+        const keel::f64 *da = a.doubleData(), *db = b.doubleData();
         for (keel::usize i = 0; i < n; ++i) {
             if (da[i] == db[i]) continue;
             if (nanEqual && std::isnan(da[i]) && std::isnan(db[i])) continue;
@@ -151,7 +151,7 @@ bool valuesEqual(const Value &a, const Value &b, bool nanEqual)
         return true;
     }
     if (t == ValueType::SINGLE) {
-        const float *fa = a.singleData(), *fb = b.singleData();
+        const keel::f32 *fa = a.singleData(), *fb = b.singleData();
         for (keel::usize i = 0; i < n; ++i) {
             if (fa[i] == fb[i]) continue;
             if (nanEqual && std::isnan(fa[i]) && std::isnan(fb[i])) continue;
@@ -211,7 +211,7 @@ inline bool typeHasMissing(ValueType t)
 
 // Read element i as double for the comparison path; works for any
 // numeric class (integer types convert losslessly; LOGICAL → 0/1).
-inline double elemD(const Value &x, keel::usize i) { return x.elemAsDouble(i); }
+inline keel::f64 elemD(const Value &x, keel::usize i) { return x.elemAsDouble(i); }
 
 } // anonymous
 namespace {
@@ -233,7 +233,7 @@ inline bool readSortMode(const Value &m, SortMode &out)
 }
 
 // Returns true if values [first, first+n) are sorted under `mode`.
-inline bool runSorted(const double *first, keel::usize n, SortMode mode)
+inline bool runSorted(const keel::f64 *first, keel::usize n, SortMode mode)
 {
     if (n < 2) return true;
     // NaN anywhere → not sorted (matches MATLAB issorted behaviour for
@@ -333,8 +333,8 @@ struct TypeInfo { ValueType vt; keel::usize elemSize; };
 
 [[maybe_unused]] TypeInfo typeInfoFor(keel::StringRef classname)
 {
-    if (classname == "double")  return { ValueType::DOUBLE,  sizeof(double)   };
-    if (classname == "single")  return { ValueType::SINGLE,  sizeof(float)    };
+    if (classname == "double")  return { ValueType::DOUBLE,  sizeof(keel::f64)   };
+    if (classname == "single")  return { ValueType::SINGLE,  sizeof(keel::f32)    };
     if (classname == "int8")    return { ValueType::INT8,    sizeof(keel::i8)   };
     if (classname == "int16")   return { ValueType::INT16,   sizeof(keel::i16)  };
     if (classname == "int32")   return { ValueType::INT32,   sizeof(keel::i32)  };
@@ -351,9 +351,9 @@ struct TypeInfo { ValueType vt; keel::usize elemSize; };
 [[maybe_unused]] keel::usize elemSizeOf(ValueType t)
 {
     switch (t) {
-    case ValueType::DOUBLE:  return sizeof(double);
-    case ValueType::SINGLE:  return sizeof(float);
-    case ValueType::COMPLEX: return sizeof(double) * 2;
+    case ValueType::DOUBLE:  return sizeof(keel::f64);
+    case ValueType::SINGLE:  return sizeof(keel::f32);
+    case ValueType::COMPLEX: return sizeof(keel::f64) * 2;
     case ValueType::INT8:
     case ValueType::UINT8:
     case ValueType::LOGICAL:

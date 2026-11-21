@@ -47,10 +47,10 @@ inline numkit::Value coerceLogicalToDouble(const numkit::Value &v,
     if (v.type() != ValueType::LOGICAL) return v;
     Value out = numkit::createLike(v, ValueType::DOUBLE, mr);
     const keel::u8 *src = v.logicalData();
-    double *dst = out.doubleDataMut();
+    keel::f64 *dst = out.doubleDataMut();
     const keel::usize n = v.numel();
     for (keel::usize i = 0; i < n; ++i)
-        dst[i] = keel::as<double>(src[i]);
+        dst[i] = keel::as<keel::f64>(src[i]);
     return out;
 }
 
@@ -60,18 +60,18 @@ inline numkit::Value coerceCharToDouble(const numkit::Value &v,
     if (v.type() != ValueType::CHAR) return v;
     Value out = numkit::createLike(v, ValueType::DOUBLE, mr);
     const char *src = v.charData();
-    double *dst = out.doubleDataMut();
+    keel::f64 *dst = out.doubleDataMut();
     const keel::usize n = v.numel();
     for (keel::usize i = 0; i < n; ++i)
-        dst[i] = keel::as<double>(keel::as<unsigned char>(src[i]));
+        dst[i] = keel::as<keel::f64>(keel::as<unsigned char>(src[i]));
     return out;
 }
 
-void copyColumnMajorDouble(const Value &v, double *dst)
+void copyColumnMajorDouble(const Value &v, keel::f64 *dst)
 {
     const keel::usize n = v.numel();
     if (v.type() == ValueType::DOUBLE) {
-        const double *src = v.doubleData();
+        const keel::f64 *src = v.doubleData();
         std::copy(src, src + n, dst);
     } else {
         for (keel::usize i = 0; i < n; ++i) dst[i] = v.elemAsDouble(i);
@@ -89,7 +89,7 @@ inline Value narrowIfReal(const Value &val, keel::Allocator *mr) {
     const keel::usize rows = val.dims().rows();
     const keel::usize cols = val.dims().cols();
     auto out = Value::matrix(rows, cols, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     for (keel::usize i = 0; i < num; ++i) od[i] = cd[i].real();
     return out;
 }
@@ -121,9 +121,9 @@ void singularSquareSolve(T *A_lu, keel::usize n, T *B_work, keel::usize nrhs, T 
 {
     for (keel::usize j = 0; j < n; ++j) {
         keel::usize piv = j;
-        double maxAbs = keel::abs(A_lu[j + j * n]);
+        keel::f64 maxAbs = keel::abs(A_lu[j + j * n]);
         for (keel::usize i = j + 1; i < n; ++i) {
-            double v = keel::abs(A_lu[i + j * n]);
+            keel::f64 v = keel::abs(A_lu[i + j * n]);
             if (v > maxAbs) {
                 maxAbs = v;
                 piv = i;
@@ -229,13 +229,13 @@ keel::Array<keel::c64> A_buf(m * n, arena.allocator());
         return narrowIfReal(X, mr);
     }
 
-    keel::Array<double> A_buf(m * n, arena.allocator());
-    keel::Array<double> B_buf(m * k, arena.allocator());
+    keel::Array<keel::f64> A_buf(m * n, arena.allocator());
+    keel::Array<keel::f64> B_buf(m * k, arena.allocator());
     copyColumnMajorDouble(A, A_buf.data());
     copyColumnMajorDouble(B, B_buf.data());
 
     Value X = Value::matrix(n, k, ValueType::DOUBLE, mr);
-    double *Xd = X.doubleDataMut();
+    keel::f64 *Xd = X.doubleDataMut();
     if (!numkit::ops::la_solve(A_buf.data(), m, n, B_buf.data(), k, Xd, arena.allocator())) {
         if (m == n) {
             singularSquareSolve(A_buf.data(), n, B_buf.data(), k, Xd);
@@ -253,9 +253,9 @@ keel::Array<keel::c64> A_buf(m * n, arena.allocator());
     const keel::usize m = A.dims().rows();
     const keel::usize n = A.dims().cols();
     Value T = Value::matrix(n, m, ValueType::DOUBLE, mr);
-    double *Td = T.doubleDataMut();
+    keel::f64 *Td = T.doubleDataMut();
     if (A.type() == ValueType::DOUBLE) {
-        const double *Ad = A.doubleData();
+        const keel::f64 *Ad = A.doubleData();
         for (keel::usize j = 0; j < n; ++j)
             for (keel::usize i = 0; i < m; ++i)
                 Td[j + i * n] = Ad[i + j * m];
@@ -282,7 +282,7 @@ inline const char *cmpOpName(Cmp c)
     return "";
 }
 
-inline bool applyCmp(Cmp c, double x, double y)
+inline bool applyCmp(Cmp c, keel::f64 x, keel::f64 y)
 {
     switch (c) {
     case Cmp::EQ: return x == y;
@@ -346,7 +346,7 @@ inline bool applyCmp(Cmp c, double x, double y)
             if (v.isComplex())
                 return v.complexData()[i];
             return keel::c64(v.type() == ValueType::LOGICAL
-                                ? keel::as<double>(v.logicalData()[i])
+                                ? keel::as<keel::f64>(v.logicalData()[i])
                                 : v.doubleData()[i],
                            0.0);
         };
@@ -392,13 +392,13 @@ inline bool applyCmp(Cmp c, double x, double y)
         if (!r.isUnset()) return r;
     }
 
-    auto getD = [](const Value &v, keel::usize r, keel::usize col) -> double {
+    auto getD = [](const Value &v, keel::usize r, keel::usize col) -> keel::f64 {
         keel::usize idx = col * v.dims().rows() + r;
-        if (v.isLogical()) return keel::as<double>(v.logicalData()[idx]);
+        if (v.isLogical()) return keel::as<keel::f64>(v.logicalData()[idx]);
         if (v.type() == ValueType::DOUBLE) return v.doubleData()[idx];
         return v.elemAsDouble(idx);
     };
-    auto getDScalar = [](const Value &v) -> double {
+    auto getDScalar = [](const Value &v) -> keel::f64 {
         if (v.isLogical()) return v.toBool() ? 1.0 : 0.0;
         if (v.type() == ValueType::DOUBLE) return v.toScalar();
         return v.elemAsDouble(0);
@@ -407,7 +407,7 @@ inline bool applyCmp(Cmp c, double x, double y)
     if (a.isScalar() && b.isScalar())
         return Value::logicalScalar(applyCmp(c, getDScalar(a), getDScalar(b)), nullptr);
 
-    auto elemD = [](const Value &v, keel::usize i) -> double {
+    auto elemD = [](const Value &v, keel::usize i) -> keel::f64 {
         if (v.isLogical()) return v.logicalData()[i];
         if (v.type() == ValueType::DOUBLE) return v.doubleData()[i];
         return v.elemAsDouble(i);
@@ -416,7 +416,7 @@ inline bool applyCmp(Cmp c, double x, double y)
     if (a.dims().ndim() >= 4 || b.dims().ndim() >= 4) {
         if (a.isScalar()) {
             auto r = createLike(b, ValueType::LOGICAL, nullptr);
-            double s = getDScalar(a);
+            keel::f64 s = getDScalar(a);
             keel::u8 *dst = r.logicalDataMut();
             for (keel::usize i = 0; i < b.numel(); ++i)
                 dst[i] = applyCmp(c, s, elemD(b, i)) ? 1 : 0;
@@ -424,7 +424,7 @@ inline bool applyCmp(Cmp c, double x, double y)
         }
         if (b.isScalar()) {
             auto r = createLike(a, ValueType::LOGICAL, nullptr);
-            double s = getDScalar(b);
+            keel::f64 s = getDScalar(b);
             keel::u8 *dst = r.logicalDataMut();
             for (keel::usize i = 0; i < a.numel(); ++i)
                 dst[i] = applyCmp(c, elemD(a, i), s) ? 1 : 0;
@@ -446,14 +446,14 @@ inline bool applyCmp(Cmp c, double x, double y)
     if (a.dims().is3D() || b.dims().is3D()) {
         if (a.isScalar()) {
             auto r = createLike(b, ValueType::LOGICAL, nullptr);
-            double s = getDScalar(a);
+            keel::f64 s = getDScalar(a);
             for (keel::usize i = 0; i < b.numel(); ++i)
                 r.logicalDataMut()[i] = applyCmp(c, s, elemD(b, i)) ? 1 : 0;
             return r;
         }
         if (b.isScalar()) {
             auto r = createLike(a, ValueType::LOGICAL, nullptr);
-            double s = getDScalar(b);
+            keel::f64 s = getDScalar(b);
             for (keel::usize i = 0; i < a.numel(); ++i)
                 r.logicalDataMut()[i] = applyCmp(c, elemD(a, i), s) ? 1 : 0;
             return r;
@@ -521,7 +521,7 @@ inline bool applyCmp(Cmp c, double x, double y)
         for (keel::usize i = 0; i < v.numel(); ++i)
             r[i] = d[i] ? 1 : 0;
     } else if (v.type() == ValueType::DOUBLE) {
-        const double *d = v.doubleData();
+        const keel::f64 *d = v.doubleData();
         for (keel::usize i = 0; i < v.numel(); ++i) {
             if (std::isnan(d[i]))
                 nanErr();
@@ -536,7 +536,7 @@ inline bool applyCmp(Cmp c, double x, double y)
         }
     } else {
         for (keel::usize i = 0; i < v.numel(); ++i) {
-            double x = v.elemAsDouble(i);
+            keel::f64 x = v.elemAsDouble(i);
             if (std::isnan(x))
                 nanErr();
             r[i] = (x != 0.0) ? 1 : 0;
@@ -553,7 +553,7 @@ inline bool applyCmp(Cmp c, double x, double y)
             throw std::runtime_error("NaN values cannot be converted to logicals.");
         return c.real() != 0.0 || c.imag() != 0.0;
     }
-    double x = v.elemAsDouble(0);
+    keel::f64 x = v.elemAsDouble(0);
     if (std::isnan(x))
         throw std::runtime_error("NaN values cannot be converted to logicals.");
     return x != 0.0;
@@ -602,22 +602,22 @@ inline void runPageMatmul(const T *, const T *, T *,
                           keel::usize, keel::usize, keel::usize);
 
 template <>
-inline void runPageMatmul<double>(const double *a, const double *b, double *c,
+inline void runPageMatmul<keel::f64>(const keel::f64 *a, const keel::f64 *b, keel::f64 *c,
                                   keel::usize M, keel::usize N, keel::usize K)
 {
     ops::detail::matmulDoubleLoop(a, b, c, M, N, K);
 }
 
 template <>
-inline void runPageMatmul<float>(const float *a, const float *b, float *c,
+inline void runPageMatmul<keel::f32>(const keel::f32 *a, const keel::f32 *b, keel::f32 *c,
                                  keel::usize M, keel::usize N, keel::usize K)
 {
     for (keel::usize j = 0; j < N; ++j) {
-        float *cj = c + j * M;
+        keel::f32 *cj = c + j * M;
         for (keel::usize i = 0; i < M; ++i) cj[i] = 0.0f;
         for (keel::usize k = 0; k < K; ++k) {
-            const float bkj = b[j * K + k];
-            const float *ak = a + k * M;
+            const keel::f32 bkj = b[j * K + k];
+            const keel::f32 *ak = a + k * M;
             for (keel::usize i = 0; i < M; ++i)
                 cj[i] += ak[i] * bkj;
         }
@@ -641,8 +641,8 @@ inline void runPageMatmul<keel::c64>(const keel::c64 *a, const keel::c64 *b, kee
 }
 
 template <typename T> constexpr ValueType pagemtimesElemMType();
-template <> constexpr ValueType pagemtimesElemMType<double >() { return ValueType::DOUBLE;  }
-template <> constexpr ValueType pagemtimesElemMType<float  >() { return ValueType::SINGLE;  }
+template <> constexpr ValueType pagemtimesElemMType<keel::f64 >() { return ValueType::DOUBLE;  }
+template <> constexpr ValueType pagemtimesElemMType<keel::f32  >() { return ValueType::SINGLE;  }
 template <> constexpr ValueType pagemtimesElemMType<keel::c64>() { return ValueType::COMPLEX; }
 
 template <typename T>

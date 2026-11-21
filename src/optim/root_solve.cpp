@@ -17,7 +17,7 @@
 
 namespace numkit::ops {
 
-std::pair<double, double> findBracket(FnHandle fn, double x0, keel::Allocator *mr)
+std::pair<keel::f64, keel::f64> findBracket(FnHandle fn, keel::f64 x0, keel::Allocator *mr)
 {
     auto eval = [&](keel::f64 x) -> keel::f64 { return evalScalar(fn, x, mr); };
     const auto res = keel::optim::find_bracket(eval, x0, 60);
@@ -27,7 +27,7 @@ std::pair<double, double> findBracket(FnHandle fn, double x0, keel::Allocator *m
     return {res.a, res.b};
 }
 
-double brent(FnHandle fn, double a, double b, keel::Allocator *mr)
+keel::f64 brent(FnHandle fn, keel::f64 a, keel::f64 b, keel::Allocator *mr)
 {
     auto eval = [&](keel::f64 x) -> keel::f64 { return evalScalar(fn, x, mr); };
     const auto res = keel::optim::brent_root(eval, a, b, 1e-15, 200);
@@ -41,14 +41,14 @@ double brent(FnHandle fn, double a, double b, keel::Allocator *mr)
     return res.x;
 }
 
-double brentMin(FnHandle fn, double a, double b, double tol, keel::Allocator *mr)
+keel::f64 brentMin(FnHandle fn, keel::f64 a, keel::f64 b, keel::f64 tol, keel::Allocator *mr)
 {
     auto eval = [&](keel::f64 x) -> keel::f64 { return evalScalar(fn, x, mr); };
     const auto res = keel::optim::brent_min(eval, a, b, tol, 200);
     return res.x;
 }
 
-keel::Array<double> nelderMead(FnHandle fn, const double *x0, keel::usize n, double tol,
+keel::Array<keel::f64> nelderMead(FnHandle fn, const keel::f64 *x0, keel::usize n, keel::f64 tol,
                                keel::Allocator *mr)
 {
     auto eval = [&](keel::ArrayRef<keel::f64> x) -> keel::f64 {

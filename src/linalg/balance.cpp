@@ -46,7 +46,7 @@ balance_impl(const Value &A, bool noperm, keel::Allocator *mr)
     }
 
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<double> d(n, scratch.allocator());
+    keel::Array<keel::f64> d(n, scratch.allocator());
     keel::Array<keel::usize> perm(n, scratch.allocator());
 
     if (Aw.isComplex()) {
@@ -57,10 +57,10 @@ balance_impl(const Value &A, bool noperm, keel::Allocator *mr)
         keel::linalg::balance_matrix(R.B.doubleDataMut(), n, !noperm, d.data(), perm.data());
     }
 
-    double *pd = R.perm_col.doubleDataMut();
-    double *dd = R.d_col.doubleDataMut();
+    keel::f64 *pd = R.perm_col.doubleDataMut();
+    keel::f64 *dd = R.d_col.doubleDataMut();
     for (keel::usize i = 0; i < n; ++i) {
-        pd[i] = keel::as<double>(perm[i] + 1);
+        pd[i] = keel::as<keel::f64>(perm[i] + 1);
         dd[i] = d[i];
     }
 

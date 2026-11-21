@@ -78,7 +78,7 @@ keel::StringRef specBody(keel::StringRef spec)
 // honouring the field width and the '+'/' ' sign flags (only on +Inf; NaN
 // never takes a sign). Precision is ignored. Used for both float (%f/%e/%g)
 // and integer (%d/...) conversions.
-void formatNonFinite(keel::StringRef spec, double v, keel::String &out)
+void formatNonFinite(keel::StringRef spec, keel::f64 v, keel::String &out)
 {
     keel::StringRef word = std::isnan(v) ? "NaN" : (v < 0 ? "-Inf" : "Inf");
 
@@ -116,7 +116,7 @@ void formatNonFinite(keel::StringRef spec, double v, keel::String &out)
 //     (e.g. sprintf('%d',3.7) -> '3.700000e+00', sprintf('%.2d',3.7) ->
 //     '3.70e+00');
 //   - Inf / -Inf / NaN print as 'Inf' / '-Inf' / 'NaN' (width honoured).
-void formatIntegerConv(keel::StringRef spec, char type, double v, keel::String &out)
+void formatIntegerConv(keel::StringRef spec, char type, keel::f64 v, keel::String &out)
 {
     char buf[160];
     if (!std::isfinite(v)) {
@@ -275,7 +275,7 @@ keel::String formatOnce(keel::StringRef fmt, keel::ArrayRef<Value> args, keel::u
                 ai++;
             } else if (type == 'f' || type == 'e' || type == 'E' || type == 'g' || type == 'G') {
                 if (ai < args.size()) {
-                    const double v = args[ai].toScalar();
+                    const keel::f64 v = args[ai].toScalar();
                     if (!std::isfinite(v)) {
                         // MATLAB prints Inf / -Inf / NaN (capitalised) rather
                         // than the C library's lowercase inf/nan.
@@ -357,7 +357,7 @@ keel::String formatCyclic(keel::StringRef fmt, keel::ArrayRef<Value> args, keel:
         }
         keel::usize n = a.numel();
         for (keel::usize j = 0; j < n; ++j) {
-            double v;
+            keel::f64 v;
             if (a.type() == ValueType::DOUBLE) v = a.doubleData()[j];
             else if (a.isLogical())        v = a.logicalData()[j] ? 1.0 : 0.0;
             else if (a.type() == ValueType::COMPLEX) v = a.complexData()[j].real();

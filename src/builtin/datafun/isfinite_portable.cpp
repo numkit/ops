@@ -13,19 +13,19 @@
 
 namespace numkit::builtin::detail {
 
-void doubleIsNaNLoop(const double *in, keel::u8 *out, keel::usize n)
+void doubleIsNaNLoop(const keel::f64 *in, keel::u8 *out, keel::usize n)
 {
     for (keel::usize i = 0; i < n; ++i)
         out[i] = std::isnan(in[i]) ? 1 : 0;
 }
 
-void doubleIsInfLoop(const double *in, keel::u8 *out, keel::usize n)
+void doubleIsInfLoop(const keel::f64 *in, keel::u8 *out, keel::usize n)
 {
     for (keel::usize i = 0; i < n; ++i)
         out[i] = std::isinf(in[i]) ? 1 : 0;
 }
 
-void doubleIsFiniteLoop(const double *in, keel::u8 *out, keel::usize n)
+void doubleIsFiniteLoop(const keel::f64 *in, keel::u8 *out, keel::usize n)
 {
     for (keel::usize i = 0; i < n; ++i)
         out[i] = std::isfinite(in[i]) ? 1 : 0;

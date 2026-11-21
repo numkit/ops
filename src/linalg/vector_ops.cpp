@@ -29,13 +29,13 @@ static Value narrowKronToInteger(const Value &d, ValueType vt,
     const auto &dd = d.dims();
     Value r = Value::matrix(dd.rows(), dd.cols(), vt, mr);
     const keel::usize n = d.numel();
-    const double *src = d.doubleData();
+    const keel::f64 *src = d.doubleData();
     auto fill = [&](auto *dst) {
         using T = std::remove_pointer_t<std::decay_t<decltype(dst)>>;
-        const double lo = keel::as<double>(std::numeric_limits<T>::min());
-        const double hi = keel::as<double>(std::numeric_limits<T>::max());
+        const keel::f64 lo = keel::as<keel::f64>(std::numeric_limits<T>::min());
+        const keel::f64 hi = keel::as<keel::f64>(std::numeric_limits<T>::max());
         for (keel::usize i = 0; i < n; ++i) {
-            double v = std::round(src[i]);
+            keel::f64 v = std::round(src[i]);
             if (v < lo) v = lo; else if (v > hi) v = hi;
             dst[i] = static_cast<T>(v);
         }
@@ -73,17 +73,17 @@ static ValueType kronIntegerClass(const Value &a, const Value &b)
 }
 
 // Integer range [lo, hi] as doubles, for saturating casts.
-static void intTypeRange(ValueType vt, double &lo, double &hi)
+static void intTypeRange(ValueType vt, keel::f64 &lo, keel::f64 &hi)
 {
     switch (vt) {
     case ValueType::INT8:   lo = std::numeric_limits<keel::i8>::min();   hi = std::numeric_limits<keel::i8>::max();   break;
     case ValueType::INT16:  lo = std::numeric_limits<keel::i16>::min();  hi = std::numeric_limits<keel::i16>::max();  break;
     case ValueType::INT32:  lo = std::numeric_limits<keel::i32>::min();  hi = std::numeric_limits<keel::i32>::max();  break;
-    case ValueType::INT64:  lo = keel::as<double>(std::numeric_limits<keel::i64>::min());  hi = keel::as<double>(std::numeric_limits<keel::i64>::max());  break;
+    case ValueType::INT64:  lo = keel::as<keel::f64>(std::numeric_limits<keel::i64>::min());  hi = keel::as<keel::f64>(std::numeric_limits<keel::i64>::max());  break;
     case ValueType::UINT8:  lo = 0; hi = std::numeric_limits<keel::u8>::max();  break;
     case ValueType::UINT16: lo = 0; hi = std::numeric_limits<keel::u16>::max(); break;
     case ValueType::UINT32: lo = 0; hi = std::numeric_limits<keel::u32>::max(); break;
-    case ValueType::UINT64: lo = 0; hi = keel::as<double>(std::numeric_limits<keel::u64>::max()); break;
+    case ValueType::UINT64: lo = 0; hi = keel::as<keel::f64>(std::numeric_limits<keel::u64>::max()); break;
     default:                lo = 0; hi = 0; break;
     }
 }
@@ -113,7 +113,7 @@ static Value crossToDouble(const Value &v, keel::Allocator *mr)
     const auto &d = v.dims();
     Value r = Value::matrix(d.rows(), d.cols(), ValueType::DOUBLE, mr);
     const keel::usize n = v.numel();
-    double *dst = r.doubleDataMut();
+    keel::f64 *dst = r.doubleDataMut();
     for (keel::usize i = 0; i < n; ++i) dst[i] = v.elemAsDouble(i);
     return r;
 }
@@ -127,32 +127,32 @@ static Value crossIntegerSaturating(const Value &a, const Value &b, int crossDim
                                     ValueType outType, keel::usize nr, keel::usize nc,
                                     keel::Allocator *mr)
 {
-    double lo, hi;
+    keel::f64 lo, hi;
     intTypeRange(outType, lo, hi);
-    auto sat = [lo, hi](double v) {
+    auto sat = [lo, hi](keel::f64 v) {
         v = std::round(v);
         return v < lo ? lo : (v > hi ? hi : v);
     };
-    auto comp = [&](double p, double q, double r, double s) {
+    auto comp = [&](keel::f64 p, keel::f64 q, keel::f64 r, keel::f64 s) {
         return sat(sat(p * q) - sat(r * s));
     };
     Value dbl = Value::matrix(nr, nc, ValueType::DOUBLE, mr);
-    double *od = dbl.doubleDataMut();
+    keel::f64 *od = dbl.doubleDataMut();
     auto ga = [&](keel::usize i) { return a.elemAsDouble(i); };
     auto gb = [&](keel::usize i) { return b.elemAsDouble(i); };
     if (crossDim == 0) {
         for (keel::usize c = 0; c < nc; ++c) {
             const keel::usize base = c * 3;
-            const double a0 = ga(base), a1 = ga(base + 1), a2 = ga(base + 2);
-            const double b0 = gb(base), b1 = gb(base + 1), b2 = gb(base + 2);
+            const keel::f64 a0 = ga(base), a1 = ga(base + 1), a2 = ga(base + 2);
+            const keel::f64 b0 = gb(base), b1 = gb(base + 1), b2 = gb(base + 2);
             od[base]     = comp(a1, b2, a2, b1);
             od[base + 1] = comp(a2, b0, a0, b2);
             od[base + 2] = comp(a0, b1, a1, b0);
         }
     } else {
         for (keel::usize r = 0; r < nr; ++r) {
-            const double a0 = ga(r), a1 = ga(r + nr), a2 = ga(r + 2 * nr);
-            const double b0 = gb(r), b1 = gb(r + nr), b2 = gb(r + 2 * nr);
+            const keel::f64 a0 = ga(r), a1 = ga(r + nr), a2 = ga(r + 2 * nr);
+            const keel::f64 b0 = gb(r), b1 = gb(r + nr), b2 = gb(r + 2 * nr);
             od[r]          = comp(a1, b2, a2, b1);
             od[r + nr]     = comp(a2, b0, a0, b2);
             od[r + 2 * nr] = comp(a0, b1, a1, b0);
@@ -212,17 +212,17 @@ static Value crossCore(const Value &a, const Value &b, int crossDim,
     Value aHold = crossToDouble(a, mr), bHold = crossToDouble(b, mr);
 
     auto out = Value::matrix(nr, nc, ValueType::DOUBLE, mr);
-    const double *ad = aHold.doubleData();
-    const double *bd = bHold.doubleData();
-    double *od = out.doubleDataMut();
+    const keel::f64 *ad = aHold.doubleData();
+    const keel::f64 *bd = bHold.doubleData();
+    keel::f64 *od = out.doubleDataMut();
 
     if (crossDim == 0) {
         // 3xN: column-major storage, so col c starts at c*3.
         const keel::usize batches = nc;
         for (keel::usize c = 0; c < batches; ++c) {
             const keel::usize base = c * 3;
-            const double a0 = ad[base], a1 = ad[base + 1], a2 = ad[base + 2];
-            const double b0 = bd[base], b1 = bd[base + 1], b2 = bd[base + 2];
+            const keel::f64 a0 = ad[base], a1 = ad[base + 1], a2 = ad[base + 2];
+            const keel::f64 b0 = bd[base], b1 = bd[base + 1], b2 = bd[base + 2];
             od[base    ] = a1 * b2 - a2 * b1;
             od[base + 1] = a2 * b0 - a0 * b2;
             od[base + 2] = a0 * b1 - a1 * b0;
@@ -231,8 +231,8 @@ static Value crossCore(const Value &a, const Value &b, int crossDim,
         // Nx3: column-major, so element (r, k) at r + k*nr.
         const keel::usize batches = nr;
         for (keel::usize r = 0; r < batches; ++r) {
-            const double a0 = ad[r], a1 = ad[r + nr], a2 = ad[r + 2 * nr];
-            const double b0 = bd[r], b1 = bd[r + nr], b2 = bd[r + 2 * nr];
+            const keel::f64 a0 = ad[r], a1 = ad[r + nr], a2 = ad[r + 2 * nr];
+            const keel::f64 b0 = bd[r], b1 = bd[r + nr], b2 = bd[r + 2 * nr];
             od[r           ] = a1 * b2 - a2 * b1;
             od[r +     nr  ] = a2 * b0 - a0 * b2;
             od[r + 2 * nr  ] = a0 * b1 - a1 * b0;
@@ -322,7 +322,7 @@ Value dot(const Value &a, const Value &b, keel::Allocator *mr)
     }
 
     if (isVector) {
-        double s = 0.0;
+        keel::f64 s = 0.0;
         for (keel::usize i = 0; i < a.numel(); ++i)
             s += a.elemAsDouble(i) * b.elemAsDouble(i);
         return Value::scalar(s, mr);
@@ -330,9 +330,9 @@ Value dot(const Value &a, const Value &b, keel::Allocator *mr)
     // Matrices: per-column dot (sum along dim 1) -> 1 x W row vector,
     // matching MATLAB (the previous code flattened everything to a scalar).
     Value out = Value::matrix(1, W, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     for (keel::usize j = 0; j < W; ++j) {
-        double s = 0.0;
+        keel::f64 s = 0.0;
         for (keel::usize i = 0; i < H; ++i)
             s += a.elemAsDouble(j * H + i) * b.elemAsDouble(j * H + i);
         od[j] = s;
@@ -384,16 +384,16 @@ Value dot(const Value &a, const Value &b, int dim, keel::Allocator *mr)
     }
 
     Value out = Value::matrix(outR, outC, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     if (dim == 1)
         for (keel::usize j = 0; j < W; ++j) {
-            double s = 0.0;
+            keel::f64 s = 0.0;
             for (keel::usize i = 0; i < H; ++i) s += a.elemAsDouble(j * H + i) * b.elemAsDouble(j * H + i);
             od[j] = s;
         }
     else
         for (keel::usize i = 0; i < H; ++i) {
-            double s = 0.0;
+            keel::f64 s = 0.0;
             for (keel::usize j = 0; j < W; ++j) s += a.elemAsDouble(j * H + i) * b.elemAsDouble(j * H + i);
             od[i] = s;
         }
@@ -481,15 +481,15 @@ Value kron(const Value &a, const Value &b, keel::Allocator *mr)
         return intClass == ValueType::DOUBLE ? out
                                              : narrowKronToInteger(out, intClass, mr);
 
-    double *dst = out.doubleDataMut();
+    keel::f64 *dst = out.doubleDataMut();
     for (keel::usize ja = 0; ja < cA; ++ja)
         for (keel::usize ia = 0; ia < rA; ++ia) {
-            const double av = a.elemAsDouble(ia + ja * rA);
+            const keel::f64 av = a.elemAsDouble(ia + ja * rA);
             for (keel::usize jb = 0; jb < cB; ++jb) {
                 const keel::usize jOut = ja * cB + jb;
                 for (keel::usize ib = 0; ib < rB; ++ib) {
                     const keel::usize iOut = ia * rB + ib;
-                    const double bv = b.elemAsDouble(ib + jb * rB);
+                    const keel::f64 bv = b.elemAsDouble(ib + jb * rB);
                     dst[jOut * rOut + iOut] = av * bv;
                 }
             }
@@ -499,10 +499,10 @@ Value kron(const Value &a, const Value &b, keel::Allocator *mr)
     if (a.type() == ValueType::SINGLE || b.type() == ValueType::SINGLE) {
         Value s = Value::matrix(out.dims().rows(), out.dims().cols(),
                                 ValueType::SINGLE, mr);
-        const double *od = out.doubleData();
-        float *sd = s.singleDataMut();
+        const keel::f64 *od = out.doubleData();
+        keel::f32 *sd = s.singleDataMut();
         for (keel::usize i = 0; i < out.numel(); ++i)
-            sd[i] = keel::as<float>(od[i]);
+            sd[i] = keel::as<keel::f32>(od[i]);
         return s;
     }
     return out;

@@ -24,9 +24,9 @@ namespace HWY_NAMESPACE {
 
 namespace hn = hwy::HWY_NAMESPACE;
 
-double SumScanLoop(const double *HWY_RESTRICT p, keel::usize n)
+keel::f64 SumScanLoop(const keel::f64 *HWY_RESTRICT p, keel::usize n)
 {
-    const hn::ScalableTag<double> d;
+    const hn::ScalableTag<keel::f64> d;
     const keel::usize N = hn::Lanes(d);
     auto a0 = hn::Zero(d), a1 = hn::Zero(d), a2 = hn::Zero(d), a3 = hn::Zero(d);
 
@@ -39,17 +39,17 @@ double SumScanLoop(const double *HWY_RESTRICT p, keel::usize n)
     }
     for (; i + N <= n; i += N)
         a0 = hn::Add(a0, hn::LoadU(d, p + i));
-    double s = hn::ReduceSum(d, hn::Add(hn::Add(a0, a1), hn::Add(a2, a3)));
+    keel::f64 s = hn::ReduceSum(d, hn::Add(hn::Add(a0, a1), hn::Add(a2, a3)));
     for (; i < n; ++i) s += p[i];
     return s;
 }
 
 // In-place accumulate: dst += src. 4Ã— unrolled for ILP, regular
 // cached stores (caller reads dst again on the next column-pass iter).
-void AddIntoLoop(double *HWY_RESTRICT dst, const double *HWY_RESTRICT src,
+void AddIntoLoop(keel::f64 *HWY_RESTRICT dst, const keel::f64 *HWY_RESTRICT src,
                  keel::usize n)
 {
-    const hn::ScalableTag<double> d;
+    const hn::ScalableTag<keel::f64> d;
     const keel::usize N = hn::Lanes(d);
 
     keel::usize i = 0;
@@ -73,10 +73,10 @@ void AddIntoLoop(double *HWY_RESTRICT dst, const double *HWY_RESTRICT src,
     for (; i < n; ++i) dst[i] += src[i];
 }
 
-double SumSquaredDeviationsScanLoop(const double *HWY_RESTRICT p, keel::usize n,
-                                    double mean)
+keel::f64 SumSquaredDeviationsScanLoop(const keel::f64 *HWY_RESTRICT p, keel::usize n,
+                                    keel::f64 mean)
 {
-    const hn::ScalableTag<double> d;
+    const hn::ScalableTag<keel::f64> d;
     const keel::usize N = hn::Lanes(d);
     const auto vmean = hn::Set(d, mean);
     auto a0 = hn::Zero(d), a1 = hn::Zero(d), a2 = hn::Zero(d), a3 = hn::Zero(d);
@@ -97,9 +97,9 @@ double SumSquaredDeviationsScanLoop(const double *HWY_RESTRICT p, keel::usize n,
         const auto v = hn::Sub(hn::LoadU(d, p + i), vmean);
         a0 = hn::MulAdd(v, v, a0);
     }
-    double ss = hn::ReduceSum(d, hn::Add(hn::Add(a0, a1), hn::Add(a2, a3)));
+    keel::f64 ss = hn::ReduceSum(d, hn::Add(hn::Add(a0, a1), hn::Add(a2, a3)));
     for (; i < n; ++i) {
-        const double dv = p[i] - mean;
+        const keel::f64 dv = p[i] - mean;
         ss += dv * dv;
     }
     return ss;
@@ -116,34 +116,34 @@ HWY_EXPORT(SumScanLoop);
 HWY_EXPORT(SumSquaredDeviationsScanLoop);
 HWY_EXPORT(AddIntoLoop);
 
-double sumScan(const double *p, keel::usize n)
+keel::f64 sumScan(const keel::f64 *p, keel::usize n)
 {
     if (n == 0) return 0.0;
     return HWY_DYNAMIC_DISPATCH(SumScanLoop)(p, n);
 }
 
-double sumSquaredDeviationsScan(const double *p, keel::usize n, double mean)
+keel::f64 sumSquaredDeviationsScan(const keel::f64 *p, keel::usize n, keel::f64 mean)
 {
     if (n == 0) return 0.0;
     return HWY_DYNAMIC_DISPATCH(SumSquaredDeviationsScanLoop)(p, n, mean);
 }
 
-void addInto(double *dst, const double *src, keel::usize n)
+void addInto(keel::f64 *dst, const keel::f64 *src, keel::usize n)
 {
     if (n == 0) return;
     HWY_DYNAMIC_DISPATCH(AddIntoLoop)(dst, src, n);
 }
 
-double varianceTwoPass(const double *p, keel::usize n, int normFlag)
+keel::f64 varianceTwoPass(const keel::f64 *p, keel::usize n, int normFlag)
 {
     if (n == 0) return std::nan("");
     // MATLAB: variance of a single observation is 0 for BOTH the N-1
     // (default) and N normalizations â€” not NaN from the 0/0 of N-1.
     if (n == 1) return 0.0;
-    const double mean  = sumScan(p, n) / keel::as<double>(n);
-    const double ss    = sumSquaredDeviationsScan(p, n, mean);
-    const double denom = (normFlag == 1) ? keel::as<double>(n)
-                                         : keel::as<double>(n - 1);
+    const keel::f64 mean  = sumScan(p, n) / keel::as<keel::f64>(n);
+    const keel::f64 ss    = sumSquaredDeviationsScan(p, n, mean);
+    const keel::f64 denom = (normFlag == 1) ? keel::as<keel::f64>(n)
+                                         : keel::as<keel::f64>(n - 1);
     return ss / denom;
 }
 

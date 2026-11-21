@@ -31,9 +31,9 @@ namespace hn = hwy::HWY_NAMESPACE;
 // unchanged. VecOp maps a vector → vector (the Highway unary); ScalarOp maps the
 // tail double → double (the matching libm unary).
 template <class VecOp, class ScalarOp>
-void unaryInnerLoop(const double *x, double p0, double p1, bool divide,
-                    double *out, keel::usize n, VecOp vop, ScalarOp sop) {
-    const hn::ScalableTag<double> d;
+void unaryInnerLoop(const keel::f64 *x, keel::f64 p0, keel::f64 p1, bool divide,
+                    keel::f64 *out, keel::usize n, VecOp vop, ScalarOp sop) {
+    const hn::ScalableTag<keel::f64> d;
     const keel::usize L = hn::Lanes(d);
     const auto vp0 = hn::Set(d, p0), vp1 = hn::Set(d, p1);
     keel::usize i = 0;
@@ -47,28 +47,28 @@ void unaryInnerLoop(const double *x, double p0, double p1, bool divide,
         out[i] = sop(divide ? (x[i] - p0) / p1 : p0 * x[i] + p1);
 }
 
-void UnaryAffineImpl(const double *x, double p0, double p1, bool divide,
-                     UnaryAffineFn fn, double *out, keel::usize n) {
+void UnaryAffineImpl(const keel::f64 *x, keel::f64 p0, keel::f64 p1, bool divide,
+                     UnaryAffineFn fn, keel::f64 *out, keel::usize n) {
     switch (fn) {
         case UnaryAffineFn::Sqrt:
             unaryInnerLoop(x, p0, p1, divide, out, n,
                            [](auto v) { return hn::Sqrt(v); },
-                           [](double v) { return std::sqrt(v); });
+                           [](keel::f64 v) { return std::sqrt(v); });
             break;
         case UnaryAffineFn::Floor:
             unaryInnerLoop(x, p0, p1, divide, out, n,
                            [](auto v) { return hn::Floor(v); },
-                           [](double v) { return std::floor(v); });
+                           [](keel::f64 v) { return std::floor(v); });
             break;
         case UnaryAffineFn::Ceil:
             unaryInnerLoop(x, p0, p1, divide, out, n,
                            [](auto v) { return hn::Ceil(v); },
-                           [](double v) { return std::ceil(v); });
+                           [](keel::f64 v) { return std::ceil(v); });
             break;
         case UnaryAffineFn::Fix:
             unaryInnerLoop(x, p0, p1, divide, out, n,
                            [](auto v) { return hn::Trunc(v); },
-                           [](double v) { return std::trunc(v); });
+                           [](keel::f64 v) { return std::trunc(v); });
             break;
         case UnaryAffineFn::Round:
             // MATLAB round = half-away-from-zero: Trunc(v + CopySign(0.5, v)),
@@ -78,7 +78,7 @@ void UnaryAffineImpl(const double *x, double p0, double p1, bool divide,
                                const hn::DFromV<decltype(v)> d;
                                return hn::Trunc(hn::Add(v, hn::CopySign(hn::Set(d, 0.5), v)));
                            },
-                           [](double v) { return std::round(v); });
+                           [](keel::f64 v) { return std::round(v); });
             break;
     }
 }
@@ -92,8 +92,8 @@ namespace numkit::ops {
 
 HWY_EXPORT(UnaryAffineImpl);
 
-void fusedUnaryAffine(const double *x, double scale, double offset,
-                      UnaryAffineFn fn, double *out, keel::usize n) {
+void fusedUnaryAffine(const keel::f64 *x, keel::f64 scale, keel::f64 offset,
+                      UnaryAffineFn fn, keel::f64 *out, keel::usize n) {
     if (n == 0) return;
     detail::parallel_for(n, keel::usize{1} << 16, [&](keel::usize s, keel::usize e) {
         HWY_DYNAMIC_DISPATCH(UnaryAffineImpl)(x + s, scale, offset, /*divide=*/false,
@@ -101,8 +101,8 @@ void fusedUnaryAffine(const double *x, double scale, double offset,
     });
 }
 
-void fusedUnaryShiftDiv(const double *x, double sub, double div,
-                        UnaryAffineFn fn, double *out, keel::usize n) {
+void fusedUnaryShiftDiv(const keel::f64 *x, keel::f64 sub, keel::f64 div,
+                        UnaryAffineFn fn, keel::f64 *out, keel::usize n) {
     if (n == 0) return;
     detail::parallel_for(n, keel::usize{1} << 16, [&](keel::usize s, keel::usize e) {
         HWY_DYNAMIC_DISPATCH(UnaryAffineImpl)(x + s, sub, div, /*divide=*/true,

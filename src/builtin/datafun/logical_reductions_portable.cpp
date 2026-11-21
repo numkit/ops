@@ -51,7 +51,7 @@ keel::u8 scanSlice(const Value &x, keel::usize base, keel::usize n, keel::usize 
 {
     if (n == 0) return IsAny ? 0 : 1;
     if (x.type() == ValueType::DOUBLE) {
-        const double *p = x.doubleData() + base;
+        const keel::f64 *p = x.doubleData() + base;
         for (keel::usize i = 0; i < n; ++i) {
             const bool nz = p[i * stride] != 0.0;
             if constexpr (IsAny) { if (nz)  return 1; }

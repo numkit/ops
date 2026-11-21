@@ -196,32 +196,32 @@ static FilterState runFilter(const FilterPlan &p, const Value &b,
     }
 
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    auto bn = keel::Array<double>(p.nb, scratch.allocator());
-    auto an = keel::Array<double>(p.na, scratch.allocator());
-    const double a0 = a.elemAsDouble(0);
+    auto bn = keel::Array<keel::f64>(p.nb, scratch.allocator());
+    auto an = keel::Array<keel::f64>(p.na, scratch.allocator());
+    const keel::f64 a0 = a.elemAsDouble(0);
     for (keel::usize i = 0; i < p.nb; ++i) bn[i] = b.elemAsDouble(i) / a0;
     for (keel::usize i = 0; i < p.na; ++i) an[i] = a.elemAsDouble(i) / a0;
 
     // Logical/integer inputs are legal filter inputs — materialize the
     // non-double ones so the kernel sees contiguous double runs.
-    keel::Array<double> xmat(0, scratch.allocator());
-    const double *xd = nullptr;
+    keel::Array<keel::f64> xmat(0, scratch.allocator());
+    const keel::f64 *xd = nullptr;
     if (x.type() == ValueType::DOUBLE) {
         xd = x.doubleData();
     } else {
-        xmat = keel::Array<double>(p.nx, scratch.allocator());
+        xmat = keel::Array<keel::f64>(p.nx, scratch.allocator());
         for (keel::usize i = 0; i < p.nx; ++i) xmat[i] = x.elemAsDouble(i);
         xd = xmat.data();
     }
-    keel::Array<double> zimat(0, scratch.allocator());
-    const double *ziPtr = nullptr;
+    keel::Array<keel::f64> zimat(0, scratch.allocator());
+    const keel::f64 *ziPtr = nullptr;
     keel::usize ziLen = 0;
     if (hasZi) {
         ziLen = zi.numel();
         if (zi.type() == ValueType::DOUBLE) {
             ziPtr = zi.doubleData();
         } else {
-            zimat = keel::Array<double>(ziLen, scratch.allocator());
+            zimat = keel::Array<keel::f64>(ziLen, scratch.allocator());
             for (keel::usize i = 0; i < ziLen; ++i) zimat[i] = zi.elemAsDouble(i);
             ziPtr = zimat.data();
         }
@@ -230,29 +230,29 @@ static FilterState runFilter(const FilterPlan &p, const Value &b,
                           && ziLen == p.stateLen * p.nSig;
 
     Value r = createLike(x, ValueType::DOUBLE, mr);
-    double *y = r.doubleDataMut();
+    keel::f64 *y = r.doubleDataMut();
     Value zfv = Value::matrix(p.stateLen, zfCols, ValueType::DOUBLE, mr);
-    double *zfData = zfv.doubleDataMut();
+    keel::f64 *zfData = zfv.doubleDataMut();
     for (keel::usize i = 0; i < p.stateLen * zfCols; ++i) zfData[i] = 0.0;
     if (p.nSig == 0 && hasZi && p.stateLen)
         for (keel::usize i = 0; i < p.stateLen && i < ziLen; ++i)
             zfData[i] = ziPtr[i];
     for (keel::usize s = 0; s < p.nSig; ++s) {
-        const double *ziRun = nullptr;
+        const keel::f64 *ziRun = nullptr;
         keel::usize ziRunLen = 0;
         if (hasZi) {
             ziRun    = ziPerSig ? ziPtr + s * p.stateLen : ziPtr;
             ziRunLen = ziPerSig ? p.stateLen : ziLen;
         }
-        keel::Array<double> zf(p.stateLen, scratch.allocator());
+        keel::Array<keel::f64> zf(p.stateLen, scratch.allocator());
         auto out = applyFilterDf2t(bn.data(), p.nb, an.data(), p.na,
                                    xd + s * p.sigLen, p.sigLen,
                                    ziRun, ziRunLen,
                                    p.stateLen ? zf.data() : nullptr, scratch.allocator());
-        std::memcpy(y + s * p.sigLen, out.data(), p.sigLen * sizeof(double));
+        std::memcpy(y + s * p.sigLen, out.data(), p.sigLen * sizeof(keel::f64));
         if (p.stateLen)
             std::memcpy(zfData + s * p.stateLen, zf.data(),
-                        p.stateLen * sizeof(double));
+                        p.stateLen * sizeof(keel::f64));
     }
     return {std::move(r), std::move(zfv)};
 }
@@ -291,18 +291,18 @@ Value filtfilt(const Value &b, const Value &a, const Value &x, keel::Allocator *
         return out;
     }
     const keel::usize nb = b.numel(), na = a.numel(), nx = x.numel();
-    const double *bd = b.doubleData();
-    const double *ad = a.doubleData();
-    const double *xd = x.doubleData();
+    const keel::f64 *bd = b.doubleData();
+    const keel::f64 *ad = a.doubleData();
+    const keel::f64 *xd = x.doubleData();
 
-    const double a0 = ad[0];
+    const keel::f64 a0 = ad[0];
     if (a0 == 0.0)
         throw Error("filtfilt: a(1) must be nonzero",
                      0, 0, "filtfilt", "", "numkit:filtfilt:zeroLead");
 
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    auto bn = keel::Array<double>(nb, scratch.allocator());
-    auto an = keel::Array<double>(na, scratch.allocator());
+    auto bn = keel::Array<keel::f64>(nb, scratch.allocator());
+    auto an = keel::Array<keel::f64>(na, scratch.allocator());
     for (keel::usize i = 0; i < nb; ++i)
         bn[i] = bd[i] / a0;
     for (keel::usize i = 0; i < na; ++i)
@@ -315,14 +315,14 @@ Value filtfilt(const Value &b, const Value &a, const Value &x, keel::Allocator *
     // where rhs[k] = b[k+1] - b[0]*a[k+1]. The companion/DF2T system telescopes:
     //   (1 + sum_{k=1..m} a[k]) * zi[0] = sum_{k=0..m-1} rhs[k]
     //   zi[k+1] = zi[k] + a[k+1]*zi[0] - rhs[k].
-    auto zi = keel::Array<double>(stateLen, scratch.allocator());
+    auto zi = keel::Array<keel::f64>(stateLen, scratch.allocator());
     if (stateLen > 0) {
-        auto rhs = keel::Array<double>(stateLen, scratch.allocator());
-        double sumRhs = 0.0;
-        double sumA = 1.0;
+        auto rhs = keel::Array<keel::f64>(stateLen, scratch.allocator());
+        keel::f64 sumRhs = 0.0;
+        keel::f64 sumA = 1.0;
         for (keel::usize k = 0; k < stateLen; ++k) {
-            const double bk1 = (k + 1 < nb) ? bn[k + 1] : 0.0;
-            const double ak1 = (k + 1 < na) ? an[k + 1] : 0.0;
+            const keel::f64 bk1 = (k + 1 < nb) ? bn[k + 1] : 0.0;
+            const keel::f64 ak1 = (k + 1 < na) ? an[k + 1] : 0.0;
             rhs[k] = bk1 - bn[0] * ak1;
             sumRhs += rhs[k];
             sumA += ak1;
@@ -330,7 +330,7 @@ Value filtfilt(const Value &b, const Value &a, const Value &x, keel::Allocator *
         if (keel::abs(sumA) > 1e-14) {
             zi[0] = sumRhs / sumA;
             for (keel::usize k = 0; k + 1 < stateLen; ++k) {
-                const double ak1 = (k + 1 < na) ? an[k + 1] : 0.0;
+                const keel::f64 ak1 = (k + 1 < na) ? an[k + 1] : 0.0;
                 zi[k + 1] = zi[k] + ak1 * zi[0] - rhs[k];
             }
         }
@@ -344,7 +344,7 @@ Value filtfilt(const Value &b, const Value &a, const Value &x, keel::Allocator *
         nEdge = 0;
 
     const keel::usize extLen = nx + 2 * nEdge;
-    auto ext = keel::Array<double>(extLen, scratch.allocator());
+    auto ext = keel::Array<keel::f64>(extLen, scratch.allocator());
     for (keel::usize i = 0; i < nEdge; ++i)
         ext[i] = 2.0 * xd[0] - xd[nEdge - i];
     for (keel::usize i = 0; i < nx; ++i)
@@ -352,7 +352,7 @@ Value filtfilt(const Value &b, const Value &a, const Value &x, keel::Allocator *
     for (keel::usize i = 0; i < nEdge; ++i)
         ext[nEdge + nx + i] = 2.0 * xd[nx - 1] - xd[nx - 2 - i];
 
-    auto ziScaled = keel::Array<double>(stateLen, scratch.allocator());
+    auto ziScaled = keel::Array<keel::f64>(stateLen, scratch.allocator());
     if (stateLen > 0 && extLen > 0) {
         for (keel::usize k = 0; k < stateLen; ++k)
             ziScaled[k] = zi[k] * ext[0];
@@ -369,9 +369,9 @@ Value filtfilt(const Value &b, const Value &a, const Value &x, keel::Allocator *
     std::reverse(bwd.begin(), bwd.end());
 
     auto r = createLike(x, ValueType::DOUBLE, mr);
-    double *y = r.doubleDataMut();
+    keel::f64 *y = r.doubleDataMut();
     if (nx > 0)
-        std::memcpy(y, bwd.data() + nEdge, nx * sizeof(double));
+        std::memcpy(y, bwd.data() + nEdge, nx * sizeof(keel::f64));
     return r;
 }
 

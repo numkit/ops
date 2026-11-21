@@ -44,17 +44,17 @@ namespace hn = hwy::HWY_NAMESPACE;
 // binary_ops_highway.cpp â€” see the comment block there for the
 // rationale. abs is also a write-once-discard-rest pattern at large N
 // so the cache-bypass payoff is similar.
-void AbsLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, keel::usize n)
+void AbsLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel::usize n)
 {
-    const hn::ScalableTag<double> d;
+    const hn::ScalableTag<keel::f64> d;
     const keel::usize N           = hn::Lanes(d);
-    const keel::usize align_bytes = N * sizeof(double);
+    const keel::usize align_bytes = N * sizeof(keel::f64);
 
     keel::usize i = 0;
     const auto addr = reinterpret_cast<std::uintptr_t>(out);
     const auto rem  = addr % align_bytes;
     const keel::usize head = (rem == 0) ? 0
-                                        : std::min<keel::usize>((align_bytes - rem) / sizeof(double), n);
+                                        : std::min<keel::usize>((align_bytes - rem) / sizeof(keel::f64), n);
     for (keel::usize k = 0; k < head; ++k, ++i)
         out[i] = std::fabs(in[i]);
 
@@ -95,9 +95,9 @@ Value abs(const Value &x, Value *hint, keel::Allocator *mr)
     if (x.isComplex()) {
         if (x.isSingleComplex()) {
             auto r = createLike(x, ValueType::SINGLE, mr);
-            float *dst = r.singleDataMut();
+            keel::f32 *dst = r.singleDataMut();
             for (keel::usize i = 0; i < x.numel(); ++i)
-                dst[i] = keel::as<float>(keel::abs(x.complexData()[i]));
+                dst[i] = keel::as<keel::f32>(keel::abs(x.complexData()[i]));
             return r;
         }
         if (x.isScalar())
@@ -113,8 +113,8 @@ Value abs(const Value &x, Value *hint, keel::Allocator *mr)
     // runtime/abs-single-matrix.md). Memory-bound loop; no SIMD payoff.
     if (x.type() == ValueType::SINGLE) {
         Value r = createLike(x, ValueType::SINGLE, mr);
-        const float *in = x.singleData();
-        float *out = r.singleDataMut();
+        const keel::f32 *in = x.singleData();
+        keel::f32 *out = r.singleDataMut();
         for (keel::usize i = 0; i < x.numel(); ++i)
             out[i] = std::fabs(in[i]);
         return r;
@@ -122,7 +122,7 @@ Value abs(const Value &x, Value *hint, keel::Allocator *mr)
     // Logical / char widen to double (char codes), like the reference.
     if (x.type() == ValueType::LOGICAL || x.type() == ValueType::CHAR) {
         Value r = createLike(x, ValueType::DOUBLE, mr);
-        double *out = r.doubleDataMut();
+        keel::f64 *out = r.doubleDataMut();
         if (x.type() == ValueType::LOGICAL) {
             const auto *in = x.logicalData();
             for (keel::usize i = 0; i < x.numel(); ++i)
@@ -130,7 +130,7 @@ Value abs(const Value &x, Value *hint, keel::Allocator *mr)
         } else {
             const auto *in = x.charData();
             for (keel::usize i = 0; i < x.numel(); ++i)
-                out[i] = keel::as<double>(
+                out[i] = keel::as<keel::f64>(
                     keel::as<unsigned char>(in[i]));
         }
         return r;
@@ -150,8 +150,8 @@ Value abs(const Value &x, Value *hint, keel::Allocator *mr)
     } else {
         r = createLike(x, ValueType::DOUBLE, mr);
     }
-    const double *in  = x.doubleData();
-    double       *out = r.doubleDataMut();
+    const keel::f64 *in  = x.doubleData();
+    keel::f64       *out = r.doubleDataMut();
     numkit::detail::parallel_for(x.numel(), numkit::detail::kCheapElementwiseThreshold,
         [=](keel::usize s, keel::usize e) {
             HWY_DYNAMIC_DISPATCH(AbsLoop)(in + s, out + s, e - s);

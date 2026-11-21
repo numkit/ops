@@ -38,8 +38,8 @@ Value dispatchFast(const Value &a, const Value &b, Op op)
     if (a.isScalar() && b.isScalar())       return Value{};
 
     if (a.isScalar()) {
-        const double s = a.toScalar();
-        const double *pb = b.doubleData();
+        const keel::f64 s = a.toScalar();
+        const keel::f64 *pb = b.doubleData();
         auto r = createLike(b, ValueType::LOGICAL, nullptr);
         keel::u8 *out = r.logicalDataMut();
         const keel::usize n = b.numel();
@@ -48,8 +48,8 @@ Value dispatchFast(const Value &a, const Value &b, Op op)
         return r;
     }
     if (b.isScalar()) {
-        const double s = b.toScalar();
-        const double *pa = a.doubleData();
+        const keel::f64 s = b.toScalar();
+        const keel::f64 *pa = a.doubleData();
         auto r = createLike(a, ValueType::LOGICAL, nullptr);
         keel::u8 *out = r.logicalDataMut();
         const keel::usize n = a.numel();
@@ -57,8 +57,8 @@ Value dispatchFast(const Value &a, const Value &b, Op op)
             out[i] = op(pa[i], s) ? 1 : 0;
         return r;
     }
-    const double *pa = a.doubleData();
-    const double *pb = b.doubleData();
+    const keel::f64 *pa = a.doubleData();
+    const keel::f64 *pb = b.doubleData();
     auto r = createLike(a, ValueType::LOGICAL, nullptr);
     keel::u8 *out = r.logicalDataMut();
     const keel::usize n = a.numel();
@@ -69,11 +69,11 @@ Value dispatchFast(const Value &a, const Value &b, Op op)
 
 } // namespace
 
-Value eqFast(const Value &a, const Value &b) { return dispatchFast(a, b, [](double x, double y){ return x == y; }); }
-Value neFast(const Value &a, const Value &b) { return dispatchFast(a, b, [](double x, double y){ return x != y; }); }
-Value ltFast(const Value &a, const Value &b) { return dispatchFast(a, b, [](double x, double y){ return x <  y; }); }
-Value gtFast(const Value &a, const Value &b) { return dispatchFast(a, b, [](double x, double y){ return x >  y; }); }
-Value leFast(const Value &a, const Value &b) { return dispatchFast(a, b, [](double x, double y){ return x <= y; }); }
-Value geFast(const Value &a, const Value &b) { return dispatchFast(a, b, [](double x, double y){ return x >= y; }); }
+Value eqFast(const Value &a, const Value &b) { return dispatchFast(a, b, [](keel::f64 x, keel::f64 y){ return x == y; }); }
+Value neFast(const Value &a, const Value &b) { return dispatchFast(a, b, [](keel::f64 x, keel::f64 y){ return x != y; }); }
+Value ltFast(const Value &a, const Value &b) { return dispatchFast(a, b, [](keel::f64 x, keel::f64 y){ return x <  y; }); }
+Value gtFast(const Value &a, const Value &b) { return dispatchFast(a, b, [](keel::f64 x, keel::f64 y){ return x >  y; }); }
+Value leFast(const Value &a, const Value &b) { return dispatchFast(a, b, [](keel::f64 x, keel::f64 y){ return x <= y; }); }
+Value geFast(const Value &a, const Value &b) { return dispatchFast(a, b, [](keel::f64 x, keel::f64 y){ return x >= y; }); }
 
 } // namespace numkit::ops

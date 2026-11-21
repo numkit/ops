@@ -27,17 +27,17 @@ namespace numkit::linalg {
 namespace {
 
 // Default tolerance for rank-cutoff: max(m,n) * eps(sigma_max).
-double defaultRankTol(keel::usize m, keel::usize n, double sigma_max, bool isSingle = false)
+keel::f64 defaultRankTol(keel::usize m, keel::usize n, keel::f64 sigma_max, bool isSingle = false)
 {
-    const double eps = isSingle
-        ? keel::as<double>(std::numeric_limits<float>::epsilon())
-        : std::numeric_limits<double>::epsilon();
-    return keel::as<double>(std::max(m, n)) * sigma_max * eps;
+    const keel::f64 eps = isSingle
+        ? keel::as<keel::f64>(std::numeric_limits<keel::f32>::epsilon())
+        : std::numeric_limits<keel::f64>::epsilon();
+    return keel::as<keel::f64>(std::max(m, n)) * sigma_max * eps;
 }
 
 } // anonymous namespace
 
-Value pinv(const Value &A, double tol, keel::Allocator *mr)
+Value pinv(const Value &A, keel::f64 tol, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "pinv");
     detail::require2DMatrix(A, "pinv", "A", "pagepinv");
@@ -50,20 +50,20 @@ Value pinv(const Value &A, double tol, keel::Allocator *mr)
 
     if (Aw.isComplex() || U.isComplex() || V.isComplex()) {
         keel::ArenaTemp scratch = keel::get_scratch(mr);
-        keel::Array<double> Splus(k, 0.0, scratch.allocator());
-        double sigma_max = 0.0;
+        keel::Array<keel::f64> Splus(k, 0.0, scratch.allocator());
+        keel::f64 sigma_max = 0.0;
         const keel::c64 *sd = S.isComplex() ? S.complexData() : nullptr;
-        const double *sdd = S.isComplex() ? nullptr : S.doubleData();
+        const keel::f64 *sdd = S.isComplex() ? nullptr : S.doubleData();
         const keel::usize Srows = keel::as<keel::usize>(S.dims().dim(0));
 
         for (keel::usize i = 0; i < k; ++i) {
-            double sig = sd ? keel::abs(sd[i + i * Srows]) : sdd[i + i * Srows];
+            keel::f64 sig = sd ? keel::abs(sd[i + i * Srows]) : sdd[i + i * Srows];
             sigma_max = std::max(sigma_max, sig);
         }
-        const double cutoff = (tol < 0.0) ? defaultRankTol(m, n, sigma_max, wantSingle) : tol;
+        const keel::f64 cutoff = (tol < 0.0) ? defaultRankTol(m, n, sigma_max, wantSingle) : tol;
 
         for (keel::usize i = 0; i < k; ++i) {
-            double sig = sd ? keel::abs(sd[i + i * Srows]) : sdd[i + i * Srows];
+            keel::f64 sig = sd ? keel::abs(sd[i + i * Srows]) : sdd[i + i * Srows];
             if (sig > cutoff) Splus[i] = 1.0 / sig;
         }
 
@@ -72,9 +72,9 @@ Value pinv(const Value &A, double tol, keel::Allocator *mr)
         std::fill(P, P + n * m, keel::c64(0.0, 0.0));
 
         const keel::c64 *Vd = V.isComplex() ? V.complexData() : nullptr;
-        const double *Vdd = V.isComplex() ? nullptr : V.doubleData();
+        const keel::f64 *Vdd = V.isComplex() ? nullptr : V.doubleData();
         const keel::c64 *Ud = U.isComplex() ? U.complexData() : nullptr;
-        const double *Udd = U.isComplex() ? nullptr : U.doubleData();
+        const keel::f64 *Udd = U.isComplex() ? nullptr : U.doubleData();
         const keel::usize Vrows = keel::as<keel::usize>(V.dims().dim(0));
         const keel::usize Urows = keel::as<keel::usize>(U.dims().dim(0));
 
@@ -93,37 +93,37 @@ Value pinv(const Value &A, double tol, keel::Allocator *mr)
         return detail::narrowDoubleToSingleIf(detail::narrow_if_real(out, mr), wantSingle, mr);
     }
 
-    const double *S_data = S.doubleData();
+    const keel::f64 *S_data = S.doubleData();
     const keel::usize Srows = keel::as<keel::usize>(S.dims().dim(0));
 
-    double sigma_max = 0.0;
+    keel::f64 sigma_max = 0.0;
     for (keel::usize i = 0; i < k; ++i)
         sigma_max = std::max(sigma_max, S_data[i + i * Srows]);
-    const double cutoff = (tol < 0.0) ? defaultRankTol(m, n, sigma_max, wantSingle) : tol;
+    const keel::f64 cutoff = (tol < 0.0) ? defaultRankTol(m, n, sigma_max, wantSingle) : tol;
 
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<double> Splus(n * m, 0.0, scratch.allocator());
+    keel::Array<keel::f64> Splus(n * m, 0.0, scratch.allocator());
     for (keel::usize i = 0; i < k; ++i) {
-        const double sig = S_data[i + i * Srows];
+        const keel::f64 sig = S_data[i + i * Srows];
         if (sig > cutoff)
             Splus[i + i * n] = 1.0 / sig;
     }
 
     // pinv(A) = V * S^+ * U' -- output is n × m.
     auto out = Value::matrix(n, m, ValueType::DOUBLE, mr);
-    double *P = out.doubleDataMut();
+    keel::f64 *P = out.doubleDataMut();
     std::fill(P, P + n * m, 0.0);
 
-    const double *Vdata = V.doubleData();
-    const double *Udata = U.doubleData();
+    const keel::f64 *Vdata = V.doubleData();
+    const keel::f64 *Udata = U.doubleData();
     const keel::usize Vrows = keel::as<keel::usize>(V.dims().dim(0));
     const keel::usize Urows = keel::as<keel::usize>(U.dims().dim(0));
 
     for (keel::usize i = 0; i < n; ++i) {
         for (keel::usize j = 0; j < m; ++j) {
-            double s = 0.0;
+            keel::f64 s = 0.0;
             for (keel::usize a = 0; a < k; ++a) {
-                const double sp = Splus[a + a * n];
+                const keel::f64 sp = Splus[a + a * n];
                 if (sp == 0.0) continue;
                 s += Vdata[i + a * Vrows] * sp * Udata[j + a * Urows];
             }
@@ -133,7 +133,7 @@ Value pinv(const Value &A, double tol, keel::Allocator *mr)
     return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
 
-Value orth(const Value &A, double tol, keel::Allocator *mr)
+Value orth(const Value &A, keel::f64 tol, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "orth");
     detail::require2DMatrix(A, "orth", "A", "pagesvd");
@@ -144,10 +144,10 @@ Value orth(const Value &A, double tol, keel::Allocator *mr)
     const keel::usize n = keel::as<keel::usize>(Aw.dims().dim(1));
     const keel::usize k = std::min(m, n);
 
-    const double *S_data = S.doubleData();
+    const keel::f64 *S_data = S.doubleData();
     const keel::usize Srows = keel::as<keel::usize>(S.dims().dim(0));
-    const double sigma_max = (k > 0) ? S_data[0] : 0.0;
-    const double cutoff = (tol < 0.0) ? defaultRankTol(m, n, sigma_max, wantSingle) : tol;
+    const keel::f64 sigma_max = (k > 0) ? S_data[0] : 0.0;
+    const keel::f64 cutoff = (tol < 0.0) ? defaultRankTol(m, n, sigma_max, wantSingle) : tol;
 
     int r = 0;
     for (keel::usize i = 0; i < k; ++i)
@@ -155,8 +155,8 @@ Value orth(const Value &A, double tol, keel::Allocator *mr)
 
     auto out = Value::matrix(m, keel::as<keel::usize>(r), ValueType::DOUBLE, mr);
     if (r == 0) return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
-    double *Q = out.doubleDataMut();
-    const double *Udata = U.doubleData();
+    keel::f64 *Q = out.doubleDataMut();
+    const keel::f64 *Udata = U.doubleData();
     const keel::usize Urows = keel::as<keel::usize>(U.dims().dim(0));
     for (keel::usize j = 0; j < keel::as<keel::usize>(r); ++j)
         for (keel::usize i = 0; i < m; ++i)
@@ -164,7 +164,7 @@ Value orth(const Value &A, double tol, keel::Allocator *mr)
     return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
 
-Value null_basis(const Value &A, double tol, keel::Allocator *mr)
+Value null_basis(const Value &A, keel::f64 tol, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "null");
     detail::require2DMatrix(A, "null");
@@ -175,10 +175,10 @@ Value null_basis(const Value &A, double tol, keel::Allocator *mr)
     const keel::usize n = keel::as<keel::usize>(Aw.dims().dim(1));
     const keel::usize k = std::min(m, n);
 
-    const double *S_data = S.doubleData();
+    const keel::f64 *S_data = S.doubleData();
     const keel::usize Srows = keel::as<keel::usize>(S.dims().dim(0));
-    const double sigma_max = (k > 0) ? S_data[0] : 0.0;
-    const double cutoff = (tol < 0.0) ? defaultRankTol(m, n, sigma_max, wantSingle) : tol;
+    const keel::f64 sigma_max = (k > 0) ? S_data[0] : 0.0;
+    const keel::f64 cutoff = (tol < 0.0) ? defaultRankTol(m, n, sigma_max, wantSingle) : tol;
 
     int r = 0;
     for (keel::usize i = 0; i < k; ++i)
@@ -187,8 +187,8 @@ Value null_basis(const Value &A, double tol, keel::Allocator *mr)
     const keel::usize null_dim = n - keel::as<keel::usize>(r);
     auto out = Value::matrix(n, null_dim, ValueType::DOUBLE, mr);
     if (null_dim == 0) return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
-    double *N = out.doubleDataMut();
-    const double *Vdata = V.doubleData();
+    keel::f64 *N = out.doubleDataMut();
+    const keel::f64 *Vdata = V.doubleData();
     const keel::usize Vrows = keel::as<keel::usize>(V.dims().dim(0));
     for (keel::usize j = 0; j < null_dim; ++j) {
         const keel::usize src = keel::as<keel::usize>(r) + j;
@@ -220,12 +220,12 @@ Value subspace(const Value &A, const Value &B, keel::Allocator *mr)
 
     // M = Qa' * Qb (na × nb).
     auto Mout = Value::matrix(na, nb, ValueType::DOUBLE, mr);
-    double *M = Mout.doubleDataMut();
-    const double *Qad = Qa.doubleData();
-    const double *Qbd = Qb.doubleData();
+    keel::f64 *M = Mout.doubleDataMut();
+    const keel::f64 *Qad = Qa.doubleData();
+    const keel::f64 *Qbd = Qb.doubleData();
     for (keel::usize i = 0; i < na; ++i)
         for (keel::usize j = 0; j < nb; ++j) {
-            double s = 0.0;
+            keel::f64 s = 0.0;
             for (keel::usize k = 0; k < mA; ++k)
                 s += Qad[k + i * mA] * Qbd[k + j * mB];
             M[i + j * na] = s;
@@ -235,8 +235,8 @@ Value subspace(const Value &A, const Value &B, keel::Allocator *mr)
     auto s = svd_values(Mout, mr);
     const keel::usize k = s.numel();
     if (k == 0) return detail::narrowDoubleToSingleIf(Value::scalar(0.0, mr), wantSingle, mr);
-    const double *sd = s.doubleData();
-    double smin = sd[0];
+    const keel::f64 *sd = s.doubleData();
+    keel::f64 smin = sd[0];
     for (keel::usize i = 1; i < k; ++i)
         if (sd[i] < smin) smin = sd[i];
     if (smin > 1.0) smin = 1.0;

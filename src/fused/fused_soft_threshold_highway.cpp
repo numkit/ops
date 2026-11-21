@@ -25,8 +25,8 @@ namespace HWY_NAMESPACE {
 
 namespace hn = hwy::HWY_NAMESPACE;
 
-void SoftThresholdImpl(const double *x, double t, double *out, keel::usize n) {
-    const hn::ScalableTag<double> d;
+void SoftThresholdImpl(const keel::f64 *x, keel::f64 t, keel::f64 *out, keel::usize n) {
+    const hn::ScalableTag<keel::f64> d;
     const keel::usize L = hn::Lanes(d);
     const auto vt = hn::Set(d, t);
     const auto zero = hn::Zero(d), one = hn::Set(d, 1.0), neg1 = hn::Set(d, -1.0);
@@ -43,8 +43,8 @@ void SoftThresholdImpl(const double *x, double t, double *out, keel::usize n) {
         hn::StoreU(hn::Mul(s, m), d, out + i);
     }
     for (; i < n; ++i) {
-        const double v = x[i];
-        const double s = std::isnan(v) ? v : (v > 0 ? 1.0 : (v < 0 ? -1.0 : 0.0));
+        const keel::f64 v = x[i];
+        const keel::f64 s = std::isnan(v) ? v : (v > 0 ? 1.0 : (v < 0 ? -1.0 : 0.0));
         out[i] = s * std::fmax(0.0, std::fabs(v) - t);
     }
 }
@@ -58,7 +58,7 @@ namespace numkit::ops {
 
 HWY_EXPORT(SoftThresholdImpl);
 
-void fusedSoftThreshold(const double *x, double t, double *out, keel::usize n) {
+void fusedSoftThreshold(const keel::f64 *x, keel::f64 t, keel::f64 *out, keel::usize n) {
     if (n == 0) return;
     detail::parallel_for(n, keel::usize{1} << 16, [&](keel::usize s, keel::usize e) {
         HWY_DYNAMIC_DISPATCH(SoftThresholdImpl)(x + s, t, out + s, e - s);

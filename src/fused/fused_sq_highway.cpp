@@ -30,9 +30,9 @@ namespace hn = hwy::HWY_NAMESPACE;
 // inner is affine (p0*x + p1) or shift-divide ((x - p0)/p1) per `divide` (a
 // loop-invariant branch → the affine path is unchanged). The square is a plain
 // Mul (no FMA) either way, so each form is bit-identical to its per-op spelling.
-void SqAffineImpl(const double *x, double p0, double p1, bool divide,
-                  double *out, keel::usize n) {
-    const hn::ScalableTag<double> d;
+void SqAffineImpl(const keel::f64 *x, keel::f64 p0, keel::f64 p1, bool divide,
+                  keel::f64 *out, keel::usize n) {
+    const hn::ScalableTag<keel::f64> d;
     const keel::usize L = hn::Lanes(d);
     const auto vp0 = hn::Set(d, p0), vp1 = hn::Set(d, p1);
     keel::usize i = 0;
@@ -43,13 +43,13 @@ void SqAffineImpl(const double *x, double p0, double p1, bool divide,
         hn::StoreU(hn::Mul(v, v), d, out + i);
     }
     for (; i < n; ++i) {
-        const double v = divide ? (x[i] - p0) / p1 : p0 * x[i] + p1;
+        const keel::f64 v = divide ? (x[i] - p0) / p1 : p0 * x[i] + p1;
         out[i] = v * v;
     }
 }
 
-void SqDiffImpl(const double *x, const double *y, double *out, keel::usize n) {
-    const hn::ScalableTag<double> d;
+void SqDiffImpl(const keel::f64 *x, const keel::f64 *y, keel::f64 *out, keel::usize n) {
+    const hn::ScalableTag<keel::f64> d;
     const keel::usize L = hn::Lanes(d);
     keel::usize i = 0;
     for (; i + L <= n; i += L) {
@@ -57,13 +57,13 @@ void SqDiffImpl(const double *x, const double *y, double *out, keel::usize n) {
         hn::StoreU(hn::Mul(v, v), d, out + i);
     }
     for (; i < n; ++i) {
-        const double v = x[i] - y[i];
+        const keel::f64 v = x[i] - y[i];
         out[i] = v * v;
     }
 }
 
-void SqrtSumSqImpl(const double *x, const double *y, double *out, keel::usize n) {
-    const hn::ScalableTag<double> d;
+void SqrtSumSqImpl(const keel::f64 *x, const keel::f64 *y, keel::f64 *out, keel::usize n) {
+    const hn::ScalableTag<keel::f64> d;
     const keel::usize L = hn::Lanes(d);
     keel::usize i = 0;
     for (; i + L <= n; i += L) {
@@ -84,8 +84,8 @@ HWY_EXPORT(SqAffineImpl);
 HWY_EXPORT(SqDiffImpl);
 HWY_EXPORT(SqrtSumSqImpl);
 
-void fusedSqAffine(const double *x, double scale, double offset,
-                   double *out, keel::usize n) {
+void fusedSqAffine(const keel::f64 *x, keel::f64 scale, keel::f64 offset,
+                   keel::f64 *out, keel::usize n) {
     if (n == 0) return;
     // Small native arrays delegate to the shared scalar kernel (fused_scalar.cpp)
     // rather than an inline loop: one body shared with the portable fallback
@@ -102,8 +102,8 @@ void fusedSqAffine(const double *x, double scale, double offset,
     });
 }
 
-void fusedSqShiftDiv(const double *x, double sub, double div,
-                     double *out, keel::usize n) {
+void fusedSqShiftDiv(const keel::f64 *x, keel::f64 sub, keel::f64 div,
+                     keel::f64 *out, keel::usize n) {
     if (n == 0) return;
     if (n < numkit::detail::kSimdInlineThreshold) {   // delegate (see fusedSqAffine)
         fusedSqShiftDivScalar(x, sub, div, out, n);
@@ -115,7 +115,7 @@ void fusedSqShiftDiv(const double *x, double sub, double div,
     });
 }
 
-void fusedSqDiff(const double *x, const double *y, double *out, keel::usize n) {
+void fusedSqDiff(const keel::f64 *x, const keel::f64 *y, keel::f64 *out, keel::usize n) {
     if (n == 0) return;
     if (n < numkit::detail::kSimdInlineThreshold) {   // delegate (see fusedSqAffine)
         fusedSqDiffScalar(x, y, out, n);
@@ -126,7 +126,7 @@ void fusedSqDiff(const double *x, const double *y, double *out, keel::usize n) {
     });
 }
 
-void fusedSqrtSumSq(const double *x, const double *y, double *out, keel::usize n) {
+void fusedSqrtSumSq(const keel::f64 *x, const keel::f64 *y, keel::f64 *out, keel::usize n) {
     if (n == 0) return;
     detail::parallel_for(n, keel::usize{1} << 16, [=](keel::usize s, keel::usize e) {
         HWY_DYNAMIC_DISPATCH(SqrtSumSqImpl)(x + s, y + s, out + s, e - s);

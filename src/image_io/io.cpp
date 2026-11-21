@@ -208,13 +208,13 @@ Value imfinfoFromBytes(keel::StringRef bytes, keel::StringRef filename,
     Value s = Value::structure(mr);
     s.field("Filename")         = Value::fromString(filename, mr);
     s.field("Format")           = Value::fromString(fmt, mr);
-    s.field("Width")            = Value::scalar(double(W), mr);
-    s.field("Height")           = Value::scalar(double(H), mr);
-    s.field("NumberOfChannels") = Value::scalar(double(channels), mr);
-    s.field("NumberOfSamples")  = Value::scalar(double(channels), mr);
-    s.field("BitDepth")         = Value::scalar(double(bits * channels), mr);
+    s.field("Width")            = Value::scalar(keel::f64(W), mr);
+    s.field("Height")           = Value::scalar(keel::f64(H), mr);
+    s.field("NumberOfChannels") = Value::scalar(keel::f64(channels), mr);
+    s.field("NumberOfSamples")  = Value::scalar(keel::f64(channels), mr);
+    s.field("BitDepth")         = Value::scalar(keel::f64(bits * channels), mr);
     s.field("ColorType")        = Value::fromString(colorTypeFromChannels(channels), mr);
-    s.field("FileSize")         = Value::scalar(double(bytes.size()), mr);
+    s.field("FileSize")         = Value::scalar(keel::f64(bytes.size()), mr);
     return s;
 }
 

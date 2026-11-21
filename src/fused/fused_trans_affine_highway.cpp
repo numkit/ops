@@ -82,10 +82,10 @@ HWY_INLINE hn::VFromD<D> TanVec(D d, DI di, hn::VFromD<D> v)
 // `divide`. Mirrors TanLoop: per Lanes-block, TanVec when all |inner| < 1e6 else
 // std::tan on each lane; the scalar tail is std::tan. Block boundaries and inner
 // values match the per-op tan(temp), so the per-block decision is identical.
-void TanInnerLoop(const double *x, double p0, double p1, bool divide,
-                  double *out, keel::usize n)
+void TanInnerLoop(const keel::f64 *x, keel::f64 p0, keel::f64 p1, bool divide,
+                  keel::f64 *out, keel::usize n)
 {
-    const hn::ScalableTag<double> d;
+    const hn::ScalableTag<keel::f64> d;
     const hn::RebindToSigned<decltype(d)> di;
     const keel::usize L = hn::Lanes(d);
     const auto vp0 = hn::Set(d, p0), vp1 = hn::Set(d, p1);
@@ -99,7 +99,7 @@ void TanInnerLoop(const double *x, double p0, double p1, bool divide,
             hn::StoreU(TanVec(d, di, inner), d, out + i);
         } else { // |inner| >= 1e6 or non-finite: scalar reference for the block
             for (keel::usize j = 0; j < L; ++j) {
-                const double iv = divide ? (x[i + j] - p0) / p1 : p0 * x[i + j] + p1;
+                const keel::f64 iv = divide ? (x[i + j] - p0) / p1 : p0 * x[i + j] + p1;
                 out[i + j] = std::tan(iv);
             }
         }
@@ -113,9 +113,9 @@ void TanInnerLoop(const double *x, double p0, double p1, bool divide,
 // affine (p0*x + p1) or shift-divide ((x - p0)/p1) per `divide` (loop-invariant
 // → the affine path is unchanged).
 template <class Vec, class Scalar>
-void transLoop(const double *x, double p0, double p1, bool divide, double *out,
+void transLoop(const keel::f64 *x, keel::f64 p0, keel::f64 p1, bool divide, keel::f64 *out,
                keel::usize n, Vec vop, Scalar sop) {
-    const hn::ScalableTag<double> d;
+    const hn::ScalableTag<keel::f64> d;
     const keel::usize L = hn::Lanes(d);
     const auto vp0 = hn::Set(d, p0), vp1 = hn::Set(d, p1);
     keel::usize i = 0;
@@ -129,11 +129,11 @@ void transLoop(const double *x, double p0, double p1, bool divide, double *out,
         out[i] = sop(divide ? (x[i] - p0) / p1 : p0 * x[i] + p1);
 }
 
-void TransAffineImpl(const double *x, double p0, double p1, bool divide,
-                     TransAffineFn fn, double *out, keel::usize n) {
+void TransAffineImpl(const keel::f64 *x, keel::f64 p0, keel::f64 p1, bool divide,
+                     TransAffineFn fn, keel::f64 *out, keel::usize n) {
     auto safeLog = [](auto d, auto v, auto f) {
         const auto zero = hn::Zero(d);
-        const auto neg_inf = hn::Set(d, -std::numeric_limits<double>::infinity());
+        const auto neg_inf = hn::Set(d, -std::numeric_limits<keel::f64>::infinity());
         auto res = f(d, v);
         res = hn::IfThenElse(hn::Eq(v, zero), neg_inf, res);
         res = hn::IfThenElse(hn::IsFinite(v), res, v);
@@ -151,89 +151,89 @@ void TransAffineImpl(const double *x, double p0, double p1, bool divide,
                           res = hn::IfThenElse(hn::Lt(v, min_x), hn::Zero(d), res);
                           return hn::IfThenElse(hn::IsNaN(v), v, res);
                       },
-                      [](double v) { return std::exp(v); });
+                      [](keel::f64 v) { return std::exp(v); });
             break;
         case TransAffineFn::Expm1:
             transLoop(x, p0, p1, divide, out, n,
                       [](auto d, auto v) { return hn::Expm1(d, v); },
-                      [](double v) { return std::expm1(v); });
+                      [](keel::f64 v) { return std::expm1(v); });
             break;
         case TransAffineFn::Log:
             transLoop(x, p0, p1, divide, out, n,
                       [&](auto d, auto v) { return safeLog(d, v, [](auto td, auto tv) { return hn::Log(td, tv); }); },
-                      [](double v) { return std::log(v); });
+                      [](keel::f64 v) { return std::log(v); });
             break;
         case TransAffineFn::Log2:
             transLoop(x, p0, p1, divide, out, n,
                       [&](auto d, auto v) { return safeLog(d, v, [](auto td, auto tv) { return hn::Log2(td, tv); }); },
-                      [](double v) { return std::log2(v); });
+                      [](keel::f64 v) { return std::log2(v); });
             break;
         case TransAffineFn::Log10:
             transLoop(x, p0, p1, divide, out, n,
                       [&](auto d, auto v) { return safeLog(d, v, [](auto td, auto tv) { return hn::Log10(td, tv); }); },
-                      [](double v) { return std::log10(v); });
+                      [](keel::f64 v) { return std::log10(v); });
             break;
         case TransAffineFn::Sin:
             transLoop(x, p0, p1, divide, out, n,
                       [](auto d, auto v) { return hn::Sin(d, v); },
-                      [](double v) { return std::sin(v); });
+                      [](keel::f64 v) { return std::sin(v); });
             break;
         case TransAffineFn::Cos:
             transLoop(x, p0, p1, divide, out, n,
                       [](auto d, auto v) { return hn::Cos(d, v); },
-                      [](double v) { return std::cos(v); });
+                      [](keel::f64 v) { return std::cos(v); });
             break;
         case TransAffineFn::Tanh:
             transLoop(x, p0, p1, divide, out, n,
                       [](auto d, auto v) { return hn::Tanh(d, v); },
-                      [](double v) { return std::tanh(v); });
+                      [](keel::f64 v) { return std::tanh(v); });
             break;
         case TransAffineFn::Sinh:
             transLoop(x, p0, p1, divide, out, n,
                       [](auto d, auto v) { return hn::IfThenElse(hn::IsFinite(v), hn::Sinh(d, v), v); },
-                      [](double v) { return std::sinh(v); });
+                      [](keel::f64 v) { return std::sinh(v); });
             break;
         case TransAffineFn::Atan:
             transLoop(x, p0, p1, divide, out, n,
                       [](auto d, auto v) { return hn::Atan(d, v); },
-                      [](double v) { return std::atan(v); });
+                      [](keel::f64 v) { return std::atan(v); });
             break;
         case TransAffineFn::Asinh:
             transLoop(x, p0, p1, divide, out, n,
                       [](auto d, auto v) { return hn::IfThenElse(hn::IsFinite(v), hn::Asinh(d, v), v); },
-                      [](double v) { return std::asinh(v); });
+                      [](keel::f64 v) { return std::asinh(v); });
             break;
         case TransAffineFn::Asin:
             transLoop(x, p0, p1, divide, out, n,
                       [](auto d, auto v) { return hn::Asin(d, v); },
-                      [](double v) { return std::asin(v); });
+                      [](keel::f64 v) { return std::asin(v); });
             break;
         case TransAffineFn::Acos:
             transLoop(x, p0, p1, divide, out, n,
                       [](auto d, auto v) { return hn::Acos(d, v); },
-                      [](double v) { return std::acos(v); });
+                      [](keel::f64 v) { return std::acos(v); });
             break;
         case TransAffineFn::Acosh:
             transLoop(x, p0, p1, divide, out, n,
                       [](auto d, auto v) { return hn::IfThenElse(hn::IsFinite(v), hn::Acosh(d, v), v); },
-                      [](double v) { return std::acosh(v); });
+                      [](keel::f64 v) { return std::acosh(v); });
             break;
         case TransAffineFn::Atanh:
             transLoop(x, p0, p1, divide, out, n,
                       [](auto d, auto v) { return hn::Atanh(d, v); },
-                      [](double v) { return std::atanh(v); });
+                      [](keel::f64 v) { return std::atanh(v); });
             break;
         case TransAffineFn::Log1p:
             transLoop(x, p0, p1, divide, out, n,
                       [](auto d, auto v) {
                           const auto neg_one = hn::Set(d, -1.0);
-                          const auto neg_inf = hn::Set(d, -std::numeric_limits<double>::infinity());
+                          const auto neg_inf = hn::Set(d, -std::numeric_limits<keel::f64>::infinity());
                           auto res = hn::Log1p(d, v);
                           res = hn::IfThenElse(hn::Eq(v, neg_one), neg_inf, res);
                           res = hn::IfThenElse(hn::IsFinite(v), res, v);
                           return res;
                       },
-                      [](double v) { return std::log1p(v); });
+                      [](keel::f64 v) { return std::log1p(v); });
             break;
         case TransAffineFn::Cosh:
             // No Highway Cosh — compose 0.5*(e^v + e^-v) exactly as CoshLoop.
@@ -241,7 +241,7 @@ void TransAffineImpl(const double *x, double p0, double p1, bool divide,
                       [](auto d, auto v) {
                           return hn::IfThenElse(hn::IsNaN(v), v, hn::Mul(hn::Set(d, 0.5), hn::Add(hn::Exp(d, v), hn::Exp(d, hn::Neg(v)))));
                       },
-                      [](double v) { return std::cosh(v); });
+                      [](keel::f64 v) { return std::cosh(v); });
             break;
         case TransAffineFn::Tan:
             // Dedicated path (per-block 1e6 fallback can't fit the transLoop vop).
@@ -259,8 +259,8 @@ namespace numkit::ops {
 
 HWY_EXPORT(TransAffineImpl);
 
-void fusedTransAffine(const double *x, double scale, double offset,
-                      TransAffineFn fn, double *out, keel::usize n) {
+void fusedTransAffine(const keel::f64 *x, keel::f64 scale, keel::f64 offset,
+                      TransAffineFn fn, keel::f64 *out, keel::usize n) {
     if (n == 0) return;
     // kTranscendentalThreshold (not the arithmetic 1<<16) so the chunk
     // boundaries match nk's exp/expm1 parallel_for — the per-chunk
@@ -272,8 +272,8 @@ void fusedTransAffine(const double *x, double scale, double offset,
     });
 }
 
-void fusedTransShiftDiv(const double *x, double sub, double div,
-                        TransAffineFn fn, double *out, keel::usize n) {
+void fusedTransShiftDiv(const keel::f64 *x, keel::f64 sub, keel::f64 div,
+                        TransAffineFn fn, keel::f64 *out, keel::usize n) {
     if (n == 0) return;
     detail::parallel_for(n, detail::kTranscendentalThreshold,
                          [&](keel::usize s, keel::usize e) {

@@ -104,7 +104,7 @@ lu_decompose_impl(const Value &A, keel::Allocator *mr)
     Value Pout = Value::matrix(m, m, ValueType::DOUBLE, mr);
     T *L = detail::get_data_mut<T>(Lout);
     T *U = detail::get_data_mut<T>(Uout);
-    double *P = Pout.doubleDataMut();
+    keel::f64 *P = Pout.doubleDataMut();
     std::fill(L, L + m * k, T(0));
     std::fill(U, U + k * n, T(0));
     std::fill(P, P + m * m, 0.0);
@@ -167,7 +167,7 @@ lu_decompose(const Value &A, keel::Allocator *mr)
 
     auto [L, U, P] = Aw.isComplex()
         ? lu_decompose_impl<keel::c64>(Aw, mr)
-        : lu_decompose_impl<double>(Aw, mr);
+        : lu_decompose_impl<keel::f64>(Aw, mr);
     if (wantSingle) {
         L = detail::narrowDoubleToSingle(L, mr);
         U = detail::narrowDoubleToSingle(U, mr);
@@ -189,7 +189,7 @@ Value lu_combined(const Value &A, keel::Allocator *mr)
     if (Aw.isComplex()) {
         return detail::narrowDoubleToSingleIf(lu_combined_impl<keel::c64>(Aw, mr), wantSingle, mr);
     }
-    return detail::narrowDoubleToSingleIf(lu_combined_impl<double>(Aw, mr), wantSingle, mr);
+    return detail::narrowDoubleToSingleIf(lu_combined_impl<keel::f64>(Aw, mr), wantSingle, mr);
 }
 
 // ────────────────────────────────────────────────────────────────────────
@@ -302,18 +302,18 @@ svd_decompose(const Value &A, keel::Allocator *mr)
 
     if (m_in == 0 || n_in == 0) {
         return std::make_tuple(
-            detail::narrowDoubleToSingleIf(detail::make_matrix<double>(m_in, m_in, mr), wantSingle, mr),
-            detail::narrowDoubleToSingleIf(detail::make_matrix<double>(m_in, n_in, mr), wantSingle, mr),
-            detail::narrowDoubleToSingleIf(detail::make_matrix<double>(n_in, n_in, mr), wantSingle, mr));
+            detail::narrowDoubleToSingleIf(detail::make_matrix<keel::f64>(m_in, m_in, mr), wantSingle, mr),
+            detail::narrowDoubleToSingleIf(detail::make_matrix<keel::f64>(m_in, n_in, mr), wantSingle, mr),
+            detail::narrowDoubleToSingleIf(detail::make_matrix<keel::f64>(n_in, n_in, mr), wantSingle, mr));
     }
 
     const Value Aw = detail::widenSingleToDouble(A, mr);
     const keel::usize k = std::min(m_in, n_in);
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<double> sigma(k, 0.0, scratch.allocator());
+    keel::Array<keel::f64> sigma(k, 0.0, scratch.allocator());
 
     auto Sout = Value::matrix(m_in, n_in, ValueType::DOUBLE, mr);
-    double *S = Sout.doubleDataMut();
+    keel::f64 *S = Sout.doubleDataMut();
     std::fill(S, S + m_in * n_in, 0.0);
 
     if (Aw.isComplex()) {
@@ -348,8 +348,8 @@ Value svd_values(const Value &A, keel::Allocator *mr)
     const keel::usize n = keel::as<keel::usize>(S.dims().dim(1));
     const keel::usize k = std::min(m, n);
     auto sv = Value::matrix(k, 1, ValueType::DOUBLE, mr);
-    const double *S_data = S.doubleData();
-    double *out = sv.doubleDataMut();
+    const keel::f64 *S_data = S.doubleData();
+    keel::f64 *out = sv.doubleDataMut();
     for (keel::usize i = 0; i < k; ++i)
         out[i] = S_data[i + i * m];
     return detail::narrowDoubleToSingleIf(sv, wantSingle, mr);
@@ -388,8 +388,8 @@ qrupdate(const Value &Q, const Value &R, const Value &u, const Value &v,
     std::copy(Rw.doubleData(), Rw.doubleData() + m * n, R1.doubleDataMut());
 
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<double> ub(m, scratch.allocator());
-    keel::Array<double> vb(n, scratch.allocator());
+    keel::Array<keel::f64> ub(m, scratch.allocator());
+    keel::Array<keel::f64> vb(n, scratch.allocator());
     for (keel::usize i = 0; i < m; ++i) ub[i] = u.elemAsDouble(i);
     for (keel::usize j = 0; j < n; ++j) vb[j] = v.elemAsDouble(j);
 
@@ -425,7 +425,7 @@ qrinsert(const Value &Q, const Value &R, keel::usize k_1based, const Value &x,
     const Value Rw = detail::widenSingleToDouble(R, mr);
 
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<double> xb(m, scratch.allocator());
+    keel::Array<keel::f64> xb(m, scratch.allocator());
     for (keel::usize i = 0; i < m; ++i) xb[i] = x.elemAsDouble(i);
 
     auto Q1 = Value::matrix(m, m, ValueType::DOUBLE, mr);
@@ -496,7 +496,7 @@ qrinsert_row(const Value &Q, const Value &R, keel::usize k_1based, const Value &
     const Value Rw = detail::widenSingleToDouble(R, mr);
 
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<double> xb(n, scratch.allocator());
+    keel::Array<keel::f64> xb(n, scratch.allocator());
     for (keel::usize j = 0; j < n; ++j) xb[j] = x.elemAsDouble(j);
 
     auto Q1 = Value::matrix(m + 1, m + 1, ValueType::DOUBLE, mr);
@@ -572,7 +572,7 @@ Value cholupdate(const Value &R, const Value &x, int sign,
     std::copy(Rw.doubleData(), Rw.doubleData() + n * n, out.doubleDataMut());
 
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<double> xb(n, scratch.allocator());
+    keel::Array<keel::f64> xb(n, scratch.allocator());
     for (keel::usize i = 0; i < n; ++i) xb[i] = x.elemAsDouble(i);
 
     if (!keel::linalg::cholesky_update(out.doubleDataMut(), n, xb.data(), /*downdate=*/(sign == -1), mr)) {

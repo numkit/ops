@@ -85,8 +85,8 @@ Value convhull(const Value &x, const Value &y, keel::Allocator *mr)
                      0, 0, "convhull", "", "numkit:convhull:shape");
     if (n < 3) {
         auto out = Value::matrix(n + 1, 1, ValueType::DOUBLE, mr);
-        double *dst = out.doubleDataMut();
-        for (keel::usize i = 0; i < n; ++i) dst[i] = keel::as<double>(i + 1);
+        keel::f64 *dst = out.doubleDataMut();
+        for (keel::usize i = 0; i < n; ++i) dst[i] = keel::as<keel::f64>(i + 1);
         dst[n] = 1.0;
         return out;
     }
@@ -95,15 +95,15 @@ Value convhull(const Value &x, const Value &y, keel::Allocator *mr)
     auto yd = toDoubleArray(y, scratch.allocator());
     keel::Array<keel::usize> hull = keel::geom::convhull(xd.as_ref(), yd.as_ref(), scratch.allocator());
     auto out = Value::matrix(hull.size(), 1, ValueType::DOUBLE, mr);
-    double *dst = out.doubleDataMut();
+    keel::f64 *dst = out.doubleDataMut();
     for (keel::usize i = 0; i < hull.size(); ++i)
-        dst[i] = keel::as<double>(hull[i] + 1);
+        dst[i] = keel::as<keel::f64>(hull[i] + 1);
     return out;
 }
 
 // ── boundary ─────────────────────────────────────────────────────────
 
-Value boundary(const Value &x, const Value &y, double shrink, keel::Allocator *mr)
+Value boundary(const Value &x, const Value &y, keel::f64 shrink, keel::Allocator *mr)
 {
     const keel::usize n = x.numel();
     if (y.numel() != n)
@@ -117,9 +117,9 @@ Value boundary(const Value &x, const Value &y, double shrink, keel::Allocator *m
     keel::Array<keel::usize> poly =
         keel::geom::boundary(xd.as_ref(), yd.as_ref(), shrink, scratch.allocator());
     auto out = Value::matrix(poly.size(), 1, ValueType::DOUBLE, mr);
-    double *dst = out.doubleDataMut();
+    keel::f64 *dst = out.doubleDataMut();
     for (keel::usize i = 0; i < poly.size(); ++i)
-        dst[i] = keel::as<double>(poly[i] + 1);
+        dst[i] = keel::as<keel::f64>(poly[i] + 1);
     return out;
 }
 
@@ -140,11 +140,11 @@ Value delaunay(const Value &x, const Value &y, keel::Allocator *mr)
         keel::geom::delaunay(xd.as_ref(), yd.as_ref(), scratch.allocator());
     const keel::usize M = tris.size();
     auto out = Value::matrix(M, 3, ValueType::DOUBLE, mr);
-    double *dst = out.doubleDataMut();
+    keel::f64 *dst = out.doubleDataMut();
     for (keel::usize i = 0; i < M; ++i) {
-        dst[0 * M + i] = keel::as<double>(tris[i].v0 + 1);
-        dst[1 * M + i] = keel::as<double>(tris[i].v1 + 1);
-        dst[2 * M + i] = keel::as<double>(tris[i].v2 + 1);
+        dst[0 * M + i] = keel::as<keel::f64>(tris[i].v0 + 1);
+        dst[1 * M + i] = keel::as<keel::f64>(tris[i].v1 + 1);
+        dst[2 * M + i] = keel::as<keel::f64>(tris[i].v2 + 1);
     }
     return out;
 }
@@ -184,10 +184,10 @@ Value griddata(const Value &x, const Value &y, const Value &v,
         const keel::usize cols = xqIn.numel();
         xqExpanded = Value::matrix(rows, cols, ValueType::DOUBLE, mr);
         yqExpanded = Value::matrix(rows, cols, ValueType::DOUBLE, mr);
-        double *xd = xqExpanded.doubleDataMut();
-        double *yd = yqExpanded.doubleDataMut();
+        keel::f64 *xd = xqExpanded.doubleDataMut();
+        keel::f64 *yd = yqExpanded.doubleDataMut();
         for (keel::usize c = 0; c < cols; ++c) {
-            const double xv = xqIn.elemAsDouble(c);
+            const keel::f64 xv = xqIn.elemAsDouble(c);
             for (keel::usize r = 0; r < rows; ++r) {
                 xd[c * rows + r] = xv;
                 yd[c * rows + r] = yqIn.elemAsDouble(r);
@@ -302,7 +302,7 @@ Value griddatan(const Value &Xv, const Value &vv, const Value &xi, keel::Allocat
 
 // ── matchpairs ───────────────────────────────────────────────────────
 
-MatchpairsResult matchpairs(const Value &C, double cU, keel::StringRef mode,
+MatchpairsResult matchpairs(const Value &C, keel::f64 cU, keel::StringRef mode,
                             keel::Allocator *mr)
 {
     if (C.type() == ValueType::COMPLEX)
@@ -324,17 +324,17 @@ MatchpairsResult matchpairs(const Value &C, double cU, keel::StringRef mode,
     MatchpairsResult result;
     const keel::usize nm = mp.matches.size();
     result.M = Value::matrix(nm, 2, ValueType::DOUBLE, mr);
-    double *md = result.M.doubleDataMut();
+    keel::f64 *md = result.M.doubleDataMut();
     for (keel::usize k = 0; k < nm; ++k) {
-        md[k] = keel::as<double>(mp.matches[k].row + 1);
-        md[nm + k] = keel::as<double>(mp.matches[k].col + 1);
+        md[k] = keel::as<keel::f64>(mp.matches[k].row + 1);
+        md[nm + k] = keel::as<keel::f64>(mp.matches[k].col + 1);
     }
     result.uR = Value::matrix(mp.unmatched_rows.size(), 1, ValueType::DOUBLE, mr);
     for (keel::usize k = 0; k < mp.unmatched_rows.size(); ++k)
-        result.uR.doubleDataMut()[k] = keel::as<double>(mp.unmatched_rows[k] + 1);
+        result.uR.doubleDataMut()[k] = keel::as<keel::f64>(mp.unmatched_rows[k] + 1);
     result.uC = Value::matrix(mp.unmatched_cols.size(), 1, ValueType::DOUBLE, mr);
     for (keel::usize k = 0; k < mp.unmatched_cols.size(); ++k)
-        result.uC.doubleDataMut()[k] = keel::as<double>(mp.unmatched_cols[k] + 1);
+        result.uC.doubleDataMut()[k] = keel::as<keel::f64>(mp.unmatched_cols[k] + 1);
     return result;
 }
 

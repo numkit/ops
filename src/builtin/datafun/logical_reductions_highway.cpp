@@ -47,9 +47,9 @@ namespace hn = hwy::HWY_NAMESPACE;
 // any() / all(). 4Ã— unrolled to keep load + compare in flight while the
 // branch predictor handles the per-block exit test.
 
-bool AnyDoubleScan(const double *HWY_RESTRICT p, keel::usize n)
+bool AnyDoubleScan(const keel::f64 *HWY_RESTRICT p, keel::usize n)
 {
-    const hn::ScalableTag<double> d;
+    const hn::ScalableTag<keel::f64> d;
     const keel::usize N = hn::Lanes(d);
     const auto zero = hn::Zero(d);
 
@@ -69,9 +69,9 @@ bool AnyDoubleScan(const double *HWY_RESTRICT p, keel::usize n)
     return false;
 }
 
-bool AllDoubleScan(const double *HWY_RESTRICT p, keel::usize n)
+bool AllDoubleScan(const keel::f64 *HWY_RESTRICT p, keel::usize n)
 {
-    const hn::ScalableTag<double> d;
+    const hn::ScalableTag<keel::f64> d;
     const keel::usize N = hn::Lanes(d);
     const auto zero = hn::Zero(d);
 
@@ -151,11 +151,11 @@ namespace {
 
 // Strided scalar scans for dim=2 / dim=3 reductions across a column-major
 // matrix. SIMD gather isn't a win for early-exit boolean reduction.
-bool anyDoubleStrided(const double *p, keel::usize n, keel::usize stride) {
+bool anyDoubleStrided(const keel::f64 *p, keel::usize n, keel::usize stride) {
     for (keel::usize i = 0; i < n; ++i) if (p[i * stride] != 0.0) return true;
     return false;
 }
-bool allDoubleStrided(const double *p, keel::usize n, keel::usize stride) {
+bool allDoubleStrided(const keel::f64 *p, keel::usize n, keel::usize stride) {
     for (keel::usize i = 0; i < n; ++i) if (p[i * stride] == 0.0) return false;
     return true;
 }
@@ -196,7 +196,7 @@ keel::u8 scanSlice(const Value &x, keel::usize base, keel::usize n, keel::usize 
 {
     if (n == 0) return IsAny ? 0 : 1; // any([]) = false, all([]) = true
     if (x.type() == ValueType::DOUBLE) {
-        const double *p = x.doubleData() + base;
+        const keel::f64 *p = x.doubleData() + base;
         if (stride == 1) {
             if constexpr (IsAny) return HWY_DYNAMIC_DISPATCH(AnyDoubleScan)(p, n) ? 1 : 0;
             else                 return HWY_DYNAMIC_DISPATCH(AllDoubleScan)(p, n) ? 1 : 0;

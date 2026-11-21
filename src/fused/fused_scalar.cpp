@@ -31,46 +31,46 @@
 
 namespace numkit::ops {
 
-NUMKIT_NOINLINE void fusedAffineScalar(const double *x, double scale, double offset,
-                                       double *out, keel::usize n) {
+NUMKIT_NOINLINE void fusedAffineScalar(const keel::f64 *x, keel::f64 scale, keel::f64 offset,
+                                       keel::f64 *out, keel::usize n) {
     for (keel::usize i = 0; i < n; ++i) out[i] = scale * x[i] + offset;
 }
 
-NUMKIT_NOINLINE void fusedAbsAffineScalar(const double *x, double scale, double offset,
-                                          double *out, keel::usize n) {
+NUMKIT_NOINLINE void fusedAbsAffineScalar(const keel::f64 *x, keel::f64 scale, keel::f64 offset,
+                                          keel::f64 *out, keel::usize n) {
     for (keel::usize i = 0; i < n; ++i) out[i] = std::fabs(scale * x[i] + offset);
 }
 
-NUMKIT_NOINLINE void fusedAbsShiftDivScalar(const double *x, double sub, double div,
-                                            double *out, keel::usize n) {
+NUMKIT_NOINLINE void fusedAbsShiftDivScalar(const keel::f64 *x, keel::f64 sub, keel::f64 div,
+                                            keel::f64 *out, keel::usize n) {
     for (keel::usize i = 0; i < n; ++i) out[i] = std::fabs((x[i] - sub) / div);
 }
 
-NUMKIT_NOINLINE void fusedAbsDiffScalar(const double *x, const double *y,
-                                        double *out, keel::usize n) {
+NUMKIT_NOINLINE void fusedAbsDiffScalar(const keel::f64 *x, const keel::f64 *y,
+                                        keel::f64 *out, keel::usize n) {
     for (keel::usize i = 0; i < n; ++i) out[i] = std::fabs(x[i] - y[i]);
 }
 
-NUMKIT_NOINLINE void fusedSqAffineScalar(const double *x, double scale, double offset,
-                                         double *out, keel::usize n) {
+NUMKIT_NOINLINE void fusedSqAffineScalar(const keel::f64 *x, keel::f64 scale, keel::f64 offset,
+                                         keel::f64 *out, keel::usize n) {
     for (keel::usize i = 0; i < n; ++i) {
-        const double v = scale * x[i] + offset;
+        const keel::f64 v = scale * x[i] + offset;
         out[i] = v * v;
     }
 }
 
-NUMKIT_NOINLINE void fusedSqShiftDivScalar(const double *x, double sub, double div,
-                                           double *out, keel::usize n) {
+NUMKIT_NOINLINE void fusedSqShiftDivScalar(const keel::f64 *x, keel::f64 sub, keel::f64 div,
+                                           keel::f64 *out, keel::usize n) {
     for (keel::usize i = 0; i < n; ++i) {
-        const double v = (x[i] - sub) / div;
+        const keel::f64 v = (x[i] - sub) / div;
         out[i] = v * v;
     }
 }
 
-NUMKIT_NOINLINE void fusedSqDiffScalar(const double *x, const double *y,
-                                       double *out, keel::usize n) {
+NUMKIT_NOINLINE void fusedSqDiffScalar(const keel::f64 *x, const keel::f64 *y,
+                                       keel::f64 *out, keel::usize n) {
     for (keel::usize i = 0; i < n; ++i) {
-        const double v = x[i] - y[i];
+        const keel::f64 v = x[i] - y[i];
         out[i] = v * v;
     }
 }

@@ -61,7 +61,7 @@ HWY_INLINE auto inVectorScanSum(D d, hn::VFromD<D> v)
 // Used by cumprod (identity=1), cummax (identity=-inf), cummin
 // (identity=+inf).
 template <class D, class Op>
-HWY_INLINE auto inVectorScanGen(D d, hn::VFromD<D> v, double identity, Op op)
+HWY_INLINE auto inVectorScanGen(D d, hn::VFromD<D> v, keel::f64 identity, Op op)
 {
     constexpr keel::usize N = hn::MaxLanes(d);
     const auto idVec = hn::Set(d, identity);
@@ -83,12 +83,12 @@ HWY_INLINE auto inVectorScanGen(D d, hn::VFromD<D> v, double identity, Op op)
     return v;
 }
 
-void CumsumScanLoop(const double *HWY_RESTRICT src, double *HWY_RESTRICT dst,
+void CumsumScanLoop(const keel::f64 *HWY_RESTRICT src, keel::f64 *HWY_RESTRICT dst,
                     keel::usize n)
 {
-    const hn::ScalableTag<double> d;
+    const hn::ScalableTag<keel::f64> d;
     const keel::usize N = hn::Lanes(d);
-    double carry = 0.0;
+    keel::f64 carry = 0.0;
     keel::usize i = 0;
     for (; i + N <= n; i += N) {
         const auto v = hn::LoadU(d, src + i);
@@ -103,12 +103,12 @@ void CumsumScanLoop(const double *HWY_RESTRICT src, double *HWY_RESTRICT dst,
     }
 }
 
-void CumprodScanLoop(const double *HWY_RESTRICT src, double *HWY_RESTRICT dst,
+void CumprodScanLoop(const keel::f64 *HWY_RESTRICT src, keel::f64 *HWY_RESTRICT dst,
                      keel::usize n)
 {
-    const hn::ScalableTag<double> d;
+    const hn::ScalableTag<keel::f64> d;
     const keel::usize N = hn::Lanes(d);
-    double carry = 1.0;
+    keel::f64 carry = 1.0;
     keel::usize i = 0;
     for (; i + N <= n; i += N) {
         const auto v = hn::LoadU(d, src + i);
@@ -116,7 +116,7 @@ void CumprodScanLoop(const double *HWY_RESTRICT src, double *HWY_RESTRICT dst,
             [](auto a, auto b) { return hn::Mul(a, b); });
         const auto carriedV = hn::Mul(scanned, hn::Set(d, carry));
         hn::StoreU(carriedV, d, dst + i);
-        alignas(64) double tmp[hn::MaxLanes(d)];
+        alignas(64) keel::f64 tmp[hn::MaxLanes(d)];
         hn::Store(carriedV, d, tmp);
         carry = tmp[N - 1];
     }
@@ -128,16 +128,16 @@ void CumprodScanLoop(const double *HWY_RESTRICT src, double *HWY_RESTRICT dst,
 
 // cummax / cummin: NaN-skip by replacing NaN with identity per lane.
 // Pre-masked vector goes into the standard prefix-Max scan.
-void CummaxScanLoopBody(const double *HWY_RESTRICT src,
-                        double *HWY_RESTRICT dst, keel::usize n,
-                        double initialCarry)
+void CummaxScanLoopBody(const keel::f64 *HWY_RESTRICT src,
+                        keel::f64 *HWY_RESTRICT dst, keel::usize n,
+                        keel::f64 initialCarry)
 {
-    const hn::ScalableTag<double> d;
+    const hn::ScalableTag<keel::f64> d;
     const keel::usize N = hn::Lanes(d);
-    constexpr double NEG_INF = -std::numeric_limits<double>::infinity();
+    constexpr keel::f64 NEG_INF = -std::numeric_limits<keel::f64>::infinity();
     const auto neg_inf_v = hn::Set(d, NEG_INF);
 
-    double carry = initialCarry;
+    keel::f64 carry = initialCarry;
     keel::usize i = 0;
     for (; i + N <= n; i += N) {
         auto v = hn::LoadU(d, src + i);
@@ -149,22 +149,22 @@ void CummaxScanLoopBody(const double *HWY_RESTRICT src,
         carry = hn::ExtractLane(carriedV, N - 1);
     }
     for (; i < n; ++i) {
-        const double xi = src[i];
+        const keel::f64 xi = src[i];
         if (!std::isnan(xi) && xi > carry) carry = xi;
         dst[i] = carry;
     }
 }
 
-void CumminScanLoopBody(const double *HWY_RESTRICT src,
-                        double *HWY_RESTRICT dst, keel::usize n,
-                        double initialCarry)
+void CumminScanLoopBody(const keel::f64 *HWY_RESTRICT src,
+                        keel::f64 *HWY_RESTRICT dst, keel::usize n,
+                        keel::f64 initialCarry)
 {
-    const hn::ScalableTag<double> d;
+    const hn::ScalableTag<keel::f64> d;
     const keel::usize N = hn::Lanes(d);
-    constexpr double POS_INF = std::numeric_limits<double>::infinity();
+    constexpr keel::f64 POS_INF = std::numeric_limits<keel::f64>::infinity();
     const auto pos_inf_v = hn::Set(d, POS_INF);
 
-    double carry = initialCarry;
+    keel::f64 carry = initialCarry;
     keel::usize i = 0;
     for (; i + N <= n; i += N) {
         auto v = hn::LoadU(d, src + i);
@@ -176,7 +176,7 @@ void CumminScanLoopBody(const double *HWY_RESTRICT src,
         carry = hn::ExtractLane(carriedV, N - 1);
     }
     for (; i < n; ++i) {
-        const double xi = src[i];
+        const keel::f64 xi = src[i];
         if (!std::isnan(xi) && xi < carry) carry = xi;
         dst[i] = carry;
     }
@@ -194,13 +194,13 @@ HWY_EXPORT(CumprodScanLoop);
 HWY_EXPORT(CummaxScanLoopBody);
 HWY_EXPORT(CumminScanLoopBody);
 
-void cumsumScan(const double *src, double *dst, keel::usize n)
+void cumsumScan(const keel::f64 *src, keel::f64 *dst, keel::usize n)
 {
     if (n == 0) return;
     HWY_DYNAMIC_DISPATCH(CumsumScanLoop)(src, dst, n);
 }
 
-void cumprodScan(const double *src, double *dst, keel::usize n)
+void cumprodScan(const keel::f64 *src, keel::f64 *dst, keel::usize n)
 {
     if (n == 0) return;
     HWY_DYNAMIC_DISPATCH(CumprodScanLoop)(src, dst, n);
@@ -210,7 +210,7 @@ namespace {
 
 // Walk the leading-NaN prefix scalar-ly and emit NaN; returns the index
 // of the first non-NaN element (or n if the input is all-NaN).
-keel::usize copyLeadingNaN(const double *src, double *dst, keel::usize n)
+keel::usize copyLeadingNaN(const keel::f64 *src, keel::f64 *dst, keel::usize n)
 {
     keel::usize i = 0;
     for (; i < n && std::isnan(src[i]); ++i)
@@ -220,7 +220,7 @@ keel::usize copyLeadingNaN(const double *src, double *dst, keel::usize n)
 
 } // namespace
 
-void cummaxScan(const double *src, double *dst, keel::usize n)
+void cummaxScan(const keel::f64 *src, keel::f64 *dst, keel::usize n)
 {
     if (n == 0) return;
     const keel::usize start = copyLeadingNaN(src, dst, n);
@@ -234,7 +234,7 @@ void cummaxScan(const double *src, double *dst, keel::usize n)
                                              src[start]);
 }
 
-void cumminScan(const double *src, double *dst, keel::usize n)
+void cumminScan(const keel::f64 *src, keel::f64 *dst, keel::usize n)
 {
     if (n == 0) return;
     const keel::usize start = copyLeadingNaN(src, dst, n);

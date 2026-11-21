@@ -25,12 +25,12 @@ namespace numkit::builtin {
 namespace {
 
 // 1-based subscript validation: must be a positive integer <= outDim.
-keel::usize toSubIndex(double v, keel::usize maxAllowed, const char *fn)
+keel::usize toSubIndex(keel::f64 v, keel::usize maxAllowed, const char *fn)
 {
     if (!std::isfinite(v) || v < 1.0)
         throw Error(keel::format("{}: subscripts must be positive integers", fn),
                      0, 0, fn, "", keel::format("numkit:{}:subRange", fn));
-    const double rounded = std::round(v);
+    const keel::f64 rounded = std::round(v);
     if (keel::abs(v - rounded) > 1e-9)
         throw Error(keel::format("{}: subscripts must be integer-valued", fn),
                      0, 0, fn, "", keel::format("numkit:{}:subInt", fn));
@@ -41,21 +41,21 @@ keel::usize toSubIndex(double v, keel::usize maxAllowed, const char *fn)
     return idx;
 }
 
-double identityFor(AccumReducer op)
+keel::f64 identityFor(AccumReducer op)
 {
     switch (op) {
     case AccumReducer::Sum:  return 0.0;
     case AccumReducer::Mean: return 0.0;
     case AccumReducer::Prod: return 1.0;
-    case AccumReducer::Max:  return -std::numeric_limits<double>::infinity();
-    case AccumReducer::Min:  return  std::numeric_limits<double>::infinity();
+    case AccumReducer::Max:  return -std::numeric_limits<keel::f64>::infinity();
+    case AccumReducer::Min:  return  std::numeric_limits<keel::f64>::infinity();
     case AccumReducer::Any:  return 0.0;
     case AccumReducer::All:  return 1.0;
     }
     return 0.0;
 }
 
-inline double applyReducer(AccumReducer op, double acc, double v)
+inline keel::f64 applyReducer(AccumReducer op, keel::f64 acc, keel::f64 v)
 {
     switch (op) {
     case AccumReducer::Sum:
@@ -91,11 +91,11 @@ keel::Array<keel::usize> resolveOutShape(const Value &subs, const keel::usize *u
         // Empty subs + no sz -> 0x0 (matches MATLAB).
         return keel::Array<keel::usize>(std::max<keel::usize>(D, 1), 0, mr);
     }
-    const double *p = subs.doubleData();
+    const keel::f64 *p = subs.doubleData();
     for (keel::usize c = 0; c < D; ++c) {
-        double mx = 0.0;
+        keel::f64 mx = 0.0;
         for (keel::usize r = 0; r < N; ++r) {
-            const double v = p[c * N + r];
+            const keel::f64 v = p[c * N + r];
             if (v > mx) mx = v;
         }
         shape[c] = toSubIndex(mx, 0, fn);
@@ -107,7 +107,7 @@ keel::Array<keel::usize> resolveOutShape(const Value &subs, const keel::usize *u
 keel::usize linearIndexFromSubs(const Value &subs, keel::usize r, keel::usize N, keel::usize D,
                            const keel::usize *shape, const char *fn)
 {
-    const double *p = subs.doubleData();
+    const keel::f64 *p = subs.doubleData();
     keel::usize idx = 0;
     keel::usize stride = 1;
     for (keel::usize c = 0; c < D; ++c) {
@@ -129,7 +129,7 @@ Value allocOutput(const keel::usize *shape, keel::usize nShape, keel::Allocator 
                             ValueType::DOUBLE, mr);
 }
 
-inline double readVal(const Value &vals, keel::usize i, bool valIsScalar)
+inline keel::f64 readVal(const Value &vals, keel::usize i, bool valIsScalar)
 {
     return valIsScalar ? vals.toScalar() : vals.doubleData()[i];
 }
@@ -137,7 +137,7 @@ inline double readVal(const Value &vals, keel::usize i, bool valIsScalar)
 } // namespace
 
 Value accumarray(const Value &subs, const Value &vals, keel::ArrayRef<keel::usize> outShape,
-                 AccumReducer op, double fillVal, keel::Allocator *mr)
+                 AccumReducer op, keel::f64 fillVal, keel::Allocator *mr)
 {
     const char *fn = "accumarray";
 
@@ -167,7 +167,7 @@ Value accumarray(const Value &subs, const Value &vals, keel::ArrayRef<keel::usiz
 
     Value out = allocOutput(shape.data(), shape.size(), mr);
     const keel::usize total = out.numel();
-    double *dst = out.doubleDataMut();
+    keel::f64 *dst = out.doubleDataMut();
 
     if (total == 0)
         return out;
@@ -177,11 +177,11 @@ Value accumarray(const Value &subs, const Value &vals, keel::ArrayRef<keel::usiz
     auto count = keel::Array<keel::usize>(scratch.allocator());
     if (needCount) count.assign(total, 0);
 
-    const double init = identityFor(op);
+    const keel::f64 init = identityFor(op);
 
     for (keel::usize r = 0; r < N; ++r) {
         const keel::usize lin = linearIndexFromSubs(subs, r, N, D, shape.data(), fn);
-        const double v = readVal(vals, r, valIsScalar);
+        const keel::f64 v = readVal(vals, r, valIsScalar);
         if (!touched[lin]) {
             dst[lin] = applyReducer(op, init, v);
             touched[lin] = 1;
@@ -194,7 +194,7 @@ Value accumarray(const Value &subs, const Value &vals, keel::ArrayRef<keel::usiz
     if (needCount) {
         for (keel::usize i = 0; i < total; ++i) {
             if (!touched[i])       dst[i] = fillVal;
-            else if (count[i] > 0) dst[i] /= keel::as<double>(count[i]);
+            else if (count[i] > 0) dst[i] /= keel::as<keel::f64>(count[i]);
         }
     } else if (fillVal != 0.0 ||
                op == AccumReducer::Prod || op == AccumReducer::Max ||

@@ -112,7 +112,7 @@ struct NamedGroups {
     return ng;
 }
 
-[[maybe_unused]] Value rowFromIndices(const double *v, keel::usize n, keel::Allocator *mr)
+[[maybe_unused]] Value rowFromIndices(const keel::f64 *v, keel::usize n, keel::Allocator *mr)
 {
     auto out = Value::matrix(1, n, ValueType::DOUBLE, mr);
     for (keel::usize i = 0; i < n; ++i)

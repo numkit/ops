@@ -40,12 +40,12 @@ namespace {
 // Siamese / de la Loubère method for odd N >= 3.
 // Fills positions [0..N²-1] starting at (0, N/2) and stepping
 // (-1, +1) mod N; on collision step (+1, 0) instead.
-void magicOdd(double *p, keel::usize N)
+void magicOdd(keel::f64 *p, keel::usize N)
 {
     keel::usize r = 0;
     keel::usize c = N / 2;
     for (keel::usize k = 1; k <= N * N; ++k) {
-        p[r * N + c] = keel::as<double>(k);
+        p[r * N + c] = keel::as<keel::f64>(k);
         const keel::usize nr = (r == 0) ? (N - 1) : (r - 1);
         const keel::usize nc = (c + 1) % N;
         if (p[nr * N + nc] != 0.0) {
@@ -60,7 +60,7 @@ void magicOdd(double *p, keel::usize N)
 // Doubly-even (N ≡ 0 mod 4): start with the natural 1..N² fill and
 // swap each cell whose (i mod 4, j mod 4) is on either of the two
 // 4×4-block diagonals.
-[[maybe_unused]] void magicDoublyEven(double *p, keel::usize N)
+[[maybe_unused]] void magicDoublyEven(keel::f64 *p, keel::usize N)
 {
     const keel::usize total = N * N;
     for (keel::usize i = 0; i < N; ++i)
@@ -69,7 +69,7 @@ void magicOdd(double *p, keel::usize N)
             const keel::usize mi = i % 4;
             const keel::usize mj = j % 4;
             const bool diag = (mi == mj) || (mi + mj == 3);
-            p[i * N + j] = keel::as<double>(diag ? (total + 1 - k) : k);
+            p[i * N + j] = keel::as<keel::f64>(diag ? (total + 1 - k) : k);
         }
 }
 
@@ -82,19 +82,19 @@ void magicOdd(double *p, keel::usize N)
 //   Then for row mid = K (0-indexed = (p-1)/2):
 //     swap (mid, 0) ↔ (mid+p, 0)   -- undo the previous swap on this cell
 //     swap (mid, K) ↔ (mid+p, K)   -- and apply the strached swap instead
-[[maybe_unused]] void magicSinglyEven(double *p, keel::usize N)
+[[maybe_unused]] void magicSinglyEven(keel::f64 *p, keel::usize N)
 {
     const keel::usize P = N / 2;          // odd
     const keel::usize S = P * P;
     const keel::usize K = (N - 2) / 4;    // num "full" left/right cols to swap
 
     // Build one (P×P) odd-magic and tile into four quadrants.
-    keel::Array<double> sq(P * P, 0.0);
+    keel::Array<keel::f64> sq(P * P, 0.0);
     magicOdd(sq.data(), P);
 
     for (keel::usize i = 0; i < P; ++i) {
         for (keel::usize j = 0; j < P; ++j) {
-            const double s = sq[i * P + j];
+            const keel::f64 s = sq[i * P + j];
             p[(i)     * N + (j)]     = s;                    // A (top-left)
             p[(i)     * N + (j + P)] = s + 2.0 * S;          // C (top-right)
             p[(i + P) * N + (j)]     = s + 3.0 * S;          // D (bottom-left)
@@ -129,10 +129,10 @@ namespace {
 // Extract Value as a flat double buffer in linear element order via
 // elemAsDouble (handles every numeric/logical type). Returns the
 // buffer; live for the lifetime of `scratch`.
-[[maybe_unused]] keel::Array<double> valueToScratchDoubles(const Value &v, const keel::ArenaTemp &scratch)
+[[maybe_unused]] keel::Array<keel::f64> valueToScratchDoubles(const Value &v, const keel::ArenaTemp &scratch)
 {
     const keel::usize n = v.numel();
-    keel::Array<double> out(n, scratch.allocator());
+    keel::Array<keel::f64> out(n, scratch.allocator());
     for (keel::usize i = 0; i < n; ++i) out[i] = v.elemAsDouble(i);
     return out;
 }
@@ -180,8 +180,8 @@ Value pageTransposeT(const Value &x, ValueType ty, bool conjugate, keel::Allocat
 [[maybe_unused]] Value pageTransposeAny(const Value &x, bool conjugate, keel::Allocator *mr)
 {
     switch (x.type()) {
-    case ValueType::DOUBLE:  return pageTransposeT<double>(x, ValueType::DOUBLE, conjugate, mr);
-    case ValueType::SINGLE:  return pageTransposeT<float>(x, ValueType::SINGLE, conjugate, mr);
+    case ValueType::DOUBLE:  return pageTransposeT<keel::f64>(x, ValueType::DOUBLE, conjugate, mr);
+    case ValueType::SINGLE:  return pageTransposeT<keel::f32>(x, ValueType::SINGLE, conjugate, mr);
     case ValueType::COMPLEX: return pageTransposeT<keel::c64>(x, ValueType::COMPLEX, conjugate, mr);
     case ValueType::INT8:    return pageTransposeT<keel::i8>(x, ValueType::INT8, conjugate, mr);
     case ValueType::INT16:   return pageTransposeT<keel::i16>(x, ValueType::INT16, conjugate, mr);
@@ -210,22 +210,22 @@ inline void runPageMatmul(const T *, const T *, T *,
                           keel::usize, keel::usize, keel::usize);
 
 template <>
-inline void runPageMatmul<double>(const double *a, const double *b, double *c,
+inline void runPageMatmul<keel::f64>(const keel::f64 *a, const keel::f64 *b, keel::f64 *c,
                                   keel::usize M, keel::usize N, keel::usize K)
 {
     ops::detail::matmulDoubleLoop(a, b, c, M, N, K);
 }
 
 template <>
-inline void runPageMatmul<float>(const float *a, const float *b, float *c,
+inline void runPageMatmul<keel::f32>(const keel::f32 *a, const keel::f32 *b, keel::f32 *c,
                                  keel::usize M, keel::usize N, keel::usize K)
 {
     for (keel::usize j = 0; j < N; ++j) {
-        float *cj = c + j * M;
+        keel::f32 *cj = c + j * M;
         for (keel::usize i = 0; i < M; ++i) cj[i] = 0.0f;
         for (keel::usize k = 0; k < K; ++k) {
-            const float bkj = b[j * K + k];
-            const float *ak = a + k * M;
+            const keel::f32 bkj = b[j * K + k];
+            const keel::f32 *ak = a + k * M;
             for (keel::usize i = 0; i < M; ++i)
                 cj[i] += ak[i] * bkj;
         }
@@ -249,8 +249,8 @@ inline void runPageMatmul<keel::c64>(const keel::c64 *a, const keel::c64 *b, kee
 }
 
 template <typename T> constexpr ValueType pagemtimesElemMType();
-template <> constexpr ValueType pagemtimesElemMType<double >() { return ValueType::DOUBLE;  }
-template <> constexpr ValueType pagemtimesElemMType<float  >() { return ValueType::SINGLE;  }
+template <> constexpr ValueType pagemtimesElemMType<keel::f64 >() { return ValueType::DOUBLE;  }
+template <> constexpr ValueType pagemtimesElemMType<keel::f32  >() { return ValueType::SINGLE;  }
 template <> constexpr ValueType pagemtimesElemMType<keel::c64>() { return ValueType::COMPLEX; }
 
 // Read element i of `src` as T. For T = Complex, real-typed sources
@@ -444,11 +444,11 @@ Value toDoubleMatrix2D(const Value &x, const char *fn, keel::Allocator *mr)
         auto r = Value::matrix(R, C, ValueType::DOUBLE, mr);
         if (x.numel() > 0)
             std::memcpy(r.doubleDataMut(), x.doubleData(),
-                        x.numel() * sizeof(double));
+                        x.numel() * sizeof(keel::f64));
         return r;
     }
     auto r = Value::matrix(R, C, ValueType::DOUBLE, mr);
-    double *dst = r.doubleDataMut();
+    keel::f64 *dst = r.doubleDataMut();
     for (keel::usize i = 0; i < x.numel(); ++i)
         dst[i] = x.elemAsDouble(i);
     return r;
@@ -461,7 +461,7 @@ Value toDoubleMatrix2D(const Value &x, const char *fn, keel::Allocator *mr)
 // imaginary part (toDoubleMatrix2D does) — that silently returns wrong rows.
 inline bool cxRowLess(keel::c64 a, keel::c64 b)
 {
-    const double am = keel::abs(a), bm = keel::abs(b);
+    const keel::f64 am = keel::abs(a), bm = keel::abs(b);
     const bool an = std::isnan(am), bn = std::isnan(bm);
     if (an || bn) { if (an && bn) return false; return bn; }   // non-NaN < NaN
     if (am != bm) return am < bm;
@@ -516,9 +516,9 @@ sortRowsComplex(const Value &x, const int *cols, keel::usize nCols,
         for (keel::usize c = 0; c < C; ++c)
             dst[c * R + i] = src[c * R + perm[i]];
     auto idx = Value::matrix(R, 1, ValueType::DOUBLE, mr);
-    double *idxP = idx.doubleDataMut();
+    keel::f64 *idxP = idx.doubleDataMut();
     for (keel::usize i = 0; i < R; ++i)
-        idxP[i] = keel::as<double>(perm[i] + 1);
+        idxP[i] = keel::as<keel::f64>(perm[i] + 1);
     return std::make_tuple(std::move(out), std::move(idx));
 }
 
@@ -558,7 +558,7 @@ sortRowsImpl(const Value &x, const int *cols, keel::usize nCols, keel::Allocator
     auto perm = keel::Array<keel::usize>(R, scratch.allocator());
     for (keel::usize i = 0; i < R; ++i) perm[i] = i;
 
-    const double *src = m.doubleData();
+    const keel::f64 *src = m.doubleData();
     std::stable_sort(perm.begin(), perm.end(),
         [&](keel::usize a, keel::usize b) {
             return numkit::ops::rowLexCmpByCols(src, C, R, a, b,
@@ -567,9 +567,9 @@ sortRowsImpl(const Value &x, const int *cols, keel::usize nCols, keel::Allocator
 
     auto sorted = numkit::ops::collectRowsByIndex(m, perm.data(), perm.size(), mr);
     auto idx = Value::matrix(R, 1, ValueType::DOUBLE, mr);
-    double *idxP = idx.doubleDataMut();
+    keel::f64 *idxP = idx.doubleDataMut();
     for (keel::usize i = 0; i < R; ++i)
-        idxP[i] = keel::as<double>(perm[i] + 1);
+        idxP[i] = keel::as<keel::f64>(perm[i] + 1);
     return std::make_tuple(std::move(sorted), std::move(idx));
 }
 
@@ -597,12 +597,12 @@ void forEachNonzero(const Value &x, Visit visit)
         break;
     }
     case ValueType::DOUBLE: {
-        const double *p = x.doubleData();
+        const keel::f64 *p = x.doubleData();
         for (keel::usize i = 0; i < n; ++i) if (isNonzeroElemT(p, i)) visit(i);
         break;
     }
     case ValueType::SINGLE: {
-        const float *p = x.singleData();
+        const keel::f32 *p = x.singleData();
         for (keel::usize i = 0; i < n; ++i) if (isNonzeroElemT(p, i)) visit(i);
         break;
     }
@@ -707,15 +707,15 @@ template <typename T>
 void cumIntegerScanInto(const Value &x, T *dst, keel::usize strideD, keel::usize lenD,
                         bool isProd)
 {
-    const double lo = keel::as<double>(std::numeric_limits<T>::min());
-    const double hi = keel::as<double>(std::numeric_limits<T>::max());
+    const keel::f64 lo = keel::as<keel::f64>(std::numeric_limits<T>::min());
+    const keel::f64 hi = keel::as<keel::f64>(std::numeric_limits<T>::max());
     const keel::usize n = x.numel();
     for (keel::usize i = 0; i < n; ++i) {
         const keel::usize coord = (i / strideD) % lenD;
-        const double cur = x.elemAsDouble(i);
-        double v = cur;
+        const keel::f64 cur = x.elemAsDouble(i);
+        keel::f64 v = cur;
         if (coord != 0) {
-            const double prev = keel::as<double>(dst[i - strideD]);
+            const keel::f64 prev = keel::as<keel::f64>(dst[i - strideD]);
             v = isProd ? prev * cur : prev + cur;
         }
         if (v < lo) v = lo;
@@ -828,9 +828,9 @@ void cumIntegerScanInto(const Value &x, T *dst, keel::usize strideD, keel::usize
         return std::isnan(z.real()) || std::isnan(z.imag());
     };
     auto vBetter = [&](keel::c64 v, keel::c64 best) {
-        const double av = keel::abs(v), ab = keel::abs(best);
+        const keel::f64 av = keel::abs(v), ab = keel::abs(best);
         if (av != ab) return isMax ? (av > ab) : (av < ab);
-        const double gv = keel::arg(v), gb = keel::arg(best);
+        const keel::f64 gv = keel::arg(v), gb = keel::arg(best);
         return isMax ? (gv > gb) : (gv < gb);
     };
     for (keel::usize o = 0; o < O; ++o)
@@ -864,19 +864,19 @@ void cumIntegerScanInto(const Value &x, T *dst, keel::usize strideD, keel::usize
 namespace {
 
 template <typename Op>
-void cumKernel(const Value &x, int d, Op op, double *dst)
+void cumKernel(const Value &x, int d, Op op, keel::f64 *dst)
 {
     const auto &dd = x.dims();
     const keel::usize R = dd.rows(), C = dd.cols();
     const keel::usize P = dd.is3D() ? dd.pages() : 1;
-    const double *src = x.doubleData();
+    const keel::f64 *src = x.doubleData();
 
     if (d == 1) {
         for (keel::usize pp = 0; pp < P; ++pp)
             for (keel::usize c = 0; c < C; ++c) {
                 const keel::usize base = pp * R * C + c * R;
                 if (R == 0) continue;
-                double acc = src[base];
+                keel::f64 acc = src[base];
                 dst[base] = acc;
                 for (keel::usize rr = 1; rr < R; ++rr) {
                     acc = op(acc, src[base + rr]);
@@ -888,7 +888,7 @@ void cumKernel(const Value &x, int d, Op op, double *dst)
             for (keel::usize rr = 0; rr < R; ++rr) {
                 const keel::usize pageBase = pp * R * C;
                 if (C == 0) continue;
-                double acc = src[pageBase + rr];
+                keel::f64 acc = src[pageBase + rr];
                 dst[pageBase + rr] = acc;
                 for (keel::usize c = 1; c < C; ++c) {
                     acc = op(acc, src[pageBase + c * R + rr]);
@@ -899,7 +899,7 @@ void cumKernel(const Value &x, int d, Op op, double *dst)
         for (keel::usize c = 0; c < C; ++c)
             for (keel::usize rr = 0; rr < R; ++rr) {
                 if (P == 0) continue;
-                double acc = src[c * R + rr];
+                keel::f64 acc = src[c * R + rr];
                 dst[c * R + rr] = acc;
                 for (keel::usize pp = 1; pp < P; ++pp) {
                     acc = op(acc, src[pp * R * C + c * R + rr]);
@@ -919,7 +919,7 @@ Value cumImpl(const Value &x, int dim, Op op, const char *fn, keel::Allocator *m
         auto r = Value::matrix(x.dims().rows(), x.dims().cols(),
                                 ValueType::DOUBLE, mr);
         if (x.numel() == 0) return r;
-        double acc = x.doubleData()[0];
+        keel::f64 acc = x.doubleData()[0];
         r.doubleDataMut()[0] = acc;
         for (keel::usize i = 1; i < x.numel(); ++i) {
             acc = op(acc, x.doubleData()[i]);
@@ -941,7 +941,7 @@ Value cumImpl(const Value &x, int dim, Op op, const char *fn, keel::Allocator *m
 } // namespace
 namespace {
 
-using ScanFn = void (*)(const double *, double *, keel::usize);
+using ScanFn = void (*)(const keel::f64 *, keel::f64 *, keel::usize);
 
 template <typename Op>
 Value cumScanDispatch(const Value &x, int dim, ScanFn scan, Op scalarOp, const char *fn, keel::Allocator *mr)
@@ -976,8 +976,8 @@ Value cumScanDispatch(const Value &x, int dim, ScanFn scan, Op scalarOp, const c
         for (int i = 0; i < d - 1; ++i) B *= dd.dim(i);
         keel::usize O = 1;
         for (int i = d; i < dd.ndim(); ++i) O *= dd.dim(i);
-        const double *src = x.doubleData();
-        double *dst = r.doubleDataMut();
+        const keel::f64 *src = x.doubleData();
+        keel::f64 *dst = r.doubleDataMut();
         if (B == 1) {
             for (keel::usize o = 0; o < O; ++o) {
                 const keel::usize base = o * sliceLen;
@@ -988,7 +988,7 @@ Value cumScanDispatch(const Value &x, int dim, ScanFn scan, Op scalarOp, const c
                 for (keel::usize b = 0; b < B; ++b) {
                     const keel::usize base = o * sliceLen * B + b;
                     if (sliceLen == 0) continue;
-                    double acc = src[base];
+                    keel::f64 acc = src[base];
                     dst[base] = acc;
                     for (keel::usize k = 1; k < sliceLen; ++k) {
                         acc = scalarOp(acc, src[base + k * B]);
@@ -1003,8 +1003,8 @@ Value cumScanDispatch(const Value &x, int dim, ScanFn scan, Op scalarOp, const c
     const keel::usize P = dd.is3D() ? dd.pages() : 1;
     auto r = dd.is3D() ? Value::matrix3d(R, C, P, ValueType::DOUBLE, mr)
                        : Value::matrix(R, C, ValueType::DOUBLE, mr);
-    const double *src = x.doubleData();
-    double *dst = r.doubleDataMut();
+    const keel::f64 *src = x.doubleData();
+    keel::f64 *dst = r.doubleDataMut();
 
     if (d == 1) {
         // Per-column scan — column data is contiguous, route through SIMD.
@@ -1030,7 +1030,7 @@ Value logicalizeCumResult(const Value &d, keel::Allocator *mr)
     if (d.isScalar()) return Value::logicalScalar(d.toScalar() != 0.0, mr);
     Value r = createLike(d, ValueType::LOGICAL, mr);
     keel::u8 *dst = r.logicalDataMut();
-    const double *src = d.doubleData();
+    const keel::f64 *src = d.doubleData();
     const keel::usize n = d.numel();
     for (keel::usize i = 0; i < n; ++i) dst[i] = (src[i] != 0.0) ? 1 : 0;
     return r;
@@ -1045,7 +1045,7 @@ Value logicalizeCumResult(const Value &d, keel::Allocator *mr)
 {
     Value r = createLike(d, ValueType::CHAR, mr);
     char *dst = r.charDataMut();
-    const double *src = d.doubleData();
+    const keel::f64 *src = d.doubleData();
     const keel::usize n = d.numel();
     for (keel::usize i = 0; i < n; ++i)
         dst[i] = keel::as<char>(keel::as<int>(src[i]));
@@ -1057,7 +1057,7 @@ namespace {
 // One pass of forward differences along axis `d` (1-based). Source has
 // dim[d-1] = sliceLen; output has dim[d-1] = sliceLen - 1. Column-major
 // strides (innerStride = prod(dim[0..d-2])).
-[[maybe_unused]] void diffOnceDouble(const double *src, double *dst,
+[[maybe_unused]] void diffOnceDouble(const keel::f64 *src, keel::f64 *dst,
                     const Dims &srcDims, int d)
 {
     const int nd = srcDims.ndim();
@@ -1073,8 +1073,8 @@ namespace {
     if (innerStride == 1) {
         // Contiguous along the diff axis — simple linear pass per outer block.
         for (keel::usize o = 0; o < outerCount; ++o) {
-            const double *s = src + o * sliceLen;
-            double *t = dst + o * outSliceLen;
+            const keel::f64 *s = src + o * sliceLen;
+            keel::f64 *t = dst + o * outSliceLen;
             for (keel::usize k = 0; k < outSliceLen; ++k)
                 t[k] = s[k + 1] - s[k];
         }
@@ -1159,9 +1159,9 @@ Value copyToDouble(const Value &x, keel::Allocator *mr)
     auto r = Value::matrixND(dims, nd, ValueType::DOUBLE, mr);
     if (x.type() == ValueType::DOUBLE) {
         std::memcpy(r.doubleDataMut(), x.doubleData(),
-                    x.numel() * sizeof(double));
+                    x.numel() * sizeof(keel::f64));
     } else {
-        double *dst = r.doubleDataMut();
+        keel::f64 *dst = r.doubleDataMut();
         for (keel::usize i = 0; i < x.numel(); ++i)
             dst[i] = x.elemAsDouble(i);
     }
@@ -1181,10 +1181,10 @@ void diffOnceIntegerT(const T *src, T *dst, const Dims &srcDims, int d)
     keel::usize outerCount = 1;
     for (int i = d; i < nd; ++i) outerCount *= srcDims.dim(i);
     const keel::usize outSliceLen = sliceLen - 1;
-    const double lo = keel::as<double>(std::numeric_limits<T>::min());
-    const double hi = keel::as<double>(std::numeric_limits<T>::max());
+    const keel::f64 lo = keel::as<keel::f64>(std::numeric_limits<T>::min());
+    const keel::f64 hi = keel::as<keel::f64>(std::numeric_limits<T>::max());
     auto sub = [&](T a, T b) -> T {
-        double v = keel::as<double>(a) - keel::as<double>(b);
+        keel::f64 v = keel::as<keel::f64>(a) - keel::as<keel::f64>(b);
         if (v < lo) v = lo;
         else if (v > hi) v = hi;
         return static_cast<T>(v);

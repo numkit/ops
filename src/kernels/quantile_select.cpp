@@ -13,9 +13,9 @@
 
 namespace numkit::ops {
 
-double sliceQuantile(double *s, keel::usize n, double p)
+keel::f64 sliceQuantile(keel::f64 *s, keel::usize n, keel::f64 p)
 {
-    if (n == 0) return std::numeric_limits<double>::quiet_NaN();
+    if (n == 0) return std::numeric_limits<keel::f64>::quiet_NaN();
     if (n == 1) return s[0];
     // The MATLAB "+0.5" rule needs at most two adjacent order statistics, so
     // partition with nth_element (O(n) average) instead of a full O(n log n)
@@ -23,16 +23,16 @@ double sliceQuantile(double *s, keel::usize n, double p)
     // bit-for-bit unchanged — only the cost drops (a two-call iqr over ~10^7
     // elements goes from ~1.7 s of sorting to well under 0.1 s). Shared by
     // iqr / mad / median-of-slice.
-    const double q = p * keel::as<double>(n) + 0.5;
+    const keel::f64 q = p * keel::as<keel::f64>(n) + 0.5;
     if (q <= 1.0) return *std::min_element(s, s + n);
-    if (q >= keel::as<double>(n)) return *std::max_element(s, s + n);
+    if (q >= keel::as<keel::f64>(n)) return *std::max_element(s, s + n);
     const keel::usize lo   = keel::as<keel::usize>(std::floor(q)) - 1;
-    const double      frac = q - std::floor(q);
+    const keel::f64      frac = q - std::floor(q);
     // Place the lo-th smallest at s[lo]; everything in (lo, n) is then >= it,
     // so the (lo+1)-th smallest is the minimum of that right partition.
     std::nth_element(s, s + lo, s + n);
-    const double a = s[lo];
-    const double b = *std::min_element(s + lo + 1, s + n);
+    const keel::f64 a = s[lo];
+    const keel::f64 b = *std::min_element(s + lo + 1, s + n);
     return a + frac * (b - a);
 }
 

@@ -63,7 +63,7 @@ namespace {
 // each input element exactly once with locality on both sides.
 constexpr keel::usize TRANSPOSE_BLOCK = 32;
 
-void transposePage(const double *src, double *dst, keel::usize inR, keel::usize inC)
+void transposePage(const keel::f64 *src, keel::f64 *dst, keel::usize inR, keel::usize inC)
 {
     const keel::usize outR = inC; // output rows = input cols
     // Block over output coordinates so that the inner write loop is
@@ -80,7 +80,7 @@ void transposePage(const double *src, double *dst, keel::usize inR, keel::usize 
             // Inner block: dst column r holds input row r.
             // For fixed r, vary c: dst write is stride 1 in c.
             for (keel::usize r = rBlk; r < rEnd; ++r) {
-                double *dstCol = dst + r * outR;
+                keel::f64 *dstCol = dst + r * outR;
                 for (keel::usize c = cBlk; c < cEnd; ++c) {
                     dstCol[c] = src[c * inR + r];
                 }
@@ -181,8 +181,8 @@ Value permute(const Value &x, keel::ArrayRef<int> perm, keel::Allocator *mr)
     auto r = Value::matrixND(outDimsArr, inNd, ValueType::DOUBLE, mr);
     if (x.numel() == 0) return r;
 
-    const double *src = x.doubleData();
-    double *dst       = r.doubleDataMut();
+    const keel::f64 *src = x.doubleData();
+    keel::f64 *dst       = r.doubleDataMut();
 
     // Phase P6 fast path: per-page transpose ([2, 1] or [2, 1, 3] for
     // ≤ 3D inputs). 2.3× win on 512×512 (cache-blocked vs strided gather).

@@ -29,9 +29,9 @@ namespace HWY_NAMESPACE {
 
 namespace hn = hwy::HWY_NAMESPACE;
 
-double NanSumScanLoop(const double *HWY_RESTRICT p, keel::usize n)
+keel::f64 NanSumScanLoop(const keel::f64 *HWY_RESTRICT p, keel::usize n)
 {
-    const hn::ScalableTag<double> d;
+    const hn::ScalableTag<keel::f64> d;
     const keel::usize N = hn::Lanes(d);
     const auto zero = hn::Zero(d);
 
@@ -52,7 +52,7 @@ double NanSumScanLoop(const double *HWY_RESTRICT p, keel::usize n)
         const auto v = hn::LoadU(d, p + i);
         a0 = hn::Add(a0, hn::IfThenElse(hn::IsNaN(v), zero, v));
     }
-    double sum = hn::ReduceSum(d, hn::Add(hn::Add(a0, a1), hn::Add(a2, a3)));
+    keel::f64 sum = hn::ReduceSum(d, hn::Add(hn::Add(a0, a1), hn::Add(a2, a3)));
     for (; i < n; ++i)
         if (!std::isnan(p[i])) sum += p[i];
     return sum;
@@ -64,11 +64,11 @@ double NanSumScanLoop(const double *HWY_RESTRICT p, keel::usize n)
 // ReduceSum) avoids the cross-type mask juggling that would be needed
 // to keep counts in int64 — we never have N close to 2^53 so the
 // precision loss is nil.
-void NanSumCountScanLoop(const double *HWY_RESTRICT p, keel::usize n,
-                         double *HWY_RESTRICT outSum,
-                         double *HWY_RESTRICT outCount)
+void NanSumCountScanLoop(const keel::f64 *HWY_RESTRICT p, keel::usize n,
+                         keel::f64 *HWY_RESTRICT outSum,
+                         keel::f64 *HWY_RESTRICT outCount)
 {
-    const hn::ScalableTag<double> d;
+    const hn::ScalableTag<keel::f64> d;
     const keel::usize N = hn::Lanes(d);
     const auto zero = hn::Zero(d);
     const auto one  = hn::Set(d, 1.0);
@@ -101,8 +101,8 @@ void NanSumCountScanLoop(const double *HWY_RESTRICT p, keel::usize n,
         sum0 = hn::Add(sum0, hn::IfThenElse(m, zero, v));
         cnt0 = hn::Add(cnt0, hn::IfThenElse(m, zero, one));
     }
-    double sum = hn::ReduceSum(d, hn::Add(hn::Add(sum0, sum1), hn::Add(sum2, sum3)));
-    double cnt = hn::ReduceSum(d, hn::Add(hn::Add(cnt0, cnt1), hn::Add(cnt2, cnt3)));
+    keel::f64 sum = hn::ReduceSum(d, hn::Add(hn::Add(sum0, sum1), hn::Add(sum2, sum3)));
+    keel::f64 cnt = hn::ReduceSum(d, hn::Add(hn::Add(cnt0, cnt1), hn::Add(cnt2, cnt3)));
     for (; i < n; ++i) {
         if (!std::isnan(p[i])) {
             sum += p[i];
@@ -121,13 +121,13 @@ void NanSumCountScanLoop(const double *HWY_RESTRICT p, keel::usize n,
 //
 // Returns the reduced value via outVal; sets *outAllNaN = 1.0 when no
 // lane carried a non-NaN element (so caller can return NaN).
-void NanMaxScanLoop(const double *HWY_RESTRICT p, keel::usize n,
-                    double *HWY_RESTRICT outVal,
-                    double *HWY_RESTRICT outAllNaN)
+void NanMaxScanLoop(const keel::f64 *HWY_RESTRICT p, keel::usize n,
+                    keel::f64 *HWY_RESTRICT outVal,
+                    keel::f64 *HWY_RESTRICT outAllNaN)
 {
-    const hn::ScalableTag<double> d;
+    const hn::ScalableTag<keel::f64> d;
     const keel::usize N = hn::Lanes(d);
-    const auto neg_inf = hn::Set(d, -std::numeric_limits<double>::infinity());
+    const auto neg_inf = hn::Set(d, -std::numeric_limits<keel::f64>::infinity());
     const auto zero    = hn::Zero(d);
     const auto one     = hn::Set(d, 1.0);
 
@@ -160,8 +160,8 @@ void NanMaxScanLoop(const double *HWY_RESTRICT p, keel::usize n,
         m0 = hn::Max(m0, hn::IfThenElse(k, neg_inf, v));
         cnt = hn::Add(cnt, hn::IfThenElse(k, zero, one));
     }
-    double best = hn::ReduceMax(d, hn::Max(hn::Max(m0, m1), hn::Max(m2, m3)));
-    double validCount = hn::ReduceSum(d, cnt);
+    keel::f64 best = hn::ReduceMax(d, hn::Max(hn::Max(m0, m1), hn::Max(m2, m3)));
+    keel::f64 validCount = hn::ReduceSum(d, cnt);
     for (; i < n; ++i) {
         if (!std::isnan(p[i])) {
             if (p[i] > best) best = p[i];
@@ -172,13 +172,13 @@ void NanMaxScanLoop(const double *HWY_RESTRICT p, keel::usize n,
     *outAllNaN = (validCount == 0.0) ? 1.0 : 0.0;
 }
 
-void NanMinScanLoop(const double *HWY_RESTRICT p, keel::usize n,
-                    double *HWY_RESTRICT outVal,
-                    double *HWY_RESTRICT outAllNaN)
+void NanMinScanLoop(const keel::f64 *HWY_RESTRICT p, keel::usize n,
+                    keel::f64 *HWY_RESTRICT outVal,
+                    keel::f64 *HWY_RESTRICT outAllNaN)
 {
-    const hn::ScalableTag<double> d;
+    const hn::ScalableTag<keel::f64> d;
     const keel::usize N = hn::Lanes(d);
-    const auto pos_inf = hn::Set(d, std::numeric_limits<double>::infinity());
+    const auto pos_inf = hn::Set(d, std::numeric_limits<keel::f64>::infinity());
     const auto zero    = hn::Zero(d);
     const auto one     = hn::Set(d, 1.0);
 
@@ -210,8 +210,8 @@ void NanMinScanLoop(const double *HWY_RESTRICT p, keel::usize n,
         m0 = hn::Min(m0, hn::IfThenElse(k, pos_inf, v));
         cnt = hn::Add(cnt, hn::IfThenElse(k, zero, one));
     }
-    double best = hn::ReduceMin(d, hn::Min(hn::Min(m0, m1), hn::Min(m2, m3)));
-    double validCount = hn::ReduceSum(d, cnt);
+    keel::f64 best = hn::ReduceMin(d, hn::Min(hn::Min(m0, m1), hn::Min(m2, m3)));
+    keel::f64 validCount = hn::ReduceSum(d, cnt);
     for (; i < n; ++i) {
         if (!std::isnan(p[i])) {
             if (p[i] < best) best = p[i];
@@ -225,10 +225,10 @@ void NanMinScanLoop(const double *HWY_RESTRICT p, keel::usize n,
 // Pass 2 of nan-aware variance: sum of (x - mean)^2 over non-NaN lanes.
 // NaN lanes contribute 0 to the accumulator. Caller divides by the
 // (count - {0,1}) it already computed in pass 1.
-double NanSumSqDevScanLoop(const double *HWY_RESTRICT p, keel::usize n,
-                           double mean)
+keel::f64 NanSumSqDevScanLoop(const keel::f64 *HWY_RESTRICT p, keel::usize n,
+                           keel::f64 mean)
 {
-    const hn::ScalableTag<double> d;
+    const hn::ScalableTag<keel::f64> d;
     const keel::usize N = hn::Lanes(d);
     const auto vmean = hn::Set(d, mean);
     const auto zero  = hn::Zero(d);
@@ -260,10 +260,10 @@ double NanSumSqDevScanLoop(const double *HWY_RESTRICT p, keel::usize n,
         const auto dv = hn::Sub(x, vmean);
         a0 = hn::MulAdd(dv, dv, a0);
     }
-    double ss = hn::ReduceSum(d, hn::Add(hn::Add(a0, a1), hn::Add(a2, a3)));
+    keel::f64 ss = hn::ReduceSum(d, hn::Add(hn::Add(a0, a1), hn::Add(a2, a3)));
     for (; i < n; ++i) {
         if (!std::isnan(p[i])) {
-            const double dv = p[i] - mean;
+            const keel::f64 dv = p[i] - mean;
             ss += dv * dv;
         }
     }
@@ -283,37 +283,37 @@ HWY_EXPORT(NanMaxScanLoop);
 HWY_EXPORT(NanMinScanLoop);
 HWY_EXPORT(NanSumSqDevScanLoop);
 
-double nanSumScan(const double *p, keel::usize n)
+keel::f64 nanSumScan(const keel::f64 *p, keel::usize n)
 {
     if (n == 0) return 0.0;
     return HWY_DYNAMIC_DISPATCH(NanSumScanLoop)(p, n);
 }
 
-NanSumCount nanSumCountScan(const double *p, keel::usize n)
+NanSumCount nanSumCountScan(const keel::f64 *p, keel::usize n)
 {
     if (n == 0) return {0.0, 0};
-    double sum = 0.0, cnt = 0.0;
+    keel::f64 sum = 0.0, cnt = 0.0;
     HWY_DYNAMIC_DISPATCH(NanSumCountScanLoop)(p, n, &sum, &cnt);
     return {sum, keel::as<keel::usize>(cnt)};
 }
 
-double nanMaxScan(const double *p, keel::usize n)
+keel::f64 nanMaxScan(const keel::f64 *p, keel::usize n)
 {
     if (n == 0) return std::nan("");
-    double best = 0.0, allNaN = 0.0;
+    keel::f64 best = 0.0, allNaN = 0.0;
     HWY_DYNAMIC_DISPATCH(NanMaxScanLoop)(p, n, &best, &allNaN);
     return (allNaN != 0.0) ? std::nan("") : best;
 }
 
-double nanMinScan(const double *p, keel::usize n)
+keel::f64 nanMinScan(const keel::f64 *p, keel::usize n)
 {
     if (n == 0) return std::nan("");
-    double best = 0.0, allNaN = 0.0;
+    keel::f64 best = 0.0, allNaN = 0.0;
     HWY_DYNAMIC_DISPATCH(NanMinScanLoop)(p, n, &best, &allNaN);
     return (allNaN != 0.0) ? std::nan("") : best;
 }
 
-double nanVarianceTwoPass(const double *p, keel::usize n, int normFlag)
+keel::f64 nanVarianceTwoPass(const keel::f64 *p, keel::usize n, int normFlag)
 {
     if (n == 0) return std::nan("");
     const auto sc = nanSumCountScan(p, n);
@@ -321,10 +321,10 @@ double nanVarianceTwoPass(const double *p, keel::usize n, int normFlag)
     // MATLAB: variance over a single non-NaN value is 0 for BOTH the N-1
     // (default) and N normalizations — e.g. nanvar([NaN 5 NaN]) == 0, not NaN.
     if (sc.count == 1) return 0.0;
-    const double mean  = sc.sum / keel::as<double>(sc.count);
-    const double ss    = HWY_DYNAMIC_DISPATCH(NanSumSqDevScanLoop)(p, n, mean);
-    const double denom = (normFlag == 1) ? keel::as<double>(sc.count)
-                                         : keel::as<double>(sc.count - 1);
+    const keel::f64 mean  = sc.sum / keel::as<keel::f64>(sc.count);
+    const keel::f64 ss    = HWY_DYNAMIC_DISPATCH(NanSumSqDevScanLoop)(p, n, mean);
+    const keel::f64 denom = (normFlag == 1) ? keel::as<keel::f64>(sc.count)
+                                         : keel::as<keel::f64>(sc.count - 1);
     return ss / denom;
 }
 

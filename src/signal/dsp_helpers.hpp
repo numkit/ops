@@ -35,9 +35,9 @@ inline void fillFftTwiddles(keel::c64 *W, keel::usize N, int dir)
 {
     const keel::usize half = N / 2;
     if (half == 0) return;
-    const double base = dir * 2.0 * M_PI / keel::as<double>(N);
+    const keel::f64 base = dir * 2.0 * M_PI / keel::as<keel::f64>(N);
     for (keel::usize k = 0; k < half; ++k) {
-        const double a = base * keel::as<double>(k);
+        const keel::f64 a = base * keel::as<keel::f64>(k);
         W[k] = keel::c64(std::cos(a), std::sin(a));
     }
 }
@@ -100,7 +100,7 @@ inline keel::Array<keel::c64> prepareFFTBuffer(keel::Allocator *mr,
         for (keel::usize i = 0; i < inputLen; ++i)
             buf[i] = src[i];
     } else {
-        const double *src = x.doubleData();
+        const keel::f64 *src = x.doubleData();
         for (keel::usize i = 0; i < inputLen; ++i)
             buf[i] = keel::c64(src[i], 0.0);
     }
@@ -128,9 +128,9 @@ inline Value packComplexResult(const keel::c64 *buf, keel::usize outLen, keel::A
 // ============================================================
 // FFT-based convolution O(N log N)
 // ============================================================
-inline keel::Array<double> convFFT(keel::Allocator *mr,
-                                  const double *a, keel::usize na,
-                                  const double *b, keel::usize nb)
+inline keel::Array<keel::f64> convFFT(keel::Allocator *mr,
+                                  const keel::f64 *a, keel::usize na,
+                                  const keel::f64 *b, keel::usize nb)
 {
     keel::usize nc = na + nb - 1;
     keel::usize fftLen = nextPow2(nc);
@@ -156,8 +156,8 @@ inline keel::Array<double> convFFT(keel::Allocator *mr,
 
     fftRadix2(fa.data(), fftLen, W_inv.data());
 
-    double invN = 1.0 / keel::as<double>(fftLen);
-    keel::Array<double> c(nc, mr);
+    keel::f64 invN = 1.0 / keel::as<keel::f64>(fftLen);
+    keel::Array<keel::f64> c(nc, mr);
     for (keel::usize i = 0; i < nc; ++i)
         c[i] = fa[i].real() * invN;
     return c;

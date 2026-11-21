@@ -92,9 +92,9 @@ bool issymmetricImpl(const Value &A, bool skew)
     }
     for (keel::usize j = 0; j < C; ++j)
         for (keel::usize i = 0; i <= j; ++i) {
-            double aij = A.elemAsDouble(lin(i, j, R));
-            double aji = A.elemAsDouble(lin(j, i, R));
-            double want = skew ? -aji : aji;
+            keel::f64 aij = A.elemAsDouble(lin(i, j, R));
+            keel::f64 aji = A.elemAsDouble(lin(j, i, R));
+            keel::f64 want = skew ? -aji : aji;
             if (aij != want) return false;
         }
     return true;
@@ -211,8 +211,8 @@ bandwidth(const Value &A, keel::Allocator *mr)
     detail::requireFloatOrLogicalInput(A, "bandwidth");
     requireMatrix(A, "bandwidth");
     auto [lo, up] = bandwidthImpl(A);
-    return {Value::scalar(keel::as<double>(lo), mr),
-            Value::scalar(keel::as<double>(up), mr)};
+    return {Value::scalar(keel::as<keel::f64>(lo), mr),
+            Value::scalar(keel::as<keel::f64>(up), mr)};
 }
 
 Value bandwidthOpt(const Value &A, keel::StringRef which, keel::Allocator *mr)
@@ -220,8 +220,8 @@ Value bandwidthOpt(const Value &A, keel::StringRef which, keel::Allocator *mr)
     detail::requireFloatOrLogicalInput(A, "bandwidth");
     requireMatrix(A, "bandwidth");
     auto [lo, up] = bandwidthImpl(A);
-    if (which == "lower") return Value::scalar(keel::as<double>(lo), mr);
-    if (which == "upper") return Value::scalar(keel::as<double>(up), mr);
+    if (which == "lower") return Value::scalar(keel::as<keel::f64>(lo), mr);
+    if (which == "upper") return Value::scalar(keel::as<keel::f64>(up), mr);
     throw Error("bandwidth: option must be 'lower' or 'upper'",
                 0, 0, "bandwidth", "", "numkit:bandwidth:BadOpt");
 }

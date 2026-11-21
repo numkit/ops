@@ -60,7 +60,7 @@ static Value fftAlongDim(const Value &x_in, keel::usize N_req, int dim, int dir,
         xPromoted = di.is3D()
             ? Value::matrix3d(di.rows(), di.cols(), di.pages(), ValueType::DOUBLE, mr)
             : Value::matrix(di.rows(), di.cols(), ValueType::DOUBLE, mr);
-        double *pd = xPromoted.doubleDataMut();
+        keel::f64 *pd = xPromoted.doubleDataMut();
         for (keel::usize i = 0; i < x_in.numel(); ++i)
             pd[i] = x_in.elemAsDouble(i);
     }
@@ -140,7 +140,7 @@ static Value fftAlongDim(const Value &x_in, keel::usize N_req, int dim, int dir,
             dstRef,
             layout,
             keel::fft::FftNormalization::None);
-        const double invN = 1.0 / keel::as<double>(outAxisLen);
+        const keel::f64 invN = 1.0 / keel::as<keel::f64>(outAxisLen);
         keel::c64 *out = result.complexDataMut();
         const keel::usize total = result.numel();
         for (keel::usize i = 0; i < total; ++i) {
@@ -247,7 +247,7 @@ Value ifftSymmetric(const Value &X, int n, int dim, keel::Allocator *mr)
     if (!Y.isComplex()) return Y;
     Value re = Value::matrix(Y.dims().rows(), Y.dims().cols(), ValueType::DOUBLE, mr);
     const keel::c64 *yc = Y.complexData();
-    double *rd = re.doubleDataMut();
+    keel::f64 *rd = re.doubleDataMut();
     for (keel::usize i = 0; i < Y.numel(); ++i) rd[i] = yc[i].real();
     return re;
 }
@@ -339,8 +339,8 @@ if (m <= 0) return Value::complexMatrix(0, 0, mr);
     Value g = Value::complexMatrix(L, 1, mr);
     keel::c64 *gd = g.complexDataMut();
     for (keel::usize n = 0; n < N; ++n) {
-        const double n2_half = 0.5 * keel::as<double>(n) * keel::as<double>(n);
-        const keel::c64 a_negn = keel::pow(a, -keel::as<double>(n));
+        const keel::f64 n2_half = 0.5 * keel::as<keel::f64>(n) * keel::as<keel::f64>(n);
+        const keel::c64 a_negn = keel::pow(a, -keel::as<keel::f64>(n));
         const keel::c64 w_n2   = keel::pow(w,  n2_half);
         gd[n] = xData[n] * a_negn * w_n2;
     }
@@ -349,12 +349,12 @@ if (m <= 0) return Value::complexMatrix(0, 0, mr);
     Value h = Value::complexMatrix(L, 1, mr);
     keel::c64 *hd = h.complexDataMut();
     for (keel::usize k = 0; k < M; ++k) {
-        const double k2_half = 0.5 * keel::as<double>(k) * keel::as<double>(k);
+        const keel::f64 k2_half = 0.5 * keel::as<keel::f64>(k) * keel::as<keel::f64>(k);
         hd[k] = keel::pow(w, -k2_half);
     }
     for (keel::usize n = M; n < L; ++n) hd[n] = keel::c64(0, 0);
     for (keel::usize n = 1; n < N; ++n) {
-        const double n2_half = 0.5 * keel::as<double>(n) * keel::as<double>(n);
+        const keel::f64 n2_half = 0.5 * keel::as<keel::f64>(n) * keel::as<keel::f64>(n);
         hd[L - n] = keel::pow(w, -n2_half);
     }
 
@@ -372,13 +372,13 @@ if (m <= 0) return Value::complexMatrix(0, 0, mr);
     if (yL.isComplex()) {
         const keel::c64 *yd = yL.complexData();
         for (keel::usize k = 0; k < M; ++k) {
-            const double k2_half = 0.5 * keel::as<double>(k) * keel::as<double>(k);
+            const keel::f64 k2_half = 0.5 * keel::as<keel::f64>(k) * keel::as<keel::f64>(k);
             Yd[k] = yd[k] * keel::pow(w, k2_half);
         }
     } else {
-        const double *yd = yL.doubleData();
+        const keel::f64 *yd = yL.doubleData();
         for (keel::usize k = 0; k < M; ++k) {
-            const double k2_half = 0.5 * keel::as<double>(k) * keel::as<double>(k);
+            const keel::f64 k2_half = 0.5 * keel::as<keel::f64>(k) * keel::as<keel::f64>(k);
             Yd[k] = keel::c64(yd[k], 0.0) * keel::pow(w, k2_half);
         }
     }
@@ -481,7 +481,7 @@ Value interpft(const Value &x, int n, int dim, keel::Allocator *mr)
     };
 
     auto scaleVal = [&](Value v) -> Value {
-        const double s = keel::as<double>(nOut) / keel::as<double>(mLen);
+        const keel::f64 s = keel::as<keel::f64>(nOut) / keel::as<keel::f64>(mLen);
         const keel::usize total = v.numel();
         if (v.type() == ValueType::COMPLEX) {
             auto *p = v.complexDataMut();

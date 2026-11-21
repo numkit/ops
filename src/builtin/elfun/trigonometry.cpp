@@ -21,36 +21,36 @@ Value cos(const Value &x, keel::Allocator *mr) { return cos(x, nullptr, mr); }
 
 Value deg2rad(const Value &x, keel::Allocator *mr)
 {
-    constexpr double k = 3.14159265358979323846 / 180.0;
-    return unaryDouble(x, [](double v) { return v * k; }, mr);
+    constexpr keel::f64 k = 3.14159265358979323846 / 180.0;
+    return unaryDouble(x, [](keel::f64 v) { return v * k; }, mr);
 }
 
 Value rad2deg(const Value &x, keel::Allocator *mr)
 {
-    constexpr double k = 180.0 / 3.14159265358979323846;
-    return unaryDouble(x, [](double v) { return v * k; }, mr);
+    constexpr keel::f64 k = 180.0 / 3.14159265358979323846;
+    return unaryDouble(x, [](keel::f64 v) { return v * k; }, mr);
 }
 
 // ── Angle Wrapping ──────────────────────────────────────────────────────────
 
 namespace {
-constexpr double kPi = 3.14159265358979323846;
-constexpr double kTwoPi = 2.0 * kPi;
+constexpr keel::f64 kPi = 3.14159265358979323846;
+constexpr keel::f64 kTwoPi = 2.0 * kPi;
 
-inline double wrapMod(double x, double period)
+inline keel::f64 wrapMod(keel::f64 x, keel::f64 period)
 {
     return x - std::floor(x / period) * period;
 }
 
-inline double wrapToUpper(double x, double period)
+inline keel::f64 wrapToUpper(keel::f64 x, keel::f64 period)
 {
     const bool positiveInput = x > 0.0;
-    double m = wrapMod(x, period);
+    keel::f64 m = wrapMod(x, period);
     if (m == 0.0 && positiveInput) m = period;
     return m;
 }
 
-inline double wrapToSym(double x, double half, double period)
+inline keel::f64 wrapToSym(keel::f64 x, keel::f64 half, keel::f64 period)
 {
     if (x < -half || half < x) return wrapToUpper(x + half, period) - half;
     return x;
@@ -59,22 +59,22 @@ inline double wrapToSym(double x, double half, double period)
 
 Value wrapToPi(const Value &x, keel::Allocator *mr)
 {
-    return unaryDouble(x, [](double v) { return wrapToSym(v, kPi, kTwoPi); }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return wrapToSym(v, kPi, kTwoPi); }, mr);
 }
 
 Value wrapTo2Pi(const Value &x, keel::Allocator *mr)
 {
-    return unaryDouble(x, [](double v) { return wrapToUpper(v, kTwoPi); }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return wrapToUpper(v, kTwoPi); }, mr);
 }
 
 Value wrapTo180(const Value &x, keel::Allocator *mr)
 {
-    return unaryDouble(x, [](double v) { return wrapToSym(v, 180.0, 360.0); }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return wrapToSym(v, 180.0, 360.0); }, mr);
 }
 
 Value wrapTo360(const Value &x, keel::Allocator *mr)
 {
-    return unaryDouble(x, [](double v) { return wrapToUpper(v, 360.0); }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return wrapToUpper(v, 360.0); }, mr);
 }
 
 // ── Coordinate transforms ───────────────────────────────────────────────────
@@ -95,9 +95,9 @@ CylTriple cart2pol(const Value &x, const Value &y, const Value &z, keel::Allocat
 CartPair pol2cart(const Value &theta, const Value &rho, keel::Allocator *mr)
 {
     Value xv = elementwiseDouble(rho, theta,
-        [](double r, double t) { return r * std::cos(t); }, mr);
+        [](keel::f64 r, keel::f64 t) { return r * std::cos(t); }, mr);
     Value yv = elementwiseDouble(rho, theta,
-        [](double r, double t) { return r * std::sin(t); }, mr);
+        [](keel::f64 r, keel::f64 t) { return r * std::sin(t); }, mr);
     return { std::move(xv), std::move(yv) };
 }
 
@@ -110,26 +110,26 @@ CartTriple pol2cart(const Value &theta, const Value &rho, const Value &z, keel::
 SphTriple cart2sph(const Value &x, const Value &y, const Value &z, keel::Allocator *mr)
 {
     Value az = elementwiseDouble(y, x,
-        [](double yy, double xx) { return std::atan2(yy + 0.0, xx + 0.0); }, mr);
+        [](keel::f64 yy, keel::f64 xx) { return std::atan2(yy + 0.0, xx + 0.0); }, mr);
     Value rxy = elementwiseDouble(x, y,
-        [](double xx, double yy) { return std::hypot(xx, yy); }, mr);
+        [](keel::f64 xx, keel::f64 yy) { return std::hypot(xx, yy); }, mr);
     Value el = elementwiseDouble(z, rxy,
-        [](double zz, double rr) { return std::atan2(zz + 0.0, rr + 0.0); }, mr);
+        [](keel::f64 zz, keel::f64 rr) { return std::atan2(zz + 0.0, rr + 0.0); }, mr);
     Value r = elementwiseDouble(rxy, z,
-        [](double rxy_v, double zz) { return std::hypot(rxy_v, zz); }, mr);
+        [](keel::f64 rxy_v, keel::f64 zz) { return std::hypot(rxy_v, zz); }, mr);
     return { std::move(az), std::move(el), std::move(r) };
 }
 
 CartTriple sph2cart(const Value &az, const Value &el, const Value &r, keel::Allocator *mr)
 {
     Value rcos_el = elementwiseDouble(r, el,
-        [](double rr, double ee) { return rr * std::cos(ee); }, mr);
+        [](keel::f64 rr, keel::f64 ee) { return rr * std::cos(ee); }, mr);
     Value xv = elementwiseDouble(rcos_el, az,
-        [](double rce, double aa) { return rce * std::cos(aa); }, mr);
+        [](keel::f64 rce, keel::f64 aa) { return rce * std::cos(aa); }, mr);
     Value yv = elementwiseDouble(rcos_el, az,
-        [](double rce, double aa) { return rce * std::sin(aa); }, mr);
+        [](keel::f64 rce, keel::f64 aa) { return rce * std::sin(aa); }, mr);
     Value zv = elementwiseDouble(r, el,
-        [](double rr, double ee) { return rr * std::sin(ee); }, mr);
+        [](keel::f64 rr, keel::f64 ee) { return rr * std::sin(ee); }, mr);
     return { std::move(xv), std::move(yv), std::move(zv) };
 }
 

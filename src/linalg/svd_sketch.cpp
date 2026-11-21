@@ -27,15 +27,15 @@ Value matMulReal(const Value &A, const Value &B, keel::Allocator *mr)
     const keel::usize n = keel::as<keel::usize>(B.dims().dim(1));
 
     auto C = Value::matrix(m, n, ValueType::DOUBLE, mr);
-    double *cd = C.doubleDataMut();
+    keel::f64 *cd = C.doubleDataMut();
     std::fill(cd, cd + m * n, 0.0);
 
-    const double *ad = A.doubleData();
-    const double *bd = B.doubleData();
+    const keel::f64 *ad = A.doubleData();
+    const keel::f64 *bd = B.doubleData();
 
     for (keel::usize j = 0; j < n; ++j) {
         for (keel::usize l = 0; l < k; ++l) {
-            const double b_lj = bd[l + j * k];
+            const keel::f64 b_lj = bd[l + j * k];
             if (b_lj == 0.0) continue;
             for (keel::usize i = 0; i < m; ++i) {
                 cd[i + j * m] += ad[i + l * m] * b_lj;
@@ -51,8 +51,8 @@ Value matTranspose(const Value &A, keel::Allocator *mr)
     const keel::usize m = keel::as<keel::usize>(A.dims().dim(0));
     const keel::usize n = keel::as<keel::usize>(A.dims().dim(1));
     auto At = Value::matrix(n, m, ValueType::DOUBLE, mr);
-    double *atd = At.doubleDataMut();
-    const double *ad = A.doubleData();
+    keel::f64 *atd = At.doubleDataMut();
+    const keel::f64 *ad = A.doubleData();
     for (keel::usize i = 0; i < m; ++i) {
         for (keel::usize j = 0; j < n; ++j) {
             atd[j + i * n] = ad[i + j * m];
@@ -63,7 +63,7 @@ Value matTranspose(const Value &A, keel::Allocator *mr)
 
 } // anonymous namespace
 
-std::tuple<Value, Value, Value> svdsketch(const Value &A, double tol, keel::Allocator *mr)
+std::tuple<Value, Value, Value> svdsketch(const Value &A, keel::f64 tol, keel::Allocator *mr)
 {
     if (A.dims().ndim() != 2)
         throw Error("svdsketch: input A must be a 2D matrix", 0, 0, "svdsketch", "", "numkit:svdsketch:notMatrix");
@@ -85,7 +85,7 @@ std::tuple<Value, Value, Value> svdsketch(const Value &A, double tol, keel::Allo
     // Step 1: Draw Gaussian random test matrix Omega (n x l)
     keel::usize l = std::min(min_mn, keel::as<keel::usize>(15));
     auto Omega = Value::matrix(n, l, ValueType::DOUBLE, mr);
-    double *od = Omega.doubleDataMut();
+    keel::f64 *od = Omega.doubleDataMut();
 
     keel::random::Mt19937 gen(42); // fixed seed for deterministic reproducibility
     for (keel::usize i = 0; i < n * l; ++i) od[i] = keel::random::normal_f64(gen);
@@ -96,8 +96,8 @@ std::tuple<Value, Value, Value> svdsketch(const Value &A, double tol, keel::Allo
     // Step 3: QR of Y: Q * R = Y => Q (m x l)
     auto [Q_full, R_y] = qr_decompose(Y, mr);
     auto Q = Value::matrix(m, l, ValueType::DOUBLE, mr);
-    const double *qfd = Q_full.doubleData();
-    double *qd = Q.doubleDataMut();
+    const keel::f64 *qfd = Q_full.doubleData();
+    keel::f64 *qd = Q.doubleDataMut();
     for (keel::usize j = 0; j < l; ++j) {
         for (keel::usize i = 0; i < m; ++i) {
             qd[i + j * m] = qfd[i + j * m];
@@ -115,8 +115,8 @@ std::tuple<Value, Value, Value> svdsketch(const Value &A, double tol, keel::Allo
     Value U = matMulReal(Q, Ub, mr);
 
     // Step 7: Truncate rank by tolerance
-    const double s0 = S.doubleData()[0];
-    const double cutoff = tol * s0;
+    const keel::f64 s0 = S.doubleData()[0];
+    const keel::f64 cutoff = tol * s0;
     keel::usize rank = 0;
     for (keel::usize i = 0; i < std::min(l, min_mn); ++i) {
         if (S.doubleData()[i + i * l] >= cutoff) {
@@ -130,15 +130,15 @@ std::tuple<Value, Value, Value> svdsketch(const Value &A, double tol, keel::Allo
     auto Sr = Value::matrix(rank, rank, ValueType::DOUBLE, mr);
     auto Vr = Value::matrix(n, rank, ValueType::DOUBLE, mr);
 
-    double *urd = Ur.doubleDataMut();
-    double *srd = Sr.doubleDataMut();
-    double *vrd = Vr.doubleDataMut();
+    keel::f64 *urd = Ur.doubleDataMut();
+    keel::f64 *srd = Sr.doubleDataMut();
+    keel::f64 *vrd = Vr.doubleDataMut();
 
     std::fill(srd, srd + rank * rank, 0.0);
 
-    const double *ud = U.doubleData();
-    const double *sd = S.doubleData();
-    const double *vd = V.doubleData();
+    const keel::f64 *ud = U.doubleData();
+    const keel::f64 *sd = S.doubleData();
+    const keel::f64 *vd = V.doubleData();
 
     for (keel::usize j = 0; j < rank; ++j) {
         for (keel::usize i = 0; i < m; ++i) urd[i + j * m] = ud[i + j * m];
@@ -180,9 +180,9 @@ std::tuple<Value, Value, Value> svdappend(const Value &U, const Value &S, const 
     // P = A_new - U * m_k  (m x p)
     Value Umk = matMulReal(Uw, m_k, mr);
     Value P = Value::matrix(m, p, ValueType::DOUBLE, mr);
-    double *pd = P.doubleDataMut();
-    const double *anewd = A_neww.doubleData();
-    const double *umkd = Umk.doubleData();
+    keel::f64 *pd = P.doubleDataMut();
+    const keel::f64 *anewd = A_neww.doubleData();
+    const keel::f64 *umkd = Umk.doubleData();
     for (keel::usize i = 0; i < m * p; ++i) pd[i] = anewd[i] - umkd[i];
 
     // Economic QR of P: Qp * Rp = P (Qp is m x p, Rp is p x p)
@@ -190,10 +190,10 @@ std::tuple<Value, Value, Value> svdappend(const Value &U, const Value &S, const 
     auto Qp = Value::matrix(m, p, ValueType::DOUBLE, mr);
     auto Rp = Value::matrix(p, p, ValueType::DOUBLE, mr);
 
-    const double *qpfd = Qp_full.doubleData();
-    const double *rpfd = Rp_full.doubleData();
-    double *qpd = Qp.doubleDataMut();
-    double *rpd = Rp.doubleDataMut();
+    const keel::f64 *qpfd = Qp_full.doubleData();
+    const keel::f64 *rpfd = Rp_full.doubleData();
+    keel::f64 *qpd = Qp.doubleDataMut();
+    keel::f64 *rpd = Rp.doubleDataMut();
 
     for (keel::usize j = 0; j < p; ++j) {
         for (keel::usize i = 0; i < m; ++i) qpd[i + j * m] = qpfd[i + j * m];
@@ -205,11 +205,11 @@ std::tuple<Value, Value, Value> svdappend(const Value &U, const Value &S, const 
     // [ 0    R_p ]
     const keel::usize dim = k + p;
     Value K = Value::matrix(dim, dim, ValueType::DOUBLE, mr);
-    double *kd = K.doubleDataMut();
+    keel::f64 *kd = K.doubleDataMut();
     std::fill(kd, kd + dim * dim, 0.0);
 
-    const double *sd = Sw.doubleData();
-    const double *mkd = m_k.doubleData();
+    const keel::f64 *sd = Sw.doubleData();
+    const keel::f64 *mkd = m_k.doubleData();
 
     // S block (k x k)
     for (keel::usize j = 0; j < k; ++j) {
@@ -235,8 +235,8 @@ std::tuple<Value, Value, Value> svdappend(const Value &U, const Value &S, const 
 
     // Form U_large = [U Qp] (m x (k+p))
     Value U_large = Value::matrix(m, dim, ValueType::DOUBLE, mr);
-    double *uld = U_large.doubleDataMut();
-    const double *ud = Uw.doubleData();
+    keel::f64 *uld = U_large.doubleDataMut();
+    const keel::f64 *ud = Uw.doubleData();
     for (keel::usize j = 0; j < k; ++j) {
         for (keel::usize i = 0; i < m; ++i) uld[i + j * m] = ud[i + j * m];
     }
@@ -247,10 +247,10 @@ std::tuple<Value, Value, Value> svdappend(const Value &U, const Value &S, const 
     // Form V_large = [V 0; 0 I_p] ((n+p) x (k+p))
     const keel::usize n_new = n + p;
     Value V_large = Value::matrix(n_new, dim, ValueType::DOUBLE, mr);
-    double *vld = V_large.doubleDataMut();
+    keel::f64 *vld = V_large.doubleDataMut();
     std::fill(vld, vld + n_new * dim, 0.0);
 
-    const double *vd = Vw.doubleData();
+    const keel::f64 *vd = Vw.doubleData();
     for (keel::usize j = 0; j < k; ++j) {
         for (keel::usize i = 0; i < n; ++i) vld[i + j * n_new] = vd[i + j * n];
     }

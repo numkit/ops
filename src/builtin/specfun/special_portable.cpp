@@ -17,7 +17,7 @@ namespace numkit::builtin {
 
 Value erf(const Value &x, keel::Allocator *mr)
 {
-    return unaryDouble(x, [](double v) { return std::erf(v); }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return std::erf(v); }, mr);
 }
 
 } // namespace numkit::builtin

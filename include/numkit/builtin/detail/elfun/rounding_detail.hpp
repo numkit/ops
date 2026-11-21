@@ -63,7 +63,7 @@ Value roundLikeDispatch(const Value &x, ScalarOp scalar, SimdOp simdLoop, keel::
 
 // round(x, N): N decimal places (N may be negative). round(x, N,
 // 'significant'): N significant digits. Round-half-away-from-zero (MATLAB).
-inline double roundNScalar(double v, int n, bool significant)
+inline keel::f64 roundNScalar(keel::f64 v, int n, bool significant)
 {
     if (!std::isfinite(v)) return v;
     int digits = n;
@@ -71,7 +71,7 @@ inline double roundNScalar(double v, int n, bool significant)
         if (v == 0.0) return 0.0;
         digits = n - keel::as<int>(std::floor(std::log10(std::fabs(v)))) - 1;
     }
-    const double f = std::pow(10.0, digits);
+    const keel::f64 f = std::pow(10.0, digits);
     return std::round(v * f) / f;
 }
 

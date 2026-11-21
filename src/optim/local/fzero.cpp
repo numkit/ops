@@ -21,7 +21,7 @@
 
 namespace numkit::optim {
 
-Value fzero(FnHandle fn, double x0, keel::Allocator *mr)
+Value fzero(FnHandle fn, keel::f64 x0, keel::Allocator *mr)
 {
     if (!std::isfinite(x0))
         throw Error("fzero: x0 must be finite", 0, 0, "fzero", "", "numkit:fzero:badX0");
@@ -31,7 +31,7 @@ Value fzero(FnHandle fn, double x0, keel::Allocator *mr)
     return Value::scalar(ops::brent(fn, a, b, mr), mr);
 }
 
-Value fzero(FnHandle fn, double a, double b, keel::Allocator *mr)
+Value fzero(FnHandle fn, keel::f64 a, keel::f64 b, keel::Allocator *mr)
 {
     if (!std::isfinite(a) || !std::isfinite(b) || a >= b)
         throw Error("fzero: interval [a, b] must satisfy a < b and be finite", 0, 0, "fzero", "",
@@ -39,7 +39,7 @@ Value fzero(FnHandle fn, double a, double b, keel::Allocator *mr)
     return Value::scalar(ops::brent(fn, a, b, mr), mr);
 }
 
-Value fminbnd(FnHandle fn, double lo, double hi, double tol, keel::Allocator *mr)
+Value fminbnd(FnHandle fn, keel::f64 lo, keel::f64 hi, keel::f64 tol, keel::Allocator *mr)
 {
     if (!std::isfinite(lo) || !std::isfinite(hi) || lo >= hi)
         throw Error("fminbnd: lo < hi must be finite", 0, 0, "fminbnd", "",
@@ -48,7 +48,7 @@ Value fminbnd(FnHandle fn, double lo, double hi, double tol, keel::Allocator *mr
     return Value::scalar(ops::brentMin(fn, lo, hi, tol, mr), mr);
 }
 
-Value fminsearch(FnHandle fn, keel::ArrayRef<double> x0, double tol, keel::Allocator *mr)
+Value fminsearch(FnHandle fn, keel::ArrayRef<keel::f64> x0, keel::f64 tol, keel::Allocator *mr)
 {
     const keel::usize n = x0.size();
     if (n == 0)

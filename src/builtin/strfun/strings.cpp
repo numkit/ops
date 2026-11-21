@@ -94,7 +94,7 @@ Value num2str(const Value &x, keel::Allocator *mr)
         const keel::String afmt = num2strArrayFormat(x, -1);
         return num2str(x, afmt.as_ref(), mr);
     }
-    const double v = x.toScalar();
+    const keel::f64 v = x.toScalar();
     // MATLAB num2str default precision is MAGNITUDE-AWARE, not a fixed 5 sig
     // figs: it keeps ~4 digits after the integer part, so prec = digits-left-
     // of-decimal + 4 = max(floor(log10|v|),0) + 5. Hence num2str(1000000) =
@@ -130,7 +130,7 @@ Value num2str(const Value &x, int N, keel::Allocator *mr)
         const keel::String afmt = num2strArrayFormat(x, N);
         return num2str(x, afmt.as_ref(), mr);
     }
-    const double v = x.toScalar();
+    const keel::f64 v = x.toScalar();
     int n = N;
     if (n < 1)  n = 1;
     if (n > 99) n = 99;
@@ -234,7 +234,7 @@ Value num2str(const Value &x, keel::StringRef fmt,
     // columns, in column order).
     for (keel::usize r = 0; r < nrows; ++r) {
         Value rowv = Value::matrix(1, ncols, ValueType::DOUBLE, mr);
-        double *rd = rowv.doubleDataMut();
+        keel::f64 *rd = rowv.doubleDataMut();
         for (keel::usize c = 0; c < ncols; ++c)
             rd[c] = x.elemAsDouble(c * nrows + r);
         keel::ArrayRef<Value> args(&rowv, 1);
@@ -307,11 +307,11 @@ Value int2str(const Value &x, keel::Allocator *mr)
         const bool cplx = (x.type() == ValueType::COMPLEX);
         Value rounded = Value::matrix(x.dims().rows(), x.dims().cols(),
                                       ValueType::DOUBLE, mr);
-        double *rd = rounded.doubleDataMut();
-        double maxabs = 0.0;
+        keel::f64 *rd = rounded.doubleDataMut();
+        keel::f64 maxabs = 0.0;
         for (keel::usize i = 0; i < n; ++i) {
-            const double vi = cplx ? x.complexData()[i].real() : x.elemAsDouble(i);
-            double r = std::isfinite(vi) ? std::round(vi) : vi;
+            const keel::f64 vi = cplx ? x.complexData()[i].real() : x.elemAsDouble(i);
+            keel::f64 r = std::isfinite(vi) ? std::round(vi) : vi;
             if (r == 0.0) r = 0.0;   // normalise -0 -> 0
             rd[i] = r;
             if (std::isfinite(r) && std::fabs(r) > maxabs) maxabs = std::fabs(r);
@@ -325,13 +325,13 @@ Value int2str(const Value &x, keel::Allocator *mr)
     }
     if (x.isEmpty()) return Value::fromString("", mr);
 
-    const double v = (x.type() == ValueType::COMPLEX) ? x.toComplex().real()
+    const keel::f64 v = (x.type() == ValueType::COMPLEX) ? x.toComplex().real()
                                                       : x.toScalar();
     if (std::isnan(v))
         return Value::fromString("NaN", mr);
     if (std::isinf(v))
         return Value::fromString(v < 0 ? "-Inf" : "Inf", mr);
-    double r = std::round(v);
+    keel::f64 r = std::round(v);
     if (r == 0.0) r = 0.0;          // normalise -0 -> 0
     char buf[64];
     std::snprintf(buf, sizeof(buf), "%.0f", r);
@@ -401,7 +401,7 @@ Value str2num(const Value &s, keel::Allocator *mr)
     const char *cs = str.c_str();
     errno = 0;
     char *end = nullptr;
-    const double v = std::strtod(cs, &end);
+    const keel::f64 v = std::strtod(cs, &end);
     if (end == cs || errno == ERANGE)
         return Value();
     return Value::scalar(v, mr);
@@ -410,14 +410,14 @@ Value str2num(const Value &s, keel::Allocator *mr)
 // Parse a numeric substring with strtod; the ENTIRE string must be consumed
 // (else NaN). Empty -> defVal. ('42abc' / '42 7' -> NaN; 'Inf'/'-Inf'/'NaN'
 // parse.) strtod parses leading "inf"/"nan" case-insensitively.
-static double strtodFull(keel::StringRef t, double defVal)
+static keel::f64 strtodFull(keel::StringRef t, keel::f64 defVal)
 {
     if (t.empty()) return defVal;
     const keel::String tmp = keel::String::from(t);
     const char *cs = tmp.c_str();
     char *end = nullptr;
-    const double v = std::strtod(cs, &end);
-    if (end != cs + tmp.size()) return std::numeric_limits<double>::quiet_NaN();
+    const keel::f64 v = std::strtod(cs, &end);
+    if (end != cs + tmp.size()) return std::numeric_limits<keel::f64>::quiet_NaN();
     return v;
 }
 
@@ -428,11 +428,11 @@ static double strtodFull(keel::StringRef t, double defVal)
 // 'i' or 'j' marks the imaginary part ('2i', '1+2i', '1-2j', 'i', '-i',
 // '3.5+1.5i', '1e-3+2i', 'Infi'); the real/imag split is the LAST '+'/'-' that
 // is not an exponent sign. Capital 'I'/'J' are NOT imaginary (-> real parse).
-struct Str2DoubleResult { double re; double im; bool isComplex; };
+struct Str2DoubleResult { keel::f64 re; keel::f64 im; bool isComplex; };
 
 static Str2DoubleResult str2doubleParse(keel::StringRef str)
 {
-    const double nan = std::numeric_limits<double>::quiet_NaN();
+    const keel::f64 nan = std::numeric_limits<keel::f64>::quiet_NaN();
     auto isWs = [](char c) {
         return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f' || c == '\v';
     };
@@ -466,9 +466,9 @@ static Str2DoubleResult str2doubleParse(keel::StringRef str)
             split = k; break;
         }
     }
-    auto parseImag = [&](keel::StringRef is) -> double {
+    auto parseImag = [&](keel::StringRef is) -> keel::f64 {
         keel::StringRef m = is;
-        double sign = 1.0;
+        keel::f64 sign = 1.0;
         if (!m.empty() && (m[0] == '+' || m[0] == '-')) {
             if (m[0] == '-') sign = -1.0;
             m = m.substr(1, m.size() - 1);
@@ -476,7 +476,7 @@ static Str2DoubleResult str2doubleParse(keel::StringRef str)
         if (m.empty()) return sign;               // bare i / +i / -i  -> ±1
         return sign * strtodFull(m, nan);
     };
-    double re, im;
+    keel::f64 re, im;
     if (split == keel::kInvalidIndex) {
         re = 0.0;
         im = parseImag(body);
@@ -489,7 +489,7 @@ static Str2DoubleResult str2doubleParse(keel::StringRef str)
 
 Value str2double(const Value &s, keel::Allocator *mr)
 {
-    const double nan = std::numeric_limits<double>::quiet_NaN();
+    const keel::f64 nan = std::numeric_limits<keel::f64>::quiet_NaN();
 
     // A cell array of char/string vectors OR a non-scalar string array maps
     // element-wise to a matrix of the SAME shape (MATLAB str2double). NaN where
@@ -521,7 +521,7 @@ Value str2double(const Value &s, keel::Allocator *mr)
             return out;
         }
         Value out = Value::matrix(r, c, ValueType::DOUBLE, mr);
-        double *od = out.doubleDataMut();
+        keel::f64 *od = out.doubleDataMut();
         for (keel::usize i = 0; i < n; ++i) od[i] = res[i].re;
         return out;
     }
@@ -539,7 +539,7 @@ Value str2double(const Value &s, keel::Allocator *mr)
 Value toString(const Value &x, keel::Allocator *mr)
 {
     keel::Allocator *p = mr;
-    auto fmtNum = [](double d) -> keel::String {
+    auto fmtNum = [](keel::f64 d) -> keel::String {
         if (std::isnan(d)) return keel::String::from("NaN");
         if (std::isinf(d)) return keel::String::from(d < 0 ? "-Inf" : "Inf");
         char buf[64];
@@ -638,7 +638,7 @@ Value toChar(const Value &x, keel::Allocator *mr)
         if (x.isScalar()) {
             s.push_back(keel::as<char>(keel::as<int>(x.toScalar())));
         } else {
-            const double *d = x.doubleData();
+            const keel::f64 *d = x.doubleData();
             s.reserve(x.numel());
             for (keel::usize i = 0; i < x.numel(); ++i)
                 s.push_back(keel::as<char>(keel::as<int>(d[i])));
@@ -883,14 +883,14 @@ Value strlength(const Value &s, keel::Allocator *mr)
     keel::Allocator *p = mr;
     if (s.isString()) {
         if (s.isScalar())
-            return Value::scalar(keel::as<double>(s.asStringRef().size()), p);
+            return Value::scalar(keel::as<keel::f64>(s.asStringRef().size()), p);
         auto result = createLike(s, ValueType::DOUBLE, p);
         for (keel::usize i = 0; i < s.numel(); ++i)
-            result.doubleDataMut()[i] = keel::as<double>(s.stringElemRef(i).size());
+            result.doubleDataMut()[i] = keel::as<keel::f64>(s.stringElemRef(i).size());
         return result;
     }
     if (s.isChar())
-        return Value::scalar(keel::as<double>(s.numel()), p);
+        return Value::scalar(keel::as<keel::f64>(s.numel()), p);
     throw Error("Input must be a string or char array", 0, 0, "strlength", "",
                  "numkit:strlength:unsupportedType");
 }
@@ -968,7 +968,7 @@ Value mat2str(const Value &x, int precision, keel::Allocator *mr)
     // Logical: elements print as the words true / false (MATLAB R2025b),
     // e.g. mat2str(true) -> "true", mat2str([true false]) -> "[true false]".
     if (x.isLogical()) {
-        auto fmtL = [](double v) -> const char * {
+        auto fmtL = [](keel::f64 v) -> const char * {
             return v != 0.0 ? "true" : "false";
         };
         if (x.isScalar())
@@ -987,7 +987,7 @@ Value mat2str(const Value &x, int precision, keel::Allocator *mr)
     }
 
     const int prec = std::clamp(precision, 1, 99);
-    auto appendFmt = [prec](keel::String &dst, double v) {
+    auto appendFmt = [prec](keel::String &dst, keel::f64 v) {
         if (v == 0.0) v = 0.0;   // normalize -0 → 0 (MATLAB never prints "-0")
         char buf[64];
         std::snprintf(buf, sizeof(buf), "%.*g", prec, v);
@@ -1003,7 +1003,7 @@ Value mat2str(const Value &x, int precision, keel::Allocator *mr)
         const keel::c64 *cd = x.complexData();
         const keel::usize n = x.numel();
         auto appendFmtC = [&](keel::String &dst, const keel::c64 &z) {
-            const double im = z.imag();
+            const keel::f64 im = z.imag();
             appendFmt(dst, z.real());
             if (im != 0.0) {
                 dst.push_back(im < 0.0 ? '-' : '+');
@@ -1115,7 +1115,7 @@ Value count(const Value &s, const Value &pat, keel::Allocator *mr)
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     keel::Array<keel::String> pats(scratch.allocator());
     collectMatchPatterns(pat, pats);
-    auto countOne = [&](keel::StringRef ss) -> double {
+    auto countOne = [&](keel::StringRef ss) -> keel::f64 {
         keel::usize n = 0;
         for (const auto &pp : pats) {
             if (pp.empty()) continue;
@@ -1127,13 +1127,13 @@ Value count(const Value &s, const Value &pat, keel::Allocator *mr)
                 pos += rel + pp.size();   // non-overlapping (matches MATLAB)
             }
         }
-        return keel::as<double>(n);
+        return keel::as<keel::f64>(n);
     };
     if (s.isCell()) {
         const keel::usize r = keel::as<keel::usize>(s.dims().rows());
         const keel::usize c = keel::as<keel::usize>(s.dims().cols());
         auto out = Value::matrix(r, c, ValueType::DOUBLE, mr);
-        double *od = out.doubleDataMut();
+        keel::f64 *od = out.doubleDataMut();
         const keel::usize nn = s.numel();
         for (keel::usize i = 0; i < nn; ++i) {
             od[i] = countOne(s.cellAt(i).asStringRef());
@@ -1145,7 +1145,7 @@ Value count(const Value &s, const Value &pat, keel::Allocator *mr)
         const keel::usize r = keel::as<keel::usize>(s.dims().rows());
         const keel::usize c = keel::as<keel::usize>(s.dims().cols());
         auto out = Value::matrix(r, c, ValueType::DOUBLE, mr);
-        double *od = out.doubleDataMut();
+        keel::f64 *od = out.doubleDataMut();
         const keel::usize nn = s.numel();
         for (keel::usize i = 0; i < nn; ++i) od[i] = countOne(s.stringElemRef(i));
         return out;
@@ -1638,14 +1638,14 @@ Value base2decFixed(const Value &s, int base, keel::Allocator *mr)
         const keel::usize cols = s.numel() / rows;
         const char *src = static_cast<const char *>(s.rawData());
         Value out = Value::matrix(rows, 1, ValueType::DOUBLE, mr);
-        double *od = out.doubleDataMut();
+        keel::f64 *od = out.doubleDataMut();
         keel::ArenaTemp scratch = keel::get_scratch(mr);
         keel::String row(scratch.allocator());
         row.reserve(cols);
         for (keel::usize r = 0; r < rows; ++r) {
             row.clear();
             for (keel::usize c = 0; c < cols; ++c) row.push_back(src[c * rows + r]);
-            od[r] = keel::as<double>(parseBase(row.as_ref(), base));
+            od[r] = keel::as<keel::f64>(parseBase(row.as_ref(), base));
         }
         return out;
     }
@@ -1653,17 +1653,17 @@ Value base2decFixed(const Value &s, int base, keel::Allocator *mr)
         const keel::usize n = s.numel();
         Value out = Value::matrix(s.dims().rows(), s.dims().cols(),
                                   ValueType::DOUBLE, mr);
-        double *od = out.doubleDataMut();
+        keel::f64 *od = out.doubleDataMut();
         for (keel::usize i = 0; i < n; ++i) {
             if (s.isCell()) {
-                od[i] = keel::as<double>(parseBase(s.cellAt(i).asStringRef(), base));
+                od[i] = keel::as<keel::f64>(parseBase(s.cellAt(i).asStringRef(), base));
             } else {
-                od[i] = keel::as<double>(parseBase(s.stringElemRef(i), base));
+                od[i] = keel::as<keel::f64>(parseBase(s.stringElemRef(i), base));
             }
         }
         return out;
     }
-    return Value::scalar(keel::as<double>(parseBase(s.asStringRef(), base)), mr);
+    return Value::scalar(keel::as<keel::f64>(parseBase(s.asStringRef(), base)), mr);
 }
 } // namespace
 
@@ -1686,7 +1686,7 @@ Value hex2num(const Value &s, keel::Allocator *mr)
         const keel::usize cols = s.numel() / rows;
         const char *src = static_cast<const char *>(s.rawData());
         Value out = Value::matrix(rows, 1, ValueType::DOUBLE, mr);
-        double *od = out.doubleDataMut();
+        keel::f64 *od = out.doubleDataMut();
         keel::ArenaTemp scratch = keel::get_scratch(mr);
         keel::String row(scratch.allocator());
         row.reserve(cols);
@@ -1702,7 +1702,7 @@ Value hex2num(const Value &s, keel::Allocator *mr)
         const keel::usize n = s.numel();
         Value out = Value::matrix(s.dims().rows(), s.dims().cols(),
                                   ValueType::DOUBLE, mr);
-        double *od = out.doubleDataMut();
+        keel::f64 *od = out.doubleDataMut();
         for (keel::usize i = 0; i < n; ++i) {
             if (s.isCell()) {
                 od[i] = hexBitsToDouble(s.cellAt(i).asStringRef());
@@ -1734,9 +1734,9 @@ Value num2hex(const Value &x, keel::Allocator *mr)
     char *dst = static_cast<char *>(m.rawDataMut());
     char buf[24];
     for (keel::usize i = 0; i < n; ++i) {
-        const double v = x.elemAsDouble(i);
+        const keel::f64 v = x.elemAsDouble(i);
         if (single) {
-            const float f = keel::as<float>(v);
+            const keel::f32 f = keel::as<keel::f32>(v);
             keel::u32 bits;
             std::memcpy(&bits, &f, sizeof(bits));
             std::snprintf(buf, sizeof(buf), "%08x", keel::as<unsigned int>(bits));
@@ -1772,26 +1772,26 @@ Value base2dec(const Value &s, int base, keel::Allocator *mr)
         const keel::usize cols = s.numel() / rows;
         const char *src = static_cast<const char *>(s.rawData());
         Value out = Value::matrix(rows, 1, ValueType::DOUBLE, mr);
-        double *od = out.doubleDataMut();
+        keel::f64 *od = out.doubleDataMut();
         keel::ArenaTemp scratch = keel::get_scratch(mr);
         keel::String row(scratch.allocator());
         row.reserve(cols);
         for (keel::usize r = 0; r < rows; ++r) {
             row.clear();
             for (keel::usize c = 0; c < cols; ++c) row.push_back(src[c * rows + r]);
-            od[r] = keel::as<double>(parseBaseN(row.as_ref(), base));
+            od[r] = keel::as<keel::f64>(parseBaseN(row.as_ref(), base));
         }
         return out;
     }
-    return Value::scalar(keel::as<double>(parseBaseN(s.asStringRef(), base)), mr);
+    return Value::scalar(keel::as<keel::f64>(parseBaseN(s.asStringRef(), base)), mr);
 }
 
 
 // Single-element CF expansion, used by both 1-output (string form) and
 // 2-output (numeric N, D) callsites.
-Value rat(const Value &x, double tol, keel::Allocator *mr)
+Value rat(const Value &x, keel::f64 tol, keel::Allocator *mr)
 {
-    const double v = x.toScalar();
+    const keel::f64 v = x.toScalar();
     if (!std::isfinite(v))
         return Value::fromString(std::isnan(v) ? "NaN" : (v > 0 ? "Inf" : "-Inf"), mr);
     if (tol <= 0.0) tol = defaultRatTol(v);
@@ -1821,7 +1821,7 @@ Value rats(const Value &x, int len, keel::Allocator *mr)
     // is right-justified in the full field.
     const int num_width = field_width / 2;          // 7 for default len=13
     const int den_width = field_width - num_width - 1;  // 6 for default
-    auto appendOne = [&](keel::String &dst, double v) {
+    auto appendOne = [&](keel::String &dst, keel::f64 v) {
         if (!std::isfinite(v)) {
             const keel::StringRef s = std::isnan(v) ? "NaN" : (v > 0 ? "Inf" : "-Inf");
             const int slack = std::max(0, field_width - keel::as<int>(s.size()));
@@ -1829,7 +1829,7 @@ Value rats(const Value &x, int len, keel::Allocator *mr)
             dst.append(s);
             return;
         }
-        const double tol = defaultRatTol(v);
+        const keel::f64 tol = defaultRatTol(v);
         const auto exp = ratExpansion(v, tol);
         char nbuf[32];
         const int nlen = std::snprintf(nbuf, sizeof(nbuf), "%lld", exp.p);
@@ -1851,7 +1851,7 @@ Value rats(const Value &x, int len, keel::Allocator *mr)
     };
 
     if (n <= 1) {
-        const double v = x.toScalar();
+        const keel::f64 v = x.toScalar();
         keel::String out;
         out.reserve(field_width);
         appendOne(out, v);

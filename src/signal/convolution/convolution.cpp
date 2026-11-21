@@ -48,11 +48,11 @@ static void conv_argcheck(const Value &a, const Value &b, keel::StringRef shape)
 inline bool conv_use_fft(keel::usize na, keel::usize nb)
 {
     if (na == 0 || nb == 0) return false;
-    const double direct = keel::as<double>(na) * keel::as<double>(nb);
+    const keel::f64 direct = keel::as<keel::f64>(na) * keel::as<keel::f64>(nb);
     keel::usize need = na + nb - 1, nfft = 1;
     while (nfft < need) nfft <<= 1;
-    const double fft = 6.0 * keel::as<double>(nfft) *
-                       std::log2(keel::as<double>(nfft < 2 ? 2 : nfft));
+    const keel::f64 fft = 6.0 * keel::as<keel::f64>(nfft) *
+                       std::log2(keel::as<keel::f64>(nfft < 2 ? 2 : nfft));
     return direct > fft;
 }
 
@@ -65,7 +65,7 @@ static Value convPromoteToDouble(const Value &v, keel::Allocator *mr)
     Value r = d.is3D() ? Value::matrix3d(d.rows(), d.cols(), d.pages(), ValueType::DOUBLE, mr)
                        : Value::matrix(d.rows(), d.cols(), ValueType::DOUBLE, mr);
     const keel::usize n = v.numel();
-    double *dst = r.doubleDataMut();
+    keel::f64 *dst = r.doubleDataMut();
     for (keel::usize i = 0; i < n; ++i) dst[i] = v.elemAsDouble(i);
     return r;
 }
@@ -193,19 +193,19 @@ deconv(const Value &bIn, const Value &aIn, keel::Allocator *mr)
         auto qv = Value::matrix(1, 1, ValueType::DOUBLE, mr);
         qv.doubleDataMut()[0] = 0.0;
         auto rv = Value::matrix(1, nb, ValueType::DOUBLE, mr);
-        const double *bd = b.doubleData();
+        const keel::f64 *bd = b.doubleData();
         for (keel::usize i = 0; i < nb; ++i) rv.doubleDataMut()[i] = bd[i];
         return std::make_tuple(std::move(qv), std::move(rv));
     }
 
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<double> rem(keel::ArrayRef<double>(b.doubleData(), nb), scratch.allocator());
-    const double *ad = a.doubleData();
+    keel::Array<keel::f64> rem(keel::ArrayRef<keel::f64>(b.doubleData(), nb), scratch.allocator());
+    const keel::f64 *ad = a.doubleData();
 
     const keel::usize nq = nb - na + 1;
-    auto q = keel::Array<double>(nq, scratch.allocator());
+    auto q = keel::Array<keel::f64>(nq, scratch.allocator());
 
-    const double a0 = ad[0];
+    const keel::f64 a0 = ad[0];
     if (a0 == 0.0)
         throw Error("deconv: leading coefficient is zero",
                      0, 0, "deconv", "", "numkit:deconv:zeroLead");
@@ -256,15 +256,15 @@ xcorr(const Value &xIn, const Value &yIn, keel::Allocator *mr)
         }
         auto lags = Value::matrix(1, nc, ValueType::DOUBLE, mr);
         for (keel::usize i = 0; i < nc; ++i)
-            lags.doubleDataMut()[i] = keel::as<double>(keel::as<int>(i) - maxLag);
+            lags.doubleDataMut()[i] = keel::as<keel::f64>(keel::as<int>(i) - maxLag);
         return std::make_tuple(std::move(r), std::move(lags));
     }
     Value xHold, yHold;
     const Value &x = (xIn.type() == ValueType::DOUBLE) ? xIn : (xHold = convPromoteToDouble(xIn, mr));
     const Value &y = (yIn.type() == ValueType::DOUBLE) ? yIn : (yHold = convPromoteToDouble(yIn, mr));
-    const double *xd = x.doubleData();
+    const keel::f64 *xd = x.doubleData();
     const keel::usize nx = x.numel();
-    const double *yd = y.doubleData();
+    const keel::f64 *yd = y.doubleData();
     const keel::usize ny = y.numel();
 
     const keel::usize maxLen = std::max(nx, ny);
@@ -275,7 +275,7 @@ xcorr(const Value &xIn, const Value &yIn, keel::Allocator *mr)
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     auto r = colOut ? Value::matrix(nc, 1, ValueType::DOUBLE, mr)
                     : Value::matrix(1, nc, ValueType::DOUBLE, mr);
-    double *rd = r.doubleDataMut();
+    keel::f64 *rd = r.doubleDataMut();
 
     if (nc > 0 && conv_use_fft(maxLen, maxLen)) {
         const keel::usize fftLen = nextPow2(nc);
@@ -297,15 +297,15 @@ xcorr(const Value &xIn, const Value &yIn, keel::Allocator *mr)
 
         fftRadix2(fx.data(), fftLen, W_inv.data());
 
-        const double invN = 1.0 / keel::as<double>(fftLen);
+        const keel::f64 invN = 1.0 / keel::as<keel::f64>(fftLen);
         const keel::usize negLags = keel::as<keel::usize>(maxLag);
         for (keel::usize i = 0; i < negLags; ++i)
             rd[i] = fx[fftLen - negLags + i].real() * invN;
         for (keel::usize i = 0; i <= negLags; ++i)
             rd[negLags + i] = fx[i].real() * invN;
     } else if (nc > 0) {
-        auto xPad = keel::Array<double>(maxLen, scratch.allocator());
-        auto yRev = keel::Array<double>(maxLen, scratch.allocator());
+        auto xPad = keel::Array<keel::f64>(maxLen, scratch.allocator());
+        auto yRev = keel::Array<keel::f64>(maxLen, scratch.allocator());
         for (keel::usize i = 0; i < maxLen; ++i) {
             xPad[i] = (i < nx) ? xd[i] : 0.0;
             const keel::usize yIdx = maxLen - 1 - i;
@@ -318,7 +318,7 @@ xcorr(const Value &xIn, const Value &yIn, keel::Allocator *mr)
 
     auto lags = Value::matrix(1, nc, ValueType::DOUBLE, mr);
     for (keel::usize i = 0; i < nc; ++i)
-        lags.doubleDataMut()[i] = keel::as<double>(keel::as<int>(i) - maxLag);
+        lags.doubleDataMut()[i] = keel::as<keel::f64>(keel::as<int>(i) - maxLag);
 
     return std::make_tuple(std::move(r), std::move(lags));
 }
@@ -340,11 +340,11 @@ xcov(const Value &x, const Value &y, int maxlag,
         const keel::usize n = v.numel();
         Value c = Value::matrix(1, n, ValueType::DOUBLE, mr);
         if (n == 0) return c;
-        const double *vd = v.doubleData();
-        double sum = 0.0;
+        const keel::f64 *vd = v.doubleData();
+        keel::f64 sum = 0.0;
         for (keel::usize i = 0; i < n; ++i) sum += vd[i];
-        const double m = sum / keel::as<double>(n);
-        double *cd = c.doubleDataMut();
+        const keel::f64 m = sum / keel::as<keel::f64>(n);
+        keel::f64 *cd = c.doubleDataMut();
         for (keel::usize i = 0; i < n; ++i) cd[i] = vd[i] - m;
         return c;
     };
@@ -355,26 +355,26 @@ xcov(const Value &x, const Value &y, int maxlag,
 
     auto [cfull, lagsfull] = xcorr(xc, yc, mr);
     const keel::usize nc = cfull.numel();
-    double *cd = cfull.doubleDataMut();
-    const double *ld = lagsfull.doubleData();
+    keel::f64 *cd = cfull.doubleDataMut();
+    const keel::f64 *ld = lagsfull.doubleData();
 
     // Case-insensitive scaleopt.
     if (scaleopt.equals_ignore_ascii_case("biased")) {
-        const double inv = (N > 0) ? 1.0 / keel::as<double>(N) : 0.0;
+        const keel::f64 inv = (N > 0) ? 1.0 / keel::as<keel::f64>(N) : 0.0;
         for (keel::usize i = 0; i < nc; ++i) cd[i] *= inv;
     } else if (scaleopt.equals_ignore_ascii_case("unbiased")) {
         for (keel::usize i = 0; i < nc; ++i) {
-            const double div = keel::as<double>(N) - keel::abs(ld[i]);
+            const keel::f64 div = keel::as<keel::f64>(N) - keel::abs(ld[i]);
             cd[i] = (div > 0.0) ? cd[i] / div : 0.0;
         }
     } else if (scaleopt.equals_ignore_ascii_case("coeff") ||
                scaleopt.equals_ignore_ascii_case("normalized")) {
-        double c0x = 0.0, c0y = 0.0;
-        const double *xd = xc.doubleData();
-        const double *yd = yc.doubleData();
+        keel::f64 c0x = 0.0, c0y = 0.0;
+        const keel::f64 *xd = xc.doubleData();
+        const keel::f64 *yd = yc.doubleData();
         for (keel::usize i = 0; i < nx; ++i) c0x += xd[i] * xd[i];
         for (keel::usize i = 0; i < ny; ++i) c0y += yd[i] * yd[i];
-        const double denom = std::sqrt(c0x * c0y);
+        const keel::f64 denom = std::sqrt(c0x * c0y);
         if (denom > 0.0)
             for (keel::usize i = 0; i < nc; ++i) cd[i] /= denom;
     } else if (!(scaleopt.empty() || scaleopt.equals_ignore_ascii_case("none"))) {
@@ -393,12 +393,12 @@ xcov(const Value &x, const Value &y, int maxlag,
     const int outLen = 2 * maxlag + 1;
     Value cOut = Value::matrix(1, outLen, ValueType::DOUBLE, mr);
     Value lOut = Value::matrix(1, outLen, ValueType::DOUBLE, mr);
-    double *co = cOut.doubleDataMut();
-    double *lo = lOut.doubleDataMut();
+    keel::f64 *co = cOut.doubleDataMut();
+    keel::f64 *lo = lOut.doubleDataMut();
     for (int m = -maxlag; m <= maxlag; ++m) {
         const int src = center0 + m;
         const int dst = m + maxlag;
-        lo[dst] = keel::as<double>(m);
+        lo[dst] = keel::as<keel::f64>(m);
         co[dst] = (src >= 0 && src < keel::as<int>(nc)) ? cd[src] : 0.0;
     }
     return std::make_tuple(std::move(cOut), std::move(lOut));
@@ -414,11 +414,11 @@ namespace {
 // Returns a fresh Value sized appropriately. fullR/fullC are dims of
 // the full result; A is the first input (size M×N), B is the second
 // (size P×Q).
-Value cropConv2(const double *full, keel::usize fullR, keel::usize fullC, keel::usize M, keel::usize N, keel::usize P, keel::usize Q, keel::StringRef shape, keel::Allocator *mr)
+Value cropConv2(const keel::f64 *full, keel::usize fullR, keel::usize fullC, keel::usize M, keel::usize N, keel::usize P, keel::usize Q, keel::StringRef shape, keel::Allocator *mr)
 {
     if (shape == "full") {
         auto out = Value::matrix(fullR, fullC, ValueType::DOUBLE, mr);
-        keel::mem_copy(out.doubleDataMut(), full, fullR * fullC * sizeof(double));
+        keel::mem_copy(out.doubleDataMut(), full, fullR * fullC * sizeof(keel::f64));
         return out;
     }
     if (shape == "same") {
@@ -429,7 +429,7 @@ Value cropConv2(const double *full, keel::usize fullR, keel::usize fullC, keel::
         const keel::usize r0 = P / 2;
         const keel::usize c0 = Q / 2;
         auto out = Value::matrix(outR, outC, ValueType::DOUBLE, mr);
-        double *od = out.doubleDataMut();
+        keel::f64 *od = out.doubleDataMut();
         for (keel::usize cc = 0; cc < outC; ++cc)
             for (keel::usize rr = 0; rr < outR; ++rr)
                 od[cc * outR + rr] = full[(cc + c0) * fullR + (rr + r0)];
@@ -441,7 +441,7 @@ Value cropConv2(const double *full, keel::usize fullR, keel::usize fullC, keel::
         const keel::usize outC = (N >= Q) ? N - Q + 1 : 0;
         auto out = Value::matrix(outR, outC, ValueType::DOUBLE, mr);
         if (outR == 0 || outC == 0) return out;
-        double *od = out.doubleDataMut();
+        keel::f64 *od = out.doubleDataMut();
         const keel::usize r0 = P - 1;
         const keel::usize c0 = Q - 1;
         for (keel::usize cc = 0; cc < outC; ++cc)
@@ -484,7 +484,7 @@ static Value allocLike(const Value &v, ValueType t, keel::Allocator *mr)
 static Value extractPartValue(const Value &v, bool imagPart, keel::Allocator *mr)
 {
     Value out = allocLike(v, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     const keel::usize n = v.numel();
     if (v.isComplex()) {
         const keel::c64 *cd = v.complexData();
@@ -534,10 +534,10 @@ Value conv2(const Value &A, const Value &B, keel::StringRef shape, keel::Allocat
         Value ii = (a.isComplex() && b.isComplex()) ? conv2(ai, bi, shape, mr) : allocLike(rr, ValueType::DOUBLE, mr);
         Value out = allocLike(rr, ValueType::COMPLEX, mr);
         keel::c64 *od = out.complexDataMut();
-        const double *rrd = rr.doubleData();
-        const double *rid = ri.doubleData();
-        const double *ird = ir.doubleData();
-        const double *iid = ii.doubleData();
+        const keel::f64 *rrd = rr.doubleData();
+        const keel::f64 *rid = ri.doubleData();
+        const keel::f64 *ird = ir.doubleData();
+        const keel::f64 *iid = ii.doubleData();
         for (keel::usize i = 0; i < nOut; ++i)
             od[i] = keel::c64(rrd[i] - iid[i], rid[i] + ird[i]);
         return out;
@@ -545,7 +545,7 @@ Value conv2(const Value &A, const Value &B, keel::StringRef shape, keel::Allocat
 
     const keel::usize fullR = M + P - 1, fullC = N + Q - 1;
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<double> full(fullR * fullC, scratch.allocator());
+    keel::Array<keel::f64> full(fullR * fullC, scratch.allocator());
     ops::conv2Direct(a.doubleData(), M, N, b.doubleData(), P, Q, full.data());
 
     return detail::narrowDoubleToSingleIf(
@@ -578,8 +578,8 @@ Value filter2(const Value &h, const Value &X, keel::StringRef shape, keel::Alloc
         return conv2(xx, hf, shape, mr);
     }
     auto hf = Value::matrix(P, Q, ValueType::DOUBLE, mr);
-    const double *src = hh.doubleData();
-    double *dst       = hf.doubleDataMut();
+    const keel::f64 *src = hh.doubleData();
+    keel::f64 *dst       = hf.doubleDataMut();
     for (keel::usize j = 0; j < Q; ++j)
         for (keel::usize i = 0; i < P; ++i)
             dst[j * P + i] = src[(Q - 1 - j) * P + (P - 1 - i)];
@@ -609,10 +609,10 @@ Value convn(const Value &A, const Value &B, keel::StringRef shape, keel::Allocat
         Value ii = (a.isComplex() && b.isComplex()) ? convn(ai, bi, shape, mr) : allocLike(rr, ValueType::DOUBLE, mr);
         Value out = allocLike(rr, ValueType::COMPLEX, mr);
         keel::c64 *od = out.complexDataMut();
-        const double *rrd = rr.doubleData();
-        const double *rid = ri.doubleData();
-        const double *ird = ir.doubleData();
-        const double *iid = ii.doubleData();
+        const keel::f64 *rrd = rr.doubleData();
+        const keel::f64 *rid = ri.doubleData();
+        const keel::f64 *ird = ir.doubleData();
+        const keel::f64 *iid = ii.doubleData();
         for (keel::usize i = 0; i < nOut; ++i)
             od[i] = keel::c64(rrd[i] - iid[i], rid[i] + ird[i]);
         return out;
@@ -644,9 +644,9 @@ Value convn(const Value &A, const Value &B, keel::StringRef shape, keel::Allocat
                 strideFull[keel::as<keel::usize>(d - 1)] * sfull[keel::as<keel::usize>(d - 1)];
 
         Value fullV = Value::matrixND(sfull.data(), nd, ValueType::DOUBLE, mr);
-        double *out = fullV.doubleDataMut();
-        const double *Ad = a.doubleData();
-        const double *Bd = b.doubleData();
+        keel::f64 *out = fullV.doubleDataMut();
+        const keel::f64 *Ad = a.doubleData();
+        const keel::f64 *Bd = b.doubleData();
         const keel::usize na = a.numel(), nb = b.numel();
 
         keel::Array<keel::usize> cb(ndu, keel::as<keel::usize>(0), scratch.allocator());
@@ -659,7 +659,7 @@ Value convn(const Value &A, const Value &B, keel::StringRef shape, keel::Allocat
                 cb[keel::as<keel::usize>(d)] = c;
                 baseOffB += c * strideFull[keel::as<keel::usize>(d)];
             }
-            const double bv = Bd[ib];
+            const keel::f64 bv = Bd[ib];
             if (bv == 0.0) continue;
             for (keel::usize ia = 0; ia < na; ++ia) {
                 keel::usize tmpA = ia;
@@ -695,7 +695,7 @@ Value convn(const Value &A, const Value &B, keel::StringRef shape, keel::Allocat
         }
 
         Value cropV = Value::matrixND(sout.data(), nd, ValueType::DOUBLE, mr);
-        double *cd = cropV.doubleDataMut();
+        keel::f64 *cd = cropV.doubleDataMut();
         const keel::usize ncrop = cropV.numel();
         for (keel::usize ic = 0; ic < ncrop; ++ic) {
             keel::usize tmp = ic;
@@ -720,12 +720,12 @@ Value convn(const Value &A, const Value &B, keel::StringRef shape, keel::Allocat
     }
 
     auto outV = Value::matrix3d(outR, outC, outP, ValueType::DOUBLE, mr);
-    double *out = outV.doubleDataMut();
+    keel::f64 *out = outV.doubleDataMut();
     const keel::usize pageStrideOut = outR * outC;
     const keel::usize pageStrideA   = M * N;
     const keel::usize pageStrideB   = P * Q;
-    const double *Ad = a.doubleData();
-    const double *Bd = b.doubleData();
+    const keel::f64 *Ad = a.doubleData();
+    const keel::f64 *Bd = b.doubleData();
     std::fill_n(out, outR * outC * outP, 0.0);
 
     for (keel::usize bp = 0; bp < Pp; ++bp) {
@@ -733,11 +733,11 @@ Value convn(const Value &A, const Value &B, keel::StringRef shape, keel::Allocat
             const keel::usize op = ap + bp;
             for (keel::usize bj = 0; bj < Q; ++bj) {
                 for (keel::usize bi = 0; bi < P; ++bi) {
-                    const double bv = Bd[bp * pageStrideB + bj * P + bi];
+                    const keel::f64 bv = Bd[bp * pageStrideB + bj * P + bi];
                     if (bv == 0.0) continue;
                     for (keel::usize ac = 0; ac < N; ++ac) {
                         for (keel::usize ar = 0; ar < M; ++ar) {
-                            const double av = Ad[ap * pageStrideA + ac * M + ar];
+                            const keel::f64 av = Ad[ap * pageStrideA + ac * M + ar];
                             out[op * pageStrideOut
                                 + (ac + bj) * outR
                                 + (ar + bi)] += av * bv;
@@ -756,7 +756,7 @@ Value convn(const Value &A, const Value &B, keel::StringRef shape, keel::Allocat
         const keel::usize c0 = Q  / 2;
         const keel::usize p0 = Pp / 2;
         auto crop = Value::matrix3d(M, N, Mp, ValueType::DOUBLE, mr);
-        double *cd = crop.doubleDataMut();
+        keel::f64 *cd = crop.doubleDataMut();
         for (keel::usize pp = 0; pp < Mp; ++pp)
             for (keel::usize cc = 0; cc < N; ++cc)
                 for (keel::usize rr = 0; rr < M; ++rr)
@@ -773,7 +773,7 @@ Value convn(const Value &A, const Value &B, keel::StringRef shape, keel::Allocat
         if (outR2 == 0 || outC2 == 0 || outP2 == 0)
             return Value::matrix(0, 0, wantSingle ? ValueType::SINGLE : ValueType::DOUBLE, mr);
         auto crop = Value::matrix3d(outR2, outC2, outP2, ValueType::DOUBLE, mr);
-        double *cd = crop.doubleDataMut();
+        keel::f64 *cd = crop.doubleDataMut();
         for (keel::usize pp = 0; pp < outP2; ++pp)
             for (keel::usize cc = 0; cc < outC2; ++cc)
                 for (keel::usize rr = 0; rr < outR2; ++rr)

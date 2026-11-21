@@ -28,7 +28,7 @@ namespace numkit::builtin {
 // ════════════════════════════════════════════════════════════════════════
 
 
-Value primes(double n, keel::Allocator *mr)
+Value primes(keel::f64 n, keel::Allocator *mr)
 {
     if (!std::isfinite(n) || n < 2)
         return Value::matrix(1, 0, ValueType::DOUBLE, mr);
@@ -37,9 +37,9 @@ Value primes(double n, keel::Allocator *mr)
     keel::Array<keel::u64> ps = keel::specfun::primes_up_to(N, scratch.allocator());
 
     auto out = Value::matrix(1, ps.size(), ValueType::DOUBLE, mr);
-    double *dst = out.doubleDataMut();
+    keel::f64 *dst = out.doubleDataMut();
     for (keel::usize i = 0; i < ps.size(); ++i)
-        dst[i] = keel::as<double>(ps[i]);
+        dst[i] = keel::as<keel::f64>(ps[i]);
     return out;
 }
 
@@ -58,7 +58,7 @@ Value isprime(const Value &x, keel::Allocator *mr)
     return out;
 }
 
-Value factor(double n, keel::Allocator *mr)
+Value factor(keel::f64 n, keel::Allocator *mr)
 {
     keel::u64 u;
     if (!isExactNonnegInt(n, u))
@@ -68,9 +68,9 @@ Value factor(double n, keel::Allocator *mr)
     keel::Array<keel::u64> factors = keel::specfun::factor_u64(u, scratch.allocator());
 
     auto out = Value::matrix(1, factors.size(), ValueType::DOUBLE, mr);
-    double *dst = out.doubleDataMut();
+    keel::f64 *dst = out.doubleDataMut();
     for (keel::usize i = 0; i < factors.size(); ++i)
-        dst[i] = keel::as<double>(factors[i]);
+        dst[i] = keel::as<keel::f64>(factors[i]);
     return out;
 }
 
@@ -97,16 +97,16 @@ Value perms(const Value &v, keel::Allocator *mr)
                      0, 0, "perms", "", "numkit:perms:tooLarge");
 
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    auto vals = keel::Array<double>(n, scratch.allocator());
+    auto vals = keel::Array<keel::f64>(n, scratch.allocator());
     for (keel::usize i = 0; i < n; ++i)
         vals[i] = v.elemAsDouble(i);
 
-    keel::Array<double> cur(vals, scratch.allocator());
-    std::sort(cur.begin(), cur.end(), [](double a, double b) { return a > b; });
+    keel::Array<keel::f64> cur(vals, scratch.allocator());
+    std::sort(cur.begin(), cur.end(), [](keel::f64 a, keel::f64 b) { return a > b; });
 
     const keel::usize totalRows = keel::as<keel::usize>(permFactorial(keel::as<int>(n)));
     auto out = Value::matrix(totalRows, n, ValueType::DOUBLE, mr);
-    double *dst = out.doubleDataMut();
+    keel::f64 *dst = out.doubleDataMut();
 
     keel::usize row = 0;
     do {
@@ -124,14 +124,14 @@ Value factorial(const Value &n, keel::Allocator *mr)
         throw Error("factorial: complex inputs are not supported",
                      0, 0, "factorial", "", "numkit:factorial:complex");
     auto out = createLike(n, ValueType::DOUBLE, mr);
-    double *dst = out.doubleDataMut();
+    keel::f64 *dst = out.doubleDataMut();
     const keel::usize N = n.numel();
     for (keel::usize i = 0; i < N; ++i)
         dst[i] = factorialDouble(n.elemAsDouble(i), "factorial");
     return out;
 }
 
-Value nchoosek(double n, double k, keel::Allocator *mr)
+Value nchoosek(keel::f64 n, keel::f64 k, keel::Allocator *mr)
 {
     if (!std::isfinite(n) || !std::isfinite(k))
         throw Error("nchoosek: arguments must be finite",
@@ -150,7 +150,7 @@ Value nchoosek(double n, double k, keel::Allocator *mr)
 // one per ROW, in lexicographic order of element indices (MATLAB R2025b):
 // nchoosek([1 2 3 4],2) = [1 2;1 3;1 4;2 3;2 4;3 4]. k==0 -> 1x0; k==numel ->
 // a single row of all elements. Result is DOUBLE (numeric input flattened).
-Value nchoosekCombinations(const Value &v, double kd, keel::Allocator *mr)
+Value nchoosekCombinations(const Value &v, keel::f64 kd, keel::Allocator *mr)
 {
     const keel::usize n = v.numel();
     if (!std::isfinite(kd) || kd < 0 || kd != std::floor(kd))
@@ -164,18 +164,18 @@ Value nchoosekCombinations(const Value &v, double kd, keel::Allocator *mr)
         return Value::matrix(1, 0, ValueType::DOUBLE, mr);
 
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    auto vd = keel::Array<double>(n, scratch.allocator());
+    auto vd = keel::Array<keel::f64>(n, scratch.allocator());
     for (keel::usize i = 0; i < n; ++i) vd[i] = v.elemAsDouble(i);
 
     // Row count R = C(n,k) (computed with the symmetric product to limit error).
     const keel::usize kk = (k > n - k) ? n - k : k;
-    double rd = 1.0;
+    keel::f64 rd = 1.0;
     for (keel::usize i = 0; i < kk; ++i)
-        rd = rd * keel::as<double>(n - i) / keel::as<double>(i + 1);
+        rd = rd * keel::as<keel::f64>(n - i) / keel::as<keel::f64>(i + 1);
     const keel::usize R = keel::as<keel::usize>(std::round(rd));
 
     auto out = Value::matrix(R, k, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     auto idx = keel::Array<keel::usize>(k, scratch.allocator());
     for (keel::usize i = 0; i < k; ++i) idx[i] = i;
     keel::usize row = 0;
@@ -235,9 +235,9 @@ Value colperm(const Value &s, keel::Allocator *mr)
     });
 
     auto out = Value::matrix(1, cols, ValueType::DOUBLE, mr);
-    double *p = out.doubleDataMut();
+    keel::f64 *p = out.doubleDataMut();
     for (keel::usize i = 0; i < cols; ++i)
-        p[i] = keel::as<double>(counts[i].colIndex);
+        p[i] = keel::as<keel::f64>(counts[i].colIndex);
     return out;
 }
 
@@ -321,9 +321,9 @@ Value symrcm(const Value &s, keel::Allocator *mr)
     }
 
     auto out = Value::matrix(1, n, ValueType::DOUBLE, mr);
-    double *p = out.doubleDataMut();
+    keel::f64 *p = out.doubleDataMut();
     for (keel::usize i = 0; i < n; ++i)
-        p[i] = keel::as<double>(order[i] + 1);
+        p[i] = keel::as<keel::f64>(order[i] + 1);
     return out;
 }
 

@@ -31,39 +31,39 @@ Value abs(const Value &x, keel::Allocator *mr) { return abs(x, nullptr, mr); }
 
 Value floor(const Value &x, keel::Allocator *mr)
 {
-    return roundLikeDispatch(x, [](double v) { return std::floor(v); }, ::numkit::builtin::detail::doubleFloorLoop, mr);
+    return roundLikeDispatch(x, [](keel::f64 v) { return std::floor(v); }, ::numkit::builtin::detail::doubleFloorLoop, mr);
 }
 
 Value ceil(const Value &x, keel::Allocator *mr)
 {
-    return roundLikeDispatch(x, [](double v) { return std::ceil(v); }, ::numkit::builtin::detail::doubleCeilLoop, mr);
+    return roundLikeDispatch(x, [](keel::f64 v) { return std::ceil(v); }, ::numkit::builtin::detail::doubleCeilLoop, mr);
 }
 
 Value round(const Value &x, keel::Allocator *mr)
 {
-    return roundLikeDispatch(x, [](double v) { return std::round(v); }, ::numkit::builtin::detail::doubleRoundLoop, mr);
+    return roundLikeDispatch(x, [](keel::f64 v) { return std::round(v); }, ::numkit::builtin::detail::doubleRoundLoop, mr);
 }
 
 Value roundN(const Value &x, int n, bool significant, keel::Allocator *mr)
 {
-    return unaryDouble(x, [n, significant](double v) { return roundNScalar(v, n, significant); }, mr);
+    return unaryDouble(x, [n, significant](keel::f64 v) { return roundNScalar(v, n, significant); }, mr);
 }
 
 Value fix(const Value &x, keel::Allocator *mr)
 {
-    return roundLikeDispatch(x, [](double v) { return std::trunc(v); }, ::numkit::builtin::detail::doubleFixLoop, mr);
+    return roundLikeDispatch(x, [](keel::f64 v) { return std::trunc(v); }, ::numkit::builtin::detail::doubleFixLoop, mr);
 }
 
 Value sign(const Value &x, keel::Allocator *mr)
 {
-    auto signOp = [](double v) {
+    auto signOp = [](keel::f64 v) {
         return std::isnan(v) ? v : (v > 0) ? 1.0 : (v < 0 ? -1.0 : 0.0);
     };
     // Complex: sign(z) = z/|z| for z != 0, else 0 (MATLAB R2025b);
     // sign(3-4i) = 0.6-0.8i. The double path below can't take complex.
     if (x.isComplex()) {
         auto unit = [](keel::c64 z) -> keel::c64 {
-            const double m = keel::abs(z);
+            const keel::f64 m = keel::abs(z);
             return m == 0.0 ? keel::c64(0.0, 0.0) : z / m;
         };
         if (x.isScalar())
@@ -87,7 +87,7 @@ Value sign(const Value &x, keel::Allocator *mr)
 Value subplus(const Value &x, keel::Allocator *mr)
 {
     return unaryDouble(x,
-                       [](double v) {
+                       [](keel::f64 v) {
                            return std::isnan(v) ? v : std::max(v, 0.0);
                        },
                        mr);
@@ -132,7 +132,7 @@ Value mod(const Value &a, const Value &b, keel::Allocator *mr)
         }
     }
     return modRemImpl(a, b,
-                      [](double aa, double bb) {
+                      [](keel::f64 aa, keel::f64 bb) {
                           return bb != 0 ? aa - std::floor(aa / bb) * bb : aa;
                       },
                       mr);
@@ -141,7 +141,7 @@ Value mod(const Value &a, const Value &b, keel::Allocator *mr)
 Value rem(const Value &a, const Value &b, keel::Allocator *mr)
 {
     return modRemImpl(a, b,
-                      [](double aa, double bb) { return std::fmod(aa, bb); }, mr);
+                      [](keel::f64 aa, keel::f64 bb) { return std::fmod(aa, bb); }, mr);
 }
 
 } // namespace numkit::builtin

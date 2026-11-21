@@ -37,13 +37,13 @@ namespace detail {
 
 // One-pass forward/central/backward difference along a contiguous slice
 // of length n with stride 1 (delegates to keel::quad::gradient_strided).
-void gradient1D(const double *src, double *dst, keel::usize n, double h)
+void gradient1D(const keel::f64 *src, keel::f64 *dst, keel::usize n, keel::f64 h)
 {
     keel::quad::gradient_strided(src, dst, n, 1, h);
 }
 
 // 2D gradient along dim-2 (columns) for a matrix in column-major layout.
-void gradientAlongCols(const double *src, double *dst, keel::usize R, keel::usize C, double h)
+void gradientAlongCols(const keel::f64 *src, keel::f64 *dst, keel::usize R, keel::usize C, keel::f64 h)
 {
     if (C == 0) return;
     for (keel::usize r = 0; r < R; ++r)
@@ -51,7 +51,7 @@ void gradientAlongCols(const double *src, double *dst, keel::usize R, keel::usiz
 }
 
 // 2D gradient along dim-1 (rows) for a matrix in column-major layout.
-void gradientAlongRows(const double *src, double *dst, keel::usize R, keel::usize C, double h)
+void gradientAlongRows(const keel::f64 *src, keel::f64 *dst, keel::usize R, keel::usize C, keel::f64 h)
 {
     if (R == 0) return;
     for (keel::usize c = 0; c < C; ++c)
@@ -61,8 +61,8 @@ void gradientAlongRows(const double *src, double *dst, keel::usize R, keel::usiz
 // Gradient along an arbitrary dimension `dim` (0-based) of an N-D array in
 // column-major layout. Central differences on the interior, one-sided at the
 // ends, uniform scalar spacing h. A singleton dimension yields all zeros.
-void gradientAlongDim(const double *src, double *dst, const Dims &shape,
-                      int dim, double h)
+void gradientAlongDim(const keel::f64 *src, keel::f64 *dst, const Dims &shape,
+                      int dim, keel::f64 h)
 {
     const keel::usize N = shape.numel();
     if (N == 0) return;
@@ -82,7 +82,7 @@ void gradientAlongDim(const double *src, double *dst, const Dims &shape,
 
 // One dimension's discrete-Laplacian term (g) along a strided line of
 // length n (element stride s, uniform spacing h). Delegates to keel::quad.
-void del2Line(const double *src, double *dst, keel::usize n, keel::usize s, double h)
+void del2Line(const keel::f64 *src, keel::f64 *dst, keel::usize n, keel::usize s, keel::f64 h)
 {
     keel::quad::del2_strided(src, dst, n, s, h);
 }
@@ -92,9 +92,9 @@ Value toDoubleCopy(const Value &x, keel::Allocator *mr)
     auto r = createLike(x, ValueType::DOUBLE, mr);
     if (x.type() == ValueType::DOUBLE) {
         std::memcpy(r.doubleDataMut(), x.doubleData(),
-                    x.numel() * sizeof(double));
+                    x.numel() * sizeof(keel::f64));
     } else {
-        double *dst = r.doubleDataMut();
+        keel::f64 *dst = r.doubleDataMut();
         for (keel::usize i = 0; i < x.numel(); ++i)
             dst[i] = x.elemAsDouble(i);
     }
@@ -110,7 +110,7 @@ namespace detail {
 Value realPartCopy(const Value &f, keel::Allocator *mr)
 {
     auto r = createLike(f, ValueType::DOUBLE, mr);
-    double *d = r.doubleDataMut();
+    keel::f64 *d = r.doubleDataMut();
     const keel::c64 *c = f.complexData();
     const keel::usize n = f.numel();
     for (keel::usize i = 0; i < n; ++i) d[i] = c[i].real();
@@ -119,7 +119,7 @@ Value realPartCopy(const Value &f, keel::Allocator *mr)
 Value imagPartCopy(const Value &f, keel::Allocator *mr)
 {
     auto r = createLike(f, ValueType::DOUBLE, mr);
-    double *d = r.doubleDataMut();
+    keel::f64 *d = r.doubleDataMut();
     const keel::c64 *c = f.complexData();
     const keel::usize n = f.numel();
     for (keel::usize i = 0; i < n; ++i) d[i] = c[i].imag();
@@ -129,14 +129,14 @@ Value combineComplexParts(const Value &re, const Value &im, keel::Allocator *mr)
 {
     auto out = createLike(re, ValueType::COMPLEX, mr);
     keel::c64 *o = out.complexDataMut();
-    const double *r = re.doubleData(), *m = im.doubleData();
+    const keel::f64 *r = re.doubleData(), *m = im.doubleData();
     const keel::usize n = out.numel();
     for (keel::usize i = 0; i < n; ++i) o[i] = keel::c64(r[i], m[i]);
     return out;
 }
 } // namespace
 
-Value gradient(const Value &f, double h, keel::Allocator *mr)
+Value gradient(const Value &f, keel::f64 h, keel::Allocator *mr)
 {
     if (h <= 0)
         throw Error("gradient: spacing h must be positive",
@@ -167,7 +167,7 @@ Value gradient(const Value &f, double h, keel::Allocator *mr)
     return out;
 }
 
-Value del2(const Value &u, double h, keel::Allocator *mr)
+Value del2(const Value &u, keel::f64 h, keel::Allocator *mr)
 {
     if (h <= 0)
         throw Error("del2: spacing h must be positive",
@@ -182,8 +182,8 @@ Value del2(const Value &u, double h, keel::Allocator *mr)
 
     auto src = toDoubleCopy(u, mr);
     auto out = createLike(u, ValueType::DOUBLE, mr);
-    const double *sd = src.doubleData();
-    double *od = out.doubleDataMut();
+    const keel::f64 *sd = src.doubleData();
+    keel::f64 *od = out.doubleDataMut();
     const keel::usize N = u.numel();
     for (keel::usize i = 0; i < N; ++i) od[i] = 0.0;
     if (N == 0) return out;
@@ -192,15 +192,15 @@ Value del2(const Value &u, double h, keel::Allocator *mr)
     // vector still has ndims == 2, so the divisor is 2 for both shapes.
     if (u.dims().isVector() || u.isScalar()) {
         keel::ArenaTemp arena = keel::get_scratch(mr);
-        auto g = keel::Array<double>(arena.allocator()); g.assign(N, 0.0);
+        auto g = keel::Array<keel::f64>(arena.allocator()); g.assign(N, 0.0);
         del2Line(sd, g.data(), N, 1, h);
         for (keel::usize i = 0; i < N; ++i) od[i] = g[i] * 0.5;
         return out;
     }
     const keel::usize R = d.rows(), C = d.cols();
     keel::ArenaTemp arena = keel::get_scratch(mr);
-    auto g1 = keel::Array<double>(arena.allocator()); g1.assign(N, 0.0);
-    auto g2 = keel::Array<double>(arena.allocator()); g2.assign(N, 0.0);
+    auto g1 = keel::Array<keel::f64>(arena.allocator()); g1.assign(N, 0.0);
+    auto g2 = keel::Array<keel::f64>(arena.allocator()); g2.assign(N, 0.0);
     // dim-1: down each column (stride 1, length R).
     for (keel::usize c = 0; c < C; ++c) del2Line(sd + c * R, g1.data() + c * R, R, 1, h);
     // dim-2: across each row (stride R, length C).
@@ -210,7 +210,7 @@ Value del2(const Value &u, double h, keel::Allocator *mr)
 }
 
 std::tuple<Value, Value>
-gradient2(const Value &f, double hx, double hy, keel::Allocator *mr)
+gradient2(const Value &f, keel::f64 hx, keel::f64 hy, keel::Allocator *mr)
 {
     if (hx <= 0 || hy <= 0)
         throw Error("gradient: spacing arguments must be positive",
@@ -249,7 +249,7 @@ namespace detail {
 // dim-1 (y), out_k = dim-(k+1) for k>=2, matching MATLAB. `hs[o]` is the
 // scalar spacing for output o. Complex F is gradiented part-wise then
 // recombined. Throws if more outputs than dimensions are requested.
-keel::Array<Value> gradientND(const Value &f, const double *hs, keel::usize nh,
+keel::Array<Value> gradientND(const Value &f, const keel::f64 *hs, keel::usize nh,
                                    keel::usize nout, keel::Allocator *mr)
 {
     if (f.type() == ValueType::COMPLEX) {
@@ -273,7 +273,7 @@ keel::Array<Value> gradientND(const Value &f, const double *hs, keel::usize nh,
             throw Error("gradient: too many output arguments for the input "
                         "dimensionality",
                         0, 0, "gradient", "", "numkit:gradient:nargout");
-        const double h = (o < nh) ? hs[o] : 1.0;
+        const keel::f64 h = (o < nh) ? hs[o] : 1.0;
         if (h <= 0)
             throw Error("gradient: spacing arguments must be positive",
                         0, 0, "gradient", "", "numkit:gradient:badSpacing");
@@ -288,7 +288,7 @@ keel::Array<Value> gradientND(const Value &f, const double *hs, keel::usize nh,
 // ── cumtrapz ─────────────────────────────────────────────────────────
 namespace detail {
 
-Value cumtrapzVector(const double *y, const double *x, keel::usize n, const Dims &shape, bool unitSpacing, keel::Allocator *mr)
+Value cumtrapzVector(const keel::f64 *y, const keel::f64 *x, keel::usize n, const Dims &shape, bool unitSpacing, keel::Allocator *mr)
 {
     auto out = Value::matrix(shape.rows(), shape.cols(), ValueType::DOUBLE, mr);
     keel::quad::cumtrapz_strided(y, out.doubleDataMut(), n, 1, 1, unitSpacing ? nullptr : x, 1);
@@ -301,33 +301,33 @@ namespace detail {
 
 // Matrix form: integrate along columns. xData==nullptr -> unit spacing.
 // xData layout: same shape as src, used per-column.
-Value cumtrapzMatrixCols(const double *src, const double *xData, keel::usize rows, keel::usize cols, keel::Allocator *mr)
+Value cumtrapzMatrixCols(const keel::f64 *src, const keel::f64 *xData, keel::usize rows, keel::usize cols, keel::Allocator *mr)
 {
     auto out = Value::matrix(rows, cols, ValueType::DOUBLE, mr);
-    double *dst = out.doubleDataMut();
+    keel::f64 *dst = out.doubleDataMut();
     if (rows == 0 || cols == 0) return out;
     for (keel::usize c = 0; c < cols; ++c) {
-        const double *xCol = xData ? (xData + c * rows) : nullptr;
+        const keel::f64 *xCol = xData ? (xData + c * rows) : nullptr;
         keel::quad::cumtrapz_strided(src + c * rows, dst + c * rows, rows, 1, 1, xCol, 1);
     }
     return out;
 }
 
 // Row-wise (dim 2) cumulative trapezoid: each row integrated across cols.
-Value cumtrapzMatrixRows(const double *src, const double *xData, keel::usize rows, keel::usize cols, keel::Allocator *mr)
+Value cumtrapzMatrixRows(const keel::f64 *src, const keel::f64 *xData, keel::usize rows, keel::usize cols, keel::Allocator *mr)
 {
     auto out = Value::matrix(rows, cols, ValueType::DOUBLE, mr);
-    double *dst = out.doubleDataMut();
+    keel::f64 *dst = out.doubleDataMut();
     if (rows == 0 || cols == 0) return out;
     for (keel::usize r = 0; r < rows; ++r) {
-        const double *xRow = xData ? (xData + r) : nullptr;
+        const keel::f64 *xRow = xData ? (xData + r) : nullptr;
         keel::quad::cumtrapz_strided(src + r, dst + r, cols, rows, rows, xRow, rows);
     }
     return out;
 }
 
 // ── COMPLEX counterparts (the integration variable x stays real) ────────
-Value cumtrapzVectorC(const keel::c64 *y, const double *x, keel::usize n, const Dims &shape,
+Value cumtrapzVectorC(const keel::c64 *y, const keel::f64 *x, keel::usize n, const Dims &shape,
                       bool unitSpacing, keel::Allocator *mr)
 {
     auto out = Value::matrix(shape.rows(), shape.cols(), ValueType::COMPLEX, mr);
@@ -335,27 +335,27 @@ Value cumtrapzVectorC(const keel::c64 *y, const double *x, keel::usize n, const 
     return out;
 }
 
-Value cumtrapzMatrixColsC(const keel::c64 *src, const double *xData, keel::usize rows, keel::usize cols,
+Value cumtrapzMatrixColsC(const keel::c64 *src, const keel::f64 *xData, keel::usize rows, keel::usize cols,
                           keel::Allocator *mr)
 {
     auto out = Value::matrix(rows, cols, ValueType::COMPLEX, mr);
     keel::c64 *dst = out.complexDataMut();
     if (rows == 0 || cols == 0) return out;
     for (keel::usize c = 0; c < cols; ++c) {
-        const double *xCol = xData ? (xData + c * rows) : nullptr;
+        const keel::f64 *xCol = xData ? (xData + c * rows) : nullptr;
         keel::quad::cumtrapz_strided_c64(src + c * rows, dst + c * rows, rows, 1, 1, xCol, 1);
     }
     return out;
 }
 
-Value cumtrapzMatrixRowsC(const keel::c64 *src, const double *xData, keel::usize rows, keel::usize cols,
+Value cumtrapzMatrixRowsC(const keel::c64 *src, const keel::f64 *xData, keel::usize rows, keel::usize cols,
                           keel::Allocator *mr)
 {
     auto out = Value::matrix(rows, cols, ValueType::COMPLEX, mr);
     keel::c64 *dst = out.complexDataMut();
     if (rows == 0 || cols == 0) return out;
     for (keel::usize r = 0; r < rows; ++r) {
-        const double *xRow = xData ? (xData + r) : nullptr;
+        const keel::f64 *xRow = xData ? (xData + r) : nullptr;
         keel::quad::cumtrapz_strided_c64(src + r, dst + r, cols, rows, rows, xRow, rows);
     }
     return out;
@@ -406,7 +406,7 @@ Value cumtrapz(const Value &x, const Value &y, keel::Allocator *mr)
     const bool yIsC = (y.type() == ValueType::COMPLEX);
     Value ys;
     if (!yIsC) ys = toDoubleCopy(y, mr);
-    const double *yd = yIsC ? nullptr : ys.doubleData();
+    const keel::f64 *yd = yIsC ? nullptr : ys.doubleData();
     const keel::c64 *yc = yIsC ? y.complexData() : nullptr;
 
     if (y.dims().isVector() || y.isScalar()) {
@@ -429,10 +429,10 @@ Value cumtrapz(const Value &x, const Value &y, keel::Allocator *mr)
     if (x.dims().isVector() && x.numel() == rows) {
         // Broadcast x to every column.
         auto xMat = Value::matrix(rows, cols, ValueType::DOUBLE, mr);
-        double *dx = xMat.doubleDataMut();
-        const double *src = xs.doubleData();
+        keel::f64 *dx = xMat.doubleDataMut();
+        const keel::f64 *src = xs.doubleData();
         for (keel::usize c = 0; c < cols; ++c)
-            std::memcpy(dx + c * rows, src, rows * sizeof(double));
+            std::memcpy(dx + c * rows, src, rows * sizeof(keel::f64));
         return yIsC ? cumtrapzMatrixColsC(yc, dx, rows, cols, mr)
                     : cumtrapzMatrixCols(yd, dx, rows, cols, mr);
     }
@@ -446,7 +446,7 @@ Value cumtrapz(const Value &x, const Value &y, keel::Allocator *mr)
 // ── integral (adaptive Gauss-Kronrod via keel::quad) ───────────────────
 namespace detail {
 
-static keel::c64 evalScalarOrComplex(FnHandle fn, double x, bool &sawComplex,
+static keel::c64 evalScalarOrComplex(FnHandle fn, keel::f64 x, bool &sawComplex,
                                    keel::Allocator *mr)
 {
     Value in = Value::scalar(x, mr);
@@ -461,7 +461,7 @@ static keel::c64 evalScalarOrComplex(FnHandle fn, double x, bool &sawComplex,
 
 } // namespace
 
-Value integral(FnHandle fn, double a, double b, double absTol,
+Value integral(FnHandle fn, keel::f64 a, keel::f64 b, keel::f64 absTol,
                keel::Allocator *mr)
 {
     if (!std::isfinite(a) || !std::isfinite(b))
@@ -482,8 +482,8 @@ Value integral(FnHandle fn, double a, double b, double absTol,
     return Value::scalar(res.value.real(), mr);
 }
 
-Value integral2(FnHandle fn, double a, double b, double c, double d,
-                double absTol, keel::Allocator *mr)
+Value integral2(FnHandle fn, keel::f64 a, keel::f64 b, keel::f64 c, keel::f64 d,
+                keel::f64 absTol, keel::Allocator *mr)
 {
     if (!std::isfinite(a) || !std::isfinite(b) || !std::isfinite(c) || !std::isfinite(d))
         throw Error("integral2: bounds must be finite",
@@ -500,8 +500,8 @@ Value integral2(FnHandle fn, double a, double b, double c, double d,
         try {
             Value X = Value::matrix(15, 15, ValueType::DOUBLE, mr);
             Value Y = Value::matrix(15, 15, ValueType::DOUBLE, mr);
-            std::memcpy(X.doubleDataMut(), xs.data(), 225 * sizeof(double));
-            std::memcpy(Y.doubleDataMut(), ys.data(), 225 * sizeof(double));
+            std::memcpy(X.doubleDataMut(), xs.data(), 225 * sizeof(keel::f64));
+            std::memcpy(Y.doubleDataMut(), ys.data(), 225 * sizeof(keel::f64));
             Value xy[2] = {std::move(X), std::move(Y)};
             Value out[1];
             fn(keel::ArrayRef<Value>(xy, 2), keel::MutArrayRef<Value>(out, 1), mr);
@@ -512,7 +512,7 @@ Value integral2(FnHandle fn, double a, double b, double c, double d,
                     return true;
                 }
                 if (out[0].type() == ValueType::DOUBLE) {
-                    const double *dd = out[0].doubleData();
+                    const keel::f64 *dd = out[0].doubleData();
                     for (keel::usize k = 0; k < 225; ++k) out_buf[k] = keel::c64(dd[k], 0.0);
                     return true;
                 }
@@ -547,16 +547,16 @@ Value integral2(FnHandle fn, double a, double b, double c, double d,
     return Value::scalar(res.value.real(), mr);
 }
 
-Value integral3(FnHandle fn, double a, double b, double c, double d,
-                double e, double f, double absTol,
+Value integral3(FnHandle fn, keel::f64 a, keel::f64 b, keel::f64 c, keel::f64 d,
+                keel::f64 e, keel::f64 f, keel::f64 absTol,
                 keel::Allocator *mr)
 {
-    double xval = 0.0;
+    keel::f64 xval = 0.0;
     auto inner2D = [&fn, &xval](keel::ArrayRef<Value> ayz, keel::MutArrayRef<Value> oyz,
                                 keel::Allocator *m) {
         if (ayz[0].numel() > 1) {
             Value X = Value::matrix(ayz[0].dims().rows(), ayz[0].dims().cols(), ValueType::DOUBLE, m);
-            double *xd = X.doubleDataMut();
+            keel::f64 *xd = X.doubleDataMut();
             for (keel::usize k = 0; k < X.numel(); ++k) xd[k] = xval;
             Value xyz[3] = { std::move(X), ayz[0], ayz[1] };
             fn(keel::ArrayRef<Value>(xyz, 3), oyz, m);
@@ -579,7 +579,7 @@ namespace detail {
 // y along dim) gives non-uniform spacing; nullptr = unit spacing. A vector
 // reduces to a scalar; a matrix reduces along `dim` (MATLAB trapz semantics:
 // trapz(M) = 1xC over columns, trapz(M,2) = Rx1 over rows).
-Value trapzImpl(const Value &y, int dim, const double *xData,
+Value trapzImpl(const Value &y, int dim, const keel::f64 *xData,
                 keel::Allocator *mr)
 {
     const keel::usize R = y.dims().rows(), C = y.dims().cols();
@@ -598,16 +598,16 @@ Value trapzImpl(const Value &y, int dim, const double *xData,
             o[r] = keel::quad::trapz_strided_c64(yc + r, C, R, xData, 1);
         return out;
     }
-    const double *yd = y.doubleData();
+    const keel::f64 *yd = y.doubleData();
     if (dim != 2) {  // dim 1 (default for column reduction)
         Value out = Value::matrix(1, C, ValueType::DOUBLE, mr);
-        double *o = out.doubleDataMut();
+        keel::f64 *o = out.doubleDataMut();
         for (keel::usize c = 0; c < C; ++c)
             o[c] = keel::quad::trapz_strided(yd + c * R, R, 1, xData, 1);
         return out;
     }
     Value out = Value::matrix(R, 1, ValueType::DOUBLE, mr);
-    double *o = out.doubleDataMut();
+    keel::f64 *o = out.doubleDataMut();
     for (keel::usize r = 0; r < R; ++r)
         o[r] = keel::quad::trapz_strided(yd + r, C, R, xData, 1);
     return out;

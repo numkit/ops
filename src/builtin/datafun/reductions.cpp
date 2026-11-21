@@ -40,7 +40,7 @@ namespace numkit::builtin {
 
 Value sum(const Value &x, keel::Allocator *mr)
 {
-    return reduce(x, [](double a, double b) { return a + b; }, 0.0, mr);
+    return reduce(x, [](keel::f64 a, keel::f64 b) { return a + b; }, 0.0, mr);
 }
 
 Value sum(const Value &x, int dim, keel::Allocator *mr)
@@ -60,9 +60,9 @@ Value sum(const Value &x, int dim, keel::Allocator *mr)
         && !x.isScalar() && !x.dims().isVector()) {
         const keel::usize R = x.dims().rows(), C = x.dims().cols();
         auto r = Value::matrix(R, 1, ValueType::DOUBLE, mr);
-        double *totals = r.doubleDataMut();
+        keel::f64 *totals = r.doubleDataMut();
         std::fill(totals, totals + R, 0.0);
-        const double *src = x.doubleData();
+        const keel::f64 *src = x.doubleData();
         for (keel::usize c = 0; c < C; ++c)
             addInto(totals, src + c * R, R);
         return r;
@@ -70,8 +70,8 @@ Value sum(const Value &x, int dim, keel::Allocator *mr)
 
     // Generic dim path (1D, 3D, dim=1, dim=3) — slice through scratch.
     return numkit::ops::applyAlongDim(x, d,
-        [](keel::usize, double *slice, keel::usize n) {
-            double acc = 0.0;
+        [](keel::usize, keel::f64 *slice, keel::usize n) {
+            keel::f64 acc = 0.0;
             for (keel::usize i = 0; i < n; ++i) acc += slice[i];
             return acc;
         }, mr);
@@ -79,7 +79,7 @@ Value sum(const Value &x, int dim, keel::Allocator *mr)
 
 Value prod(const Value &x, keel::Allocator *mr)
 {
-    return reduce(x, [](double a, double b) { return a * b; }, 1.0, mr);
+    return reduce(x, [](keel::f64 a, keel::f64 b) { return a * b; }, 1.0, mr);
 }
 
 Value prod(const Value &x, int dim, keel::Allocator *mr)
@@ -87,8 +87,8 @@ Value prod(const Value &x, int dim, keel::Allocator *mr)
     if (dim <= 0) return prod(x, mr);
     const int d = numkit::ops::resolveDim(x, dim, "prod");
     return numkit::ops::applyAlongDim(x, d,
-        [](keel::usize, double *slice, keel::usize n) {
-            double acc = 1.0;
+        [](keel::usize, keel::f64 *slice, keel::usize n) {
+            keel::f64 acc = 1.0;
             for (keel::usize i = 0; i < n; ++i) acc *= slice[i];
             return acc;
         }, mr);
@@ -96,7 +96,7 @@ Value prod(const Value &x, int dim, keel::Allocator *mr)
 
 Value mean(const Value &x, keel::Allocator *mr)
 {
-    return reduce(x, [](double a, double b) { return a + b; }, 0.0, mr, /*meanMode=*/true);
+    return reduce(x, [](keel::f64 a, keel::f64 b) { return a + b; }, 0.0, mr, /*meanMode=*/true);
 }
 
 Value mean(const Value &x, int dim, keel::Allocator *mr)
@@ -104,10 +104,10 @@ Value mean(const Value &x, int dim, keel::Allocator *mr)
     if (dim <= 0) return mean(x, mr);
     const int d = numkit::ops::resolveDim(x, dim, "mean");
     return numkit::ops::applyAlongDim(x, d,
-        [](keel::usize, double *slice, keel::usize n) {
-            double acc = 0.0;
+        [](keel::usize, keel::f64 *slice, keel::usize n) {
+            keel::f64 acc = 0.0;
             for (keel::usize i = 0; i < n; ++i) acc += slice[i];
-            return acc / keel::as<double>(n);
+            return acc / keel::as<keel::f64>(n);
         }, mr);
 }
 
@@ -188,7 +188,7 @@ Value max(const Value &a, const Value &b, keel::Allocator *mr)
     }
     // fmax (not std::max) ignores NaN like MATLAB: max([NaN 6],[5 7]) = [5 7]
     // not [NaN 7]. std::max is order-dependent for NaN and returned NaN here.
-    return elementwiseDouble(a, b, [](double aa, double bb) { return std::fmax(aa, bb); }, p);
+    return elementwiseDouble(a, b, [](keel::f64 aa, keel::f64 bb) { return std::fmax(aa, bb); }, p);
 }
 
 Value min(const Value &a, const Value &b, keel::Allocator *mr)
@@ -200,7 +200,7 @@ Value min(const Value &a, const Value &b, keel::Allocator *mr)
             [](auto x, auto y) { return x < y ? x : y; }, p);
         if (!r.isUnset()) return r;
     }
-    return elementwiseDouble(a, b, [](double aa, double bb) { return std::fmin(aa, bb); }, p);
+    return elementwiseDouble(a, b, [](keel::f64 aa, keel::f64 bb) { return std::fmin(aa, bb); }, p);
 }
 
 // Binary nan-aware variants. For floating types, NaN propagates as
@@ -223,7 +223,7 @@ Value maxOmitNanBinary(const Value &a, const Value &b, keel::Allocator *mr)
             }, p);
         if (!r.isUnset()) return r;
     }
-    return elementwiseDouble(a, b, [](double aa, double bb) {
+    return elementwiseDouble(a, b, [](keel::f64 aa, keel::f64 bb) {
         if (std::isnan(aa)) return bb;
         if (std::isnan(bb)) return aa;
         return std::max(aa, bb);
@@ -246,7 +246,7 @@ Value minOmitNanBinary(const Value &a, const Value &b, keel::Allocator *mr)
             }, p);
         if (!r.isUnset()) return r;
     }
-    return elementwiseDouble(a, b, [](double aa, double bb) {
+    return elementwiseDouble(a, b, [](keel::f64 aa, keel::f64 bb) {
         if (std::isnan(aa)) return bb;
         if (std::isnan(bb)) return aa;
         return std::min(aa, bb);
@@ -254,34 +254,34 @@ Value minOmitNanBinary(const Value &a, const Value &b, keel::Allocator *mr)
 }
 
 // ── Generators ───────────────────────────────────────────────────────
-Value linspace(double a, double b, keel::usize n, keel::Allocator *mr)
+Value linspace(keel::f64 a, keel::f64 b, keel::usize n, keel::Allocator *mr)
 {
     auto r = Value::matrix(1, n, ValueType::DOUBLE, mr);
     if (n == 0)
         return r;
-    double *out = r.doubleDataMut();
+    keel::f64 *out = r.doubleDataMut();
     if (n == 1) {
         out[0] = b;
         return r;
     }
-    const double n1 = keel::as<double>(n - 1);
+    const keel::f64 n1 = keel::as<keel::f64>(n - 1);
     if (a == -b) {
-        const double step = b / n1;
+        const keel::f64 step = b / n1;
         for (keel::usize i = 0; i < n; ++i)
-            out[i] = (2.0 * keel::as<double>(i) - n1) * step;
+            out[i] = (2.0 * keel::as<keel::f64>(i) - n1) * step;
         out[0] = a;
         out[n - 1] = b;
         if (n % 2 == 1) out[n / 2] = 0.0;
         return r;
     }
     for (keel::usize i = 0; i < n; ++i)
-        out[i] = a + (b - a) * keel::as<double>(i) / n1;
+        out[i] = a + (b - a) * keel::as<keel::f64>(i) / n1;
     out[0] = a;
     out[n - 1] = b;
     return r;
 }
 
-Value logspace(double a, double b, keel::usize n, keel::Allocator *mr)
+Value logspace(keel::f64 a, keel::f64 b, keel::usize n, keel::Allocator *mr)
 {
     auto r = Value::matrix(1, n, ValueType::DOUBLE, mr);
     if (n == 0)
@@ -291,7 +291,7 @@ Value logspace(double a, double b, keel::usize n, keel::Allocator *mr)
         return r;
     }
     for (keel::usize i = 0; i < n; ++i) {
-        const double exponent = a + (b - a) * keel::as<double>(i) / keel::as<double>(n - 1);
+        const keel::f64 exponent = a + (b - a) * keel::as<keel::f64>(i) / keel::as<keel::f64>(n - 1);
         r.doubleDataMut()[i] = std::pow(10.0, exponent);
     }
     return r;

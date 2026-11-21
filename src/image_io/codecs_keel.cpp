@@ -158,12 +158,12 @@ Value keelImageToValue(const keel::imagefile::Image &img, keel::Allocator *mr,
             break;
         case keel::imagefile::SampleType::F32:
             transposeInterleavedToPlanar(
-                reinterpret_cast<const float *>(img.pixels.data()),
+                reinterpret_cast<const keel::f32 *>(img.pixels.data()),
                 out.singleDataMut(), H, W, C);
             break;
         case keel::imagefile::SampleType::F64:
             transposeInterleavedToPlanar(
-                reinterpret_cast<const double *>(img.pixels.data()),
+                reinterpret_cast<const keel::f64 *>(img.pixels.data()),
                 out.doubleDataMut(), H, W, C);
             break;
     }
@@ -177,12 +177,12 @@ Value paletteToValue(const keel::imagefile::Image &img, keel::Allocator *mr,
     }
     const keel::usize K = img.palette_entry_count();
     Value cmap = Value::matrix(K, 3, ValueType::DOUBLE, mr);
-    double *cd = cmap.doubleDataMut();
-    const double scale = (img.palette_bits == 16) ? (1.0 / 65535.0) : (1.0 / 255.0);
+    keel::f64 *cd = cmap.doubleDataMut();
+    const keel::f64 scale = (img.palette_bits == 16) ? (1.0 / 65535.0) : (1.0 / 255.0);
     for (keel::usize k = 0; k < K; ++k) {
-        cd[0 * K + k] = keel::as<double>(img.palette[3 * k + 0]) * scale;
-        cd[1 * K + k] = keel::as<double>(img.palette[3 * k + 1]) * scale;
-        cd[2 * K + k] = keel::as<double>(img.palette[3 * k + 2]) * scale;
+        cd[0 * K + k] = keel::as<keel::f64>(img.palette[3 * k + 0]) * scale;
+        cd[1 * K + k] = keel::as<keel::f64>(img.palette[3 * k + 1]) * scale;
+        cd[2 * K + k] = keel::as<keel::f64>(img.palette[3 * k + 2]) * scale;
     }
     return cmap;
 }
@@ -262,7 +262,7 @@ PackedImageBuffer packStandardImage(const Value &A, bool allowU16, bool allow4Ch
                 for (keel::usize c = 0; c < W; ++c) {
                     for (keel::usize ch = 0; ch < C; ++ch) {
                         const keel::usize idx = (C == 1) ? (c * H + r) : (ch * plane + c * H + r);
-                        double dv = A.elemAsDouble(idx);
+                        keel::f64 dv = A.elemAsDouble(idx);
                         if (dv < 0.0) dv = 0.0;
                         else if (dv > 255.0) dv = 255.0;
                         dst[(r * W + c) * C + ch] = keel::as<keel::u8>(keel::as<int>(dv));
@@ -355,7 +355,7 @@ PackedImageBuffer packTiffImage(const Value &A) {
                 for (keel::usize c = 0; c < W; ++c) {
                     for (keel::usize ch = 0; ch < C; ++ch) {
                         const keel::usize idx = (C == 1) ? (c * H + r) : (ch * plane + c * H + r);
-                        double dv = A.elemAsDouble(idx);
+                        keel::f64 dv = A.elemAsDouble(idx);
                         if (dv < 0.0) dv = 0.0;
                         else if (dv > 255.0) dv = 255.0;
                         out.bytes[(r * W + c) * C + ch] = keel::as<keel::u8>(keel::as<int>(dv));

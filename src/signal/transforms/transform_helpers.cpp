@@ -77,15 +77,15 @@ Value cyclicShiftAll(const Value &x, int mode, keel::Allocator *mr)
         if (dP) { shiftAlongDim<keel::c64>(cur, nxt, R, C, P, 3, mode); std::swap(cur, nxt); }
         if (cur != dst) std::memcpy(dst, cur, sizeof(keel::c64) * R * C * P);
     } else {
-        const double *src = x.doubleData();
-        double *dst = r.doubleDataMut();
-        keel::Array<double> buf(R * C * P, mr);
-        std::memcpy(buf.data(), src, sizeof(double) * R * C * P);
-        double *cur = buf.data(), *nxt = dst;
-        if (dR) { shiftAlongDim<double>(cur, nxt, R, C, P, 1, mode); std::swap(cur, nxt); }
-        if (dC) { shiftAlongDim<double>(cur, nxt, R, C, P, 2, mode); std::swap(cur, nxt); }
-        if (dP) { shiftAlongDim<double>(cur, nxt, R, C, P, 3, mode); std::swap(cur, nxt); }
-        if (cur != dst) std::memcpy(dst, cur, sizeof(double) * R * C * P);
+        const keel::f64 *src = x.doubleData();
+        keel::f64 *dst = r.doubleDataMut();
+        keel::Array<keel::f64> buf(R * C * P, mr);
+        std::memcpy(buf.data(), src, sizeof(keel::f64) * R * C * P);
+        keel::f64 *cur = buf.data(), *nxt = dst;
+        if (dR) { shiftAlongDim<keel::f64>(cur, nxt, R, C, P, 1, mode); std::swap(cur, nxt); }
+        if (dC) { shiftAlongDim<keel::f64>(cur, nxt, R, C, P, 2, mode); std::swap(cur, nxt); }
+        if (dP) { shiftAlongDim<keel::f64>(cur, nxt, R, C, P, 3, mode); std::swap(cur, nxt); }
+        if (cur != dst) std::memcpy(dst, cur, sizeof(keel::f64) * R * C * P);
     }
     return r;
 }
@@ -103,7 +103,7 @@ Value cyclicShiftOneDim(const Value &x, int dim, int mode,
     if (cplx)
         shiftAlongDim<keel::c64>(x.complexData(), r.complexDataMut(), R, C, P, dim, mode);
     else
-        shiftAlongDim<double>(x.doubleData(), r.doubleDataMut(), R, C, P, dim, mode);
+        shiftAlongDim<keel::f64>(x.doubleData(), r.doubleDataMut(), R, C, P, dim, mode);
     return r;
 }
 
@@ -115,15 +115,15 @@ Value cyclicShiftOneDim(const Value &x, int dim, int mode,
 //   NaN    -> NaN
 //   ±Inf   -> +Inf
 //   else   -> ceil(log2(|x|))
-static double nextpow2Element(double v_abs)
+static keel::f64 nextpow2Element(keel::f64 v_abs)
 {
-    if (std::isnan(v_abs)) return std::numeric_limits<double>::quiet_NaN();
-    if (std::isinf(v_abs)) return std::numeric_limits<double>::infinity();
+    if (std::isnan(v_abs)) return std::numeric_limits<keel::f64>::quiet_NaN();
+    if (std::isinf(v_abs)) return std::numeric_limits<keel::f64>::infinity();
     if (v_abs == 0.0) return 0.0;
     return std::ceil(std::log2(v_abs));
 }
 
-Value nextpow2(double n, keel::Allocator *mr)
+Value nextpow2(keel::f64 n, keel::Allocator *mr)
 {
     return Value::scalar(nextpow2Element(keel::abs(n)), mr);
 }
@@ -139,7 +139,7 @@ Value nextpow2(const Value &x, keel::Allocator *mr)
             return Value::scalar(nextpow2Element(keel::abs(z)), mr);
         }
         auto out = createLike(x, ValueType::DOUBLE, mr);
-        double *dst = out.doubleDataMut();
+        keel::f64 *dst = out.doubleDataMut();
         const keel::c64 *src = x.complexData();
         const keel::usize n = x.numel();
         for (keel::usize i = 0; i < n; ++i) dst[i] = nextpow2Element(keel::abs(src[i]));
@@ -147,7 +147,7 @@ Value nextpow2(const Value &x, keel::Allocator *mr)
     }
     if (x.isScalar()) return Value::scalar(nextpow2Element(keel::abs(x.toScalar())), mr);
     auto out = createLike(x, ValueType::DOUBLE, mr);
-    double *dst = out.doubleDataMut();
+    keel::f64 *dst = out.doubleDataMut();
     const keel::usize n = x.numel();
     for (keel::usize i = 0; i < n; ++i)
         dst[i] = nextpow2Element(keel::abs(x.elemAsDouble(i)));

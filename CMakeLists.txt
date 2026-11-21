@@ -84,7 +84,7 @@ if(NOT TARGET keel::keel)
     FetchContent_Declare(
         keel
         GIT_REPOSITORY https://github.com/keelcpp/keel.git
-        GIT_TAG        b905b095c1b30d5162794c160b2841544a4a4e12
+        GIT_TAG        f373b237bc937b21c979bee017182dcc05ff6902
     )
     FetchContent_MakeAvailable(keel)
 endif()
@@ -114,7 +114,7 @@ if(NOT TARGET keel::imagefile)
     FetchContent_Declare(
         keel_imagefile
         GIT_REPOSITORY https://github.com/keelcpp/imagefile.git
-        GIT_TAG        1a60a81c3deac57f55746cc0de1a11a3ca750012
+        GIT_TAG        81751baeb333937d8269a75df0fbe330791d94e2
     )
     FetchContent_MakeAvailable(keel_imagefile)
 endif()
@@ -129,7 +129,7 @@ if(NOT TARGET keel::fft)
     FetchContent_Declare(
         keel_fft
         GIT_REPOSITORY https://github.com/keelcpp/fft.git
-        GIT_TAG        90bbf061b883dc69442d26a13efed430c6cf829c
+        GIT_TAG        740bed99088ffb27d58fa2aa8e70b9d66f59100f
     )
     FetchContent_MakeAvailable(keel_fft)
 endif()
@@ -159,7 +159,7 @@ if(NOT TARGET keel::linalg)
     FetchContent_Declare(
         keel_linalg
         GIT_REPOSITORY https://github.com/keelcpp/linalg.git
-        GIT_TAG        c99fd603adaf4341828e3656e8da464a2d747563
+        GIT_TAG        bfbb5449d06dae36a3bafe8f80700082d8201b01
     )
     FetchContent_MakeAvailable(keel_linalg)
 endif()

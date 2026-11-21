@@ -33,7 +33,7 @@ Value interp1(const Value &x, const Value &y, const Value &xq, keel::StringRef m
     // Public typed entry point: MATLAB's default extrapolation policy
     // (NaN out-of-range except for spline/pchip/makima).
     return interp1Dispatch(x, y, xq, method, Interp1Extrap::Default,
-                           std::numeric_limits<double>::quiet_NaN(), mr);
+                           std::numeric_limits<keel::f64>::quiet_NaN(), mr);
 }
 
 // ── interp2 ───────────────────────────────────────────────────────────
@@ -46,17 +46,17 @@ Value interp2(const Value &V, const Value &Xq, const Value &Yq, keel::StringRef 
     const keel::usize R = V.dims().rows();
     const keel::usize C = V.dims().cols();
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    auto xGrid = keel::Array<double>(C, scratch.allocator());
-    auto yGrid = keel::Array<double>(R, scratch.allocator());
-    for (keel::usize i = 0; i < C; ++i) xGrid[i] = keel::as<double>(i + 1);
-    for (keel::usize i = 0; i < R; ++i) yGrid[i] = keel::as<double>(i + 1);
+    auto xGrid = keel::Array<keel::f64>(C, scratch.allocator());
+    auto yGrid = keel::Array<keel::f64>(R, scratch.allocator());
+    for (keel::usize i = 0; i < C; ++i) xGrid[i] = keel::as<keel::f64>(i + 1);
+    for (keel::usize i = 0; i < R; ++i) yGrid[i] = keel::as<keel::f64>(i + 1);
     return interp2Impl(V, xGrid.data(), xGrid.size(), yGrid.data(), yGrid.size(), Xq, Yq, method, mr);
 }
 
 Value interp2(const Value &X, const Value &Y, const Value &V, const Value &Xq, const Value &Yq, keel::StringRef method, keel::Allocator *mr)
 {
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<double> xGrid(scratch.allocator()), yGrid(scratch.allocator());
+    keel::Array<keel::f64> xGrid(scratch.allocator()), yGrid(scratch.allocator());
     readGridAxis(X, xGrid, "X");
     readGridAxis(Y, yGrid, "Y");
     return interp2Impl(V, xGrid.data(), xGrid.size(), yGrid.data(), yGrid.size(), Xq, Yq, method, mr);
@@ -73,19 +73,19 @@ Value interp3(const Value &V, const Value &Xq, const Value &Yq, const Value &Zq,
     const keel::usize C = V.dims().cols();
     const keel::usize P = V.dims().pages();
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    auto xGrid = keel::Array<double>(C, scratch.allocator());
-    auto yGrid = keel::Array<double>(R, scratch.allocator());
-    auto zGrid = keel::Array<double>(P, scratch.allocator());
-    for (keel::usize i = 0; i < C; ++i) xGrid[i] = keel::as<double>(i + 1);
-    for (keel::usize i = 0; i < R; ++i) yGrid[i] = keel::as<double>(i + 1);
-    for (keel::usize i = 0; i < P; ++i) zGrid[i] = keel::as<double>(i + 1);
+    auto xGrid = keel::Array<keel::f64>(C, scratch.allocator());
+    auto yGrid = keel::Array<keel::f64>(R, scratch.allocator());
+    auto zGrid = keel::Array<keel::f64>(P, scratch.allocator());
+    for (keel::usize i = 0; i < C; ++i) xGrid[i] = keel::as<keel::f64>(i + 1);
+    for (keel::usize i = 0; i < R; ++i) yGrid[i] = keel::as<keel::f64>(i + 1);
+    for (keel::usize i = 0; i < P; ++i) zGrid[i] = keel::as<keel::f64>(i + 1);
     return interp3Impl(V, xGrid.data(), xGrid.size(), yGrid.data(), yGrid.size(), zGrid.data(), zGrid.size(), Xq, Yq, Zq, method, mr);
 }
 
 Value interp3(const Value &X, const Value &Y, const Value &Z, const Value &V, const Value &Xq, const Value &Yq, const Value &Zq, keel::StringRef method, keel::Allocator *mr)
 {
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<double> xGrid(scratch.allocator()), yGrid(scratch.allocator()),
+    keel::Array<keel::f64> xGrid(scratch.allocator()), yGrid(scratch.allocator()),
                         zGrid(scratch.allocator());
     readGridAxis(X, xGrid, "X");
     readGridAxis(Y, yGrid, "Y");
@@ -170,8 +170,8 @@ Value mkpp(const Value &breaks, const Value &coefs, keel::Allocator *mr)
     pp.field("form")   = Value::fromString("pp", mr);
     pp.field("breaks") = breaks;
     pp.field("coefs")  = coefs;
-    pp.field("pieces") = Value::scalar(keel::as<double>(L), mr);
-    pp.field("order")  = Value::scalar(keel::as<double>(order), mr);
+    pp.field("pieces") = Value::scalar(keel::as<keel::f64>(L), mr);
+    pp.field("order")  = Value::scalar(keel::as<keel::f64>(order), mr);
     pp.field("dim")    = Value::scalar(1.0, mr);
     return pp;
 }
@@ -185,14 +185,14 @@ Value ppval(const Value &pp, const Value &x, keel::Allocator *mr)
     const Value &coefs  = pp.field("coefs");
     const keel::usize L      = breaks.numel() - 1;
     const keel::usize order  = coefs.dims().cols();
-    const double *bp    = breaks.doubleData();
-    const double *cp    = coefs.doubleData();
+    const keel::f64 *bp    = breaks.doubleData();
+    const keel::f64 *cp    = coefs.doubleData();
     const keel::usize cR     = coefs.dims().rows();   // pieces (column-major stride)
 
     auto out = createLike(x, ValueType::DOUBLE, mr);
     const keel::usize N = x.numel();
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<double> xq(N, scratch.allocator());
+    keel::Array<keel::f64> xq(N, scratch.allocator());
     for (keel::usize i = 0; i < N; ++i) xq[i] = x.elemAsDouble(i);
     (void)keel::interp::ppval({bp, L + 1}, {cp, cR * order}, cR, order, xq.as_ref(),
                       {out.doubleDataMut(), N});

@@ -52,9 +52,9 @@ bool isTfOrScalarGain(const Value &v)
 }
 
 struct TfPolyPair {
-    keel::Array<double> num;
-    keel::Array<double> den;
-    double Ts = -1.0;
+    keel::Array<keel::f64> num;
+    keel::Array<keel::f64> den;
+    keel::f64 Ts = -1.0;
 
     explicit TfPolyPair(keel::Allocator *alloc = nullptr)
         : num(alloc), den(alloc) {}
@@ -80,7 +80,7 @@ TfPolyPair extractTfPoly(const Value &v, keel::Allocator *alloc)
     return out;
 }
 
-double combineTfTs(double Ts1, double Ts2, const char *op)
+keel::f64 combineTfTs(keel::f64 Ts1, keel::f64 Ts2, const char *op)
 {
     if (Ts1 == 0.0 && Ts2 == 0.0) return 0.0;
     if (Ts1 == Ts2) return Ts1;
@@ -90,32 +90,32 @@ double combineTfTs(double Ts1, double Ts2, const char *op)
                 0, 0, op, "", keel::format("numkit:{}:TsMismatch", op));
 }
 
-keel::Array<double> polyConv(keel::ArrayRef<double> a, keel::ArrayRef<double> b,
+keel::Array<keel::f64> polyConv(keel::ArrayRef<keel::f64> a, keel::ArrayRef<keel::f64> b,
                              keel::Allocator *alloc)
 {
-    if (a.empty() || b.empty()) return keel::Array<double>(alloc);
-    keel::Array<double> y(a.size() + b.size() - 1, 0.0, alloc);
+    if (a.empty() || b.empty()) return keel::Array<keel::f64>(alloc);
+    keel::Array<keel::f64> y(a.size() + b.size() - 1, 0.0, alloc);
     for (keel::usize i = 0; i < a.size(); ++i)
         for (keel::usize j = 0; j < b.size(); ++j)
             y[i + j] += a[i] * b[j];
     return y;
 }
 
-keel::Array<double> polyAddRightAligned(keel::ArrayRef<double> a,
-                                        keel::ArrayRef<double> b,
-                                        double bSign,
+keel::Array<keel::f64> polyAddRightAligned(keel::ArrayRef<keel::f64> a,
+                                        keel::ArrayRef<keel::f64> b,
+                                        keel::f64 bSign,
                                         keel::Allocator *alloc)
 {
     const keel::usize na = a.size(), nb = b.size();
     const keel::usize n = std::max(na, nb);
-    keel::Array<double> y(n, 0.0, alloc);
+    keel::Array<keel::f64> y(n, 0.0, alloc);
     for (keel::usize i = 0; i < na; ++i) y[n - na + i] += a[i];
     for (keel::usize i = 0; i < nb; ++i) y[n - nb + i] += bSign * b[i];
     return y;
 }
 
-Value buildTfValue(keel::ArrayRef<double> num, keel::ArrayRef<double> den,
-                   double Ts, keel::Allocator *mr)
+Value buildTfValue(keel::ArrayRef<keel::f64> num, keel::ArrayRef<keel::f64> den,
+                   keel::f64 Ts, keel::Allocator *mr)
 {
     Value nv = Value::matrix(1, num.size(), ValueType::DOUBLE, mr);
     if (!num.empty()) std::copy(num.begin(), num.end(), nv.doubleDataMut());
@@ -158,25 +158,25 @@ Value plus(const Value &a, const Value &b, keel::Allocator *mr)
             ops::detail::plusLoop(a.doubleData(), b.doubleData(), r.doubleDataMut(), a.numel());
             return r;
         }
-        return elementwiseDouble(a, b, [](double x, double y) { return x + y; }, p);
+        return elementwiseDouble(a, b, [](keel::f64 x, keel::f64 y) { return x + y; }, p);
     }
     if (a.isChar() && b.isChar())
         return Value::fromString(keel::format("{}{}", a.toString(), b.toString()), p);
     if (a.isChar() && b.type() == ValueType::DOUBLE) {
         auto ca = createLike(a, ValueType::DOUBLE, p);
         const char *cd = a.charData();
-        double *dd = ca.doubleDataMut();
+        keel::f64 *dd = ca.doubleDataMut();
         for (keel::usize i = 0; i < a.numel(); ++i)
-            dd[i] = keel::as<double>(keel::as<unsigned char>(cd[i]));
-        return elementwiseDouble(ca, b, [](double x, double y) { return x + y; }, p);
+            dd[i] = keel::as<keel::f64>(keel::as<unsigned char>(cd[i]));
+        return elementwiseDouble(ca, b, [](keel::f64 x, keel::f64 y) { return x + y; }, p);
     }
     if (a.type() == ValueType::DOUBLE && b.isChar()) {
         auto cb = createLike(b, ValueType::DOUBLE, p);
         const char *cd = b.charData();
-        double *dd = cb.doubleDataMut();
+        keel::f64 *dd = cb.doubleDataMut();
         for (keel::usize i = 0; i < b.numel(); ++i)
-            dd[i] = keel::as<double>(keel::as<unsigned char>(cd[i]));
-        return elementwiseDouble(a, cb, [](double x, double y) { return x + y; }, p);
+            dd[i] = keel::as<keel::f64>(keel::as<unsigned char>(cd[i]));
+        return elementwiseDouble(a, cb, [](keel::f64 x, keel::f64 y) { return x + y; }, p);
     }
     if (a.isString() && b.isString())
         return Value::stringScalar(keel::format("{}{}", a.toString(), b.toString()), p);
@@ -225,7 +225,7 @@ Value minus(const Value &a, const Value &b, keel::Allocator *mr)
             ops::detail::minusLoop(a.doubleData(), b.doubleData(), r.doubleDataMut(), a.numel());
             return r;
         }
-        return elementwiseDouble(a, b, [](double x, double y) { return x - y; }, p);
+        return elementwiseDouble(a, b, [](keel::f64 x, keel::f64 y) { return x - y; }, p);
     }
     {
         auto r = dispatchIntegerBinaryOp(a, b, [](auto x, auto y) { return saturateSub(x, y); }, p);
@@ -251,7 +251,7 @@ Value times(const Value &a, const Value &b, keel::Allocator *mr)
             ops::detail::timesLoop(a.doubleData(), b.doubleData(), r.doubleDataMut(), a.numel());
             return r;
         }
-        return elementwiseDouble(a, b, [](double x, double y) { return x * y; }, p);
+        return elementwiseDouble(a, b, [](keel::f64 x, keel::f64 y) { return x * y; }, p);
     }
     {
         auto r = dispatchIntegerBinaryOp(a, b, [](auto x, auto y) { return saturateMul(x, y); }, p);
@@ -307,7 +307,7 @@ Value mtimes(const Value &a, const Value &b, keel::Allocator *mr)
     if (a.isScalar() || b.isScalar()) {
         auto r = dispatchIntegerBinaryOp(a, b, [](auto x, auto y) { return saturateMul(x, y); }, p);
         if (!r.isUnset()) return r;
-        return elementwiseDouble(a, b, [](double x, double y) { return x * y; }, p);
+        return elementwiseDouble(a, b, [](keel::f64 x, keel::f64 y) { return x * y; }, p);
     }
     if ((a.type() == ValueType::SINGLE || b.type() == ValueType::SINGLE) &&
         (a.type() == ValueType::SINGLE || a.type() == ValueType::DOUBLE) &&
@@ -317,7 +317,7 @@ Value mtimes(const Value &a, const Value &b, keel::Allocator *mr)
             throw Error("Inner matrix dimensions must agree", 0, 0, "mtimes", "",
                          "numkit:innerdim");
         auto r = Value::matrix(M, N, ValueType::SINGLE, p);
-        float *rd = static_cast<float *>(r.rawDataMut());
+        keel::f32 *rd = static_cast<keel::f32 *>(r.rawDataMut());
         if (M == 0 || N == 0)
             return r;
         if (K == 0) {
@@ -325,30 +325,30 @@ Value mtimes(const Value &a, const Value &b, keel::Allocator *mr)
             return r;
         }
         keel::ArenaTemp scratch = keel::get_scratch(p);
-        keel::Array<double> cd(M * N, scratch.allocator());
-        const double *adPtr = nullptr;
-        keel::Array<double> adScratch(scratch.allocator());
+        keel::Array<keel::f64> cd(M * N, scratch.allocator());
+        const keel::f64 *adPtr = nullptr;
+        keel::Array<keel::f64> adScratch(scratch.allocator());
         if (a.type() == ValueType::DOUBLE) {
             adPtr = a.doubleData();
         } else {
             adScratch.resize(M * K);
-            const float *af = static_cast<const float *>(a.rawData());
-            for (keel::usize i = 0; i < M * K; ++i) adScratch[i] = keel::as<double>(af[i]);
+            const keel::f32 *af = static_cast<const keel::f32 *>(a.rawData());
+            for (keel::usize i = 0; i < M * K; ++i) adScratch[i] = keel::as<keel::f64>(af[i]);
             adPtr = adScratch.data();
         }
-        const double *bdPtr = nullptr;
-        keel::Array<double> bdScratch(scratch.allocator());
+        const keel::f64 *bdPtr = nullptr;
+        keel::Array<keel::f64> bdScratch(scratch.allocator());
         if (b.type() == ValueType::DOUBLE) {
             bdPtr = b.doubleData();
         } else {
             bdScratch.resize(K * N);
-            const float *bf = static_cast<const float *>(b.rawData());
-            for (keel::usize i = 0; i < K * N; ++i) bdScratch[i] = keel::as<double>(bf[i]);
+            const keel::f32 *bf = static_cast<const keel::f32 *>(b.rawData());
+            for (keel::usize i = 0; i < K * N; ++i) bdScratch[i] = keel::as<keel::f64>(bf[i]);
             bdPtr = bdScratch.data();
         }
         ops::detail::matmulDoubleLoop(adPtr, bdPtr, cd.data(), M, N, K);
         for (keel::usize i = 0; i < M * N; ++i)
-            rd[i] = keel::as<float>(cd[i]);
+            rd[i] = keel::as<keel::f32>(cd[i]);
         return r;
     }
     if (a.type() == ValueType::DOUBLE && b.type() == ValueType::DOUBLE) {
@@ -381,7 +381,7 @@ Value rdivide(const Value &a, const Value &b, keel::Allocator *mr)
             ops::detail::rdivideLoop(a.doubleData(), b.doubleData(), r.doubleDataMut(), a.numel());
             return r;
         }
-        return elementwiseDouble(a, b, [](double x, double y) { return x / y; }, p);
+        return elementwiseDouble(a, b, [](keel::f64 x, keel::f64 y) { return x / y; }, p);
     }
     {
         auto r = dispatchIntegerBinaryOp(a, b, [](auto x, auto y) { return saturateDiv(x, y); }, p);
@@ -421,7 +421,7 @@ Value mrdivide(const Value &a, const Value &b, keel::Allocator *mr)
     if (b.isScalar()) {
         if (a.isComplex() || b.isComplex())
             return elementwiseComplex(a, b, [](keel::c64 x, keel::c64 y) { return x / y; }, p);
-        return elementwiseDouble(a, b, [](double x, double y) { return x / y; }, p);
+        return elementwiseDouble(a, b, [](keel::f64 x, keel::f64 y) { return x / y; }, p);
     }
     if (a.isScalar() && !b.isScalar()) {
         if (b.dims().ndim() > 2)
@@ -465,7 +465,7 @@ Value mldivide(const Value &a, const Value &b, keel::Allocator *mr)
     if (a.isScalar() && !b.isScalar()) {
         if (a.isComplex() || b.isComplex())
             return elementwiseComplex(b, a, [](keel::c64 x, keel::c64 y) { return x / y; }, p);
-        return elementwiseDouble(b, a, [](double x, double y) { return x / y; }, p);
+        return elementwiseDouble(b, a, [](keel::f64 x, keel::f64 y) { return x / y; }, p);
     }
     return matrixSolve(a, b, "mldivide", p);
 }
@@ -474,26 +474,26 @@ static bool powNeedsComplex(const Value &a, const Value &b)
 {
     if (a.type() != ValueType::DOUBLE || b.type() != ValueType::DOUBLE)
         return false;
-    auto negBase = [](double x) { return x < 0.0; };
-    auto fracExp = [](double y) { return y != std::floor(y); };
+    auto negBase = [](keel::f64 x) { return x < 0.0; };
+    auto fracExp = [](keel::f64 y) { return y != std::floor(y); };
     if (a.isScalar() && b.isScalar())
         return negBase(a.toScalar()) && fracExp(b.toScalar());
     if (b.isScalar()) {
         if (!fracExp(b.toScalar())) return false;
-        const double *da = a.doubleData();
+        const keel::f64 *da = a.doubleData();
         for (keel::usize i = 0; i < a.numel(); ++i)
             if (negBase(da[i])) return true;
         return false;
     }
     if (a.isScalar()) {
         if (!negBase(a.toScalar())) return false;
-        const double *db = b.doubleData();
+        const keel::f64 *db = b.doubleData();
         for (keel::usize i = 0; i < b.numel(); ++i)
             if (fracExp(db[i])) return true;
         return false;
     }
     if (a.dims() == b.dims()) {
-        const double *da = a.doubleData(), *db = b.doubleData();
+        const keel::f64 *da = a.doubleData(), *db = b.doubleData();
         for (keel::usize i = 0; i < a.numel(); ++i)
             if (negBase(da[i]) && fracExp(db[i])) return true;
     }
@@ -514,7 +514,7 @@ Value power(const Value &a, const Value &b, keel::Allocator *mr)
             auto [ca, cb] = promoteToComplex(a, b, p);
             return Value::complexScalar(keel::pow(ca.toComplex(), cb.toComplex()), p);
         }
-        const double base = a.toScalar(), e = b.toScalar();
+        const keel::f64 base = a.toScalar(), e = b.toScalar();
         if (base < 0.0 && e != std::floor(e))
             return Value::complexScalar(keel::pow(keel::c64(base, 0.0), e), p);
         return Value::scalar(std::pow(base, e), p);
@@ -524,7 +524,7 @@ Value power(const Value &a, const Value &b, keel::Allocator *mr)
         && a.dims().ndim() == 2) {
         const keel::usize R = a.dims().rows();
         const bool bCplx = b.isComplex();
-        const double bs = bCplx ? b.toComplex().real() : b.toScalar();
+        const keel::f64 bs = bCplx ? b.toComplex().real() : b.toScalar();
         const bool bRealInt = (!bCplx || b.toComplex().imag() == 0.0)
                               && std::isfinite(bs) && std::floor(bs) == bs
                               && keel::abs(bs) <= 1e9;
@@ -533,14 +533,14 @@ Value power(const Value &a, const Value &b, keel::Allocator *mr)
             auto makeEye = [&]() {
                 if (a.type() == ValueType::SINGLE && !a.isComplex()) {
                     auto I = Value::matrix(R, R, ValueType::SINGLE, p);
-                    float *id = static_cast<float *>(I.rawDataMut());
+                    keel::f32 *id = static_cast<keel::f32 *>(I.rawDataMut());
                     std::fill(id, id + R * R, 0.0f);
                     for (keel::usize i = 0; i < R; ++i) id[i * R + i] = 1.0f;
                     return I;
                 }
                 auto I = Value::matrix(R, R, ValueType::DOUBLE, p);
-                double *id = I.doubleDataMut();
-                std::memset(id, 0, sizeof(double) * R * R);
+                keel::f64 *id = I.doubleDataMut();
+                std::memset(id, 0, sizeof(keel::f64) * R * R);
                 for (keel::usize i = 0; i < R; ++i) id[i * R + i] = 1.0;
                 return I;
             };
@@ -591,8 +591,8 @@ Value power(const Value &a, const Value &b, keel::Allocator *mr)
             }
             if (!anyImag && !aCplx && !bCplx) {
                 Value outR = Value::matrix(R, R, ValueType::DOUBLE, p);
-                double *rd = outR.doubleDataMut();
-                std::memset(rd, 0, sizeof(double) * R * R);
+                keel::f64 *rd = outR.doubleDataMut();
+                std::memset(rd, 0, sizeof(keel::f64) * R * R);
                 for (keel::usize i = 0; i < R; ++i) rd[i + i * R] = od[i + i * R].real();
                 return outR;
             }
@@ -617,14 +617,14 @@ Value power(const Value &a, const Value &b, keel::Allocator *mr)
         Value res = mrdivide(Vc, V, p);
         if (!aCplx && !bCplx && res.isComplex()) {
             const keel::c64 *rc = res.complexData();
-            double maxRe = 0.0, maxIm = 0.0;
+            keel::f64 maxRe = 0.0, maxIm = 0.0;
             for (keel::usize k = 0; k < R * R; ++k) {
                 maxRe = std::max(maxRe, keel::abs(rc[k].real()));
                 maxIm = std::max(maxIm, keel::abs(rc[k].imag()));
             }
             if (maxIm <= 1e-12 * std::max(1.0, maxRe)) {
                 Value outR = Value::matrix(R, R, ValueType::DOUBLE, p);
-                double *rd = outR.doubleDataMut();
+                keel::f64 *rd = outR.doubleDataMut();
                 for (keel::usize k = 0; k < R * R; ++k) rd[k] = rc[k].real();
                 return outR;
             }
@@ -658,16 +658,16 @@ Value elementPower(const Value &a, const Value &b, keel::Allocator *mr)
             return elementwiseComplex(
                 ca, cb, [](const keel::c64 &x, const keel::c64 &y) { return keel::pow(x, y); }, p);
         }
-        return elementwiseDouble(a, b, [](double x, double y) { return std::pow(x, y); }, p);
+        return elementwiseDouble(a, b, [](keel::f64 x, keel::f64 y) { return std::pow(x, y); }, p);
     }
     {
         auto r = dispatchIntegerBinaryOp(a, b, [](auto x, auto y) -> decltype(x) {
-            double r = std::pow(keel::as<double>(x), keel::as<double>(y));
+            keel::f64 r = std::pow(keel::as<keel::f64>(x), keel::as<keel::f64>(y));
             if constexpr (std::is_integral_v<decltype(x)>) {
                 r = std::round(r);
-                if (r > keel::as<double>(std::numeric_limits<decltype(x)>::max()))
+                if (r > keel::as<keel::f64>(std::numeric_limits<decltype(x)>::max()))
                     return std::numeric_limits<decltype(x)>::max();
-                if (r < keel::as<double>(std::numeric_limits<decltype(x)>::min()))
+                if (r < keel::as<keel::f64>(std::numeric_limits<decltype(x)>::min()))
                     return std::numeric_limits<decltype(x)>::min();
                 return static_cast<decltype(x)>(r);
             } else {

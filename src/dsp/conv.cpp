@@ -12,19 +12,19 @@
 
 namespace numkit::ops {
 
-keel::Array<double> convDirect(const double *a, keel::usize na,
-                              const double *b, keel::usize nb,
+keel::Array<keel::f64> convDirect(const keel::f64 *a, keel::usize na,
+                              const keel::f64 *b, keel::usize nb,
                               keel::Allocator *mr)
 {
     keel::usize nc = na + nb - 1;
-    keel::Array<double> c(nc, mr);
+    keel::Array<keel::f64> c(nc, mr);
     (void)keel::signal::conv_1d({a, na}, {b, nb}, c);
     return c;
 }
 
-void conv2Direct(const double *A, keel::usize M, keel::usize N,
-                 const double *B, keel::usize P, keel::usize Q,
-                 double *out)
+void conv2Direct(const keel::f64 *A, keel::usize M, keel::usize N,
+                 const keel::f64 *B, keel::usize P, keel::usize Q,
+                 keel::f64 *out)
 {
     const keel::usize outLen = (M > 0 && N > 0 && P > 0 && Q > 0)
                                    ? (M + P - 1) * (N + Q - 1)

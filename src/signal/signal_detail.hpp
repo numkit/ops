@@ -89,11 +89,11 @@ inline Value widenSingleToDouble(const Value &v, keel::Allocator *mr)
         for (int k = 0; k < d.ndim(); ++k) od[keel::as<keel::usize>(k)] = d.dim(k);
         out = Value::matrixND(od.data(), d.ndim(), ValueType::DOUBLE, mr);
     }
-    const float *src = v.singleData();
-    double *dst = out.doubleDataMut();
+    const keel::f32 *src = v.singleData();
+    keel::f64 *dst = out.doubleDataMut();
     const keel::usize n = v.numel();
     for (keel::usize i = 0; i < n; ++i)
-        dst[i] = keel::as<double>(src[i]);
+        dst[i] = keel::as<keel::f64>(src[i]);
     return out;
 }
 
@@ -111,11 +111,11 @@ inline Value narrowDoubleToSingle(const Value &v, keel::Allocator *mr)
         for (int k = 0; k < d.ndim(); ++k) od[keel::as<keel::usize>(k)] = d.dim(k);
         out = Value::matrixND(od.data(), d.ndim(), ValueType::SINGLE, mr);
     }
-    const double *src = v.doubleData();
-    float *dst = out.singleDataMut();
+    const keel::f64 *src = v.doubleData();
+    keel::f32 *dst = out.singleDataMut();
     const keel::usize n = v.numel();
     for (keel::usize i = 0; i < n; ++i)
-        dst[i] = keel::as<float>(src[i]);
+        dst[i] = keel::as<keel::f32>(src[i]);
     return out;
 }
 

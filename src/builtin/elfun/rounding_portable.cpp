@@ -11,22 +11,22 @@
 
 namespace numkit::builtin::detail {
 
-void doubleCeilLoop(const double *in, double *out, keel::usize n)
+void doubleCeilLoop(const keel::f64 *in, keel::f64 *out, keel::usize n)
 {
     for (keel::usize i = 0; i < n; ++i) out[i] = std::ceil(in[i]);
 }
 
-void doubleFloorLoop(const double *in, double *out, keel::usize n)
+void doubleFloorLoop(const keel::f64 *in, keel::f64 *out, keel::usize n)
 {
     for (keel::usize i = 0; i < n; ++i) out[i] = std::floor(in[i]);
 }
 
-void doubleRoundLoop(const double *in, double *out, keel::usize n)
+void doubleRoundLoop(const keel::f64 *in, keel::f64 *out, keel::usize n)
 {
     for (keel::usize i = 0; i < n; ++i) out[i] = std::round(in[i]);
 }
 
-void doubleFixLoop(const double *in, double *out, keel::usize n)
+void doubleFixLoop(const keel::f64 *in, keel::f64 *out, keel::usize n)
 {
     for (keel::usize i = 0; i < n; ++i) out[i] = std::trunc(in[i]);
 }

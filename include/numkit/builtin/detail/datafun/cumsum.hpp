@@ -22,16 +22,16 @@
 namespace numkit::builtin {
 
 // Inclusive prefix sum over [src, src+n) into [dst, dst+n).
-void cumsumScan(const double *src, double *dst, keel::usize n);
+void cumsumScan(const keel::f64 *src, keel::f64 *dst, keel::usize n);
 
 // Inclusive prefix product. Identity = 1.0; NaN propagates per IEEE
 // (matches MATLAB cumprod which has no NaN-skip option).
-void cumprodScan(const double *src, double *dst, keel::usize n);
+void cumprodScan(const keel::f64 *src, keel::f64 *dst, keel::usize n);
 
 // Inclusive prefix max / min, skipping NaN. Identity = ±inf. Leading
 // NaN positions in src are preserved as NaN in dst (running aggregate
 // is undefined until the first non-NaN appears).
-void cummaxScan(const double *src, double *dst, keel::usize n);
-void cumminScan(const double *src, double *dst, keel::usize n);
+void cummaxScan(const keel::f64 *src, keel::f64 *dst, keel::usize n);
+void cumminScan(const keel::f64 *src, keel::f64 *dst, keel::usize n);
 
 } // namespace numkit::builtin

@@ -23,9 +23,9 @@ namespace HWY_NAMESPACE {
 
 namespace hn = hwy::HWY_NAMESPACE;
 
-void AffineImpl(const double *x, double scale, double offset,
-                double *out, keel::usize n) {
-    const hn::ScalableTag<double> d;
+void AffineImpl(const keel::f64 *x, keel::f64 scale, keel::f64 offset,
+                keel::f64 *out, keel::usize n) {
+    const hn::ScalableTag<keel::f64> d;
     const keel::usize L = hn::Lanes(d);
     const auto vs = hn::Set(d, scale), vt = hn::Set(d, offset);
     keel::usize i = 0;
@@ -47,8 +47,8 @@ namespace numkit::ops {
 
 HWY_EXPORT(AffineImpl);
 
-void fusedAffine(const double *x, double scale, double offset,
-                 double *out, keel::usize n) {
+void fusedAffine(const keel::f64 *x, keel::f64 scale, keel::f64 offset,
+                 keel::f64 *out, keel::usize n) {
     if (n == 0) return;
     // Small native arrays: a scalar loop the compiler auto-vectorizes beats the
     // HWY_DYNAMIC_DISPATCH indirect call below the SIMD crossover. Delegated to

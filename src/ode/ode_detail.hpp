@@ -26,10 +26,10 @@ namespace numkit::ode {
 // Solver options shared by ode45 / ode23. All defaults are common EXCEPT
 // `refine` (ode45 -> 4, ode23 -> 1), which the caller supplies to read_opts.
 struct OdeOpts {
-    double              rel_tol      = 1e-3;
-    keel::Array<double> abs_tol      = keel::Array<double>(1, 1e-6, nullptr);
-    double              max_step     = keel::Limits<double>::infinity();
-    double              initial_step = 0.0;
+    keel::f64              rel_tol      = 1e-3;
+    keel::Array<keel::f64> abs_tol      = keel::Array<keel::f64>(1, 1e-6, nullptr);
+    keel::f64              max_step     = keel::Limits<keel::f64>::infinity();
+    keel::f64              initial_step = 0.0;
     int                 refine       = 4;
     bool                norm_control = false;
     bool                stats        = false;
@@ -42,7 +42,7 @@ inline OdeOpts read_opts(const Value &opts, int refine_default)
     OdeOpts o;
     o.refine = refine_default;
     if (opts.isEmpty() || !opts.isStruct()) return o;
-    auto get_double = [&](const char *name, double def) -> double {
+    auto get_double = [&](const char *name, keel::f64 def) -> keel::f64 {
         if (opts.hasField(name)) {
             const Value &v = opts.field(name);
             if (!v.isEmpty()) return v.toScalar();
@@ -50,12 +50,12 @@ inline OdeOpts read_opts(const Value &opts, int refine_default)
         return def;
     };
     o.rel_tol      = get_double("RelTol", 1e-3);
-    o.max_step     = get_double("MaxStep", keel::Limits<double>::infinity());
+    o.max_step     = get_double("MaxStep", keel::Limits<keel::f64>::infinity());
     o.initial_step = get_double("InitialStep", 0.0);
     if (opts.hasField("Refine")) {
         const Value &v = opts.field("Refine");
         if (!v.isEmpty()) {
-            const double r = v.toScalar();
+            const keel::f64 r = v.toScalar();
             o.refine = (r >= 1.0) ? keel::as<int>(r) : 1;
         }
     }

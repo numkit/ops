@@ -224,21 +224,21 @@ void validateEdges(const Value &edges, const char *fn)
     if (edges.numel() < 2)
         throw Error(keel::format("{}: edges must have length >= 2", fn),
                      0, 0, fn, "", keel::format("numkit:{}:shortEdges", fn));
-    const double *e = edges.doubleData();
+    const keel::f64 *e = edges.doubleData();
     for (keel::usize i = 1; i < edges.numel(); ++i)
         if (!(e[i] >= e[i - 1]))
             throw Error(keel::format("{}: edges must be ascending", fn),
                          0, 0, fn, "", keel::format("numkit:{}:badEdges", fn));
 }
 
-bool edgesAreUniform(const double *e, keel::usize nEdges, double &outStep)
+bool edgesAreUniform(const keel::f64 *e, keel::usize nEdges, keel::f64 &outStep)
 {
     if (nEdges < 3) return false;
-    const double step = e[1] - e[0];
+    const keel::f64 step = e[1] - e[0];
     if (!(step > 0)) return false;
-    const double tol = keel::abs(step) * 1e-12;
+    const keel::f64 tol = keel::abs(step) * 1e-12;
     for (keel::usize i = 2; i < nEdges; ++i) {
-        const double g = e[i] - e[i - 1];
+        const keel::f64 g = e[i] - e[i - 1];
         if (keel::abs(g - step) > tol) return false;
     }
     outStep = step;
@@ -247,7 +247,7 @@ bool edgesAreUniform(const double *e, keel::usize nEdges, double &outStep)
 
 } // namespace (set ops helpers)
 namespace {
-inline keel::usize histcBin(double v, const double *e, keel::usize nE)
+inline keel::usize histcBin(keel::f64 v, const keel::f64 *e, keel::usize nE)
 {
     if (std::isnan(v) || v < e[0] || v > e[nE - 1]) return SIZE_MAX;
     if (v == e[nE - 1]) return nE - 1;
@@ -261,11 +261,11 @@ inline keel::usize histcBin(double v, const double *e, keel::usize nE)
 } // namespace
 namespace {
 
-bool isExactNonnegInt(double v, keel::u64 &outU)
+bool isExactNonnegInt(keel::f64 v, keel::u64 &outU)
 {
     if (!std::isfinite(v) || v < 0) return false;
     if (v != std::floor(v))         return false;
-    if (v > keel::as<double>(std::numeric_limits<keel::u64>::max()))
+    if (v > keel::as<keel::f64>(std::numeric_limits<keel::u64>::max()))
         return false;
     outU = keel::as<keel::u64>(v);
     return true;
@@ -285,7 +285,7 @@ bool isPrimeU64(keel::u64 n)
     return true;
 }
 
-bool isPrimeDouble(double v)
+bool isPrimeDouble(keel::f64 v)
 {
     keel::u64 u;
     if (!isExactNonnegInt(v, u)) return false;
@@ -306,32 +306,32 @@ keel::u64 permFactorial(int n)
     return f;
 }
 
-double factorialDouble(double v, const char *fn)
+keel::f64 factorialDouble(keel::f64 v, const char *fn)
 {
     if (!std::isfinite(v) || v < 0 || v != std::floor(v))
         throw Error(keel::format("{}: entries must be non-negative integers", fn),
                      0, 0, fn, "", keel::format("numkit:{}:badArg", fn));
     if (v > 170.0)
-        return std::numeric_limits<double>::infinity();
-    double r = 1.0;
+        return std::numeric_limits<keel::f64>::infinity();
+    keel::f64 r = 1.0;
     const int n = keel::as<int>(v);
-    for (int i = 2; i <= n; ++i) r *= keel::as<double>(i);
+    for (int i = 2; i <= n; ++i) r *= keel::as<keel::f64>(i);
     return r;
 }
 
 } // namespace (combinatorics helpers)
 namespace {
-inline bool nearlyEqualTol(double x, double y, double tol)
+inline bool nearlyEqualTol(keel::f64 x, keel::f64 y, keel::f64 tol)
 {
     if (x == y) return true;
     if (std::isnan(x) || std::isnan(y)) return false;
-    const double s = std::max(keel::abs(x), keel::abs(y));
+    const keel::f64 s = std::max(keel::abs(x), keel::abs(y));
     return keel::abs(x - y) <= tol * std::max(1.0, s);
 }
 } // anon
 
 // file-scope workers used by the reg (defs in discrete.cpp, external).
 std::pair<Value, Value> ismemberComplex(const Value &a, const Value &b, bool wantLoc, keel::Allocator *mr);
-Value nchoosekCombinations(const Value &v, double kd, keel::Allocator *mr);
+Value nchoosekCombinations(const Value &v, keel::f64 kd, keel::Allocator *mr);
 
 } // namespace numkit::builtin

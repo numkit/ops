@@ -32,14 +32,14 @@ namespace numkit::builtin {
 
 Value gcd(const Value &a, const Value &b, keel::Allocator *mr)
 {
-    return elementwiseDouble(a, b, [](double xv, double yv) {
-        return keel::as<double>(gcdInt(toInt64(xv), toInt64(yv)));
+    return elementwiseDouble(a, b, [](keel::f64 xv, keel::f64 yv) {
+        return keel::as<keel::f64>(gcdInt(toInt64(xv), toInt64(yv)));
     }, mr);
 }
 
 Value lcm(const Value &a, const Value &b, keel::Allocator *mr)
 {
-    return elementwiseDouble(a, b, [](double xv, double yv) {
+    return elementwiseDouble(a, b, [](keel::f64 xv, keel::f64 yv) {
         const keel::i64 x = toInt64(xv);
         const keel::i64 y = toInt64(yv);
         if (x == 0 || y == 0) return 0.0;
@@ -47,7 +47,7 @@ Value lcm(const Value &a, const Value &b, keel::Allocator *mr)
         // |a*b| / g, computed as (|a|/g)*|b| to reduce overflow risk.
         const keel::i64 ax = (x < 0) ? -x : x;
         const keel::i64 ay = (y < 0) ? -y : y;
-        return keel::as<double>((ax / g) * ay);
+        return keel::as<keel::f64>((ax / g) * ay);
     }, mr);
 }
 
@@ -57,34 +57,34 @@ Value lcm(const Value &a, const Value &b, keel::Allocator *mr)
 
 Value bitand_(const Value &a, const Value &b, keel::Allocator *mr)
 {
-    return elementwiseDouble(a, b, [](double xv, double yv) {
-        return keel::as<double>(toInt64(xv) & toInt64(yv));
+    return elementwiseDouble(a, b, [](keel::f64 xv, keel::f64 yv) {
+        return keel::as<keel::f64>(toInt64(xv) & toInt64(yv));
     }, mr);
 }
 
 Value bitor_(const Value &a, const Value &b, keel::Allocator *mr)
 {
-    return elementwiseDouble(a, b, [](double xv, double yv) {
-        return keel::as<double>(toInt64(xv) | toInt64(yv));
+    return elementwiseDouble(a, b, [](keel::f64 xv, keel::f64 yv) {
+        return keel::as<keel::f64>(toInt64(xv) | toInt64(yv));
     }, mr);
 }
 
 Value bitxor_(const Value &a, const Value &b, keel::Allocator *mr)
 {
-    return elementwiseDouble(a, b, [](double xv, double yv) {
-        return keel::as<double>(toInt64(xv) ^ toInt64(yv));
+    return elementwiseDouble(a, b, [](keel::f64 xv, keel::f64 yv) {
+        return keel::as<keel::f64>(toInt64(xv) ^ toInt64(yv));
     }, mr);
 }
 
 Value bitshift(const Value &a, const Value &k, keel::Allocator *mr)
 {
-    return elementwiseDouble(a, k, [](double xv, double kv) {
+    return elementwiseDouble(a, k, [](keel::f64 xv, keel::f64 kv) {
         const keel::i64 x = toInt64(xv);
         const keel::i64 shift = toInt64(kv);
         if (shift > 0) {
             // Left shift. Cap at 63 to avoid undefined behavior.
             if (shift >= 64) return 0.0;
-            return keel::as<double>(keel::as<keel::i64>(
+            return keel::as<keel::f64>(keel::as<keel::i64>(
                 keel::as<keel::u64>(x) << shift));
         }
         if (shift < 0) {
@@ -95,12 +95,12 @@ Value bitshift(const Value &a, const Value &k, keel::Allocator *mr)
             }
             // Arithmetic right shift: implementation-defined in C++ for
             // negative values pre-C++20. We do it explicitly to be safe.
-            if (x >= 0) return keel::as<double>(x >> s);
+            if (x >= 0) return keel::as<keel::f64>(x >> s);
             const keel::u64 ux = keel::as<keel::u64>(x);
             const keel::u64 mask = ~keel::u64{0} << (64 - s);
-            return keel::as<double>(keel::as<keel::i64>((ux >> s) | mask));
+            return keel::as<keel::f64>(keel::as<keel::i64>((ux >> s) | mask));
         }
-        return keel::as<double>(x);
+        return keel::as<keel::f64>(x);
     }, mr);
 }
 
@@ -111,9 +111,9 @@ Value bitcmp(const Value &a, int width, keel::Allocator *mr)
                      0, 0, "bitcmp", "", "numkit:bitcmp:badWidth");
     const keel::u64 mask = (width == 64) ? ~keel::u64{0}
                                         : ((keel::u64{1} << width) - 1);
-    return unaryDouble(a, [mask](double xv) {
+    return unaryDouble(a, [mask](keel::f64 xv) {
         const keel::u64 ux = keel::as<keel::u64>(toInt64(xv));
-        return keel::as<double>((~ux) & mask);
+        return keel::as<keel::f64>((~ux) & mask);
     }, mr);
 }
 
@@ -126,26 +126,26 @@ Value bitset(const Value &a, const Value &n, const Value &val, keel::Allocator *
     if (v != 0 && v != 1)
         throw Error("bitset: third argument must be 0 or 1",
                      0, 0, "bitset", "", "numkit:bitset:badVal");
-    return elementwiseDouble(a, n, [v](double xv, double nv) {
+    return elementwiseDouble(a, n, [v](keel::f64 xv, keel::f64 nv) {
         const keel::i64 x = toInt64(xv);
         const int bit = keel::as<int>(nv);
         if (bit < 1 || bit > 64) return xv;
         const keel::u64 mask = keel::u64{1} << (bit - 1);
         const keel::u64 ux = keel::as<keel::u64>(x);
         const keel::u64 r  = (v == 1) ? (ux | mask) : (ux & ~mask);
-        return keel::as<double>(keel::as<keel::i64>(r));
+        return keel::as<keel::f64>(keel::as<keel::i64>(r));
     }, mr);
 }
 
 // bitget(A, n)        — return the n-th bit (0 or 1) of each A_i.
 Value bitget(const Value &a, const Value &n, keel::Allocator *mr)
 {
-    return elementwiseDouble(a, n, [](double xv, double nv) {
+    return elementwiseDouble(a, n, [](keel::f64 xv, keel::f64 nv) {
         const keel::i64 x = toInt64(xv);
         const int bit = keel::as<int>(nv);
         if (bit < 1 || bit > 64) return 0.0;
         const keel::u64 ux = keel::as<keel::u64>(x);
-        return keel::as<double>((ux >> (bit - 1)) & 1u);
+        return keel::as<keel::f64>((ux >> (bit - 1)) & 1u);
     }, mr);
 }
 

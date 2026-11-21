@@ -22,9 +22,9 @@ namespace HWY_NAMESPACE {
 
 namespace hn = hwy::HWY_NAMESPACE;
 
-void AxpbyImpl(const double *x, double a, const double *y, double b,
-               double *out, keel::usize n) {
-    const hn::ScalableTag<double> d;
+void AxpbyImpl(const keel::f64 *x, keel::f64 a, const keel::f64 *y, keel::f64 b,
+               keel::f64 *out, keel::usize n) {
+    const hn::ScalableTag<keel::f64> d;
     const keel::usize L = hn::Lanes(d);
     const auto va = hn::Set(d, a), vb = hn::Set(d, b);
     keel::usize i = 0;
@@ -47,8 +47,8 @@ namespace numkit::ops {
 
 HWY_EXPORT(AxpbyImpl);
 
-void fusedAxpby(const double *x, double a, const double *y, double b,
-                double *out, keel::usize n) {
+void fusedAxpby(const keel::f64 *x, keel::f64 a, const keel::f64 *y, keel::f64 b,
+                keel::f64 *out, keel::usize n) {
     if (n == 0) return;
     detail::parallel_for(n, keel::usize{1} << 16, [&](keel::usize s, keel::usize e) {
         HWY_DYNAMIC_DISPATCH(AxpbyImpl)(x + s, a, y + s, b, out + s, e - s);

@@ -171,9 +171,9 @@ HWY_INLINE V ldexpk(D d, V u, V qd)
 template <class D, class V>
 HWY_INLINE V expk(D d, DD<V> a)
 {
-    const double R_LN2 = 1.442695040888963407359924681001892137426645954152985934135449406931;
-    const double L2U   = 0.69314718055966295651160180568695068359375;
-    const double L2L   = 0.28235290563031577122588448175013436025525412068e-12;
+    const keel::f64 R_LN2 = 1.442695040888963407359924681001892137426645954152985934135449406931;
+    const keel::f64 L2U   = 0.69314718055966295651160180568695068359375;
+    const keel::f64 L2L   = 0.28235290563031577122588448175013436025525412068e-12;
 
     V u  = hn::Mul(hn::Add(a.x, a.y), hn::Set(d, R_LN2));
     V dq = hn::Round(u);
@@ -206,16 +206,16 @@ HWY_INLINE V expk(D d, DD<V> a)
     return u;
 }
 
-void ErfLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, keel::usize n)
+void ErfLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel::usize n)
 {
-    const hn::ScalableTag<double> d;
+    const hn::ScalableTag<keel::f64> d;
     const keel::usize N = hn::Lanes(d);
     using V = decltype(hn::Zero(d));
 
     // SLEEF xerf_u1 â€” two coefficient sets, selected per lane by |x| <= 2.5.
     // Index 0..4 are the POLY21 high terms (d4..d0); 5..20 are cf..c0. All
     // copied verbatim from sleefsimddp.c (the |x|<=2.5 set and the >2.5 set).
-    static const double A_lo[21] = {
+    static const keel::f64 A_lo[21] = {
         -0.2083271002525222097e-14, +0.7151909970790897009e-13, -0.1162238220110999364e-11,
         +0.1186474230821585259e-10, -0.8499973178354613440e-10, +0.4507647462598841629e-9,
         -0.1808044474288848915e-8,  +0.5435081826716212389e-8,  -0.1143939895758628484e-7,
@@ -223,7 +223,7 @@ void ErfLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, keel::usiz
         +0.1389000557865837204e-6,  +0.2945514529987331866e-6,  -0.1842918273003998283e-5,
         +0.3417987836115362136e-5,  +0.3860236356493129101e-5,  -0.3309403072749947546e-4,
         +0.1060862922597579532e-3,  +0.2323253155213076174e-3,  +0.1490149719145544729e-3};
-    static const double A_hi[21] = {
+    static const keel::f64 A_hi[21] = {
         -0.4024015130752621932e-18, +0.3847193332817048172e-16, -0.1749316241455644088e-14,
         +0.5029618322872872715e-13, -0.1025221466851463164e-11, +0.1573695559331945583e-10,
         -0.1884658558040203709e-9,  +0.1798167853032159309e-8,  -0.1380745342355033142e-7,
@@ -298,13 +298,13 @@ HWY_EXPORT(ErfLoop);
 Value erf(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex() || x.isScalar() || x.type() != ValueType::DOUBLE)
-        return unaryDouble(x, [](double v) { return std::erf(v); }, mr);
+        return unaryDouble(x, [](keel::f64 v) { return std::erf(v); }, mr);
 
     Value r = createLike(x, ValueType::DOUBLE, mr);
     if (x.numel() == 0)
         return r;
-    const double *in  = x.doubleData();
-    double       *out = r.doubleDataMut();
+    const keel::f64 *in  = x.doubleData();
+    keel::f64       *out = r.doubleDataMut();
     numkit::detail::parallel_for(x.numel(), numkit::detail::kTranscendentalThreshold,
         [=](keel::usize s, keel::usize e) {
             HWY_DYNAMIC_DISPATCH(ErfLoop)(in + s, out + s, e - s);

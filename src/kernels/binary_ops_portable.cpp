@@ -14,27 +14,27 @@ namespace numkit::ops::detail {
 // plus/minus/times/rdivide forward to the shared scalar bodies in
 // binary_scalar.cpp so this fallback and the Highway small-N gate are one
 // definition (can't drift) — see bugs/ops/cheap-elementwise-simd-small-n.
-void plusLoop(const double *a, const double *b, double *out, keel::usize n)
+void plusLoop(const keel::f64 *a, const keel::f64 *b, keel::f64 *out, keel::usize n)
 {
     plusScalar(a, b, out, n);
 }
 
-void minusLoop(const double *a, const double *b, double *out, keel::usize n)
+void minusLoop(const keel::f64 *a, const keel::f64 *b, keel::f64 *out, keel::usize n)
 {
     minusScalar(a, b, out, n);
 }
 
-void timesLoop(const double *a, const double *b, double *out, keel::usize n)
+void timesLoop(const keel::f64 *a, const keel::f64 *b, keel::f64 *out, keel::usize n)
 {
     timesScalar(a, b, out, n);
 }
 
-void rdivideLoop(const double *a, const double *b, double *out, keel::usize n)
+void rdivideLoop(const keel::f64 *a, const keel::f64 *b, keel::f64 *out, keel::usize n)
 {
     rdivideScalar(a, b, out, n);
 }
 
-void matmulDoubleLoop(const double *a, const double *b, double *c,
+void matmulDoubleLoop(const keel::f64 *a, const keel::f64 *b, keel::f64 *c,
                       keel::usize M, keel::usize N, keel::usize K)
 {
     // SAXPY over columns of A — the scalar reference implementation
@@ -42,11 +42,11 @@ void matmulDoubleLoop(const double *a, const double *b, double *c,
     // difference in output comes purely from FMA vs mul+add, not from
     // reduction-order changes.
     for (keel::usize j = 0; j < N; ++j) {
-        double *c_col = c + j * M;
+        keel::f64 *c_col = c + j * M;
         for (keel::usize i = 0; i < M; ++i) c_col[i] = 0.0;
         for (keel::usize k = 0; k < K; ++k) {
-            const double bkj = b[j * K + k];
-            const double *a_col = a + k * M;
+            const keel::f64 bkj = b[j * K + k];
+            const keel::f64 *a_col = a + k * M;
             for (keel::usize i = 0; i < M; ++i)
                 c_col[i] += bkj * a_col[i];
         }

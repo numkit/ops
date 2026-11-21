@@ -47,10 +47,10 @@ namespace {
 keel::String num2strComplexScalar(keel::c64 z, int precOverride,
                                   keel::Allocator *alloc = keel::default_allocator())
 {
-    const double re = z.real(), im = z.imag();
+    const keel::f64 re = z.real(), im = z.imag();
     int prec = precOverride;
     if (prec < 1) {
-        const double M = std::max(std::fabs(re), std::fabs(im));
+        const keel::f64 M = std::max(std::fabs(re), std::fabs(im));
         prec = 5;
         if (M != 0.0) {
             const int e = keel::as<int>(std::floor(std::log10(M)));
@@ -59,12 +59,12 @@ keel::String num2strComplexScalar(keel::c64 z, int precOverride,
     }
     if (prec > 99) prec = 99;
     char bufRe[64];
-    const double rv = (re == 0.0) ? 0.0 : re;   // normalise -0 -> 0
+    const keel::f64 rv = (re == 0.0) ? 0.0 : re;   // normalise -0 -> 0
     std::snprintf(bufRe, sizeof(bufRe), "%.*g", prec, rv);
     if (im == 0.0) return keel::String::from(bufRe, alloc);
 
     char bufIm[64];
-    double iv = std::fabs(im);
+    keel::f64 iv = std::fabs(im);
     if (iv == 0.0) iv = 0.0;
     std::snprintf(bufIm, sizeof(bufIm), "%.*g", prec, iv);
 
@@ -99,7 +99,7 @@ inline keel::String num2strComplexArray(const Value &x, int precOverride,
     //    (Exact field-width model for this regime is a documented
     //    divergence — see the bug file.)
     bool anyImag = false, allInt = true;
-    double maxAbs = 0.0;
+    keel::f64 maxAbs = 0.0;
     for (keel::usize i = 0; i < rows * cols; ++i) {
         if (d[i].imag() != 0.0) anyImag = true;
         if (d[i].real() != std::floor(d[i].real())) allInt = false;
@@ -204,13 +204,13 @@ inline keel::String num2strComplexArray(const Value &x, int precOverride,
         std::snprintf(fmt, sizeof(fmt), "%%%d.%dg", p + 7, p);
         return keel::String::from(fmt);
     }
-    double maxabs = 0.0;
+    keel::f64 maxabs = 0.0;
     bool allInt = true;
     int maxChars = 1;
     for (keel::usize i = 0; i < n; ++i) {
-        const double v = x.elemAsDouble(i);
+        const keel::f64 v = x.elemAsDouble(i);
         if (!std::isfinite(v)) { allInt = false; continue; }
-        const double a = std::fabs(v);
+        const keel::f64 a = std::fabs(v);
         if (a > maxabs) maxabs = a;
         if (v != std::floor(v)) allInt = false;
         // Column width is driven by the DIGIT count of |v| (sign excluded):
@@ -414,7 +414,7 @@ namespace {
         return Value::matrix(0, 0, ValueType::DOUBLE, mr);
     auto r = Value::matrix(1, hits.size(), ValueType::DOUBLE, mr);
     for (keel::usize i = 0; i < hits.size(); ++i)
-        r.doubleDataMut()[i] = keel::as<double>(hits[i]);
+        r.doubleDataMut()[i] = keel::as<keel::f64>(hits[i]);
     return r;
 }
 } // anonymous
@@ -623,7 +623,7 @@ keel::String toBaseString(keel::u64 v, int base, int minWidth,
     const keel::usize n = d.numel();
     if (n == 0) return Value::fromString("", mr);
     if (n == 1) {
-        const double v = d.toScalar();
+        const keel::f64 v = d.toScalar();
         if (v < 0) throw Error("dec2*: value must be non-negative",
                                 0, 0, "dec2", "", "numkit:dec2:negative");
         return Value::fromString(
@@ -636,7 +636,7 @@ keel::String toBaseString(keel::u64 v, int base, int minWidth,
     rows.reserve(n);
     int maxW = minWidth;
     for (keel::usize i = 0; i < n; ++i) {
-        const double v = d.elemAsDouble(i);
+        const keel::f64 v = d.elemAsDouble(i);
         if (v < 0) throw Error("dec2*: value must be non-negative",
                                 0, 0, "dec2", "", "numkit:dec2:negative");
         rows.push_back(toBaseString(keel::as<keel::u64>(v), base, 0, salloc));
@@ -659,7 +659,7 @@ namespace {
 // Interpret a hex string as the raw IEEE-754 bit pattern of a double.
 // Whitespace is skipped (a char matrix pads short rows with spaces); the
 // digits are right-padded with '0' to 16 (MATLAB: hex2num('4') == 2).
-[[maybe_unused]] double hexBitsToDouble(keel::StringRef raw)
+[[maybe_unused]] keel::f64 hexBitsToDouble(keel::StringRef raw)
 {
     char h[16];
     int hlen = 0;
@@ -679,7 +679,7 @@ namespace {
                           0, 0, "hex2num", "", "numkit:hex2num:badDigit");
         bits = (bits << 4) | keel::as<keel::u64>(d);
     }
-    double out;
+    keel::f64 out;
     std::memcpy(&out, &bits, sizeof(out));
     return out;
 }
@@ -727,12 +727,12 @@ struct RatExpansion {
     int n_coeffs = 0;
 };
 
-RatExpansion ratExpansion(double x, double tol)
+RatExpansion ratExpansion(keel::f64 x, keel::f64 tol)
 {
     RatExpansion r;
     if (!std::isfinite(x)) return r;
 
-    double rem = x;
+    keel::f64 rem = x;
     // Track the last two convergents.
     long long prev_p = 0, curr_p = 1;
     long long prev_q = 1, curr_q = 0;
@@ -746,11 +746,11 @@ RatExpansion ratExpansion(double x, double tol)
         prev_q = curr_q; curr_q = new_q;
 
         if (curr_q != 0) {
-            const double approx = keel::as<double>(curr_p)
-                                / keel::as<double>(curr_q);
+            const keel::f64 approx = keel::as<keel::f64>(curr_p)
+                                / keel::as<keel::f64>(curr_q);
             if (std::fabs(approx - x) <= tol) break;
         }
-        const double frac = rem - keel::as<double>(a);
+        const keel::f64 frac = rem - keel::as<keel::f64>(a);
         if (frac == 0.0) break;
         rem = 1.0 / frac;
         if (std::fabs(rem) > 1e15) break;
@@ -789,7 +789,7 @@ RatExpansion ratExpansion(double x, double tol)
 // Default tol per MATLAB docs: `1e-6 * norm(X(:),1)`. For a scalar
 // input that's `1e-6 * |x|`, with a small floor at 1e-6 so x=0 still
 // terminates (the loop hits frac == 0 at i=0 anyway, but keep safe).
-inline double defaultRatTol(double x)
+inline keel::f64 defaultRatTol(keel::f64 x)
 {
     return 1e-6 * std::max(1.0, std::fabs(x));
 }

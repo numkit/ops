@@ -12,7 +12,7 @@ keel::u32 MatlabMT19937::genUint32()
     return mt_.next_u32();
 }
 
-double MatlabMT19937::genRes53()
+keel::f64 MatlabMT19937::genRes53()
 {
     return mt_.next_f64_open();
 }

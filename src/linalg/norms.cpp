@@ -38,7 +38,7 @@ inline keel::usize lin(keel::usize i, keel::usize j, keel::usize R) { return i +
 // Magnitude of linear element i, complex-aware (|z| for COMPLEX, |x| for
 // real). Mirrors the getAbs branch in vecnorm so the scalar norm paths norm
 // complex inputs by element magnitude, matching MATLAB.
-inline double absLin(const Value &x, keel::usize i)
+inline keel::f64 absLin(const Value &x, keel::usize i)
 {
     return x.isComplex() ? keel::abs(x.complexData()[i])
                          : std::fabs(x.elemAsDouble(i));
@@ -61,7 +61,7 @@ void vecnorm_argcheck(const Value &A)
 
 } // anonymous namespace
 
-Value norm_value(const Value &x, double p, keel::Allocator *mr)
+Value norm_value(const Value &x, keel::f64 p, keel::Allocator *mr)
 {
     detail::requireDoubleInput(x, "norm", "x");
     const bool wantSingle = x.type() == ValueType::SINGLE;
@@ -71,15 +71,15 @@ Value norm_value(const Value &x, double p, keel::Allocator *mr)
     if (isVectorShape(x)) {
         const keel::usize n = x.numel();
         if (p == 2.0) {
-            double s = 0.0;
-            for (keel::usize i = 0; i < n; ++i) { const double a = absLin(x, i); s += a * a; }
+            keel::f64 s = 0.0;
+            for (keel::usize i = 0; i < n; ++i) { const keel::f64 a = absLin(x, i); s += a * a; }
             return detail::narrowDoubleToSingleIf(Value::scalar(std::sqrt(s), mr), wantSingle, mr);
         } else if (p == 1.0) {
-            double s = 0.0;
+            keel::f64 s = 0.0;
             for (keel::usize i = 0; i < n; ++i) s += absLin(x, i);
             return detail::narrowDoubleToSingleIf(Value::scalar(s, mr), wantSingle, mr);
         } else {
-            double s = 0.0;
+            keel::f64 s = 0.0;
             for (keel::usize i = 0; i < n; ++i) s += std::pow(absLin(x, i), p);
             return detail::narrowDoubleToSingleIf(Value::scalar(std::pow(s, 1.0 / p), mr), wantSingle, mr);
         }
@@ -99,9 +99,9 @@ Value norm_value(const Value &x, double p, keel::Allocator *mr)
         return detail::narrowDoubleToSingleIf(Value::scalar(sv.elemAsDouble(0), mr), wantSingle, mr);
     }
     if (p == 1.0) {
-        double mx = 0.0;
+        keel::f64 mx = 0.0;
         for (keel::usize j = 0; j < n; ++j) {
-            double s = 0.0;
+            keel::f64 s = 0.0;
             for (keel::usize i = 0; i < m; ++i) s += absLin(x, i + j * m);
             mx = std::max(mx, s);
         }
@@ -119,7 +119,7 @@ Value norm_inf(const Value &x, keel::Allocator *mr)
         return detail::narrowDoubleToSingleIf(Value::scalar(0.0, mr), wantSingle, mr);
     if (isVectorShape(x)) {
         const keel::usize n = x.numel();
-        double mx = 0.0;
+        keel::f64 mx = 0.0;
         for (keel::usize i = 0; i < n; ++i)
             mx = std::max(mx, absLin(x, i));
         return detail::narrowDoubleToSingleIf(Value::scalar(mx, mr), wantSingle, mr);
@@ -130,9 +130,9 @@ Value norm_inf(const Value &x, keel::Allocator *mr)
                     0, 0, "norm", "", "numkit:norm:badShape");
     const keel::usize m = keel::as<keel::usize>(x.dims().dim(0));
     const keel::usize n = keel::as<keel::usize>(x.dims().dim(1));
-    double mx = 0.0;
+    keel::f64 mx = 0.0;
     for (keel::usize i = 0; i < m; ++i) {
-        double s = 0.0;
+        keel::f64 s = 0.0;
         for (keel::usize j = 0; j < n; ++j) s += absLin(x, i + j * m);
         mx = std::max(mx, s);
     }
@@ -146,12 +146,12 @@ Value norm_fro(const Value &x, keel::Allocator *mr)
     const keel::usize n = x.numel();
     if (n == 0)
         return detail::narrowDoubleToSingleIf(Value::scalar(0.0, mr), wantSingle, mr);
-    double s = 0.0;
-    for (keel::usize i = 0; i < n; ++i) { const double a = absLin(x, i); s += a * a; }
+    keel::f64 s = 0.0;
+    for (keel::usize i = 0; i < n; ++i) { const keel::f64 a = absLin(x, i); s += a * a; }
     return detail::narrowDoubleToSingleIf(Value::scalar(std::sqrt(s), mr), wantSingle, mr);
 }
 
-Value vecnorm(const Value &A, double p, int dim, keel::Allocator *mr)
+Value vecnorm(const Value &A, keel::f64 p, int dim, keel::Allocator *mr)
 {
     vecnorm_argcheck(A);
     if (A.dims().is3D())
@@ -171,40 +171,40 @@ Value vecnorm(const Value &A, double p, int dim, keel::Allocator *mr)
         throw Error("vecnorm: dim must be 1 or 2",
                     0, 0, "vecnorm", "", "numkit:vecnorm:BadDim");
 
-    auto p_norm = [&](auto getAbs, keel::usize n) -> double {
+    auto p_norm = [&](auto getAbs, keel::usize n) -> keel::f64 {
         if (n == 0) return 0.0;
         if (std::isinf(p) && p > 0) {
-            double m = 0.0;
+            keel::f64 m = 0.0;
             for (keel::usize k = 0; k < n; ++k) {
-                double v = getAbs(k);
-                if (std::isnan(v)) return std::numeric_limits<double>::quiet_NaN();
+                keel::f64 v = getAbs(k);
+                if (std::isnan(v)) return std::numeric_limits<keel::f64>::quiet_NaN();
                 if (v > m) m = v;
             }
             return m;
         }
         if (std::isinf(p) && p < 0) {
-            double m = std::numeric_limits<double>::infinity();
+            keel::f64 m = std::numeric_limits<keel::f64>::infinity();
             for (keel::usize k = 0; k < n; ++k) {
-                double v = getAbs(k);
-                if (std::isnan(v)) return std::numeric_limits<double>::quiet_NaN();
+                keel::f64 v = getAbs(k);
+                if (std::isnan(v)) return std::numeric_limits<keel::f64>::quiet_NaN();
                 if (v < m) m = v;
             }
             return m;
         }
         if (p == 2.0) {
-            double s = 0.0;
+            keel::f64 s = 0.0;
             for (keel::usize k = 0; k < n; ++k) {
-                double v = getAbs(k);
+                keel::f64 v = getAbs(k);
                 s += v * v;
             }
             return std::sqrt(s);
         }
-        double s = 0.0;
+        keel::f64 s = 0.0;
         for (keel::usize k = 0; k < n; ++k) s += std::pow(getAbs(k), p);
         return std::pow(s, 1.0 / p);
     };
 
-    auto getAbs = [&](keel::usize i, keel::usize j) -> double {
+    auto getAbs = [&](keel::usize i, keel::usize j) -> keel::f64 {
         if (A.isComplex()) return keel::abs(A.complexElem(i, j));
         return keel::abs(A.elemAsDouble(lin(i, j, R)));
     };
@@ -215,7 +215,7 @@ Value vecnorm(const Value &A, double p, int dim, keel::Allocator *mr)
     if (dim == 1) {
         Value out = Value::matrix(1, C, ValueType::DOUBLE, mr);
         if (C == 0) return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
-        double *od = out.doubleDataMut();
+        keel::f64 *od = out.doubleDataMut();
         for (keel::usize j = 0; j < C; ++j) {
             od[j] = p_norm([&](keel::usize k){ return getAbs(k, j); }, R);
         }
@@ -223,7 +223,7 @@ Value vecnorm(const Value &A, double p, int dim, keel::Allocator *mr)
     }
     Value out = Value::matrix(R, 1, ValueType::DOUBLE, mr);
     if (R == 0) return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     for (keel::usize i = 0; i < R; ++i) {
         od[i] = p_norm([&](keel::usize k){ return getAbs(i, k); }, C);
     }

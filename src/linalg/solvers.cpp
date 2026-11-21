@@ -59,13 +59,13 @@ Value linsolve(const Value &A, const Value &B, keel::Allocator *mr)
         if (Aw.isComplex()) {
             std::copy(Aw.complexData(), Aw.complexData() + m * n, A_buf.begin());
         } else {
-            const double *ad = Aw.doubleData();
+            const keel::f64 *ad = Aw.doubleData();
             for (keel::usize i = 0; i < m * n; ++i) A_buf[i] = ad[i];
         }
         if (Bw.isComplex()) {
             std::copy(Bw.complexData(), Bw.complexData() + m * nrhs, B_buf.begin());
         } else {
-            const double *bd = Bw.doubleData();
+            const keel::f64 *bd = Bw.doubleData();
             for (keel::usize i = 0; i < m * nrhs; ++i) B_buf[i] = bd[i];
         }
 
@@ -86,7 +86,7 @@ Value linsolve(const Value &A, const Value &B, keel::Allocator *mr)
     return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
 
-Value lsqminnorm(const Value &A, const Value &B, bool have_tol, double tol_user,
+Value lsqminnorm(const Value &A, const Value &B, bool have_tol, keel::f64 tol_user,
                  keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "lsqminnorm", "A", 1);
@@ -125,7 +125,7 @@ lsqnonneg_impl(const Value &C, const Value &d, keel::Allocator *mr)
     Value Cw = detail::widenSingleToDouble(C, mr);
 
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<double> db(M, scratch.allocator());
+    keel::Array<keel::f64> db(M, scratch.allocator());
     for (keel::usize i = 0; i < M; ++i) db[i] = d.elemAsDouble(i);
 
     NnlsResult R;

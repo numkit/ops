@@ -14,16 +14,16 @@
 
 namespace numkit::ops {
 
-keel::Array<double> applyFilterDf2t(const double *bn, keel::usize nb, const double *an,
-                                   keel::usize na, const double *input, keel::usize len,
-                                   const double *zi, keel::usize ziLen, double *zfOut,
+keel::Array<keel::f64> applyFilterDf2t(const keel::f64 *bn, keel::usize nb, const keel::f64 *an,
+                                   keel::usize na, const keel::f64 *input, keel::usize len,
+                                   const keel::f64 *zi, keel::usize ziLen, keel::f64 *zfOut,
                                    keel::Allocator *mr)
 {
-    keel::Array<double> out(len, mr);
+    keel::Array<keel::f64> out(len, mr);
     const keel::usize nfilt = keel::max(nb, na);
     const keel::usize zfLen = (zfOut && nfilt > 1) ? (nfilt - 1) : 0;
-    const keel::ArrayRef<double> ziRef = zi ? keel::ArrayRef<double>(zi, ziLen) : keel::ArrayRef<double>{};
-    const keel::MutArrayRef<double> zfRef = zfOut ? keel::MutArrayRef<double>(zfOut, zfLen) : keel::MutArrayRef<double>{};
+    const keel::ArrayRef<keel::f64> ziRef = zi ? keel::ArrayRef<keel::f64>(zi, ziLen) : keel::ArrayRef<keel::f64>{};
+    const keel::MutArrayRef<keel::f64> zfRef = zfOut ? keel::MutArrayRef<keel::f64>(zfOut, zfLen) : keel::MutArrayRef<keel::f64>{};
     (void)keel::signal::filter_df2t({bn, nb}, {an, na}, {input, len}, out, ziRef, zfRef, mr);
     return out;
 }
@@ -42,15 +42,15 @@ keel::Array<keel::c64> applyFilterDf2tComplex(const keel::c64 *bn, keel::usize n
     return out;
 }
 
-void biquadDf2t(double b0, double b1, double b2, double a1, double a2,
-                const double *x, double *y, keel::usize n)
+void biquadDf2t(keel::f64 b0, keel::f64 b1, keel::f64 b2, keel::f64 a1, keel::f64 a2,
+                const keel::f64 *x, keel::f64 *y, keel::usize n)
 {
     (void)keel::signal::biquad_df2t(b0, b1, b2, a1, a2, {x, n}, {y, n});
 }
 
-void biquadDf2tWithState(double b0, double b1, double b2, double a1, double a2,
-                         const double *x, double *y, keel::usize n,
-                         double s1_init, double s2_init)
+void biquadDf2tWithState(keel::f64 b0, keel::f64 b1, keel::f64 b2, keel::f64 a1, keel::f64 a2,
+                         const keel::f64 *x, keel::f64 *y, keel::usize n,
+                         keel::f64 s1_init, keel::f64 s2_init)
 {
     (void)keel::signal::biquad_df2t_state(b0, b1, b2, a1, a2, {x, n}, {y, n}, s1_init, s2_init);
 }

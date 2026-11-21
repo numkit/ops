@@ -12,50 +12,50 @@
 
 namespace numkit::builtin {
 
-void cumsumScan(const double *src, double *dst, keel::usize n)
+void cumsumScan(const keel::f64 *src, keel::f64 *dst, keel::usize n)
 {
-    double s = 0.0;
+    keel::f64 s = 0.0;
     for (keel::usize i = 0; i < n; ++i) {
         s += src[i];
         dst[i] = s;
     }
 }
 
-void cumprodScan(const double *src, double *dst, keel::usize n)
+void cumprodScan(const keel::f64 *src, keel::f64 *dst, keel::usize n)
 {
-    double s = 1.0;
+    keel::f64 s = 1.0;
     for (keel::usize i = 0; i < n; ++i) {
         s *= src[i];
         dst[i] = s;
     }
 }
 
-void cummaxScan(const double *src, double *dst, keel::usize n)
+void cummaxScan(const keel::f64 *src, keel::f64 *dst, keel::usize n)
 {
     if (n == 0) return;
     // Walk leading NaN, preserve as NaN.
     keel::usize i = 0;
     for (; i < n && std::isnan(src[i]); ++i) dst[i] = std::nan("");
     if (i == n) return;
-    double acc = src[i];
+    keel::f64 acc = src[i];
     dst[i] = acc;
     for (++i; i < n; ++i) {
-        const double xi = src[i];
+        const keel::f64 xi = src[i];
         if (!std::isnan(xi) && xi > acc) acc = xi;
         dst[i] = acc;
     }
 }
 
-void cumminScan(const double *src, double *dst, keel::usize n)
+void cumminScan(const keel::f64 *src, keel::f64 *dst, keel::usize n)
 {
     if (n == 0) return;
     keel::usize i = 0;
     for (; i < n && std::isnan(src[i]); ++i) dst[i] = std::nan("");
     if (i == n) return;
-    double acc = src[i];
+    keel::f64 acc = src[i];
     dst[i] = acc;
     for (++i; i < n; ++i) {
-        const double xi = src[i];
+        const keel::f64 xi = src[i];
         if (!std::isnan(xi) && xi < acc) acc = xi;
         dst[i] = acc;
     }

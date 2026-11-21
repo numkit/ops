@@ -59,7 +59,7 @@ bool formatHasNumeric(keel::StringRef fmt)
 }
 
 ScanfOut scanfCycle(const keel::String &input, keel::StringRef fmt, keel::usize limit,
-                     keel::Array<double> &out)
+                     keel::Array<keel::f64> &out)
 {
     keel::usize inPos = 0;
     keel::usize count = 0;
@@ -144,7 +144,7 @@ ScanfOut scanfCycle(const keel::String &input, keel::StringRef fmt, keel::usize 
                 if (inPos == tokenStart) { ok = false; break; }
                 if (!suppress) {
                     for (keel::usize p = tokenStart; p < inPos && count < limit; ++p) {
-                        out.push_back(keel::as<double>(
+                        out.push_back(keel::as<keel::f64>(
                             keel::as<unsigned char>(input[p])));
                         ++count;
                     }
@@ -175,7 +175,7 @@ ScanfOut scanfCycle(const keel::String &input, keel::StringRef fmt, keel::usize 
                 if (inPos == tokenStart) { ok = false; break; }
                 if (!suppress) {
                     for (keel::usize p = tokenStart; p < inPos && count < limit; ++p) {
-                        out.push_back(keel::as<double>(
+                        out.push_back(keel::as<keel::f64>(
                             keel::as<unsigned char>(input[p])));
                         ++count;
                     }
@@ -188,7 +188,7 @@ ScanfOut scanfCycle(const keel::String &input, keel::StringRef fmt, keel::usize 
                 if (inPos + n > input.size()) { ok = false; break; }
                 if (!suppress) {
                     for (keel::usize p = 0; p < n && count < limit; ++p) {
-                        out.push_back(keel::as<double>(
+                        out.push_back(keel::as<keel::f64>(
                             keel::as<unsigned char>(input[inPos + p])));
                         ++count;
                     }
@@ -199,19 +199,19 @@ ScanfOut scanfCycle(const keel::String &input, keel::StringRef fmt, keel::usize 
 
             const char *start = input.c_str() + inPos;
             char *endp = nullptr;
-            double v = 0.0;
+            keel::f64 v = 0.0;
 
             switch (spec) {
             case 'd': case 'i': {
                 long long iv = std::strtoll(start, &endp, 10);
                 if (endp == start) { ok = false; break; }
-                v = keel::as<double>(iv);
+                v = keel::as<keel::f64>(iv);
                 break;
             }
             case 'u': {
                 unsigned long long uv = std::strtoull(start, &endp, 10);
                 if (endp == start) { ok = false; break; }
-                v = keel::as<double>(uv);
+                v = keel::as<keel::f64>(uv);
                 break;
             }
             case 'f': case 'e': case 'g': case 'E': case 'G': {
@@ -222,13 +222,13 @@ ScanfOut scanfCycle(const keel::String &input, keel::StringRef fmt, keel::usize 
             case 'x': case 'X': {
                 unsigned long long uv = std::strtoull(start, &endp, 16);
                 if (endp == start) { ok = false; break; }
-                v = keel::as<double>(uv);
+                v = keel::as<keel::f64>(uv);
                 break;
             }
             case 'o': {
                 unsigned long long uv = std::strtoull(start, &endp, 8);
                 if (endp == start) { ok = false; break; }
-                v = keel::as<double>(uv);
+                v = keel::as<keel::f64>(uv);
                 break;
             }
             default:
@@ -254,16 +254,16 @@ ScanfOut scanfCycle(const keel::String &input, keel::StringRef fmt, keel::usize 
     return ScanfOut{count, inPos};
 }
 
-Value makeColumn(const double *vals, keel::usize n, keel::Allocator *mr)
+Value makeColumn(const keel::f64 *vals, keel::usize n, keel::Allocator *mr)
 {
     if (n == 0)
         return Value::matrix(0, 0, ValueType::DOUBLE, mr);
     auto M = Value::matrix(n, 1, ValueType::DOUBLE, mr);
-    std::memcpy(M.doubleDataMut(), vals, n * sizeof(double));
+    std::memcpy(M.doubleDataMut(), vals, n * sizeof(keel::f64));
     return M;
 }
 
-Value makeCharRow(const double *vals, keel::usize n, keel::Allocator *mr)
+Value makeCharRow(const keel::f64 *vals, keel::usize n, keel::Allocator *mr)
 {
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     keel::String s(scratch.allocator());
@@ -275,7 +275,7 @@ Value makeCharRow(const double *vals, keel::usize n, keel::Allocator *mr)
 
 // Column-major char matrix from the flat `vals` buffer. Unfilled
 // cells stay zero (MATLAB's documented fill for partial char reads).
-Value makeCharMatrix(const double *vals, keel::usize n,
+Value makeCharMatrix(const keel::f64 *vals, keel::usize n,
                      numkit::ops::SizeSpec sz, keel::Allocator *mr)
 {
     keel::usize cols_out = (sz.cols == SIZE_MAX)
@@ -294,7 +294,7 @@ Value makeCharMatrix(const double *vals, keel::usize n,
 // the format has only %s/%c conversions, column-of-doubles otherwise.
 // Takes a pre-computed `hasNumericConv` flag so the caller doesn't
 // need to re-walk the format string.
-Value shapeScanfOutput(const double *vals, keel::usize n,
+Value shapeScanfOutput(const keel::f64 *vals, keel::usize n,
                        bool hasNumericConv, keel::Allocator *mr)
 {
     if (hasNumericConv)
@@ -318,7 +318,7 @@ void scanfEmit(keel::StringRef input, keel::StringRef fmt,
                keel::Allocator *mr)
 {
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<double> values(scratch.allocator());
+    keel::Array<keel::f64> values(scratch.allocator());
     const keel::String inputStr(input, scratch.allocator());
     r = scanfCycle(inputStr, fmt, sz.limit, values);
     const bool hasNum = formatHasNumeric(fmt);
@@ -332,7 +332,7 @@ void scanfEmit(keel::StringRef input, keel::StringRef fmt,
     else
         outs[0] = shapeScanfOutput(values.data(), values.size(), hasNum, mr);
     if (nargout > 1)
-        outs[1] = Value::scalar(keel::as<double>(r.count), mr);
+        outs[1] = Value::scalar(keel::as<keel::f64>(r.count), mr);
 }
 
 } // namespace detail
@@ -378,7 +378,7 @@ void sscanf(keel::ArrayRef<Value> args, keel::usize nargout, keel::MutArrayRef<V
     if (nargout > 2)
         outs[2] = Value::fromString("", mr); // errmsg — always empty for now
     if (nargout > 3)
-        outs[3] = Value::scalar(keel::as<double>(r.bytesConsumed + 1), mr);
+        outs[3] = Value::scalar(keel::as<keel::f64>(r.bytesConsumed + 1), mr);
 }
 
 

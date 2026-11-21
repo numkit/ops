@@ -28,22 +28,22 @@
 #include "types_detail.hpp"
 
 namespace numkit::builtin::detail {
-void doubleToInt8 (const double *in, keel::i8   *out, keel::usize n);
-void doubleToInt16(const double *in, keel::i16  *out, keel::usize n);
-void doubleToInt32(const double *in, keel::i32  *out, keel::usize n);
-void doubleToInt64(const double *in, keel::i64  *out, keel::usize n);
-void doubleToUInt8 (const double *in, keel::u8  *out, keel::usize n);
-void doubleToUInt16(const double *in, keel::u16 *out, keel::usize n);
-void doubleToUInt32(const double *in, keel::u32 *out, keel::usize n);
-void doubleToUInt64(const double *in, keel::u64 *out, keel::usize n);
+void doubleToInt8 (const keel::f64 *in, keel::i8   *out, keel::usize n);
+void doubleToInt16(const keel::f64 *in, keel::i16  *out, keel::usize n);
+void doubleToInt32(const keel::f64 *in, keel::i32  *out, keel::usize n);
+void doubleToInt64(const keel::f64 *in, keel::i64  *out, keel::usize n);
+void doubleToUInt8 (const keel::f64 *in, keel::u8  *out, keel::usize n);
+void doubleToUInt16(const keel::f64 *in, keel::u16 *out, keel::usize n);
+void doubleToUInt32(const keel::f64 *in, keel::u32 *out, keel::usize n);
+void doubleToUInt64(const keel::f64 *in, keel::u64 *out, keel::usize n);
 } // namespace numkit::builtin::detail
 
 // Forward-declare the isnan/isinf/isfinite backend (defined in
 // math/arithmetic/isfinite_{highway,portable}.cpp — numkit::builtin::detail after C4).
 namespace numkit::builtin::detail {
-void doubleIsNaNLoop(const double *in, keel::u8 *out, keel::usize n);
-void doubleIsInfLoop(const double *in, keel::u8 *out, keel::usize n);
-void doubleIsFiniteLoop(const double *in, keel::u8 *out, keel::usize n);
+void doubleIsNaNLoop(const keel::f64 *in, keel::u8 *out, keel::usize n);
+void doubleIsInfLoop(const keel::f64 *in, keel::u8 *out, keel::usize n);
+void doubleIsFiniteLoop(const keel::f64 *in, keel::u8 *out, keel::usize n);
 } // namespace numkit::builtin::detail
 
 namespace numkit::builtin {
@@ -59,12 +59,12 @@ namespace numkit::builtin {
 
 Value toDouble(const Value &x, keel::Allocator *mr)
 {
-    return numericConstructor<double>(ValueType::DOUBLE, x, mr);
+    return numericConstructor<keel::f64>(ValueType::DOUBLE, x, mr);
 }
 
 Value single(const Value &x, keel::Allocator *mr)
 {
-    return numericConstructor<float>(ValueType::SINGLE, x, mr);
+    return numericConstructor<keel::f32>(ValueType::SINGLE, x, mr);
 }
 
 Value int8(const Value &x, keel::Allocator *mr)   { return numericConstructor<keel::i8>(ValueType::INT8, x, mr); }
@@ -127,7 +127,7 @@ Value isnan(const Value &x, keel::Allocator *mr)
     if (x.type() == ValueType::DOUBLE) {
         ::numkit::builtin::detail::doubleIsNaNLoop(x.doubleData(), r.logicalDataMut(), x.numel());
     } else if (x.type() == ValueType::SINGLE) {
-        const float *sd = x.singleData();
+        const keel::f32 *sd = x.singleData();
         keel::u8 *ld = r.logicalDataMut();
         for (keel::usize i = 0; i < x.numel(); ++i)
             ld[i] = std::isnan(sd[i]) ? 1 : 0;
@@ -155,7 +155,7 @@ Value isinf(const Value &x, keel::Allocator *mr)
     if (x.type() == ValueType::DOUBLE) {
         ::numkit::builtin::detail::doubleIsInfLoop(x.doubleData(), r.logicalDataMut(), x.numel());
     } else if (x.type() == ValueType::SINGLE) {
-        const float *sd = x.singleData();
+        const keel::f32 *sd = x.singleData();
         keel::u8 *ld = r.logicalDataMut();
         for (keel::usize i = 0; i < x.numel(); ++i)
             ld[i] = std::isinf(sd[i]) ? 1 : 0;
@@ -183,7 +183,7 @@ Value isfinite(const Value &x, keel::Allocator *mr)
     if (x.type() == ValueType::DOUBLE) {
         ::numkit::builtin::detail::doubleIsFiniteLoop(x.doubleData(), r.logicalDataMut(), x.numel());
     } else if (x.type() == ValueType::SINGLE) {
-        const float *sd = x.singleData();
+        const keel::f32 *sd = x.singleData();
         keel::u8 *ld = r.logicalDataMut();
         for (keel::usize i = 0; i < x.numel(); ++i)
             ld[i] = std::isfinite(sd[i]) ? 1 : 0;
@@ -209,7 +209,7 @@ Value ismissing(const Value &x, const Value &indicator,
     // Build the indicator value list (empty → standard missing only).
     keel::ArenaTemp scratch = keel::get_scratch(p);
     const bool have_ind = (!indicator.isEmpty());
-    keel::Array<double> ind_vals(scratch.allocator());
+    keel::Array<keel::f64> ind_vals(scratch.allocator());
     if (have_ind) {
         ind_vals.reserve(indicator.numel());
         for (keel::usize k = 0; k < indicator.numel(); ++k)
@@ -223,7 +223,7 @@ Value ismissing(const Value &x, const Value &indicator,
             if (x.type() == ValueType::DOUBLE) {
                 ::numkit::builtin::detail::doubleIsNaNLoop(x.doubleData(), out, n);
             } else {  // SINGLE
-                const float *src = x.singleData();
+                const keel::f32 *src = x.singleData();
                 for (keel::usize i = 0; i < n; ++i)
                     out[i] = std::isnan(src[i]) ? 1u : 0u;
             }
@@ -238,10 +238,10 @@ Value ismissing(const Value &x, const Value &indicator,
     // behaviour, probed). NaN entries in the indicator itself match
     // NaN values in `x` (special-cased because NaN != NaN).
     for (keel::usize i = 0; i < n; ++i) {
-        const double xi = elemD(x, i);
+        const keel::f64 xi = elemD(x, i);
         const bool xi_nan = std::isnan(xi);
         bool tf = false;
-        for (double v : ind_vals) {
+        for (keel::f64 v : ind_vals) {
             if (std::isnan(v)) {
                 if (xi_nan) { tf = true; break; }
             } else if (xi == v) {
@@ -308,11 +308,11 @@ Value standardizeMissing(const Value &x, const Value &indicator,
 
     // Build indicator list (skip NaN — won't match anything via ==).
     keel::ArenaTemp scratch = keel::get_scratch(p);
-    keel::Array<double> ind_vals(scratch.allocator());
+    keel::Array<keel::f64> ind_vals(scratch.allocator());
     if (!indicator.isEmpty()) {
         ind_vals.reserve(indicator.numel());
         for (keel::usize k = 0; k < indicator.numel(); ++k) {
-            const double v = indicator.elemAsDouble(k);
+            const keel::f64 v = indicator.elemAsDouble(k);
             if (!std::isnan(v)) ind_vals.push_back(v);
         }
     }
@@ -321,26 +321,26 @@ Value standardizeMissing(const Value &x, const Value &indicator,
     if (n == 0) return out;
 
     if (T == ValueType::DOUBLE) {
-        const double *src = x.doubleData();
-        double *dst       = out.doubleDataMut();
-        const double nan  = std::numeric_limits<double>::quiet_NaN();
+        const keel::f64 *src = x.doubleData();
+        keel::f64 *dst       = out.doubleDataMut();
+        const keel::f64 nan  = std::numeric_limits<keel::f64>::quiet_NaN();
         for (keel::usize i = 0; i < n; ++i) {
-            const double v = src[i];
+            const keel::f64 v = src[i];
             bool hit = false;
-            for (double ind : ind_vals) {
+            for (keel::f64 ind : ind_vals) {
                 if (v == ind) { hit = true; break; }
             }
             dst[i] = hit ? nan : v;
         }
     } else {  // SINGLE
-        const float *src = x.singleData();
-        float *dst       = out.singleDataMut();
-        const float nan  = std::numeric_limits<float>::quiet_NaN();
+        const keel::f32 *src = x.singleData();
+        keel::f32 *dst       = out.singleDataMut();
+        const keel::f32 nan  = std::numeric_limits<keel::f32>::quiet_NaN();
         for (keel::usize i = 0; i < n; ++i) {
-            const float v = src[i];
+            const keel::f32 v = src[i];
             bool hit = false;
-            for (double ind : ind_vals) {
-                if (v == keel::as<float>(ind)) { hit = true; break; }
+            for (keel::f64 ind : ind_vals) {
+                if (v == keel::as<keel::f32>(ind)) { hit = true; break; }
             }
             dst[i] = hit ? nan : v;
         }
@@ -356,11 +356,11 @@ Value anymissing(const Value &x, keel::Allocator *mr)
     if (!typeHasMissing(x.type()))
         return Value::logicalScalar(false, p);
     if (x.type() == ValueType::DOUBLE) {
-        const double *src = x.doubleData();
+        const keel::f64 *src = x.doubleData();
         for (keel::usize i = 0; i < n; ++i)
             if (std::isnan(src[i])) return Value::logicalScalar(true, p);
     } else {
-        const float *src = x.singleData();
+        const keel::f32 *src = x.singleData();
         for (keel::usize i = 0; i < n; ++i)
             if (std::isnan(src[i])) return Value::logicalScalar(true, p);
     }
@@ -407,7 +407,7 @@ Value issorted(const Value &x, const Value &mode, keel::Allocator *mr)
         return Value::logicalScalar(true, mr);
 
     const auto &d = x.dims();
-    const double *p = x.doubleData();
+    const keel::f64 *p = x.doubleData();
     if (d.ndim() <= 2 && (d.rows() == 1 || d.cols() == 1)) {
         return Value::logicalScalar(runSorted(p, x.numel(), m), mr);
     }
@@ -430,12 +430,12 @@ Value issortedrows(const Value &x, keel::Allocator *mr)
         throw std::runtime_error("issortedrows: input must be 2-D");
     const keel::usize R = d.rows(), C = d.cols();
     if (R < 2) return Value::logicalScalar(true, mr);
-    const double *p = x.doubleData();
+    const keel::f64 *p = x.doubleData();
     auto getElem = [&](keel::usize row, keel::usize col) { return p[col * R + row]; };
     for (keel::usize i = 1; i < R; ++i) {
         for (keel::usize c = 0; c < C; ++c) {
-            const double a = getElem(i - 1, c);
-            const double b = getElem(i, c);
+            const keel::f64 a = getElem(i - 1, c);
+            const keel::f64 b = getElem(i, c);
             if (std::isnan(a) || std::isnan(b))
                 return Value::logicalScalar(false, mr);
             if (a < b) break;          // strictly less → ordered, next row.
@@ -457,17 +457,17 @@ Value isuniform(const Value &x, keel::Allocator *mr)
     if (d.ndim() > 2 || (d.rows() != 1 && d.cols() != 1))
         throw std::runtime_error("isuniform: input must be a vector");
     if (n < 2) return Value::logicalScalar(true, mr);
-    const double *p = x.doubleData();
+    const keel::f64 *p = x.doubleData();
     for (keel::usize i = 0; i < n; ++i)
         if (!std::isfinite(p[i])) return Value::logicalScalar(false, mr);
-    const double step = p[1] - p[0];
+    const keel::f64 step = p[1] - p[0];
     // Tolerance: 4 * eps(max-magnitude in vector or step), follows MATLAB
     // isuniform's "approximately uniform" semantics.
-    double scale = keel::abs(step);
+    keel::f64 scale = keel::abs(step);
     for (keel::usize i = 0; i < n; ++i) scale = std::max(scale, keel::abs(p[i]));
-    const double tol = 4 * std::numeric_limits<double>::epsilon() * scale;
+    const keel::f64 tol = 4 * std::numeric_limits<keel::f64>::epsilon() * scale;
     for (keel::usize i = 1; i < n - 1; ++i) {
-        const double s = p[i + 1] - p[i];
+        const keel::f64 s = p[i + 1] - p[i];
         if (keel::abs(s - step) > tol)
             return Value::logicalScalar(false, mr);
     }
@@ -481,7 +481,7 @@ Value flintmax(const Value &t, keel::Allocator *mr)
 {
     auto name = readTypeName(t, "double");
     if (name == "single")
-        return typedScalar<float>(ValueType::SINGLE, keel::as<float>(1u << 24), mr);
+        return typedScalar<keel::f32>(ValueType::SINGLE, keel::as<keel::f32>(1u << 24), mr);
     if (name == "double")
         return Value::scalar(9007199254740992.0, mr);  // 2^53 exactly
     throw std::runtime_error("flintmax: type must be 'double' or 'single'");
@@ -519,9 +519,9 @@ Value realmax(const Value &t, keel::Allocator *mr)
 {
     auto name = readTypeName(t, "double");
     if (name == "single")
-        return typedScalar<float>(ValueType::SINGLE, std::numeric_limits<float>::max(), mr);
+        return typedScalar<keel::f32>(ValueType::SINGLE, std::numeric_limits<keel::f32>::max(), mr);
     if (name == "double")
-        return Value::scalar(std::numeric_limits<double>::max(), mr);
+        return Value::scalar(std::numeric_limits<keel::f64>::max(), mr);
     throw std::runtime_error("realmax: type must be 'double' or 'single'");
 }
 
@@ -529,9 +529,9 @@ Value realmin(const Value &t, keel::Allocator *mr)
 {
     auto name = readTypeName(t, "double");
     if (name == "single")
-        return typedScalar<float>(ValueType::SINGLE, std::numeric_limits<float>::min(), mr);
+        return typedScalar<keel::f32>(ValueType::SINGLE, std::numeric_limits<keel::f32>::min(), mr);
     if (name == "double")
-        return Value::scalar(std::numeric_limits<double>::min(), mr);
+        return Value::scalar(std::numeric_limits<keel::f64>::min(), mr);
     throw std::runtime_error("realmin: type must be 'double' or 'single'");
 }
 
@@ -582,7 +582,7 @@ Value allfinite(const Value &x, keel::Allocator *mr)
         return Value::logicalScalar(true, mr);
     }
     if (isFloatType(x.type())) {
-        const double *p = x.doubleData();
+        const keel::f64 *p = x.doubleData();
         for (keel::usize i = 0; i < n; ++i)
             if (!std::isfinite(p[i])) return Value::logicalScalar(false, mr);
         return Value::logicalScalar(true, mr);
@@ -611,7 +611,7 @@ Value anynan(const Value &x, keel::Allocator *mr)
         return Value::logicalScalar(false, mr);
     }
     if (isFloatType(x.type())) {
-        const double *p = x.doubleData();
+        const keel::f64 *p = x.doubleData();
         for (keel::usize i = 0; i < n; ++i)
             if (std::isnan(p[i])) return Value::logicalScalar(true, mr);
         return Value::logicalScalar(false, mr);
@@ -704,8 +704,8 @@ Value swapbytes(const Value &x, keel::Allocator *mr)
     case ValueType::UINT32:  return swapBytesArray<keel::u32>(x, mr);
     case ValueType::INT64:   return swapBytesArray<keel::i64>(x, mr);
     case ValueType::UINT64:  return swapBytesArray<keel::u64>(x, mr);
-    case ValueType::SINGLE:  return swapBytesArray<float>(x, mr);
-    case ValueType::DOUBLE:  return swapBytesArray<double>(x, mr);
+    case ValueType::SINGLE:  return swapBytesArray<keel::f32>(x, mr);
+    case ValueType::DOUBLE:  return swapBytesArray<keel::f64>(x, mr);
     default:
         throw Error("swapbytes: input must be a numeric or logical array",
                      0, 0, "swapbytes", "", "numkit:swapbytes:badType");

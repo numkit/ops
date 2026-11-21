@@ -100,7 +100,7 @@ void fusedSqrtShiftDivCx(const keel::c64 *x, keel::c64 sub, keel::c64 div, keel:
 // roundLikeDispatch does Complex(scalar(re), scalar(im)) with the SAME std::
 // functions). Mirrors that exactly → bit-identical to the unfused per-op result.
 // (Sqrt is whole-complex, not component-wise — it has its own kernel.)
-static inline double roundLikeCxScalar(UnaryAffineFn fn, double d) {
+static inline keel::f64 roundLikeCxScalar(UnaryAffineFn fn, keel::f64 d) {
     switch (fn) {
         case UnaryAffineFn::Floor: return std::floor(d);
         case UnaryAffineFn::Ceil:  return std::ceil(d);
@@ -169,31 +169,31 @@ void fusedTransShiftDivCx(const keel::c64 *x, keel::c64 sub, keel::c64 div, Tran
 // abs of complex → the REAL magnitude std::abs(z) (mirrors nk's abs(complex),
 // which is per-element std::abs). out is double.
 void fusedAbsAffineCx(const keel::c64 *x, keel::c64 scale, keel::c64 offset, bool affine,
-                      double *out, keel::usize n) {
+                      keel::f64 *out, keel::usize n) {
     for (keel::usize i = 0; i < n; ++i)
         out[i] = keel::abs(cxInner(x[i], scale, offset, affine));
 }
 
-void fusedAbsShiftDivCx(const keel::c64 *x, keel::c64 sub, keel::c64 div, double *out, keel::usize n) {
+void fusedAbsShiftDivCx(const keel::c64 *x, keel::c64 sub, keel::c64 div, keel::f64 *out, keel::usize n) {
     for (keel::usize i = 0; i < n; ++i) out[i] = keel::abs((x[i] - sub) / div);
 }
 
-void fusedAbsDiffCx(const keel::c64 *x, const keel::c64 *y, double *out, keel::usize n) {
+void fusedAbsDiffCx(const keel::c64 *x, const keel::c64 *y, keel::f64 *out, keel::usize n) {
     for (keel::usize i = 0; i < n; ++i) out[i] = keel::abs(x[i] - y[i]);
 }
 
 // |z - c| (= |c - z|, since |w| == |-w|) → real magnitude.
-void fusedAbsDiffScalarCx(const keel::c64 *z, keel::c64 c, double *out, keel::usize n) {
+void fusedAbsDiffScalarCx(const keel::c64 *z, keel::c64 c, keel::f64 *out, keel::usize n) {
     for (keel::usize i = 0; i < n; ++i) out[i] = keel::abs(z[i] - c);
 }
 
 // complex soft-threshold: sign(z) .* max(0, |z| - t). sign(z) = z/|z| (0 at
 // z==0, MATLAB R2025b); the .* by the real max promotes it to Complex(mx,0)
 // (full complex mul), exactly as nk's per-op sign(z).*max(...).
-void fusedSoftThresholdCx(const keel::c64 *x, double t, keel::c64 *out, keel::usize n) {
+void fusedSoftThresholdCx(const keel::c64 *x, keel::f64 t, keel::c64 *out, keel::usize n) {
     for (keel::usize i = 0; i < n; ++i) {
         const keel::c64 z = x[i];
-        const double m = keel::abs(z);
+        const keel::f64 m = keel::abs(z);
         const keel::c64 s = (m == 0.0) ? keel::c64(0.0, 0.0) : z / m;   // sign(z)
         out[i] = s * keel::c64(std::fmax(0.0, m - t), 0.0);
     }

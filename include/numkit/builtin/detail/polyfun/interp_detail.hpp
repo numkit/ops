@@ -24,37 +24,37 @@ namespace numkit::builtin {
 
 namespace {
 
-keel::Array<double> interpSpline(const double *x, const double *y, keel::usize n,
-                                 const double *xq, keel::usize nq, keel::Allocator *mr)
+keel::Array<keel::f64> interpSpline(const keel::f64 *x, const keel::f64 *y, keel::usize n,
+                                 const keel::f64 *xq, keel::usize nq, keel::Allocator *mr)
 {
-    keel::Array<double> yq(nq, mr);
+    keel::Array<keel::f64> yq(nq, mr);
     (void)keel::interp::interp1({x, n}, {y, n}, {xq, nq}, {yq.data(), nq}, keel::interp::Interp1Method::Spline,
                         keel::interp::ExtrapMode::Default, 0.0, mr);
     return yq;
 }
 
-keel::Array<double> interpPchip(const double *x, const double *y, keel::usize n,
-                                const double *xq, keel::usize nq, keel::Allocator *mr)
+keel::Array<keel::f64> interpPchip(const keel::f64 *x, const keel::f64 *y, keel::usize n,
+                                const keel::f64 *xq, keel::usize nq, keel::Allocator *mr)
 {
-    keel::Array<double> yq(nq, mr);
+    keel::Array<keel::f64> yq(nq, mr);
     (void)keel::interp::interp1({x, n}, {y, n}, {xq, nq}, {yq.data(), nq}, keel::interp::Interp1Method::Pchip,
                         keel::interp::ExtrapMode::Default, 0.0, mr);
     return yq;
 }
 
-keel::Array<double> interpMakima(const double *x, const double *y, keel::usize n,
-                                 const double *xq, keel::usize nq, keel::Allocator *mr)
+keel::Array<keel::f64> interpMakima(const keel::f64 *x, const keel::f64 *y, keel::usize n,
+                                 const keel::f64 *xq, keel::usize nq, keel::Allocator *mr)
 {
     if (n < 2)
         throw Error("makima: need at least 2 data points",
                      0, 0, "makima", "", "numkit:makima:tooFewPoints");
-    keel::Array<double> yq(nq, mr);
+    keel::Array<keel::f64> yq(nq, mr);
     (void)keel::interp::interp1({x, n}, {y, n}, {xq, nq}, {yq.data(), nq}, keel::interp::Interp1Method::Makima,
                         keel::interp::ExtrapMode::Default, 0.0, mr);
     return yq;
 }
 
-Value packInterpResult(const double *yq, keel::usize nq, const Value &xq, keel::Allocator *mr)
+Value packInterpResult(const keel::f64 *yq, keel::usize nq, const Value &xq, keel::Allocator *mr)
 {
     const bool isRow = xq.dims().rows() == 1;
     auto r = isRow ? Value::matrix(1, nq, ValueType::DOUBLE, mr)
@@ -92,7 +92,7 @@ keel::interp::ExtrapMode toKeelExtrap(Interp1Extrap mode) noexcept
 
 Value interp1Dispatch(const Value &x, const Value &y, const Value &xq,
                       keel::StringRef method, Interp1Extrap mode,
-                      double fill, keel::Allocator *mr)
+                      keel::f64 fill, keel::Allocator *mr)
 {
     const keel::usize n = x.numel();
     const keel::usize nq = xq.numel();
@@ -105,15 +105,15 @@ Value interp1Dispatch(const Value &x, const Value &y, const Value &xq,
         const keel::usize m = y.numel();
         Value yr = createLike(y, ValueType::DOUBLE, mr);
         Value yi = createLike(y, ValueType::DOUBLE, mr);
-        double *rp = yr.doubleDataMut();
-        double *ip = yi.doubleDataMut();
+        keel::f64 *rp = yr.doubleDataMut();
+        keel::f64 *ip = yi.doubleDataMut();
         const keel::c64 *c = y.complexData();
         for (keel::usize i = 0; i < m; ++i) { rp[i] = c[i].real(); ip[i] = c[i].imag(); }
         Value rr = interp1Dispatch(x, yr, xq, method, mode, fill, mr);
         Value ri = interp1Dispatch(x, yi, xq, method, mode, fill, mr);
         Value out = createLike(rr, ValueType::COMPLEX, mr);
         keel::c64 *o = out.complexDataMut();
-        const double *re = rr.doubleData(), *im = ri.doubleData();
+        const keel::f64 *re = rr.doubleData(), *im = ri.doubleData();
         const keel::usize no = out.numel();
         for (keel::usize i = 0; i < no; ++i) o[i] = keel::c64(re[i], im[i]);
         return out;
@@ -121,8 +121,8 @@ Value interp1Dispatch(const Value &x, const Value &y, const Value &xq,
 
     const keel::interp::Interp1Method km = parseInterp1Method(method);
     const keel::interp::ExtrapMode ke = toKeelExtrap(mode);
-    const double *xd = x.doubleData();
-    const double *xqd = xq.doubleData();
+    const keel::f64 *xd = x.doubleData();
+    const keel::f64 *xqd = xq.doubleData();
 
     keel::ArenaTemp scratch = keel::get_scratch(mr);
 
@@ -131,7 +131,7 @@ Value interp1Dispatch(const Value &x, const Value &y, const Value &xq,
         if (n != y.numel())
             throw Error("interp1: x and y must have same length",
                          0, 0, "interp1", "", "numkit:interp1:lengthMismatch");
-        keel::Array<double> yq(nq, scratch.allocator());
+        keel::Array<keel::f64> yq(nq, scratch.allocator());
         (void)keel::interp::interp1({xd, n}, {y.doubleData(), n}, {xqd, nq}, {yq.data(), nq},
                             km, ke, fill, scratch.allocator());
         return packInterpResult(yq.data(), yq.size(), xq, mr);
@@ -146,9 +146,9 @@ Value interp1Dispatch(const Value &x, const Value &y, const Value &xq,
     if (yr != n)
         throw Error("interp1: for a matrix Y, size(Y,1) must equal length(X)",
                      0, 0, "interp1", "", "numkit:interp1:lengthMismatch");
-    const double *yd = y.doubleData();
+    const keel::f64 *yd = y.doubleData();
     auto out = Value::matrix(nq, yc, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     for (keel::usize j = 0; j < yc; ++j) {
         (void)keel::interp::interp1({xd, n}, {yd + j * yr, n}, {xqd, nq}, {od + j * nq, nq},
                             km, ke, fill, scratch.allocator());
@@ -170,14 +170,14 @@ keel::interp::Interp2Method parseInterp2Method(keel::StringRef m, bool allowSepa
                  0, 0, "interp2", "", "numkit:interp2:badMethod");
 }
 
-void validateMonotonicAscending(const double *g, keel::usize n, const char *axis)
+void validateMonotonicAscending(const keel::f64 *g, keel::usize n, const char *axis)
 {
     if (!keel::interp::is_strictly_increasing({g, n}))
         throw Error(keel::format("interp2: {} must be strictly increasing", axis),
                      0, 0, "interp2", "", "numkit:interp2:notMonotonic");
 }
 
-[[maybe_unused]] void readGridAxis(const Value &g, keel::Array<double> &out, const char *axis)
+[[maybe_unused]] void readGridAxis(const Value &g, keel::Array<keel::f64> &out, const char *axis)
 {
     if (g.dims().isVector() || g.isScalar()) {
         out.resize(g.numel());
@@ -200,7 +200,7 @@ void validateMonotonicAscending(const double *g, keel::usize n, const char *axis
         }
         return v;
     };
-    auto isConst = [](const keel::Array<double> &v) {
+    auto isConst = [](const keel::Array<keel::f64> &v) {
         if (v.size() < 2) return true;
         for (keel::usize i = 1; i < v.size(); ++i)
             if (v[i] != v[0]) return false;
@@ -221,8 +221,8 @@ void validateMonotonicAscending(const double *g, keel::usize n, const char *axis
     out = extractAlong(preferred);
 }
 
-[[maybe_unused]] Value interp2Impl(const Value &V, const double *xGrid, keel::usize xN,
-                                   const double *yGrid, keel::usize yN, const Value &Xq,
+[[maybe_unused]] Value interp2Impl(const Value &V, const keel::f64 *xGrid, keel::usize xN,
+                                   const keel::f64 *yGrid, keel::usize yN, const Value &Xq,
                                    const Value &Yq, keel::StringRef method, keel::Allocator *mr)
 {
     if (V.type() == ValueType::COMPLEX)
@@ -254,9 +254,9 @@ void validateMonotonicAscending(const double *g, keel::usize n, const char *axis
     }
 
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<double> Vd(R * C, scratch.allocator());
+    keel::Array<keel::f64> Vd(R * C, scratch.allocator());
     if (V.type() == ValueType::DOUBLE)
-        std::memcpy(Vd.data(), V.doubleData(), R * C * sizeof(double));
+        std::memcpy(Vd.data(), V.doubleData(), R * C * sizeof(keel::f64));
     else
         for (keel::usize i = 0; i < R * C; ++i) Vd[i] = V.elemAsDouble(i);
 
@@ -269,8 +269,8 @@ void validateMonotonicAscending(const double *g, keel::usize n, const char *axis
     if (sameShape || Xq.isScalar() || Yq.isScalar()) {
         const Value &shapeRef = (Xq.numel() >= Yq.numel()) ? Xq : Yq;
         const keel::usize nq = shapeRef.numel();
-        keel::Array<double> xqv(nq, scratch.allocator());
-        keel::Array<double> yqv(nq, scratch.allocator());
+        keel::Array<keel::f64> xqv(nq, scratch.allocator());
+        keel::Array<keel::f64> yqv(nq, scratch.allocator());
         for (keel::usize i = 0; i < nq; ++i) {
             xqv[i] = Xq.isScalar() ? Xq.elemAsDouble(0) : Xq.elemAsDouble(i);
             yqv[i] = Yq.isScalar() ? Yq.elemAsDouble(0) : Yq.elemAsDouble(i);
@@ -287,8 +287,8 @@ void validateMonotonicAscending(const double *g, keel::usize n, const char *axis
     if (xqIsVec && yqIsVec && ((xqRow && yqCol) || (xqCol && yqRow))) {
         const keel::usize nx = Xq.numel();
         const keel::usize ny = Yq.numel();
-        keel::Array<double> xqv(nx, scratch.allocator());
-        keel::Array<double> yqv(ny, scratch.allocator());
+        keel::Array<keel::f64> xqv(nx, scratch.allocator());
+        keel::Array<keel::f64> yqv(ny, scratch.allocator());
         for (keel::usize j = 0; j < nx; ++j) xqv[j] = Xq.elemAsDouble(j);
         for (keel::usize i = 0; i < ny; ++i) yqv[i] = Yq.elemAsDouble(i);
         auto out = Value::matrix(ny, nx, ValueType::DOUBLE, mr);
@@ -302,8 +302,8 @@ void validateMonotonicAscending(const double *g, keel::usize n, const char *axis
                  0, 0, "interp2", "", "numkit:interp2:queryShape");
 }
 
-[[maybe_unused]] Value interp3Impl(const Value &V, const double *xGrid, keel::usize xN,
-                                   const double *yGrid, keel::usize yN, const double *zGrid,
+[[maybe_unused]] Value interp3Impl(const Value &V, const keel::f64 *xGrid, keel::usize xN,
+                                   const keel::f64 *yGrid, keel::usize yN, const keel::f64 *zGrid,
                                    keel::usize zN, const Value &Xq, const Value &Yq,
                                    const Value &Zq, keel::StringRef method, keel::Allocator *mr)
 {
@@ -329,17 +329,17 @@ void validateMonotonicAscending(const double *g, keel::usize n, const char *axis
 
     const keel::interp::Interp2Method m = parseInterp2Method(method);
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<double> Vd(R * C * P, scratch.allocator());
+    keel::Array<keel::f64> Vd(R * C * P, scratch.allocator());
     if (V.type() == ValueType::DOUBLE)
-        std::memcpy(Vd.data(), V.doubleData(), R * C * P * sizeof(double));
+        std::memcpy(Vd.data(), V.doubleData(), R * C * P * sizeof(keel::f64));
     else
         for (keel::usize i = 0; i < R * C * P; ++i) Vd[i] = V.elemAsDouble(i);
 
     const auto &qd = Xq.dims();
     const keel::usize nq = Xq.numel();
-    keel::Array<double> xqv(nq, scratch.allocator());
-    keel::Array<double> yqv(nq, scratch.allocator());
-    keel::Array<double> zqv(nq, scratch.allocator());
+    keel::Array<keel::f64> xqv(nq, scratch.allocator());
+    keel::Array<keel::f64> yqv(nq, scratch.allocator());
+    keel::Array<keel::f64> zqv(nq, scratch.allocator());
     for (keel::usize i = 0; i < nq; ++i) {
         xqv[i] = Xq.elemAsDouble(i);
         yqv[i] = Yq.elemAsDouble(i);

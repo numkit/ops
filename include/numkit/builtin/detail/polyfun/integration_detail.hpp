@@ -32,21 +32,21 @@ using ::keel::quad::kGaussW;
 Value toDoubleCopy(const Value &x, keel::Allocator *mr);
 
 // N-D gradient: one gradient per dimension, up to `nout`, spacings in `hs`.
-keel::Array<Value> gradientND(const Value &f, const double *hs, keel::usize nh,
+keel::Array<Value> gradientND(const Value &f, const keel::f64 *hs, keel::usize nh,
                                    keel::usize nout, keel::Allocator *mr);
 
 // cumtrapz down columns / along rows, real and complex variants.
-Value cumtrapzMatrixCols(const double *src, const double *xData, keel::usize rows,
+Value cumtrapzMatrixCols(const keel::f64 *src, const keel::f64 *xData, keel::usize rows,
                          keel::usize cols, keel::Allocator *mr);
-Value cumtrapzMatrixRows(const double *src, const double *xData, keel::usize rows,
+Value cumtrapzMatrixRows(const keel::f64 *src, const keel::f64 *xData, keel::usize rows,
                          keel::usize cols, keel::Allocator *mr);
-Value cumtrapzMatrixColsC(const keel::c64 *src, const double *xData, keel::usize rows,
+Value cumtrapzMatrixColsC(const keel::c64 *src, const keel::f64 *xData, keel::usize rows,
                           keel::usize cols, keel::Allocator *mr);
-Value cumtrapzMatrixRowsC(const keel::c64 *src, const double *xData, keel::usize rows,
+Value cumtrapzMatrixRowsC(const keel::c64 *src, const keel::f64 *xData, keel::usize rows,
                           keel::usize cols, keel::Allocator *mr);
 
 // trapz along `dim`; `xData` null → unit spacing.
-Value trapzImpl(const Value &y, int dim, const double *xData,
+Value trapzImpl(const Value &y, int dim, const keel::f64 *xData,
                 keel::Allocator *mr);
 
 } // namespace numkit::builtin::detail

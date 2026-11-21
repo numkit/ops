@@ -33,10 +33,10 @@ namespace hn = hwy::HWY_NAMESPACE;
 // because pointer dispatch happens once per call, not once per
 // element.
 template <typename PredOp>
-void scanLoopImpl(const double *HWY_RESTRICT in, keel::u8 *HWY_RESTRICT out,
+void scanLoopImpl(const keel::f64 *HWY_RESTRICT in, keel::u8 *HWY_RESTRICT out,
                   keel::usize n, PredOp scalar_pred)
 {
-    const hn::ScalableTag<double> d;
+    const hn::ScalableTag<keel::f64> d;
     const keel::usize N = hn::Lanes(d);
     keel::usize i = 0;
     for (; i + N <= n; i += N) {
@@ -54,19 +54,19 @@ void scanLoopImpl(const double *HWY_RESTRICT in, keel::u8 *HWY_RESTRICT out,
 // that re-fetched the pointers per iteration, the speedup mostly
 // comes from amortizing the dispatch cost.
 
-void IsNaNLoop(const double *HWY_RESTRICT in, keel::u8 *HWY_RESTRICT out, keel::usize n)
+void IsNaNLoop(const keel::f64 *HWY_RESTRICT in, keel::u8 *HWY_RESTRICT out, keel::usize n)
 {
-    scanLoopImpl(in, out, n, [](double v) { return std::isnan(v); });
+    scanLoopImpl(in, out, n, [](keel::f64 v) { return std::isnan(v); });
 }
 
-void IsInfLoop(const double *HWY_RESTRICT in, keel::u8 *HWY_RESTRICT out, keel::usize n)
+void IsInfLoop(const keel::f64 *HWY_RESTRICT in, keel::u8 *HWY_RESTRICT out, keel::usize n)
 {
-    scanLoopImpl(in, out, n, [](double v) { return std::isinf(v); });
+    scanLoopImpl(in, out, n, [](keel::f64 v) { return std::isinf(v); });
 }
 
-void IsFiniteLoop(const double *HWY_RESTRICT in, keel::u8 *HWY_RESTRICT out, keel::usize n)
+void IsFiniteLoop(const keel::f64 *HWY_RESTRICT in, keel::u8 *HWY_RESTRICT out, keel::usize n)
 {
-    scanLoopImpl(in, out, n, [](double v) { return std::isfinite(v); });
+    scanLoopImpl(in, out, n, [](keel::f64 v) { return std::isfinite(v); });
 }
 
 } // namespace HWY_NAMESPACE
@@ -81,13 +81,13 @@ HWY_EXPORT(IsNaNLoop);
 HWY_EXPORT(IsInfLoop);
 HWY_EXPORT(IsFiniteLoop);
 
-void doubleIsNaNLoop(const double *in, keel::u8 *out, keel::usize n) {
+void doubleIsNaNLoop(const keel::f64 *in, keel::u8 *out, keel::usize n) {
     HWY_DYNAMIC_DISPATCH(IsNaNLoop)(in, out, n);
 }
-void doubleIsInfLoop(const double *in, keel::u8 *out, keel::usize n) {
+void doubleIsInfLoop(const keel::f64 *in, keel::u8 *out, keel::usize n) {
     HWY_DYNAMIC_DISPATCH(IsInfLoop)(in, out, n);
 }
-void doubleIsFiniteLoop(const double *in, keel::u8 *out, keel::usize n) {
+void doubleIsFiniteLoop(const keel::f64 *in, keel::u8 *out, keel::usize n) {
     HWY_DYNAMIC_DISPATCH(IsFiniteLoop)(in, out, n);
 }
 

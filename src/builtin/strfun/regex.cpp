@@ -136,10 +136,10 @@ Value regexpFind(const Value &s, const Value &pat, keel::StringRef option, bool 
 
     if (option.equals_ignore_ascii_case("end")) {
         // 1-based end index of each match (= position + length).
-        keel::Array<double> idx(salloc);
+        keel::Array<keel::f64> idx(salloc);
         for (auto it = std::cregex_iterator(tbeg, tend, re),
                   e = std::cregex_iterator(); it != e; ++it)
-            idx.push_back(keel::as<double>(it->position() + it->length()));
+            idx.push_back(keel::as<keel::f64>(it->position() + it->length()));
         return rowFromIndices(idx.data(), idx.size(), mr);
     }
 
@@ -158,12 +158,12 @@ Value regexpFind(const Value &s, const Value &pat, keel::StringRef option, bool 
             const auto &m = *it;
             const keel::usize ng2 = (m.size() > 1) ? m.size() - 1 : 1;
             auto te = Value::matrix(ng2, 2, ValueType::DOUBLE, mr);
-            double *td = te.doubleDataMut();
+            keel::f64 *td = te.doubleDataMut();
             for (keel::usize g = 0; g < ng2; ++g) {
                 const auto &sub = (m.size() > 1) ? m[g + 1] : m[0];
                 const keel::isize st = sub.first - tbeg;
-                td[0 * ng2 + g] = keel::as<double>(st + 1);
-                td[1 * ng2 + g] = keel::as<double>(st + sub.length());
+                td[0 * ng2 + g] = keel::as<keel::f64>(st + 1);
+                td[1 * ng2 + g] = keel::as<keel::f64>(st + sub.length());
             }
             out.cellAt(i) = te;
         }
@@ -176,10 +176,10 @@ Value regexpFind(const Value &s, const Value &pat, keel::StringRef option, bool 
                      0, 0, "regexp", "", "numkit:regexp:badOption");
 
     // Default ('start'): 1-based start indices.
-    keel::Array<double> idx(salloc);
+    keel::Array<keel::f64> idx(salloc);
     for (auto it = std::cregex_iterator(tbeg, tend, re),
               end = std::cregex_iterator(); it != end; ++it)
-        idx.push_back(keel::as<double>(it->position() + 1));
+        idx.push_back(keel::as<keel::f64>(it->position() + 1));
     return rowFromIndices(idx.data(), idx.size(), mr);
 }
 
@@ -256,19 +256,19 @@ Value regexpFindOnce(const Value &s, const Value &pat, keel::StringRef option,
         const auto &m = *it;
         const keel::usize ng2 = (m.size() > 1) ? m.size() - 1 : 1;
         auto te = Value::matrix(ng2, 2, ValueType::DOUBLE, mr);
-        double *td = te.doubleDataMut();
+        keel::f64 *td = te.doubleDataMut();
         for (keel::usize g = 0; g < ng2; ++g) {
             const auto &sub = (m.size() > 1) ? m[g + 1] : m[0];
             const keel::isize st = sub.first - tbeg;
-            td[0 * ng2 + g] = keel::as<double>(st + 1);
-            td[1 * ng2 + g] = keel::as<double>(st + sub.length());
+            td[0 * ng2 + g] = keel::as<keel::f64>(st + 1);
+            td[1 * ng2 + g] = keel::as<keel::f64>(st + sub.length());
         }
         return te;
     }
 
     if (option.equals_ignore_ascii_case("end")) {
         if (!has) return Value::matrix(0, 0, ValueType::DOUBLE, mr);
-        return Value::scalar(keel::as<double>(it->position() + it->length()), mr);
+        return Value::scalar(keel::as<keel::f64>(it->position() + it->length()), mr);
     }
 
     if (!option.empty() && !option.equals_ignore_ascii_case("start"))
@@ -278,7 +278,7 @@ Value regexpFindOnce(const Value &s, const Value &pat, keel::StringRef option,
 
     // 'start' (default): scalar 1-based index of the first match.
     if (!has) return Value::matrix(0, 0, ValueType::DOUBLE, mr);
-    return Value::scalar(keel::as<double>(it->position() + 1), mr);
+    return Value::scalar(keel::as<keel::f64>(it->position() + 1), mr);
 }
 
 // Apply ONE pattern/replacement to a single string. With `once`, only the

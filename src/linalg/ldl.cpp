@@ -59,7 +59,7 @@ ldl(const Value &A, bool upper_form, bool p_as_vector, keel::Allocator *mr)
         }
 
         keel::Array<keel::c64> L_buf(n * n, scratch.allocator());
-        keel::Array<double> D_buf(n, scratch.allocator());
+        keel::Array<keel::f64> D_buf(n, scratch.allocator());
         if (keel::linalg::ldl_factor(ad, n, L_buf.data(), D_buf.data(), mr) != 0)
             throw Error("ldl: zero pivot encountered (matrix needs "
                         "Bunch-Kaufman pivoting; not supported in v1)",
@@ -84,26 +84,26 @@ ldl(const Value &A, bool upper_form, bool p_as_vector, keel::Allocator *mr)
         Value P;
         if (p_as_vector) {
             P = Value::matrix(1, n, ValueType::DOUBLE, mr);
-            double *pd = P.doubleDataMut();
-            for (keel::usize k = 0; k < n; ++k) pd[k] = keel::as<double>(k + 1);
+            keel::f64 *pd = P.doubleDataMut();
+            for (keel::usize k = 0; k < n; ++k) pd[k] = keel::as<keel::f64>(k + 1);
         } else {
             P = Value::matrix(n, n, ValueType::DOUBLE, mr);
-            double *pd = P.doubleDataMut();
+            keel::f64 *pd = P.doubleDataMut();
             std::fill(pd, pd + n * n, 0.0);
             for (keel::usize k = 0; k < n; ++k) pd[k + k * n] = 1.0;
         }
         return {L, D, P};
     }
 
-    keel::Array<double> L_buf(n * n, scratch.allocator());
-    keel::Array<double> D_buf(n, scratch.allocator());
+    keel::Array<keel::f64> L_buf(n * n, scratch.allocator());
+    keel::Array<keel::f64> D_buf(n, scratch.allocator());
     if (keel::linalg::ldl_factor(Aw.doubleData(), n, L_buf.data(), D_buf.data(), mr) != 0)
         throw Error("ldl: zero pivot encountered (matrix needs "
                     "Bunch-Kaufman pivoting; not supported in v1)",
                     0, 0, "ldl", "", "numkit:ldl:NeedsBKPivoting");
 
     Value L = Value::matrix(n, n, ValueType::DOUBLE, mr);
-    double *Ld = L.doubleDataMut();
+    keel::f64 *Ld = L.doubleDataMut();
     if (upper_form) {
         std::fill(Ld, Ld + n * n, 0.0);
         for (keel::usize j = 0; j < n; ++j)
@@ -114,18 +114,18 @@ ldl(const Value &A, bool upper_form, bool p_as_vector, keel::Allocator *mr)
     }
 
     Value D = Value::matrix(n, n, ValueType::DOUBLE, mr);
-    double *Dd = D.doubleDataMut();
+    keel::f64 *Dd = D.doubleDataMut();
     std::fill(Dd, Dd + n * n, 0.0);
     for (keel::usize k = 0; k < n; ++k) Dd[k + k * n] = D_buf[k];
 
     Value P;
     if (p_as_vector) {
         P = Value::matrix(1, n, ValueType::DOUBLE, mr);
-        double *pd = P.doubleDataMut();
-        for (keel::usize k = 0; k < n; ++k) pd[k] = keel::as<double>(k + 1);
+        keel::f64 *pd = P.doubleDataMut();
+        for (keel::usize k = 0; k < n; ++k) pd[k] = keel::as<keel::f64>(k + 1);
     } else {
         P = Value::matrix(n, n, ValueType::DOUBLE, mr);
-        double *pd = P.doubleDataMut();
+        keel::f64 *pd = P.doubleDataMut();
         std::fill(pd, pd + n * n, 0.0);
         for (keel::usize k = 0; k < n; ++k) pd[k + k * n] = 1.0;
         P = detail::narrowDoubleToSingleIf(P, wantSingle, mr);

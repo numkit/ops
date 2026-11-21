@@ -169,7 +169,7 @@ namespace {
 // swap (R, C); rot180 keeps (R, C). 3D dispatch in rot90() loops these
 // over all pages.
 
-inline void rot90OncePage(const double *src, double *dst, keel::usize R, keel::usize C)
+inline void rot90OncePage(const keel::f64 *src, keel::f64 *dst, keel::usize R, keel::usize C)
 {
     // Output shape (C, R): out[(C-1-c)*1 + r*C] = src[c*R + r]
     for (keel::usize c = 0; c < C; ++c)
@@ -177,14 +177,14 @@ inline void rot90OncePage(const double *src, double *dst, keel::usize R, keel::u
             dst[rr * C + (C - 1 - c)] = src[c * R + rr];
 }
 
-inline void rot180Page(const double *src, double *dst, keel::usize R, keel::usize C)
+inline void rot180Page(const keel::f64 *src, keel::f64 *dst, keel::usize R, keel::usize C)
 {
     for (keel::usize c = 0; c < C; ++c)
         for (keel::usize rr = 0; rr < R; ++rr)
             dst[(C - 1 - c) * R + (R - 1 - rr)] = src[c * R + rr];
 }
 
-inline void rot270Page(const double *src, double *dst, keel::usize R, keel::usize C)
+inline void rot270Page(const keel::f64 *src, keel::f64 *dst, keel::usize R, keel::usize C)
 {
     // Output shape (C, R): out[c + (R-1-r)*C] = src[c*R + r]
     for (keel::usize c = 0; c < C; ++c)
@@ -269,7 +269,7 @@ inline keel::usize wrap(keel::i64 k, keel::usize n)
     return keel::as<keel::usize>(m);
 }
 
-[[maybe_unused]] void shift2D(const double *src, double *dst, keel::usize R, keel::usize C,
+[[maybe_unused]] void shift2D(const keel::f64 *src, keel::f64 *dst, keel::usize R, keel::usize C,
              keel::i64 kRow, keel::i64 kCol)
 {
     const keel::usize shR = wrap(kRow, R);
@@ -356,7 +356,7 @@ namespace {
 [[maybe_unused]] keel::Array<keel::usize> repelemMap(const Value &counts, keel::usize dimLen, const keel::ArenaTemp &arena)
 {
     keel::Array<keel::usize> map(arena.allocator());
-    auto checkCount = [](double c) -> keel::usize {
+    auto checkCount = [](keel::f64 c) -> keel::usize {
         if (!(c >= 0.0) || std::floor(c) != c)
             throw Error("repelem: replication counts must be nonnegative integers",
                          0, 0, "repelem", "", "numkit:repelem:badCount");
@@ -375,7 +375,7 @@ namespace {
     if (counts.numel() != dimLen)
         throw Error("repelem: count vector length must equal the dimension size",
                      0, 0, "repelem", "", "numkit:repelem:countLen");
-    const double *cd = counts.doubleData();
+    const keel::f64 *cd = counts.doubleData();
     for (keel::usize i = 0; i < dimLen; ++i) {
         const keel::usize rep = checkCount(cd[i]);
         for (keel::usize k = 0; k < rep; ++k) map.push_back(i);

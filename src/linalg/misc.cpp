@@ -27,27 +27,27 @@ namespace numkit::linalg {
 namespace {
 
 template <typename T>
-double single_rref_default_tol(const T *A, keel::usize M, keel::usize N)
+keel::f64 single_rref_default_tol(const T *A, keel::usize M, keel::usize N)
 {
-    double anorm = 0.0;
+    keel::f64 anorm = 0.0;
     for (keel::usize i = 0; i < M; ++i) {
-        double s = 0.0;
+        keel::f64 s = 0.0;
         for (keel::usize j = 0; j < N; ++j) s += keel::abs(A[i + j * M]);
         if (s > anorm) anorm = s;
     }
-    const float anorm_f = keel::as<float>(anorm);
-    const float eps_f = std::numeric_limits<float>::epsilon();
-    const double eps_anorm = (anorm_f == 0.0f)
-        ? keel::as<double>(eps_f)
-        : keel::as<double>(std::nextafter(anorm_f, std::numeric_limits<float>::infinity()) - anorm_f);
-    return keel::as<double>(std::max(M, N)) * eps_anorm;
+    const keel::f32 anorm_f = keel::as<keel::f32>(anorm);
+    const keel::f32 eps_f = std::numeric_limits<keel::f32>::epsilon();
+    const keel::f64 eps_anorm = (anorm_f == 0.0f)
+        ? keel::as<keel::f64>(eps_f)
+        : keel::as<keel::f64>(std::nextafter(anorm_f, std::numeric_limits<keel::f32>::infinity()) - anorm_f);
+    return keel::as<keel::f64>(std::max(M, N)) * eps_anorm;
 }
 
 } // namespace
 
 // rref: Gauss-Jordan elimination with partial pivoting and tolerance gate.
 std::pair<Value, Value>
-rref(const Value &A, bool have_tol, double tol_user, keel::Allocator *mr)
+rref(const Value &A, bool have_tol, keel::f64 tol_user, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "rref");
     if (A.dims().is3D())
@@ -70,26 +70,26 @@ rref(const Value &A, bool have_tol, double tol_user, keel::Allocator *mr)
     if (Aw.isComplex()) {
         Value R = Value::complexMatrix(M, N, mr);
         std::copy(Aw.complexData(), Aw.complexData() + M * N, R.complexDataMut());
-        const double tol = have_tol ? tol_user
+        const keel::f64 tol = have_tol ? tol_user
             : (wantSingle ? single_rref_default_tol(R.complexData(), M, N) : -1.0);
         const keel::usize rank = keel::linalg::rref(R.complexDataMut(), M, N, tol, piv_cols.data());
         R = detail::narrow_if_real(R, mr);
 
         Value jb = Value::matrix(rank == 0 ? 0 : 1, rank, ValueType::DOUBLE, mr);
-        double *jbd = jb.doubleDataMut();
-        for (keel::usize k = 0; k < rank; ++k) jbd[k] = keel::as<double>(piv_cols[k] + 1);
+        keel::f64 *jbd = jb.doubleDataMut();
+        for (keel::usize k = 0; k < rank; ++k) jbd[k] = keel::as<keel::f64>(piv_cols[k] + 1);
         return {detail::narrowDoubleToSingleIf(R, wantSingle, mr), jb};
     }
 
     Value R = Value::matrix(M, N, ValueType::DOUBLE, mr);
     std::copy(Aw.doubleData(), Aw.doubleData() + M * N, R.doubleDataMut());
-    const double tol = have_tol ? tol_user
+    const keel::f64 tol = have_tol ? tol_user
         : (wantSingle ? single_rref_default_tol(R.doubleData(), M, N) : -1.0);
     const keel::usize rank = keel::linalg::rref(R.doubleDataMut(), M, N, tol, piv_cols.data());
 
     Value jb = Value::matrix(rank == 0 ? 0 : 1, rank, ValueType::DOUBLE, mr);
-    double *jbd = jb.doubleDataMut();
-    for (keel::usize k = 0; k < rank; ++k) jbd[k] = keel::as<double>(piv_cols[k] + 1);
+    keel::f64 *jbd = jb.doubleDataMut();
+    for (keel::usize k = 0; k < rank; ++k) jbd[k] = keel::as<keel::f64>(piv_cols[k] + 1);
     return {detail::narrowDoubleToSingleIf(R, wantSingle, mr), jb};
 }
 
@@ -105,13 +105,13 @@ planerot(const Value &xy, keel::Allocator *mr)
                     0, 0, "planerot", "", "numkit:planerot:NoComplex");
 
     const bool wantSingle = (xy.type() == ValueType::SINGLE);
-    const double x = xy.elemAsDouble(0);
-    const double y = xy.elemAsDouble(1);
+    const keel::f64 x = xy.elemAsDouble(0);
+    const keel::f64 y = xy.elemAsDouble(1);
 
     Value G = Value::matrix(2, 2, ValueType::DOUBLE, mr);
     Value yo = Value::matrix(2, 1, ValueType::DOUBLE, mr);
-    double *gd = G.doubleDataMut();
-    double *yd = yo.doubleDataMut();
+    keel::f64 *gd = G.doubleDataMut();
+    keel::f64 *yd = yo.doubleDataMut();
 
     if (x == 0.0 && y == 0.0) {
         gd[0] = 1.0; gd[1] = 0.0; gd[2] = 0.0; gd[3] = 1.0;
@@ -120,9 +120,9 @@ planerot(const Value &xy, keel::Allocator *mr)
                 detail::narrowDoubleToSingleIf(yo, wantSingle, mr)};
     }
 
-    const double r = std::hypot(x, y);
-    const double c = x / r;
-    const double s = y / r;
+    const keel::f64 r = std::hypot(x, y);
+    const keel::f64 c = x / r;
+    const keel::f64 s = y / r;
     gd[0] = c;
     gd[1] = -s;
     gd[2] = s;

@@ -26,7 +26,7 @@ namespace numkit::builtin {
 
 namespace {
 
-inline keel::i64 toInt64(double v)
+inline keel::i64 toInt64(keel::f64 v)
 {
     if (std::isnan(v) || std::isinf(v)) return 0;
     return keel::as<keel::i64>(v);

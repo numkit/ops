@@ -26,9 +26,9 @@ namespace HWY_NAMESPACE {
 
 namespace hn = hwy::HWY_NAMESPACE;
 
-void ShiftScaleMulImpl(const double *x, double sub, double mul,
-                       double *out, keel::usize n) {
-    const hn::ScalableTag<double> d;
+void ShiftScaleMulImpl(const keel::f64 *x, keel::f64 sub, keel::f64 mul,
+                       keel::f64 *out, keel::usize n) {
+    const hn::ScalableTag<keel::f64> d;
     const keel::usize L = hn::Lanes(d);
     const auto vsub = hn::Set(d, sub), vmul = hn::Set(d, mul);
     keel::usize i = 0;
@@ -37,9 +37,9 @@ void ShiftScaleMulImpl(const double *x, double sub, double mul,
     for (; i < n; ++i) out[i] = (x[i] - sub) * mul;
 }
 
-void ShiftScaleDivImpl(const double *x, double sub, double div,
-                       double *out, keel::usize n) {
-    const hn::ScalableTag<double> d;
+void ShiftScaleDivImpl(const keel::f64 *x, keel::f64 sub, keel::f64 div,
+                       keel::f64 *out, keel::usize n) {
+    const hn::ScalableTag<keel::f64> d;
     const keel::usize L = hn::Lanes(d);
     const auto vsub = hn::Set(d, sub), vdiv = hn::Set(d, div);
     keel::usize i = 0;
@@ -58,16 +58,16 @@ namespace numkit::ops {
 HWY_EXPORT(ShiftScaleMulImpl);
 HWY_EXPORT(ShiftScaleDivImpl);
 
-void fusedShiftScaleMul(const double *x, double sub, double mul,
-                        double *out, keel::usize n) {
+void fusedShiftScaleMul(const keel::f64 *x, keel::f64 sub, keel::f64 mul,
+                        keel::f64 *out, keel::usize n) {
     if (n == 0) return;
     detail::parallel_for(n, keel::usize{1} << 16, [&](keel::usize s, keel::usize e) {
         HWY_DYNAMIC_DISPATCH(ShiftScaleMulImpl)(x + s, sub, mul, out + s, e - s);
     });
 }
 
-void fusedShiftScaleDiv(const double *x, double sub, double div,
-                        double *out, keel::usize n) {
+void fusedShiftScaleDiv(const keel::f64 *x, keel::f64 sub, keel::f64 div,
+                        keel::f64 *out, keel::usize n) {
     if (n == 0) return;
     detail::parallel_for(n, keel::usize{1} << 16, [&](keel::usize s, keel::usize e) {
         HWY_DYNAMIC_DISPATCH(ShiftScaleDivImpl)(x + s, sub, div, out + s, e - s);

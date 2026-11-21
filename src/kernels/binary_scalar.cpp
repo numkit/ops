@@ -20,19 +20,19 @@
 
 namespace numkit::ops::detail {
 
-NUMKIT_NOINLINE void plusScalar(const double *a, const double *b, double *out, keel::usize n) {
+NUMKIT_NOINLINE void plusScalar(const keel::f64 *a, const keel::f64 *b, keel::f64 *out, keel::usize n) {
     for (keel::usize i = 0; i < n; ++i) out[i] = a[i] + b[i];
 }
 
-NUMKIT_NOINLINE void minusScalar(const double *a, const double *b, double *out, keel::usize n) {
+NUMKIT_NOINLINE void minusScalar(const keel::f64 *a, const keel::f64 *b, keel::f64 *out, keel::usize n) {
     for (keel::usize i = 0; i < n; ++i) out[i] = a[i] - b[i];
 }
 
-NUMKIT_NOINLINE void timesScalar(const double *a, const double *b, double *out, keel::usize n) {
+NUMKIT_NOINLINE void timesScalar(const keel::f64 *a, const keel::f64 *b, keel::f64 *out, keel::usize n) {
     for (keel::usize i = 0; i < n; ++i) out[i] = a[i] * b[i];
 }
 
-NUMKIT_NOINLINE void rdivideScalar(const double *a, const double *b, double *out, keel::usize n) {
+NUMKIT_NOINLINE void rdivideScalar(const keel::f64 *a, const keel::f64 *b, keel::f64 *out, keel::usize n) {
     for (keel::usize i = 0; i < n; ++i) out[i] = a[i] / b[i];
 }
 

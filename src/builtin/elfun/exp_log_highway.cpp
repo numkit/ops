@@ -53,9 +53,9 @@ HWY_INLINE V SafeExpVec(D d, V v)
     return res;
 }
 
-void ExpLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, keel::usize n)
+void ExpLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel::usize n)
 {
-    const hn::ScalableTag<double> d;
+    const hn::ScalableTag<keel::f64> d;
     const keel::usize N = hn::Lanes(d);
     keel::usize i = 0;
     for (; i + N <= n; i += N) {
@@ -69,7 +69,7 @@ template <class D, class V, class Fn>
 HWY_INLINE V SafeLogVec(D d, V v, Fn fn)
 {
     const V zero = hn::Zero(d);
-    const V neg_inf = hn::Set(d, -std::numeric_limits<double>::infinity());
+    const V neg_inf = hn::Set(d, -std::numeric_limits<keel::f64>::infinity());
     V res = fn(d, v);
     res = hn::IfThenElse(hn::Eq(v, zero), neg_inf, res);
     res = hn::IfThenElse(hn::IsFinite(v), res, v);
@@ -80,16 +80,16 @@ template <class D, class V>
 HWY_INLINE V SafeLog1pVec(D d, V v)
 {
     const V neg_one = hn::Set(d, -1.0);
-    const V neg_inf = hn::Set(d, -std::numeric_limits<double>::infinity());
+    const V neg_inf = hn::Set(d, -std::numeric_limits<keel::f64>::infinity());
     V res = hn::Log1p(d, v);
     res = hn::IfThenElse(hn::Eq(v, neg_one), neg_inf, res);
     res = hn::IfThenElse(hn::IsFinite(v), res, v);
     return res;
 }
 
-void LogLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, keel::usize n)
+void LogLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel::usize n)
 {
-    const hn::ScalableTag<double> d;
+    const hn::ScalableTag<keel::f64> d;
     const keel::usize N = hn::Lanes(d);
     keel::usize i = 0;
     for (; i + N <= n; i += N) {
@@ -102,9 +102,9 @@ void LogLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, keel::usiz
 // Tier-2 wrappers over Highway's contrib/math primitives (SLEEF-derived,
 // ULP <= ~4). expm1 / log1p / log2 had no SIMD path before — they were
 // scalar std::* calls in exponents.cpp.
-void Expm1Loop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, keel::usize n)
+void Expm1Loop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel::usize n)
 {
-    const hn::ScalableTag<double> d;
+    const hn::ScalableTag<keel::f64> d;
     const keel::usize N = hn::Lanes(d);
     keel::usize i = 0;
     for (; i + N <= n; i += N)
@@ -112,9 +112,9 @@ void Expm1Loop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, keel::us
     for (; i < n; ++i) out[i] = std::expm1(in[i]);
 }
 
-void Log1pLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, keel::usize n)
+void Log1pLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel::usize n)
 {
-    const hn::ScalableTag<double> d;
+    const hn::ScalableTag<keel::f64> d;
     const keel::usize N = hn::Lanes(d);
     keel::usize i = 0;
     for (; i + N <= n; i += N)
@@ -122,9 +122,9 @@ void Log1pLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, keel::us
     for (; i < n; ++i) out[i] = std::log1p(in[i]);
 }
 
-void Log2Loop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, keel::usize n)
+void Log2Loop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel::usize n)
 {
-    const hn::ScalableTag<double> d;
+    const hn::ScalableTag<keel::f64> d;
     const keel::usize N = hn::Lanes(d);
     keel::usize i = 0;
     for (; i + N <= n; i += N)
@@ -135,9 +135,9 @@ void Log2Loop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, keel::usi
 // log10 had no SIMD path before — it was a scalar std::log10 in
 // exponents.cpp, ~10x slower than the vectorised log. reallog reuses
 // LogLoop (it is log with a negative-input domain guard).
-void Log10Loop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, keel::usize n)
+void Log10Loop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel::usize n)
 {
-    const hn::ScalableTag<double> d;
+    const hn::ScalableTag<keel::f64> d;
     const keel::usize N = hn::Lanes(d);
     keel::usize i = 0;
     for (; i + N <= n; i += N)
@@ -147,9 +147,9 @@ void Log10Loop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, keel::us
 
 // sqrt / realsqrt were scalar std::sqrt in exponents.cpp. hn::Sqrt maps to
 // the hardware vsqrtpd, so the SIMD body is memory-bandwidth bound.
-void SqrtLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, keel::usize n)
+void SqrtLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel::usize n)
 {
-    const hn::ScalableTag<double> d;
+    const hn::ScalableTag<keel::f64> d;
     const keel::usize N = hn::Lanes(d);
     keel::usize i = 0;
     for (; i + N <= n; i += N)
@@ -162,9 +162,9 @@ void SqrtLoop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, keel::usi
 // (coefficients from SLEEF sleefsimddp.c, BSL-1.0) gives 2^s; ldexp by the
 // integer q (two-step pow-of-two multiply, overflow-safe) gives 2^x. The
 // integer reduction makes 2^n exact, matching MATLAB pow2 / std::exp2.
-void Exp2Loop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, keel::usize n)
+void Exp2Loop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel::usize n)
 {
-    const hn::ScalableTag<double> d;
+    const hn::ScalableTag<keel::f64> d;
     const hn::RebindToSigned<decltype(d)> di;
     const keel::usize N = hn::Lanes(d);
     const auto bias = hn::Set(di, keel::i64(1023));
@@ -196,7 +196,7 @@ void Exp2Loop(const double *HWY_RESTRICT in, double *HWY_RESTRICT out, keel::usi
         auto r  = hn::Mul(hn::Mul(p, pow2i(q1)), pow2i(hn::Sub(qi, q1)));
         // x >= 1024 -> +Inf; x < -2000 -> 0 (matches SLEEF/MATLAB edges).
         r = hn::IfThenElse(hn::Ge(x, hn::Set(d, 1024.0)),
-                           hn::Set(d, std::numeric_limits<double>::infinity()), r);
+                           hn::Set(d, std::numeric_limits<keel::f64>::infinity()), r);
         r = hn::IfThenZeroElse(hn::Lt(x, hn::Set(d, -2000.0)), r);
         hn::StoreU(r, d, out + i);
     }
@@ -253,8 +253,8 @@ Value unaryRealDouble(const Value &x, Value *hint, LoopDispatch loop, ScalarOp s
     if (x.numel() == 0)
         return r;
 
-    const double *in  = x.doubleData();
-    double       *out = r.doubleDataMut();
+    const keel::f64 *in  = x.doubleData();
+    keel::f64       *out = r.doubleDataMut();
     // Transcendentals are heavier per element than +/-/.* â€” pays off
     // earlier, hence the smaller threshold.
     numkit::detail::parallel_for(x.numel(), numkit::detail::kTranscendentalThreshold,
@@ -277,8 +277,8 @@ Value unaryRealArray(const Value &x, LoopDispatch loop, ScalarOp scalarOp,
     Value r = createLike(x, ValueType::DOUBLE, mr);
     if (x.numel() == 0)
         return r;
-    const double *in  = x.doubleData();
-    double       *out = r.doubleDataMut();
+    const keel::f64 *in  = x.doubleData();
+    keel::f64       *out = r.doubleDataMut();
     numkit::detail::parallel_for(x.numel(), numkit::detail::kTranscendentalThreshold,
         [=](keel::usize s, keel::usize e) {
             loop(in + s, out + s, e - s);
@@ -290,9 +290,9 @@ Value unaryRealArray(const Value &x, LoopDispatch loop, ScalarOp scalarOp,
 
 Value exp(const Value &x, Value *hint, keel::Allocator *mr)
 {
-    return unaryRealDouble(x, hint, [](const double *in, double *out, keel::usize n) {
+    return unaryRealDouble(x, hint, [](const keel::f64 *in, keel::f64 *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(ExpLoop)(in, out, n);
-        }, [](double v) { return std::exp(v); }, [](const keel::c64 &c) { return keel::exp(c); }, mr);
+        }, [](keel::f64 v) { return std::exp(v); }, [](const keel::c64 &c) { return keel::exp(c); }, mr);
 }
 
 // log: MATLAB promotes a *scalar* negative input to complex (so
@@ -314,7 +314,7 @@ Value log(const Value &x, Value *hint, keel::Allocator *mr)
         return unaryComplex(cx, [](const keel::c64 &c) { return keel::log(c); }, mr);
     }
     if (x.type() != ValueType::DOUBLE)
-        return unaryDouble(x, [](double v) { return std::log(v); }, mr);
+        return unaryDouble(x, [](keel::f64 v) { return std::log(v); }, mr);
     if (x.isScalar())
         return Value::scalar(std::log(x.toScalar()), mr);
 
@@ -327,8 +327,8 @@ Value log(const Value &x, Value *hint, keel::Allocator *mr)
     }
     if (x.numel() == 0)
         return r;
-    const double *in  = x.doubleData();
-    double       *out = r.doubleDataMut();
+    const keel::f64 *in  = x.doubleData();
+    keel::f64       *out = r.doubleDataMut();
     numkit::detail::parallel_for(x.numel(), numkit::detail::kTranscendentalThreshold,
         [=](keel::usize s, keel::usize e) {
             HWY_DYNAMIC_DISPATCH(LogLoop)(in + s, out + s, e - s);
@@ -341,17 +341,17 @@ Value expm1(const Value &x, keel::Allocator *mr)
     // MATLAB: expm1(z) = exp(z) - 1 on complex (no std::complex expm1).
     if (x.isComplex())
         return unaryComplex(x, [](const keel::c64 &c) { return keel::exp(c) - 1.0; }, mr);
-    return unaryRealArray(x, [](const double *in, double *out, keel::usize n) {
+    return unaryRealArray(x, [](const keel::f64 *in, keel::f64 *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(Expm1Loop)(in, out, n);
-        }, [](double v) { return std::expm1(v); }, mr);
+        }, [](keel::f64 v) { return std::expm1(v); }, mr);
 }
 
 // log1p of a real x as a (possibly) complex value, accurate per element:
 //   x >= -1 : log1p(x)  (real; -Inf at x == -1)
 //   x <  -1 : 1+x < 0 â†’ log|1+x| + iÂ·Ï€   (MATLAB principal branch)
-static inline keel::c64 log1pRealToComplex(double x)
+static inline keel::c64 log1pRealToComplex(keel::f64 x)
 {
-    constexpr double kPi = 3.141592653589793;
+    constexpr keel::f64 kPi = 3.141592653589793;
     if (x >= -1.0) return keel::c64(std::log1p(x), 0.0);
     return keel::c64(std::log(-(1.0 + x)), kPi);
 }
@@ -374,7 +374,7 @@ Value log1p(const Value &x, keel::Allocator *mr)
         return unaryComplex(x, [](const keel::c64 &c) {
             return keel::log(keel::c64(1.0, 0.0) + c); }, mr);
     if (x.isScalar()) {
-        const double v = x.toScalar();
+        const keel::f64 v = x.toScalar();
         if (v < -1.0) return Value::complexScalar(log1pRealToComplex(v), mr);
         return Value::scalar(std::log1p(v), mr);
     }
@@ -386,9 +386,9 @@ Value log1p(const Value &x, keel::Allocator *mr)
             out[i] = log1pRealToComplex(x.elemAsDouble(i));
         return r;
     }
-    return unaryRealArray(x, [](const double *in, double *out, keel::usize n) {
+    return unaryRealArray(x, [](const keel::f64 *in, keel::f64 *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(Log1pLoop)(in, out, n);
-        }, [](double v) { return std::log1p(v); }, mr);
+        }, [](keel::f64 v) { return std::log1p(v); }, mr);
 }
 
 // log2 / log10 of a negative scalar promote to complex like log
@@ -403,9 +403,9 @@ Value log2(const Value &x, keel::Allocator *mr)
         Value cx = x; cx.promoteToComplex(mr);
         return unaryComplex(cx, [](const keel::c64 &c) { return keel::log(c) / std::log(2.0); }, mr);
     }
-    return unaryRealArray(x, [](const double *in, double *out, keel::usize n) {
+    return unaryRealArray(x, [](const keel::f64 *in, keel::f64 *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(Log2Loop)(in, out, n);
-        }, [](double v) { return std::log2(v); }, mr);
+        }, [](keel::f64 v) { return std::log2(v); }, mr);
 }
 
 Value log10(const Value &x, keel::Allocator *mr)
@@ -418,9 +418,9 @@ Value log10(const Value &x, keel::Allocator *mr)
         Value cx = x; cx.promoteToComplex(mr);
         return unaryComplex(cx, [](const keel::c64 &c) { return keel::log10(c); }, mr);
     }
-    return unaryRealArray(x, [](const double *in, double *out, keel::usize n) {
+    return unaryRealArray(x, [](const keel::f64 *in, keel::f64 *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(Log10Loop)(in, out, n);
-        }, [](double v) { return std::log10(v); }, mr);
+        }, [](keel::f64 v) { return std::log10(v); }, mr);
 }
 
 // reallog == log, but raises if any element is negative (MATLAB tells the
@@ -429,7 +429,7 @@ Value log10(const Value &x, keel::Allocator *mr)
 // handling); a real DOUBLE array does one domain pass, then the SIMD log.
 Value reallog(const Value &x, keel::Allocator *mr)
 {
-    auto scalarOp = [](double v) {
+    auto scalarOp = [](keel::f64 v) {
         if (v < 0.0)
             throw std::runtime_error("reallog produced complex result â€” use log(...) instead");
         return std::log(v);
@@ -437,7 +437,7 @@ Value reallog(const Value &x, keel::Allocator *mr)
     if (x.isComplex() || x.isScalar() || x.type() != ValueType::DOUBLE)
         return unaryDouble(x, scalarOp, mr);
 
-    const double     *in = x.doubleData();
+    const keel::f64     *in = x.doubleData();
     const keel::usize n  = x.numel();
     for (keel::usize i = 0; i < n; ++i)
         if (in[i] < 0.0)
@@ -446,7 +446,7 @@ Value reallog(const Value &x, keel::Allocator *mr)
     Value r = createLike(x, ValueType::DOUBLE, mr);
     if (n == 0)
         return r;
-    double *out = r.doubleDataMut();
+    keel::f64 *out = r.doubleDataMut();
     numkit::detail::parallel_for(n, numkit::detail::kTranscendentalThreshold,
         [=](keel::usize s, keel::usize e) {
             HWY_DYNAMIC_DISPATCH(LogLoop)(in + s, out + s, e - s);
@@ -475,15 +475,15 @@ Value sqrt(const Value &x, keel::Allocator *mr)
         Value cx = x; cx.promoteToComplex(mr);
         return unaryComplex(cx, [](const keel::c64 &c) { return keel::sqrt(c); }, mr);
     }
-    return unaryRealArray(x, [](const double *in, double *out, keel::usize n) {
+    return unaryRealArray(x, [](const keel::f64 *in, keel::f64 *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(SqrtLoop)(in, out, n);
-        }, [](double v) { return std::sqrt(v); }, mr);
+        }, [](keel::f64 v) { return std::sqrt(v); }, mr);
 }
 
 // realsqrt: sqrt with a strict-nonnegative domain guard (now SIMD via SqrtLoop).
 Value realsqrt(const Value &x, keel::Allocator *mr)
 {
-    auto scalarOp = [](double v) {
+    auto scalarOp = [](keel::f64 v) {
         if (v < 0.0)
             throw std::runtime_error("realsqrt produced complex result â€” use sqrt(...) instead");
         return std::sqrt(v);
@@ -491,7 +491,7 @@ Value realsqrt(const Value &x, keel::Allocator *mr)
     if (x.isComplex() || x.isScalar() || x.type() != ValueType::DOUBLE)
         return unaryDouble(x, scalarOp, mr);
 
-    const double     *in = x.doubleData();
+    const keel::f64     *in = x.doubleData();
     const keel::usize n  = x.numel();
     for (keel::usize i = 0; i < n; ++i)
         if (in[i] < 0.0)
@@ -500,7 +500,7 @@ Value realsqrt(const Value &x, keel::Allocator *mr)
     Value r = createLike(x, ValueType::DOUBLE, mr);
     if (n == 0)
         return r;
-    double *out = r.doubleDataMut();
+    keel::f64 *out = r.doubleDataMut();
     numkit::detail::parallel_for(n, numkit::detail::kTranscendentalThreshold,
         [=](keel::usize s, keel::usize e) {
             HWY_DYNAMIC_DISPATCH(SqrtLoop)(in + s, out + s, e - s);
@@ -512,9 +512,9 @@ Value realsqrt(const Value &x, keel::Allocator *mr)
 // pow2(f, e) == f*2^e stays in exponents.cpp. Real-only, like MATLAB.
 Value pow2(const Value &y, keel::Allocator *mr)
 {
-    return unaryRealArray(y, [](const double *in, double *out, keel::usize n) {
+    return unaryRealArray(y, [](const keel::f64 *in, keel::f64 *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(Exp2Loop)(in, out, n);
-        }, [](double v) { return std::exp2(v); }, mr);
+        }, [](keel::f64 v) { return std::exp2(v); }, mr);
 }
 
 } // namespace numkit::builtin

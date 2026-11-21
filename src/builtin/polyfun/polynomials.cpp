@@ -40,7 +40,7 @@ Value roots(const Value &p, keel::Allocator *mr)
     if (p.type() == ValueType::COMPLEX) {
         rs = keel::poly::roots(keel::ArrayRef<keel::c64>(p.complexData(), n), scratch.allocator());
     } else {
-        auto coeffs = keel::Array<double>(n, scratch.allocator());
+        auto coeffs = keel::Array<keel::f64>(n, scratch.allocator());
         for (keel::usize i = 0; i < n; ++i)
             coeffs[i] = p.elemAsDouble(i);
         rs = keel::poly::roots(keel::ArrayRef<keel::f64>(coeffs.data(), coeffs.size()), scratch.allocator());
@@ -89,7 +89,7 @@ polyder(const Value &b, const Value &a, keel::Allocator *mr)
                            rowFromVec(res.den.data(), res.den.size(), mr));
 }
 
-Value polyint(const Value &p, double k, keel::Allocator *mr)
+Value polyint(const Value &p, keel::f64 k, keel::Allocator *mr)
 {
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     auto pv = readPolyAsDouble(p, "polyint", scratch.allocator());
@@ -118,7 +118,7 @@ tf2zp(const Value &b, const Value &a, keel::Allocator *mr)
     }
     auto zRoots = keel::poly::roots(keel::ArrayRef<keel::f64>(bv.data(), bv.size()), scratch.allocator());
     auto pRoots = keel::poly::roots(keel::ArrayRef<keel::f64>(av.data(), av.size()), scratch.allocator());
-    const double k = bv[bnz] / av[0];
+    const keel::f64 k = bv[bnz] / av[0];
 
     return std::make_tuple(realColIfFlat(zRoots.data(), zRoots.size(), mr),
                            realColIfFlat(pRoots.data(), pRoots.size(), mr),
@@ -126,7 +126,7 @@ tf2zp(const Value &b, const Value &a, keel::Allocator *mr)
 }
 
 std::tuple<Value, Value>
-zp2tf(const Value &z, const Value &p, double k, keel::Allocator *mr)
+zp2tf(const Value &z, const Value &p, keel::f64 k, keel::Allocator *mr)
 {
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     auto zv = readVecAsComplex(z, "zp2tf", scratch.allocator());
@@ -136,7 +136,7 @@ zp2tf(const Value &z, const Value &p, double k, keel::Allocator *mr)
     for (auto &v : bRaw) v *= k;
     if (bRaw.size() < aRaw.size()) {
         const keel::usize off = aRaw.size() - bRaw.size();
-        keel::Array<double> bPad(aRaw.size(), scratch.allocator());
+        keel::Array<keel::f64> bPad(aRaw.size(), scratch.allocator());
         for (keel::usize i = 0; i < aRaw.size(); ++i) bPad[i] = 0.0;
         for (keel::usize i = 0; i < bRaw.size(); ++i) bPad[off + i] = bRaw[i];
         return std::make_tuple(rowFromVec(bPad.data(), bPad.size(), mr),
@@ -158,7 +158,7 @@ Value poly(const Value &r, keel::Allocator *mr)
         const keel::c64 *p = r.complexData();
         for (keel::usize i = 0; i < n; ++i) cv[i] = p[i];
     } else {
-        const double *p = r.doubleData();
+        const keel::f64 *p = r.doubleData();
         for (keel::usize i = 0; i < n; ++i) cv[i] = keel::c64(p[i], 0.0);
     }
     auto coeffs = keel::poly::from_roots(keel::ArrayRef<keel::c64>(cv.data(), n), scratch.allocator());
@@ -213,13 +213,13 @@ Value polyvalm(const Value &p, const Value &A, keel::Allocator *mr)
     }
     if (wantSingle) {
         Value s = Value::matrix(n, n, ValueType::SINGLE, mr);
-        float *sd = s.singleDataMut();
+        keel::f32 *sd = s.singleDataMut();
         for (keel::usize i = 0; i < n * n; ++i)
-            sd[i] = keel::as<float>(result[i].real());
+            sd[i] = keel::as<keel::f32>(result[i].real());
         return s;
     }
     auto out = Value::matrix(n, n, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     for (keel::usize i = 0; i < n * n; ++i) od[i] = result[i].real();
     return out;
 }
@@ -273,7 +273,7 @@ PolyDiv polydiv(const Value &b, const Value &a, keel::Allocator *mr)
 
 // ── padecoef ─────────────────────────────────────────────────────────
 
-PadeCoef padecoef(double T, int N, keel::Allocator *mr)
+PadeCoef padecoef(keel::f64 T, int N, keel::Allocator *mr)
 {
     if (N < 0)
         throw Error("padecoef: order N must be >= 0",
@@ -289,7 +289,7 @@ PadeCoef padecoef(double T, int N, keel::Allocator *mr)
 
 namespace {
 
-keel::Array<double> readPolyRealForResidue(const Value &p, const char *fn, keel::Allocator *alloc)
+keel::Array<keel::f64> readPolyRealForResidue(const Value &p, const char *fn, keel::Allocator *alloc)
 {
     if (p.type() == ValueType::COMPLEX)
         throw Error(keel::format("{}: complex coefficients not supported in v1", fn),
@@ -298,17 +298,17 @@ keel::Array<double> readPolyRealForResidue(const Value &p, const char *fn, keel:
         throw Error(keel::format("{}: arguments must be vectors", fn),
                      0, 0, fn, "", keel::format("numkit:{}:notVector", fn));
     const keel::usize n = p.numel();
-    keel::Array<double> v(n, alloc);
+    keel::Array<keel::f64> v(n, alloc);
     for (keel::usize i = 0; i < n; ++i) v[i] = p.elemAsDouble(i);
     return v;
 }
 
-Value packDirectTerm(keel::ArrayRef<double> k, keel::Allocator *mr)
+Value packDirectTerm(keel::ArrayRef<keel::f64> k, keel::Allocator *mr)
 {
     if (k.empty() || (k.size() == 1 && k[0] == 0.0))
         return Value::matrix(0, 0, ValueType::DOUBLE, mr);
     auto out = Value::matrix(1, k.size(), ValueType::DOUBLE, mr);
-    std::memcpy(out.doubleDataMut(), k.data(), k.size() * sizeof(double));
+    std::memcpy(out.doubleDataMut(), k.data(), k.size() * sizeof(keel::f64));
     return out;
 }
 

@@ -14,13 +14,13 @@
 
 namespace numkit::builtin::detail {
 
-void doubleToInt8 (const double *in, keel::i8   *out, keel::usize n);
-void doubleToInt16(const double *in, keel::i16  *out, keel::usize n);
-void doubleToInt32(const double *in, keel::i32  *out, keel::usize n);
-void doubleToInt64(const double *in, keel::i64  *out, keel::usize n);
-void doubleToUInt8 (const double *in, keel::u8  *out, keel::usize n);
-void doubleToUInt16(const double *in, keel::u16 *out, keel::usize n);
-void doubleToUInt32(const double *in, keel::u32 *out, keel::usize n);
-void doubleToUInt64(const double *in, keel::u64 *out, keel::usize n);
+void doubleToInt8 (const keel::f64 *in, keel::i8   *out, keel::usize n);
+void doubleToInt16(const keel::f64 *in, keel::i16  *out, keel::usize n);
+void doubleToInt32(const keel::f64 *in, keel::i32  *out, keel::usize n);
+void doubleToInt64(const keel::f64 *in, keel::i64  *out, keel::usize n);
+void doubleToUInt8 (const keel::f64 *in, keel::u8  *out, keel::usize n);
+void doubleToUInt16(const keel::f64 *in, keel::u16 *out, keel::usize n);
+void doubleToUInt32(const keel::f64 *in, keel::u32 *out, keel::usize n);
+void doubleToUInt64(const keel::f64 *in, keel::u64 *out, keel::usize n);
 
 } // namespace numkit::builtin::detail

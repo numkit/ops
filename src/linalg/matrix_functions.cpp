@@ -33,14 +33,14 @@ void copyValueToComplex(const Value &V, keel::usize count, keel::c64 *out)
     if (V.isComplex()) {
         std::copy(V.complexData(), V.complexData() + count, out);
     } else {
-        const double *vd = V.doubleData();
+        const keel::f64 *vd = V.doubleData();
         for (keel::usize i = 0; i < count; ++i) out[i] = keel::c64(vd[i], 0.0);
     }
 }
 
 // Apply scalar function f to symmetric A's eigenvalues and reconstruct:
 //   result = V * diag(f(eig)) * V'
-Value applyScalarFnSym(const Value &A, double (*f)(double),
+Value applyScalarFnSym(const Value &A, keel::f64 (*f)(keel::f64),
                        const char *fnName, const char *errId,
                        keel::Allocator *mr)
 {
@@ -50,14 +50,14 @@ Value applyScalarFnSym(const Value &A, double (*f)(double),
     const keel::usize n = keel::as<keel::usize>(D.dims().dim(0));
     if (n == 0) return Value::matrix(0, 0, wantSingle ? ValueType::SINGLE : ValueType::DOUBLE, mr);
 
-    const double *Vdata = V.doubleData();
-    const double *Ddata = D.doubleData();
+    const keel::f64 *Vdata = V.doubleData();
+    const keel::f64 *Ddata = D.doubleData();
 
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<double> VfD(n * n, scratch.allocator());
+    keel::Array<keel::f64> VfD(n * n, scratch.allocator());
     for (keel::usize k = 0; k < n; ++k) {
-        const double e = Ddata[k + k * n];
-        const double fe = f(e);
+        const keel::f64 e = Ddata[k + k * n];
+        const keel::f64 fe = f(e);
         if (!std::isfinite(fe))
             throw Error(keel::format("{}: eigenvalue out of domain (got {})", fnName, e),
                         0, 0, fnName, "", errId);
@@ -105,13 +105,13 @@ Value expm(const Value &A, keel::Allocator *mr)
 
 Value logm_sym(const Value &A, keel::Allocator *mr)
 {
-    return applyScalarFnSym(A, [](double x) { return std::log(x); },
+    return applyScalarFnSym(A, [](keel::f64 x) { return std::log(x); },
                             "logm", "numkit:logm:negativeEigenvalue", mr);
 }
 
 Value sqrtm_sym(const Value &A, keel::Allocator *mr)
 {
-    return applyScalarFnSym(A, [](double x) { return std::sqrt(x); },
+    return applyScalarFnSym(A, [](keel::f64 x) { return std::sqrt(x); },
                             "sqrtm", "numkit:sqrtm:negativeEigenvalue", mr);
 }
 
@@ -154,9 +154,9 @@ Value sylvester(const Value &A, const Value &B, const Value &C, keel::Allocator 
         const bool cx = v->isComplex();
         const keel::usize n = v->numel();
         for (keel::usize i = 0; i < n; ++i) {
-            const double re = cx ? v->complexElem(i).real()
+            const keel::f64 re = cx ? v->complexElem(i).real()
                                  : v->elemAsDouble(i);
-            const double im = cx ? v->complexElem(i).imag() : 0.0;
+            const keel::f64 im = cx ? v->complexElem(i).imag() : 0.0;
             if (!std::isfinite(re) || !std::isfinite(im))
                 throw Error("sylvester: inputs must be finite (NaN or Inf "
                             "found).",
@@ -207,7 +207,7 @@ Value sylvester(const Value &A, const Value &B, const Value &C, keel::Allocator 
         && res.isComplex()) {
         Value r = Value::matrix(m, n, ValueType::DOUBLE, mr);
         const keel::c64 *cd = res.complexData();
-        double *rd = r.doubleDataMut();
+        keel::f64 *rd = r.doubleDataMut();
         for (keel::usize i = 0; i < m * n; ++i)
             rd[i] = cd[i].real();
         res = std::move(r);
@@ -241,7 +241,7 @@ Value logm(const Value &A, keel::Allocator *mr)
     return detail::narrowDoubleToSingleIf(detail::narrow_if_real(out, mr), wantSingle, mr);
 }
 
-Value expmv(double t, const Value &A, const Value &v, keel::Allocator *mr)
+Value expmv(keel::f64 t, const Value &A, const Value &v, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "expmv", "A", 1);
     {
@@ -270,7 +270,7 @@ Value expmv(double t, const Value &A, const Value &v, keel::Allocator *mr)
 
     Value Aw = detail::widenSingleToDouble(A, mr);
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<double> vb(n, scratch.allocator());
+    keel::Array<keel::f64> vb(n, scratch.allocator());
     for (keel::usize i = 0; i < n; ++i) vb[i] = v.elemAsDouble(i);
 
     auto out = Value::matrix(n, 1, ValueType::DOUBLE, mr);

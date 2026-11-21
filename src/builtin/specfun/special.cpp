@@ -25,12 +25,12 @@ Value gammaFn(const Value &x, keel::Allocator *mr) { return gamma(x, mr); }
 
 Value gamma(const Value &x, keel::Allocator *mr)
 {
-    return unaryDouble(x, [](double v) { return keel::specfun::gamma(v); }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return keel::specfun::gamma(v); }, mr);
 }
 
 Value gammaln(const Value &x, keel::Allocator *mr)
 {
-    return unaryDouble(x, [](double v) { return keel::specfun::gammaln(v); }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return keel::specfun::gammaln(v); }, mr);
 }
 
 // erf is backend-split (SLEEF-ported Highway dd kernel) and lives in
@@ -38,47 +38,47 @@ Value gammaln(const Value &x, keel::Allocator *mr)
 
 Value erfc(const Value &x, keel::Allocator *mr)
 {
-    return unaryDouble(x, [](double v) { return keel::specfun::erfc(v); }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return keel::specfun::erfc(v); }, mr);
 }
 
 Value erfinv(const Value &x, keel::Allocator *mr)
 {
-    return unaryDouble(x, [](double v) { return keel::specfun::erfinv(v); }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return keel::specfun::erfinv(v); }, mr);
 }
 
 Value erfcinv(const Value &x, keel::Allocator *mr)
 {
-    return unaryDouble(x, [](double v) { return keel::specfun::erfcinv(v); }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return keel::specfun::erfcinv(v); }, mr);
 }
 
 Value erfcx(const Value &x, keel::Allocator *mr)
 {
-    return unaryDouble(x, [](double v) { return keel::specfun::erfcx(v); }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return keel::specfun::erfcx(v); }, mr);
 }
 
 Value beta(const Value &z, const Value &w, keel::Allocator *mr)
 {
-    return elementwiseDouble(z, w, [](double zz, double ww) { return keel::specfun::beta(zz, ww); }, mr);
+    return elementwiseDouble(z, w, [](keel::f64 zz, keel::f64 ww) { return keel::specfun::beta(zz, ww); }, mr);
 }
 
 Value betaln(const Value &z, const Value &w, keel::Allocator *mr)
 {
-    return elementwiseDouble(z, w, [](double zz, double ww) { return keel::specfun::betaln(zz, ww); }, mr);
+    return elementwiseDouble(z, w, [](keel::f64 zz, keel::f64 ww) { return keel::specfun::betaln(zz, ww); }, mr);
 }
 
 Value expint(const Value &x, keel::Allocator *mr)
 {
-    return unaryDouble(x, [](double v) { return keel::specfun::expint(v); }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return keel::specfun::expint(v); }, mr);
 }
 
 Value psi(const Value &x, keel::Allocator *mr)
 {
-    return unaryDouble(x, [](double v) { return keel::specfun::psi(v); }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return keel::specfun::psi(v); }, mr);
 }
 
 Value gammainc(const Value &x, const Value &a, keel::Allocator *mr)
 {
-    return elementwiseDouble(x, a, [](double xx, double aa) { return keel::specfun::gammainc(xx, aa); }, mr);
+    return elementwiseDouble(x, a, [](keel::f64 xx, keel::f64 aa) { return keel::specfun::gammainc(xx, aa); }, mr);
 }
 
 Value betainc(const Value &x, const Value &a, const Value &b, keel::Allocator *mr)
@@ -95,9 +95,9 @@ Value betainc(const Value &x, const Value &a, const Value &b, keel::Allocator *m
     };
     auto r = createLike(pickShape(), ValueType::DOUBLE, mr);
     for (keel::usize i = 0; i < n; ++i) {
-        const double xi = (nx == 1) ? x.toScalar() : x.doubleData()[i];
-        const double ai = (na == 1) ? a.toScalar() : a.doubleData()[i];
-        const double bi = (nb == 1) ? b.toScalar() : b.doubleData()[i];
+        const keel::f64 xi = (nx == 1) ? x.toScalar() : x.doubleData()[i];
+        const keel::f64 ai = (na == 1) ? a.toScalar() : a.doubleData()[i];
+        const keel::f64 bi = (nb == 1) ? b.toScalar() : b.doubleData()[i];
         r.doubleDataMut()[i] = keel::specfun::betainc(xi, ai, bi);
     }
     return r;
@@ -111,7 +111,7 @@ Value legendre(int n, const Value &x, keel::Allocator *mr)
     const keel::usize L = x.numel();
     const keel::usize rows = keel::as<keel::usize>(n + 1);
     auto r = Value::matrix(rows, L, ValueType::DOUBLE, mr);
-    double *dst = r.doubleDataMut();
+    keel::f64 *dst = r.doubleDataMut();
     for (keel::usize k = 0; k < L; ++k) {
         keel::specfun::legendre(keel::as<keel::i32>(n), x.elemAsDouble(k),
                        keel::MutArrayRef<keel::f64>(dst + k * rows, rows));
@@ -121,22 +121,22 @@ Value legendre(int n, const Value &x, keel::Allocator *mr)
 
 Value besselj(const Value &nu, const Value &x, keel::Allocator *mr)
 {
-    return elementwiseDouble(nu, x, [](double n, double xx) { return keel::specfun::besselj(n, xx); }, mr);
+    return elementwiseDouble(nu, x, [](keel::f64 n, keel::f64 xx) { return keel::specfun::besselj(n, xx); }, mr);
 }
 
 Value bessely(const Value &nu, const Value &x, keel::Allocator *mr)
 {
-    return elementwiseDouble(nu, x, [](double n, double xx) { return keel::specfun::bessely(n, xx); }, mr);
+    return elementwiseDouble(nu, x, [](keel::f64 n, keel::f64 xx) { return keel::specfun::bessely(n, xx); }, mr);
 }
 
 Value besseli(const Value &nu, const Value &x, keel::Allocator *mr)
 {
-    return elementwiseDouble(nu, x, [](double n, double xx) { return keel::specfun::besseli(n, xx); }, mr);
+    return elementwiseDouble(nu, x, [](keel::f64 n, keel::f64 xx) { return keel::specfun::besseli(n, xx); }, mr);
 }
 
 Value besselk(const Value &nu, const Value &x, keel::Allocator *mr)
 {
-    return elementwiseDouble(nu, x, [](double n, double xx) { return keel::specfun::besselk(n, xx); }, mr);
+    return elementwiseDouble(nu, x, [](keel::f64 n, keel::f64 xx) { return keel::specfun::besselk(n, xx); }, mr);
 }
 
 Value besselh(const Value &nu, int k, const Value &x, keel::Allocator *mr)
@@ -153,8 +153,8 @@ Value besselh(const Value &nu, int k, const Value &x, keel::Allocator *mr)
     keel::c64 *dst = r.complexDataMut();
     const keel::usize N = shape.numel();
     for (keel::usize i = 0; i < N; ++i) {
-        const double n = nu.isScalar() ? nu.toScalar() : nu.doubleData()[i];
-        const double xx = x.isScalar() ? x.toScalar() : x.doubleData()[i];
+        const keel::f64 n = nu.isScalar() ? nu.toScalar() : nu.doubleData()[i];
+        const keel::f64 xx = x.isScalar() ? x.toScalar() : x.doubleData()[i];
         dst[i] = keel::specfun::besselh(n, keel::as<keel::i32>(k), xx);
     }
     return r;
@@ -183,13 +183,13 @@ Value airy(int k, const Value &x, keel::Allocator *mr)
         throw Error(keel::format("airy: kind k must be 0..3 (got {})", k),
                     0, 0, "airy", "", "numkit:airy:badK");
     }
-    return unaryDouble(x, [k](double v) { return keel::specfun::airy(keel::as<keel::i32>(k), v); }, mr);
+    return unaryDouble(x, [k](keel::f64 v) { return keel::specfun::airy(keel::as<keel::i32>(k), v); }, mr);
 }
 
 Value gammaincinv(const Value &P, const Value &a, keel::Allocator *mr)
 {
     return elementwiseDouble(
-        P, a, [](double pp, double aa) { return keel::specfun::gammaincinv(pp, aa); }, mr);
+        P, a, [](keel::f64 pp, keel::f64 aa) { return keel::specfun::gammaincinv(pp, aa); }, mr);
 }
 
 Value betaincinv(const Value &P, const Value &a, const Value &b, keel::Allocator *mr)
@@ -206,9 +206,9 @@ Value betaincinv(const Value &P, const Value &a, const Value &b, keel::Allocator
     };
     auto r = createLike(pickShape(), ValueType::DOUBLE, mr);
     for (keel::usize i = 0; i < n; ++i) {
-        const double pi = (np == 1) ? P.toScalar() : P.doubleData()[i];
-        const double ai = (na == 1) ? a.toScalar() : a.doubleData()[i];
-        const double bi = (nb == 1) ? b.toScalar() : b.doubleData()[i];
+        const keel::f64 pi = (np == 1) ? P.toScalar() : P.doubleData()[i];
+        const keel::f64 ai = (na == 1) ? a.toScalar() : a.doubleData()[i];
+        const keel::f64 bi = (nb == 1) ? b.toScalar() : b.doubleData()[i];
         r.doubleDataMut()[i] = keel::specfun::betaincinv(pi, ai, bi);
     }
     return r;
@@ -227,8 +227,8 @@ EllipJ ellipj(const Value &u, const Value &m, keel::Allocator *mr)
     auto cn = createLike(shape, ValueType::DOUBLE, mr);
     auto dn = createLike(shape, ValueType::DOUBLE, mr);
     for (keel::usize i = 0; i < n; ++i) {
-        const double ui = (nu == 1) ? u.toScalar() : u.doubleData()[i];
-        const double mi = (nm == 1) ? m.toScalar() : m.doubleData()[i];
+        const keel::f64 ui = (nu == 1) ? u.toScalar() : u.doubleData()[i];
+        const keel::f64 mi = (nm == 1) ? m.toScalar() : m.doubleData()[i];
         const keel::specfun::EllipJ ej = keel::specfun::ellipj(ui, mi);
         sn.doubleDataMut()[i] = ej.sn;
         cn.doubleDataMut()[i] = ej.cn;
@@ -244,10 +244,10 @@ Value marcumq(const Value &a_v, const Value &b_v, int m, keel::Allocator *mr)
     const keel::usize N = std::max(Na, Nb);
     Value out = Value::matrix((Na > Nb) ? Na : Nb, 1, ValueType::DOUBLE, mr);
     if (N == 0) return out;
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     for (keel::usize i = 0; i < N; ++i) {
-        const double a = a_v.elemAsDouble(Na > 1 ? i : 0);
-        const double b = b_v.elemAsDouble(Nb > 1 ? i : 0);
+        const keel::f64 a = a_v.elemAsDouble(Na > 1 ? i : 0);
+        const keel::f64 b = b_v.elemAsDouble(Nb > 1 ? i : 0);
         od[i] = keel::specfun::marcumq(a, b, keel::as<keel::i32>(m));
     }
     return out;

@@ -11,19 +11,19 @@
 
 namespace numkit::builtin::detail {
 
-void modLoopVV(const double *a, const double *b, double *out, keel::usize n)
+void modLoopVV(const keel::f64 *a, const keel::f64 *b, keel::f64 *out, keel::usize n)
 {
     for (keel::usize i = 0; i < n; ++i)
         out[i] = (b[i] != 0) ? a[i] - std::floor(a[i] / b[i]) * b[i] : a[i];
 }
 
-void modLoopVS(const double *a, double s, double *out, keel::usize n)
+void modLoopVS(const keel::f64 *a, keel::f64 s, keel::f64 *out, keel::usize n)
 {
     for (keel::usize i = 0; i < n; ++i)
         out[i] = (s != 0) ? a[i] - std::floor(a[i] / s) * s : a[i];
 }
 
-void modLoopSV(double s, const double *b, double *out, keel::usize n)
+void modLoopSV(keel::f64 s, const keel::f64 *b, keel::f64 *out, keel::usize n)
 {
     for (keel::usize i = 0; i < n; ++i)
         out[i] = (b[i] != 0) ? s - std::floor(s / b[i]) * b[i] : s;

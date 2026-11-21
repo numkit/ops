@@ -28,9 +28,9 @@ Value abs(const Value &x, Value *hint, keel::Allocator *mr)
     if (x.isComplex()) {
         if (x.isSingleComplex()) {
             auto r = createLike(x, ValueType::SINGLE, mr);
-            float *dst = r.singleDataMut();
+            keel::f32 *dst = r.singleDataMut();
             for (keel::usize i = 0; i < x.numel(); ++i)
-                dst[i] = keel::as<float>(keel::abs(x.complexData()[i]));
+                dst[i] = keel::as<keel::f32>(keel::abs(x.complexData()[i]));
             return r;
         }
         if (x.isScalar())
@@ -44,15 +44,15 @@ Value abs(const Value &x, Value *hint, keel::Allocator *mr)
     // abs_highway.cpp (bugs: runtime/abs-single-matrix.md).
     if (x.type() == ValueType::SINGLE) {
         Value r = createLike(x, ValueType::SINGLE, mr);
-        const float *in = x.singleData();
-        float *out = r.singleDataMut();
+        const keel::f32 *in = x.singleData();
+        keel::f32 *out = r.singleDataMut();
         for (keel::usize i = 0; i < x.numel(); ++i)
             out[i] = std::fabs(in[i]);
         return r;
     }
     if (x.type() == ValueType::LOGICAL || x.type() == ValueType::CHAR) {
         Value r = createLike(x, ValueType::DOUBLE, mr);
-        double *out = r.doubleDataMut();
+        keel::f64 *out = r.doubleDataMut();
         if (x.type() == ValueType::LOGICAL) {
             const auto *in = x.logicalData();
             for (keel::usize i = 0; i < x.numel(); ++i)
@@ -60,7 +60,7 @@ Value abs(const Value &x, Value *hint, keel::Allocator *mr)
         } else {
             const auto *in = x.charData();
             for (keel::usize i = 0; i < x.numel(); ++i)
-                out[i] = keel::as<double>(
+                out[i] = keel::as<keel::f64>(
                     keel::as<unsigned char>(in[i]));
         }
         return r;
@@ -73,13 +73,13 @@ Value abs(const Value &x, Value *hint, keel::Allocator *mr)
     if (hint && hint->isHeapDouble() && hint->heapRefCount() == 1
         && hint->dims() == x.dims()) {
         Value r = std::move(*hint);
-        const double *in  = x.doubleData();
-        double       *out = r.doubleDataMut();
+        const keel::f64 *in  = x.doubleData();
+        keel::f64       *out = r.doubleDataMut();
         for (keel::usize i = 0; i < x.numel(); ++i)
             out[i] = std::fabs(in[i]);
         return r;
     }
-    return unaryDouble(x, [](double v) { return keel::abs(v); }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return keel::abs(v); }, mr);
 }
 
 } // namespace numkit::builtin

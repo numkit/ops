@@ -329,8 +329,8 @@ std::tuple<Value, Value, Value> svds(const Value &A, keel::usize k, keel::Alloca
             for (keel::usize i = 0; i < m; ++i) ukd[i + j * m] = ud[i + j * m];
         }
     } else {
-        const double *ud = U.doubleData();
-        double *ukd = Uk.doubleDataMut();
+        const keel::f64 *ud = U.doubleData();
+        keel::f64 *ukd = Uk.doubleDataMut();
         for (keel::usize j = 0; j < k; ++j) {
             for (keel::usize i = 0; i < m; ++i) ukd[i + j * m] = ud[i + j * m];
         }
@@ -342,8 +342,8 @@ std::tuple<Value, Value, Value> svds(const Value &A, keel::usize k, keel::Alloca
         std::fill(skd, skd + k * k, keel::c64(0.0, 0.0));
         for (keel::usize i = 0; i < k; ++i) skd[i + i * k] = sd[i + i * m];
     } else {
-        const double *sd = S.doubleData();
-        double *skd = Sk.doubleDataMut();
+        const keel::f64 *sd = S.doubleData();
+        keel::f64 *skd = Sk.doubleDataMut();
         std::fill(skd, skd + k * k, 0.0);
         for (keel::usize i = 0; i < k; ++i) skd[i + i * k] = sd[i + i * m];
     }
@@ -355,8 +355,8 @@ std::tuple<Value, Value, Value> svds(const Value &A, keel::usize k, keel::Alloca
             for (keel::usize i = 0; i < n; ++i) vkd[i + j * n] = vd[i + j * n];
         }
     } else {
-        const double *vd = V.doubleData();
-        double *vkd = Vk.doubleDataMut();
+        const keel::f64 *vd = V.doubleData();
+        keel::f64 *vkd = Vk.doubleDataMut();
         for (keel::usize j = 0; j < k; ++j) {
             for (keel::usize i = 0; i < n; ++i) vkd[i + j * n] = vd[i + j * n];
         }

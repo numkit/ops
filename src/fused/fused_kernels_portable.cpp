@@ -13,35 +13,35 @@
 
 namespace numkit::ops {
 
-void fusedAffineClamp(const double *x, double scale, double offset,
-                      double lo, double hi, double *out, keel::usize n) {
+void fusedAffineClamp(const keel::f64 *x, keel::f64 scale, keel::f64 offset,
+                      keel::f64 lo, keel::f64 hi, keel::f64 *out, keel::usize n) {
     for (keel::usize i = 0; i < n; ++i) {
-        const double v = scale * x[i] + offset;
+        const keel::f64 v = scale * x[i] + offset;
         out[i] = std::fmax(lo, std::fmin(hi, v));
     }
 }
 
-void fusedAffineClampMinOuter(const double *x, double scale, double offset,
-                              double lo, double hi, double *out, keel::usize n) {
+void fusedAffineClampMinOuter(const keel::f64 *x, keel::f64 scale, keel::f64 offset,
+                              keel::f64 lo, keel::f64 hi, keel::f64 *out, keel::usize n) {
     for (keel::usize i = 0; i < n; ++i) {
-        const double v = scale * x[i] + offset;
+        const keel::f64 v = scale * x[i] + offset;
         out[i] = std::fmin(hi, std::fmax(lo, v));
     }
 }
 
-void fusedAffineClampShiftDiv(const double *x, double sub, double div,
-                              double lo, double hi, double *out, keel::usize n) {
+void fusedAffineClampShiftDiv(const keel::f64 *x, keel::f64 sub, keel::f64 div,
+                              keel::f64 lo, keel::f64 hi, keel::f64 *out, keel::usize n) {
     for (keel::usize i = 0; i < n; ++i) {
-        const double v = (x[i] - sub) / div;
+        const keel::f64 v = (x[i] - sub) / div;
         out[i] = std::fmax(lo, std::fmin(hi, v));
     }
 }
 
-void fusedAffineClampMinOuterShiftDiv(const double *x, double sub, double div,
-                                      double lo, double hi, double *out,
+void fusedAffineClampMinOuterShiftDiv(const keel::f64 *x, keel::f64 sub, keel::f64 div,
+                                      keel::f64 lo, keel::f64 hi, keel::f64 *out,
                                       keel::usize n) {
     for (keel::usize i = 0; i < n; ++i) {
-        const double v = (x[i] - sub) / div;
+        const keel::f64 v = (x[i] - sub) / div;
         out[i] = std::fmin(hi, std::fmax(lo, v));
     }
 }
@@ -51,42 +51,42 @@ void fusedAffineClampMinOuterShiftDiv(const double *x, double sub, double div,
 // so the gate and this fallback are one definition (can't drift) — see that
 // file + bugs/ops/cheap-elementwise-simd-small-n. The rest keep their body
 // inline (no gate shares them).
-void fusedAffine(const double *x, double scale, double offset,
-                 double *out, keel::usize n) {
+void fusedAffine(const keel::f64 *x, keel::f64 scale, keel::f64 offset,
+                 keel::f64 *out, keel::usize n) {
     fusedAffineScalar(x, scale, offset, out, n);
 }
 
-void fusedAxpby(const double *x, double a, const double *y, double b,
-                double *out, keel::usize n) {
+void fusedAxpby(const keel::f64 *x, keel::f64 a, const keel::f64 *y, keel::f64 b,
+                keel::f64 *out, keel::usize n) {
     for (keel::usize i = 0; i < n; ++i) out[i] = a * x[i] + b * y[i];
 }
 
-void fusedShiftScaleMul(const double *x, double sub, double mul,
-                        double *out, keel::usize n) {
+void fusedShiftScaleMul(const keel::f64 *x, keel::f64 sub, keel::f64 mul,
+                        keel::f64 *out, keel::usize n) {
     for (keel::usize i = 0; i < n; ++i) out[i] = (x[i] - sub) * mul;
 }
 
-void fusedShiftScaleDiv(const double *x, double sub, double div,
-                        double *out, keel::usize n) {
+void fusedShiftScaleDiv(const keel::f64 *x, keel::f64 sub, keel::f64 div,
+                        keel::f64 *out, keel::usize n) {
     for (keel::usize i = 0; i < n; ++i) out[i] = (x[i] - sub) / div;
 }
 
-void fusedAbsAffine(const double *x, double scale, double offset,
-                    double *out, keel::usize n) {
+void fusedAbsAffine(const keel::f64 *x, keel::f64 scale, keel::f64 offset,
+                    keel::f64 *out, keel::usize n) {
     fusedAbsAffineScalar(x, scale, offset, out, n);
 }
 
-void fusedAbsDiff(const double *x, const double *y, double *out, keel::usize n) {
+void fusedAbsDiff(const keel::f64 *x, const keel::f64 *y, keel::f64 *out, keel::usize n) {
     fusedAbsDiffScalar(x, y, out, n);
 }
 
-void fusedAbsShiftDiv(const double *x, double sub, double div,
-                      double *out, keel::usize n) {
+void fusedAbsShiftDiv(const keel::f64 *x, keel::f64 sub, keel::f64 div,
+                      keel::f64 *out, keel::usize n) {
     fusedAbsShiftDivScalar(x, sub, div, out, n);
 }
 
-void fusedUnaryAffine(const double *x, double scale, double offset,
-                      UnaryAffineFn fn, double *out, keel::usize n) {
+void fusedUnaryAffine(const keel::f64 *x, keel::f64 scale, keel::f64 offset,
+                      UnaryAffineFn fn, keel::f64 *out, keel::usize n) {
     switch (fn) {
         case UnaryAffineFn::Sqrt:
             for (keel::usize i = 0; i < n; ++i) out[i] = std::sqrt(scale * x[i] + offset);
@@ -106,8 +106,8 @@ void fusedUnaryAffine(const double *x, double scale, double offset,
     }
 }
 
-void fusedUnaryShiftDiv(const double *x, double sub, double div,
-                        UnaryAffineFn fn, double *out, keel::usize n) {
+void fusedUnaryShiftDiv(const keel::f64 *x, keel::f64 sub, keel::f64 div,
+                        UnaryAffineFn fn, keel::f64 *out, keel::usize n) {
     switch (fn) {
         case UnaryAffineFn::Sqrt:
             for (keel::usize i = 0; i < n; ++i) out[i] = std::sqrt((x[i] - sub) / div);
@@ -127,34 +127,34 @@ void fusedUnaryShiftDiv(const double *x, double sub, double div,
     }
 }
 
-void fusedSqAffine(const double *x, double scale, double offset,
-                   double *out, keel::usize n) {
+void fusedSqAffine(const keel::f64 *x, keel::f64 scale, keel::f64 offset,
+                   keel::f64 *out, keel::usize n) {
     fusedSqAffineScalar(x, scale, offset, out, n);
 }
 
-void fusedSqDiff(const double *x, const double *y, double *out, keel::usize n) {
+void fusedSqDiff(const keel::f64 *x, const keel::f64 *y, keel::f64 *out, keel::usize n) {
     fusedSqDiffScalar(x, y, out, n);
 }
 
-void fusedSqShiftDiv(const double *x, double sub, double div,
-                     double *out, keel::usize n) {
+void fusedSqShiftDiv(const keel::f64 *x, keel::f64 sub, keel::f64 div,
+                     keel::f64 *out, keel::usize n) {
     fusedSqShiftDivScalar(x, sub, div, out, n);
 }
 
-void fusedSqrtSumSq(const double *x, const double *y, double *out, keel::usize n) {
+void fusedSqrtSumSq(const keel::f64 *x, const keel::f64 *y, keel::f64 *out, keel::usize n) {
     for (keel::usize i = 0; i < n; ++i) out[i] = std::sqrt(x[i] * x[i] + y[i] * y[i]);
 }
 
-void fusedSoftThreshold(const double *x, double t, double *out, keel::usize n) {
+void fusedSoftThreshold(const keel::f64 *x, keel::f64 t, keel::f64 *out, keel::usize n) {
     for (keel::usize i = 0; i < n; ++i) {
-        const double v = x[i];
-        const double s = std::isnan(v) ? v : (v > 0 ? 1.0 : (v < 0 ? -1.0 : 0.0));
+        const keel::f64 v = x[i];
+        const keel::f64 s = std::isnan(v) ? v : (v > 0 ? 1.0 : (v < 0 ? -1.0 : 0.0));
         out[i] = s * std::fmax(0.0, std::fabs(v) - t);
     }
 }
 
-void fusedTransAffine(const double *x, double scale, double offset,
-                      TransAffineFn fn, double *out, keel::usize n) {
+void fusedTransAffine(const keel::f64 *x, keel::f64 scale, keel::f64 offset,
+                      TransAffineFn fn, keel::f64 *out, keel::usize n) {
     // Non-SIMD build: nk's exp/expm1 are scalar std:: here too, so the
     // affine + scalar transcendental matches the per-op path bit-for-bit.
     switch (fn) {
@@ -215,10 +215,10 @@ void fusedTransAffine(const double *x, double scale, double offset,
     }
 }
 
-void fusedTransShiftDiv(const double *x, double sub, double div,
-                        TransAffineFn fn, double *out, keel::usize n) {
+void fusedTransShiftDiv(const keel::f64 *x, keel::f64 sub, keel::f64 div,
+                        TransAffineFn fn, keel::f64 *out, keel::usize n) {
     for (keel::usize i = 0; i < n; ++i) {
-        const double v = (x[i] - sub) / div;
+        const keel::f64 v = (x[i] - sub) / div;
         switch (fn) {
             case TransAffineFn::Exp:   out[i] = std::exp(v);   break;
             case TransAffineFn::Expm1: out[i] = std::expm1(v); break;

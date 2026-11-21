@@ -25,9 +25,9 @@ Value real(const Value &x, keel::Allocator *mr)
         return x;
     if (x.isSingleComplex()) {
         auto r = createLike(x, ValueType::SINGLE, p);
-        float *dst = r.singleDataMut();
+        keel::f32 *dst = r.singleDataMut();
         for (keel::usize i = 0; i < x.numel(); ++i)
-            dst[i] = keel::as<float>(x.complexData()[i].real());
+            dst[i] = keel::as<keel::f32>(x.complexData()[i].real());
         return r;
     }
     if (x.isScalar())
@@ -50,9 +50,9 @@ Value imag(const Value &x, keel::Allocator *mr)
     }
     if (x.isSingleComplex()) {
         auto r = createLike(x, ValueType::SINGLE, p);
-        float *dst = r.singleDataMut();
+        keel::f32 *dst = r.singleDataMut();
         for (keel::usize i = 0; i < x.numel(); ++i)
-            dst[i] = keel::as<float>(x.complexData()[i].imag());
+            dst[i] = keel::as<keel::f32>(x.complexData()[i].imag());
         return r;
     }
     if (x.isScalar())
@@ -83,8 +83,8 @@ Value complex(const Value &re, keel::Allocator *mr)
     if (outSingle) r.setSingleComplex(true);
     keel::c64 *dst = r.complexDataMut();
     for (keel::usize i = 0; i < re.numel(); ++i) {
-        double v = re.elemAsDouble(i);
-        if (outSingle) v = keel::as<double>(keel::as<float>(v));
+        keel::f64 v = re.elemAsDouble(i);
+        if (outSingle) v = keel::as<keel::f64>(keel::as<keel::f32>(v));
         dst[i] = keel::c64(v, 0.0);
     }
     return r;
@@ -105,14 +105,14 @@ Value complex(const Value &re, const Value &im, keel::Allocator *mr)
     if (outSingle) r.setSingleComplex(true);
     keel::c64 *dst = r.complexDataMut();
     const keel::usize n = shape.numel();
-    const double reScalar = re.isScalar() ? re.toScalar() : 0.0;
-    const double imScalar = im.isScalar() ? im.toScalar() : 0.0;
+    const keel::f64 reScalar = re.isScalar() ? re.toScalar() : 0.0;
+    const keel::f64 imScalar = im.isScalar() ? im.toScalar() : 0.0;
     for (keel::usize i = 0; i < n; ++i) {
-        double r0 = re.isScalar() ? reScalar : re.elemAsDouble(i);
-        double i0 = im.isScalar() ? imScalar : im.elemAsDouble(i);
+        keel::f64 r0 = re.isScalar() ? reScalar : re.elemAsDouble(i);
+        keel::f64 i0 = im.isScalar() ? imScalar : im.elemAsDouble(i);
         if (outSingle) {
-            r0 = keel::as<double>(keel::as<float>(r0));
-            i0 = keel::as<double>(keel::as<float>(i0));
+            r0 = keel::as<keel::f64>(keel::as<keel::f32>(r0));
+            i0 = keel::as<keel::f64>(keel::as<keel::f32>(i0));
         }
         dst[i] = keel::c64(r0, i0);
     }
@@ -125,9 +125,9 @@ Value angle(const Value &x, keel::Allocator *mr)
     if (x.isComplex()) {
         if (x.isSingleComplex()) {
             auto r = createLike(x, ValueType::SINGLE, p);
-            float *dst = r.singleDataMut();
+            keel::f32 *dst = r.singleDataMut();
             for (keel::usize i = 0; i < x.numel(); ++i)
-                dst[i] = keel::as<float>(keel::arg(x.complexData()[i]));
+                dst[i] = keel::as<keel::f32>(keel::arg(x.complexData()[i]));
             return r;
         }
         if (x.isScalar())
@@ -139,13 +139,13 @@ Value angle(const Value &x, keel::Allocator *mr)
     }
     if (x.type() == ValueType::SINGLE) {
         auto r = createLike(x, ValueType::SINGLE, p);
-        const float *src = x.singleData();
-        float *dst = r.singleDataMut();
+        const keel::f32 *src = x.singleData();
+        keel::f32 *dst = r.singleDataMut();
         for (keel::usize i = 0; i < x.numel(); ++i)
             dst[i] = std::atan2(0.0f, src[i]);
         return r;
     }
-    return unaryDouble(x, [](double v) { return std::atan2(0.0, v); }, p);
+    return unaryDouble(x, [](keel::f64 v) { return std::atan2(0.0, v); }, p);
 }
 
 Value isreal(const Value &x, keel::Allocator *mr)
@@ -153,7 +153,7 @@ Value isreal(const Value &x, keel::Allocator *mr)
     return Value::scalar(!x.isComplex() ? 1.0 : 0.0, mr);
 }
 
-Value unwrap(const Value &p, double tol, int /*dim*/, keel::Allocator *mr)
+Value unwrap(const Value &p, keel::f64 tol, int /*dim*/, keel::Allocator *mr)
 {
     if (p.isEmpty())
         return p;
@@ -164,20 +164,20 @@ Value unwrap(const Value &p, double tol, int /*dim*/, keel::Allocator *mr)
     else
         out = Value(p); // copy
 
-    double *data = out.doubleDataMut();
+    keel::f64 *data = out.doubleDataMut();
     const keel::usize n = out.numel();
     if (n <= 1) return out;
 
-    constexpr double kTwoPi = 2.0 * 3.14159265358979323846;
-    double dp_corr = 0.0;
+    constexpr keel::f64 kTwoPi = 2.0 * 3.14159265358979323846;
+    keel::f64 dp_corr = 0.0;
 
     for (keel::usize i = 1; i < n; ++i) {
-        double d = data[i] - data[i - 1];
+        keel::f64 d = data[i] - data[i - 1];
         if (d > tol) {
-            double jumps = std::floor((d + tol) / kTwoPi);
+            keel::f64 jumps = std::floor((d + tol) / kTwoPi);
             dp_corr -= jumps * kTwoPi;
         } else if (d < -tol) {
-            double jumps = std::floor((-d + tol) / kTwoPi);
+            keel::f64 jumps = std::floor((-d + tol) / kTwoPi);
             dp_corr += jumps * kTwoPi;
         }
         data[i] += dp_corr;

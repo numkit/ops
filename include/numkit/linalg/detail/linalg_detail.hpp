@@ -69,11 +69,11 @@ inline Value widenSingleToDouble(const Value &v, keel::Allocator *mr = nullptr)
     Value out = (v.dims().ndim() == 3)
         ? Value::matrix3d(v.dims().dim(0), v.dims().dim(1), v.dims().dim(2), ValueType::DOUBLE, mr)
         : Value::matrix(v.dims().rows(), v.dims().cols(), ValueType::DOUBLE, mr);
-    const float *sd = v.singleData();
-    double *dd = out.doubleDataMut();
+    const keel::f32 *sd = v.singleData();
+    keel::f64 *dd = out.doubleDataMut();
     const keel::usize n = v.numel();
     for (keel::usize i = 0; i < n; ++i)
-        dd[i] = keel::as<double>(sd[i]);
+        dd[i] = keel::as<keel::f64>(sd[i]);
     return out;
 }
 
@@ -84,11 +84,11 @@ inline Value narrowDoubleToSingle(const Value &v, keel::Allocator *mr = nullptr)
     Value out = (v.dims().ndim() == 3)
         ? Value::matrix3d(v.dims().dim(0), v.dims().dim(1), v.dims().dim(2), ValueType::SINGLE, mr)
         : Value::matrix(v.dims().rows(), v.dims().cols(), ValueType::SINGLE, mr);
-    const double *dd = v.doubleData();
-    float *sd = out.singleDataMut();
+    const keel::f64 *dd = v.doubleData();
+    keel::f32 *sd = out.singleDataMut();
     const keel::usize n = v.numel();
     for (keel::usize i = 0; i < n; ++i)
-        sd[i] = keel::as<float>(dd[i]);
+        sd[i] = keel::as<keel::f32>(dd[i]);
     return out;
 }
 
@@ -135,7 +135,7 @@ inline Value coerceToDoubleMatrix(const Value &A, keel::Allocator *mr)
         Value out = Value::matrix(A.dims().rows(), A.dims().cols(),
                                   ValueType::DOUBLE, mr);
         const keel::usize n = A.numel();
-        double *od = out.doubleDataMut();
+        keel::f64 *od = out.doubleDataMut();
         if (t == ValueType::LOGICAL) {
             const keel::u8 *ld = A.logicalData();
             for (keel::usize i = 0; i < n; ++i)
@@ -189,7 +189,7 @@ inline T conj_if_complex(const T &val) {
 
 // Absolute value squared: |x|^2
 template <typename T>
-inline double abs_sq(const T &val) {
+inline keel::f64 abs_sq(const T &val) {
     if constexpr (is_complex_v<T>) {
         return keel::norm(val);
     } else {
@@ -199,7 +199,7 @@ inline double abs_sq(const T &val) {
 
 // Magnitude: |x|
 template <typename T>
-inline double abs_val(const T &val) {
+inline keel::f64 abs_val(const T &val) {
     if constexpr (is_complex_v<T>) {
         return keel::abs(val);
     } else {
@@ -209,7 +209,7 @@ inline double abs_val(const T &val) {
 
 // Real part helper
 template <typename T>
-inline double real_part(const T &val) {
+inline keel::f64 real_part(const T &val) {
     if constexpr (is_complex_v<T>) {
         return val.real();
     } else {
@@ -261,7 +261,7 @@ inline Value narrow_if_real(const Value &v, keel::Allocator *mr = nullptr) {
     }
     // All imaginary parts are zero, narrow to double matrix
     Value out = Value::matrix(v.dims().rows(), v.dims().cols(), ValueType::DOUBLE, mr);
-    double *dd = out.doubleDataMut();
+    keel::f64 *dd = out.doubleDataMut();
     for (keel::usize i = 0; i < n; ++i) {
         dd[i] = cd[i].real();
     }

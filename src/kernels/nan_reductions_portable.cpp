@@ -14,17 +14,17 @@
 
 namespace numkit::ops {
 
-double nanSumScan(const double *p, keel::usize n)
+keel::f64 nanSumScan(const keel::f64 *p, keel::usize n)
 {
-    double sum = 0.0;
+    keel::f64 sum = 0.0;
     for (keel::usize i = 0; i < n; ++i)
         if (!std::isnan(p[i])) sum += p[i];
     return sum;
 }
 
-NanSumCount nanSumCountScan(const double *p, keel::usize n)
+NanSumCount nanSumCountScan(const keel::f64 *p, keel::usize n)
 {
-    double sum = 0.0;
+    keel::f64 sum = 0.0;
     keel::usize cnt = 0;
     for (keel::usize i = 0; i < n; ++i) {
         if (!std::isnan(p[i])) {
@@ -35,9 +35,9 @@ NanSumCount nanSumCountScan(const double *p, keel::usize n)
     return {sum, cnt};
 }
 
-double nanMaxScan(const double *p, keel::usize n)
+keel::f64 nanMaxScan(const keel::f64 *p, keel::usize n)
 {
-    double best = -std::numeric_limits<double>::infinity();
+    keel::f64 best = -std::numeric_limits<keel::f64>::infinity();
     bool seen = false;
     for (keel::usize i = 0; i < n; ++i) {
         if (!std::isnan(p[i])) {
@@ -48,9 +48,9 @@ double nanMaxScan(const double *p, keel::usize n)
     return seen ? best : std::nan("");
 }
 
-double nanMinScan(const double *p, keel::usize n)
+keel::f64 nanMinScan(const keel::f64 *p, keel::usize n)
 {
-    double best = std::numeric_limits<double>::infinity();
+    keel::f64 best = std::numeric_limits<keel::f64>::infinity();
     bool seen = false;
     for (keel::usize i = 0; i < n; ++i) {
         if (!std::isnan(p[i])) {
@@ -61,7 +61,7 @@ double nanMinScan(const double *p, keel::usize n)
     return seen ? best : std::nan("");
 }
 
-double nanVarianceTwoPass(const double *p, keel::usize n, int normFlag)
+keel::f64 nanVarianceTwoPass(const keel::f64 *p, keel::usize n, int normFlag)
 {
     if (n == 0) return std::nan("");
     const auto sc = nanSumCountScan(p, n);
@@ -69,16 +69,16 @@ double nanVarianceTwoPass(const double *p, keel::usize n, int normFlag)
     // MATLAB: variance over a single non-NaN value is 0 for BOTH the N-1
     // (default) and N normalizations — e.g. nanvar([NaN 5 NaN]) == 0, not NaN.
     if (sc.count == 1) return 0.0;
-    const double mean = sc.sum / keel::as<double>(sc.count);
-    double ss = 0.0;
+    const keel::f64 mean = sc.sum / keel::as<keel::f64>(sc.count);
+    keel::f64 ss = 0.0;
     for (keel::usize i = 0; i < n; ++i) {
         if (!std::isnan(p[i])) {
-            const double d = p[i] - mean;
+            const keel::f64 d = p[i] - mean;
             ss += d * d;
         }
     }
-    const double denom = (normFlag == 1) ? keel::as<double>(sc.count)
-                                         : keel::as<double>(sc.count - 1);
+    const keel::f64 denom = (normFlag == 1) ? keel::as<keel::f64>(sc.count)
+                                         : keel::as<keel::f64>(sc.count - 1);
     return ss / denom;
 }
 

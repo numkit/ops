@@ -49,7 +49,7 @@ Value zeros(keel::usize rows, keel::usize cols, keel::usize pages, keel::Allocat
 Value ones(keel::usize rows, keel::usize cols, keel::usize pages, keel::Allocator *mr)
 {
     auto m = createMatrix({rows, cols, pages}, ValueType::DOUBLE, mr);
-    double *p = m.doubleDataMut();
+    keel::f64 *p = m.doubleDataMut();
     for (keel::usize i = 0; i < m.numel(); ++i)
         p[i] = 1.0;
     return m;
@@ -66,7 +66,7 @@ Value zerosND(const keel::usize *dims, keel::usize nDims, keel::Allocator *mr)
 Value onesND(const keel::usize *dims, keel::usize nDims, keel::Allocator *mr)
 {
     auto m = createMatrixND(dims, nDims, ValueType::DOUBLE, mr);
-    double *p = m.doubleDataMut();
+    keel::f64 *p = m.doubleDataMut();
     for (keel::usize i = 0; i < m.numel(); ++i)
         p[i] = 1.0;
     return m;
@@ -129,14 +129,14 @@ Value poly_of_matrix(const Value &A, keel::Allocator *mr)
     // After the loop, c[1..n] are the coefficients (after the leading 1).
 
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<double> M(n * n, 0.0, scratch.allocator());
-    keel::Array<double> Mnext(n * n, scratch.allocator());
+    keel::Array<keel::f64> M(n * n, 0.0, scratch.allocator());
+    keel::Array<keel::f64> Mnext(n * n, scratch.allocator());
 
     auto out = Value::matrix(1, n + 1, ValueType::DOUBLE, mr);
-    double *c = out.doubleDataMut();
+    keel::f64 *c = out.doubleDataMut();
     c[0] = 1.0;
 
-    const double *Adata = A.doubleData();
+    const keel::f64 *Adata = A.doubleData();
 
     for (keel::usize k = 1; k <= n; ++k) {
         // Mnext = A * (M + c[k-1] * I)
@@ -145,20 +145,20 @@ Value poly_of_matrix(const Value &A, keel::Allocator *mr)
         std::fill(Mnext.begin(), Mnext.end(), 0.0);
         for (keel::usize j = 0; j < n; ++j)
             for (keel::usize kk = 0; kk < n; ++kk) {
-                const double mkj = M[kk + j * n];
+                const keel::f64 mkj = M[kk + j * n];
                 if (mkj == 0.0) continue;
                 for (keel::usize i = 0; i < n; ++i)
                     Mnext[i + j * n] += Adata[i + kk * n] * mkj;
             }
         // Add c[k-1] * A
-        const double cprev = c[k - 1];
+        const keel::f64 cprev = c[k - 1];
         for (keel::usize i = 0; i < n * n; ++i)
             Mnext[i] += cprev * Adata[i];
 
         // c[k] = -trace(Mnext) / k
-        double tr = 0.0;
+        keel::f64 tr = 0.0;
         for (keel::usize i = 0; i < n; ++i) tr += Mnext[i + i * n];
-        c[k] = -tr / keel::as<double>(k);
+        c[k] = -tr / keel::as<keel::f64>(k);
 
         std::swap(M, Mnext);
     }
@@ -228,8 +228,8 @@ Value topkrows_full(const Value &A, keel::usize k,
         [&](keel::usize a, keel::usize b) {
             for (keel::usize k2 = 0; k2 < cols.size(); ++k2) {
                 const keel::usize j = cols[k2];
-                const double va = elem(a, j);
-                const double vb = elem(b, j);
+                const keel::f64 va = elem(a, j);
+                const keel::f64 vb = elem(b, j);
                 if (va == vb) continue;
                 const bool a_first = desc[k2] ? (va > vb) : (va < vb);
                 return a_first;
@@ -325,7 +325,7 @@ Value toeplitz(const Value &cV, const Value &rV, keel::Allocator *mr)
     // Real path (DOUBLE or SINGLE output; class preserved).
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     auto c = valueToScratchDoubles(cV, scratch);
-    keel::Array<double> r(scratch.allocator());
+    keel::Array<keel::f64> r(scratch.allocator());
     if (single1) r.assign(c);
     else         r = valueToScratchDoubles(rV, scratch);
 
@@ -334,12 +334,12 @@ Value toeplitz(const Value &cV, const Value &rV, keel::Allocator *mr)
     const ValueType ot = anySingle ? ValueType::SINGLE : ValueType::DOUBLE;
     auto M = Value::matrix(m, n, ot, mr);
     if (ot == ValueType::SINGLE) {
-        float *dst = static_cast<float *>(M.rawDataMut());
+        keel::f32 *dst = static_cast<keel::f32 *>(M.rawDataMut());
         for (keel::usize j = 0; j < n; ++j)
             for (keel::usize i = 0; i < m; ++i)
-                dst[j * m + i] = keel::as<float>((i >= j) ? c[i - j] : r[j - i]);
+                dst[j * m + i] = keel::as<keel::f32>((i >= j) ? c[i - j] : r[j - i]);
     } else {
-        double *dst = M.doubleDataMut();
+        keel::f64 *dst = M.doubleDataMut();
         for (keel::usize j = 0; j < n; ++j)
             for (keel::usize i = 0; i < m; ++i)
                 dst[j * m + i] = (i >= j) ? c[i - j] : r[j - i];
@@ -386,21 +386,21 @@ Value hankel(const Value &cV, const Value &rV, keel::Allocator *mr)
 
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     auto c = valueToScratchDoubles(cV, scratch);
-    keel::Array<double> r(scratch.allocator());
+    keel::Array<keel::f64> r(scratch.allocator());
     if (single1) r.assign(m, 0.0);
     else         r = valueToScratchDoubles(rV, scratch);
 
     const ValueType ot = anySingle ? ValueType::SINGLE : ValueType::DOUBLE;
     auto M = Value::matrix(m, n, ot, mr);
     if (ot == ValueType::SINGLE) {
-        float *dst = static_cast<float *>(M.rawDataMut());
+        keel::f32 *dst = static_cast<keel::f32 *>(M.rawDataMut());
         for (keel::usize j = 0; j < n; ++j)
             for (keel::usize i = 0; i < m; ++i) {
                 const keel::usize s = i + j;
-                dst[j * m + i] = keel::as<float>((s < m) ? c[s] : r[s - m + 1]);
+                dst[j * m + i] = keel::as<keel::f32>((s < m) ? c[s] : r[s - m + 1]);
             }
     } else {
-        double *dst = M.doubleDataMut();
+        keel::f64 *dst = M.doubleDataMut();
         for (keel::usize j = 0; j < n; ++j)
             for (keel::usize i = 0; i < m; ++i) {
                 const keel::usize s = i + j;
@@ -420,7 +420,7 @@ Value vander(const Value &vV, keel::Allocator *mr)
     auto M = Value::matrix(n, n, ValueType::DOUBLE, mr);
     // V[i, j] = v[i] ^ (n - 1 - j) -- highest power on the LEFT.
     for (keel::usize i = 0; i < n; ++i) {
-        const double x = v[i];
+        const keel::f64 x = v[i];
         M.elem(i, n - 1) = 1.0;
         for (keel::usize k = 1; k < n; ++k)
             M.elem(i, n - 1 - k) = M.elem(i, n - k) * x;
@@ -441,7 +441,7 @@ Value compan(const Value &pV, keel::Allocator *mr)
 
     const keel::usize n = pn - 1;
     auto M = Value::matrix(n, n, ValueType::DOUBLE, mr);
-    const double inv = 1.0 / p[0];
+    const keel::f64 inv = 1.0 / p[0];
     for (keel::usize j = 0; j < n; ++j)
         M.elem(0, j) = -p[j + 1] * inv;
     for (keel::usize i = 1; i < n; ++i)
@@ -475,7 +475,7 @@ Value hilb(keel::usize n, keel::Allocator *mr)
     auto M = Value::matrix(n, n, ValueType::DOUBLE, mr);
     for (keel::usize i = 0; i < n; ++i)
         for (keel::usize j = 0; j < n; ++j)
-            M.elem(i, j) = 1.0 / keel::as<double>(i + j + 1);
+            M.elem(i, j) = 1.0 / keel::as<keel::f64>(i + j + 1);
     return M;
 }
 
@@ -508,7 +508,7 @@ Value invhilb(keel::usize n, keel::Allocator *mr)
                 binom(N + j - 1, N - i) *
                 binom(i + j - 2, i - 1) *
                 binom(i + j - 2, i - 1);
-            M.elem(i0, j0) = keel::as<double>(v);
+            M.elem(i0, j0) = keel::as<keel::f64>(v);
         }
     return M;
 }
@@ -519,9 +519,9 @@ Value wilkinson(keel::usize n, keel::Allocator *mr)
         return Value::matrix(0, 0, ValueType::DOUBLE, mr);
     auto M = Value::matrix(n, n, ValueType::DOUBLE, mr);
     // Diagonal: |(1:n) - (n+1)/2|; subdiagonal/superdiagonal: ones.
-    const double mid = (keel::as<double>(n) + 1.0) / 2.0;
+    const keel::f64 mid = (keel::as<keel::f64>(n) + 1.0) / 2.0;
     for (keel::usize i = 0; i < n; ++i) {
-        M.elem(i, i) = keel::abs(keel::as<double>(i + 1) - mid);
+        M.elem(i, i) = keel::abs(keel::as<keel::f64>(i + 1) - mid);
         if (i > 0) {
             M.elem(i, i - 1) = 1.0;
             M.elem(i - 1, i) = 1.0;
@@ -555,7 +555,7 @@ Value hadamard(keel::usize n, keel::Allocator *mr)
     if (base == 1) {
         M.elem(0, 0) = 1.0;
     } else if (base == 12) {
-        static const double r12[11] = {-1, 1, -1, 1, 1, 1, -1, -1, -1, 1, -1};
+        static const keel::f64 r12[11] = {-1, 1, -1, 1, 1, 1, -1, -1, -1, 1, -1};
         for (keel::usize i = 0; i < 12; ++i) {
             M.elem(0, i) = 1.0;
             M.elem(i, 0) = 1.0;
@@ -564,7 +564,7 @@ Value hadamard(keel::usize n, keel::Allocator *mr)
             for (keel::usize j = 0; j < 11; ++j)
                 M.elem(i + 1, j + 1) = r12[(j + 11 - i) % 11];
     } else {
-        static const double v20[19] = {-1, -1, 1, 1, -1, -1, -1, -1, 1, -1, 1, -1, 1, 1, 1, 1, -1, -1, 1};
+        static const keel::f64 v20[19] = {-1, -1, 1, 1, -1, -1, -1, -1, 1, -1, 1, -1, 1, 1, 1, 1, -1, -1, 1};
         for (keel::usize i = 0; i < 20; ++i) {
             M.elem(0, i) = 1.0;
             M.elem(i, 0) = 1.0;
@@ -579,7 +579,7 @@ Value hadamard(keel::usize n, keel::Allocator *mr)
         // Quadrant copies for size doubling from k → 2k.
         for (keel::usize i = 0; i < k; ++i)
             for (keel::usize j = 0; j < k; ++j) {
-                const double v = M.elem(i, j);
+                const keel::f64 v = M.elem(i, j);
                 M.elem(i,     j + k) =  v;
                 M.elem(i + k, j)     =  v;
                 M.elem(i + k, j + k) = -v;
@@ -591,7 +591,7 @@ Value hadamard(keel::usize n, keel::Allocator *mr)
 Value rosser(keel::Allocator *mr)
 {
     // Hardcoded 8×8 Rosser test matrix (MATLAB R2025b: rosser()).
-    static constexpr double R[64] = {
+    static constexpr keel::f64 R[64] = {
          611,   196, -192,  407,   -8,  -52,  -49,   29,
          196,   899,  113, -192,  -71,  -43,   -8,  -44,
         -192,   113,  899,  196,   61,   49,    8,   52,
@@ -620,7 +620,7 @@ Value magic(keel::usize N, keel::Allocator *mr)
     if (N == 2) {
         // MATLAB's magic(2) is conventional [1 3; 4 2] (not strictly magic).
         auto m = Value::matrix(2, 2, ValueType::DOUBLE, mr);
-        double *p = m.doubleDataMut();
+        keel::f64 *p = m.doubleDataMut();
         // column-major layout: column 0 = {1, 4}, column 1 = {3, 2}
         p[0] = 1.0; p[1] = 4.0; p[2] = 3.0; p[3] = 2.0;
         return m;
@@ -630,7 +630,7 @@ Value magic(keel::usize N, keel::Allocator *mr)
     // Build into a row-major scratch then transpose into column-major
     // storage. Algorithms above are written in row-major for clarity.
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<double> buf(N * N, 0.0, scratch.allocator());
+    keel::Array<keel::f64> buf(N * N, 0.0, scratch.allocator());
     if (N % 2 == 1) {
         magicOdd(buf.data(), N);
     } else if (N % 4 == 0) {
@@ -639,7 +639,7 @@ Value magic(keel::usize N, keel::Allocator *mr)
         magicSinglyEven(buf.data(), N);
     }
     // Row-major buf[i*N + j] → column-major out[j*N + i]
-    double *out = m.doubleDataMut();
+    keel::f64 *out = m.doubleDataMut();
     for (keel::usize i = 0; i < N; ++i)
         for (keel::usize j = 0; j < N; ++j)
             out[j * N + i] = buf[i * N + j];
@@ -655,23 +655,23 @@ Value size(const Value &x, keel::Allocator *mr)
     // dims past 3.
     const int n = std::max(2, dims.ndim());
     auto sv = Value::matrix(1, n, ValueType::DOUBLE, mr);
-    double *out = sv.doubleDataMut();
+    keel::f64 *out = sv.doubleDataMut();
     for (int i = 0; i < n; ++i)
-        out[i] = keel::as<double>(dims.dim(i));
+        out[i] = keel::as<keel::f64>(dims.dim(i));
     return sv;
 }
 
 Value size(const Value &x, int dim, keel::Allocator *mr)
 {
-    return Value::scalar(keel::as<double>(x.dims().dimSize(dim - 1)), mr);
+    return Value::scalar(keel::as<keel::f64>(x.dims().dimSize(dim - 1)), mr);
 }
 
 std::tuple<Value, Value> sizePair(const Value &x, keel::Allocator *mr)
 {
     const auto &dims = x.dims();
     return std::make_tuple(
-        Value::scalar(keel::as<double>(dims.rows()), mr),
-        Value::scalar(keel::as<double>(dims.cols()), mr));
+        Value::scalar(keel::as<keel::f64>(dims.rows()), mr),
+        Value::scalar(keel::as<keel::f64>(dims.cols()), mr));
 }
 
 Value length(const Value &x, keel::Allocator *mr)
@@ -679,18 +679,18 @@ Value length(const Value &x, keel::Allocator *mr)
     if (x.isEmpty() || x.numel() == 0)
         return Value::scalar(0.0, mr);
     const auto &dims = x.dims();
-    const double len = keel::as<double>(std::max({dims.rows(), dims.cols(), dims.pages()}));
+    const keel::f64 len = keel::as<keel::f64>(std::max({dims.rows(), dims.cols(), dims.pages()}));
     return Value::scalar(len, mr);
 }
 
 Value numel(const Value &x, keel::Allocator *mr)
 {
-    return Value::scalar(keel::as<double>(x.numel()), mr);
+    return Value::scalar(keel::as<keel::f64>(x.numel()), mr);
 }
 
 Value ndims(const Value &x, keel::Allocator *mr)
 {
-    return Value::scalar(keel::as<double>(x.dims().ndims()), mr);
+    return Value::scalar(keel::as<keel::f64>(x.dims().ndims()), mr);
 }
 
 // ── Shape transformations ────────────────────────────────────────────
@@ -816,34 +816,34 @@ Surface3 sphere(keel::usize n, keel::Allocator *mr)
     //   X = cos(phi) * cos(theta)
     //   Y = cos(phi) * sin(theta)
     //   Z = sin(phi) * ones(1, n+1)
-    constexpr double kPi = 3.14159265358979323846;
+    constexpr keel::f64 kPi = 3.14159265358979323846;
     const keel::usize m = n + 1;
     auto X = Value::matrix(m, m, ValueType::DOUBLE, mr);
     auto Y = Value::matrix(m, m, ValueType::DOUBLE, mr);
     auto Z = Value::matrix(m, m, ValueType::DOUBLE, mr);
-    double *xd = X.doubleDataMut();
-    double *yd = Y.doubleDataMut();
-    double *zd = Z.doubleDataMut();
+    keel::f64 *xd = X.doubleDataMut();
+    keel::f64 *yd = Y.doubleDataMut();
+    keel::f64 *zd = Z.doubleDataMut();
 
     if (n == 0) return { std::move(X), std::move(Y), std::move(Z) };
 
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<double> cosPhi(m, scratch.allocator());
-    keel::Array<double> sinPhi(m, scratch.allocator());
+    keel::Array<keel::f64> cosPhi(m, scratch.allocator());
+    keel::Array<keel::f64> sinPhi(m, scratch.allocator());
     for (keel::usize i = 0; i < m; ++i) {
-        const double phi = (2.0 * keel::as<double>(i) - keel::as<double>(n))
-                              / keel::as<double>(n) * (kPi / 2.0);
+        const keel::f64 phi = (2.0 * keel::as<keel::f64>(i) - keel::as<keel::f64>(n))
+                              / keel::as<keel::f64>(n) * (kPi / 2.0);
         cosPhi[i] = std::cos(phi);
         sinPhi[i] = std::sin(phi);
     }
     cosPhi[0] = 0.0;
     cosPhi[m - 1] = 0.0;
 
-    keel::Array<double> cosTh(m, scratch.allocator());
-    keel::Array<double> sinTh(m, scratch.allocator());
+    keel::Array<keel::f64> cosTh(m, scratch.allocator());
+    keel::Array<keel::f64> sinTh(m, scratch.allocator());
     for (keel::usize j = 0; j < m; ++j) {
-        const double theta = (2.0 * keel::as<double>(j) - keel::as<double>(n))
-                                / keel::as<double>(n) * kPi;
+        const keel::f64 theta = (2.0 * keel::as<keel::f64>(j) - keel::as<keel::f64>(n))
+                                / keel::as<keel::f64>(n) * kPi;
         cosTh[j] = std::cos(theta);
         sinTh[j] = std::sin(theta);
     }
@@ -865,7 +865,7 @@ Surface3 cylinder(const Value &R, keel::usize n, keel::Allocator *mr)
 {
     // Profile R is a 1-D vector of radii along z. Output is length(R) ×
     // (n+1). z is linspace(0, 1, length(R)) repeated across columns.
-    constexpr double kPi = 3.14159265358979323846;
+    constexpr keel::f64 kPi = 3.14159265358979323846;
     const keel::usize rows = R.numel();
     if (rows == 0) {
         auto Z = Value::matrix(0, 0, ValueType::DOUBLE, mr);
@@ -876,33 +876,33 @@ Surface3 cylinder(const Value &R, keel::usize n, keel::Allocator *mr)
     auto X = Value::matrix(rows, cols, ValueType::DOUBLE, mr);
     auto Y = Value::matrix(rows, cols, ValueType::DOUBLE, mr);
     auto Z = Value::matrix(rows, cols, ValueType::DOUBLE, mr);
-    double *xd = X.doubleDataMut();
-    double *yd = Y.doubleDataMut();
-    double *zd = Z.doubleDataMut();
+    keel::f64 *xd = X.doubleDataMut();
+    keel::f64 *yd = Y.doubleDataMut();
+    keel::f64 *zd = Z.doubleDataMut();
 
-    const double *Rd = R.doubleData();
+    const keel::f64 *Rd = R.doubleData();
     for (keel::usize j = 0; j < cols; ++j) {
-        const double theta = 2.0 * kPi * keel::as<double>(j) / keel::as<double>(n);
-        const double ct = std::cos(theta), st = std::sin(theta);
+        const keel::f64 theta = 2.0 * kPi * keel::as<keel::f64>(j) / keel::as<keel::f64>(n);
+        const keel::f64 ct = std::cos(theta), st = std::sin(theta);
         for (keel::usize i = 0; i < rows; ++i) {
             const keel::usize k = j * rows + i;
             xd[k] = Rd[i] * ct;
             yd[k] = Rd[i] * st;
             zd[k] = (rows == 1) ? 0.0
-                                 : keel::as<double>(i) / keel::as<double>(rows - 1);
+                                 : keel::as<keel::f64>(i) / keel::as<keel::f64>(rows - 1);
         }
     }
     return { std::move(X), std::move(Y), std::move(Z) };
 }
 
-Surface3 ellipsoid(double xc, double yc, double zc, double xr, double yr, double zr, keel::usize n, keel::Allocator *mr)
+Surface3 ellipsoid(keel::f64 xc, keel::f64 yc, keel::f64 zc, keel::f64 xr, keel::f64 yr, keel::f64 zr, keel::usize n, keel::Allocator *mr)
 {
     // Same parametrisation as sphere, scaled by (xr, yr, zr) and shifted.
     auto sph = sphere(n, mr);
     const keel::usize total = sph.X.numel();
-    double *xd = sph.X.doubleDataMut();
-    double *yd = sph.Y.doubleDataMut();
-    double *zd = sph.Z.doubleDataMut();
+    keel::f64 *xd = sph.X.doubleDataMut();
+    keel::f64 *yd = sph.Y.doubleDataMut();
+    keel::f64 *zd = sph.Z.doubleDataMut();
     for (keel::usize k = 0; k < total; ++k) {
         xd[k] = xc + xr * xd[k];
         yd[k] = yc + yr * yd[k];
@@ -917,24 +917,24 @@ Value peaks(keel::usize n, keel::Allocator *mr)
     if (n == 0) return Value::matrix(0, 0, ValueType::DOUBLE, mr);
 
     auto Z = Value::matrix(n, n, ValueType::DOUBLE, mr);
-    double *zd = Z.doubleDataMut();
+    keel::f64 *zd = Z.doubleDataMut();
 
     // x, y = linspace(-3, 3, n) on a meshgrid: X varies along columns,
     // Y along rows (so row i → y, col j → x — matches MATLAB peaks).
-    const double step = (n > 1) ? 6.0 / keel::as<double>(n - 1) : 0.0;
+    const keel::f64 step = (n > 1) ? 6.0 / keel::as<keel::f64>(n - 1) : 0.0;
     for (keel::usize j = 0; j < n; ++j) {  // column index → x axis
-        const double x = (n > 1) ? -3.0 + step * keel::as<double>(j) : 0.0;
+        const keel::f64 x = (n > 1) ? -3.0 + step * keel::as<keel::f64>(j) : 0.0;
         for (keel::usize i = 0; i < n; ++i) {  // row index → y axis
-            const double y = (n > 1) ? -3.0 + step * keel::as<double>(i) : 0.0;
+            const keel::f64 y = (n > 1) ? -3.0 + step * keel::as<keel::f64>(i) : 0.0;
             // MATLAB peaks formula (Press et al., adapted from MATLAB source).
-            const double xm1   = 1.0 - x;
-            const double yp1   = y + 1.0;
-            const double term1 = 3.0 * xm1 * xm1
+            const keel::f64 xm1   = 1.0 - x;
+            const keel::f64 yp1   = y + 1.0;
+            const keel::f64 term1 = 3.0 * xm1 * xm1
                                   * std::exp(-(x * x) - yp1 * yp1);
-            const double term2 = -10.0 * (x / 5.0 - x * x * x - y * y * y * y * y)
+            const keel::f64 term2 = -10.0 * (x / 5.0 - x * x * x - y * y * y * y * y)
                                   * std::exp(-(x * x) - (y * y));
-            const double xp1   = x + 1.0;
-            const double term3 = -std::exp(-(xp1 * xp1) - (y * y)) / 3.0;
+            const keel::f64 xp1   = x + 1.0;
+            const keel::f64 term3 = -std::exp(-(xp1 * xp1) - (y * y)) / 3.0;
             zd[j * n + i] = term1 + term2 + term3;
         }
     }
@@ -976,8 +976,8 @@ Value pagemtimes(const Value &x, TranspOp tx, const Value &y, TranspOp ty, keel:
     if (x.isComplex() || y.isComplex())
         return pagemtimesImpl<keel::c64>(x, tx, y, ty, mr);
     if (x.type() == ValueType::SINGLE || y.type() == ValueType::SINGLE)
-        return pagemtimesImpl<float  >(x, tx, y, ty, mr);
-    return     pagemtimesImpl<double >(x, tx, y, ty, mr);
+        return pagemtimesImpl<keel::f32  >(x, tx, y, ty, mr);
+    return     pagemtimesImpl<keel::f64 >(x, tx, y, ty, mr);
 }
 
 Value diag(const Value &x, keel::Allocator *mr)
@@ -1075,14 +1075,14 @@ std::tuple<Value, Value> sortComplex(const Value &x, int dim, bool descend,
                 }
                 std::stable_sort(buf.begin(), buf.end(),
                           [descend, nanFirst](const auto &a, const auto &b) {
-                              const double am = keel::abs(a.first), bm = keel::abs(b.first);
+                              const keel::f64 am = keel::abs(a.first), bm = keel::abs(b.first);
                               const bool an = std::isnan(am), bn = std::isnan(bm);
                               if (an || bn) {
                                   if (an && bn) return false;
                                   return nanFirst ? an : bn;
                               }
                               if (am != bm) return descend ? (am > bm) : (am < bm);
-                              const double aa = keel::arg(a.first), ba = keel::arg(b.first);
+                              const keel::f64 aa = keel::arg(a.first), ba = keel::arg(b.first);
                               if (aa != ba) return descend ? (aa > ba) : (aa < ba);
                               return false;
                           });
@@ -1092,7 +1092,7 @@ std::tuple<Value, Value> sortComplex(const Value &x, int dim, bool descend,
                     const keel::usize pIdx = (sortDim == 2) ? k : pp;
                     const keel::usize lin = pIdx * R * C + cIdx * R + rIdx;
                     r.complexDataMut()[lin] = buf[k].first;
-                    idx.doubleDataMut()[lin] = keel::as<double>(buf[k].second + 1);
+                    idx.doubleDataMut()[lin] = keel::as<keel::f64>(buf[k].second + 1);
                 }
             }
     return std::make_tuple(std::move(r), std::move(idx));
@@ -1128,7 +1128,7 @@ std::tuple<Value, Value> sort(const Value &x, int dim, bool descend,
     const keel::usize slice1 = (sortDim == 1) ? 1 : C;
     const keel::usize slice2 = (sortDim == 2) ? 1 : P;
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<std::pair<double, keel::usize>> buf(N, scratch.allocator());
+    keel::Array<std::pair<keel::f64, keel::usize>> buf(N, scratch.allocator());
 
     for (keel::usize pp = 0; pp < slice2; ++pp)
         for (keel::usize c = 0; c < slice1; ++c)
@@ -1144,7 +1144,7 @@ std::tuple<Value, Value> sort(const Value &x, int dim, bool descend,
                 // order for ties (matches MATLAB's [s,i]).
                 std::stable_sort(buf.begin(), buf.end(),
                           [descend, nanFirst](const auto &a, const auto &b) {
-                              const double av = a.first, bv = b.first;
+                              const keel::f64 av = a.first, bv = b.first;
                               const bool an = std::isnan(av), bn = std::isnan(bv);
                               if (an || bn) {
                                   if (an && bn) return false;
@@ -1158,7 +1158,7 @@ std::tuple<Value, Value> sort(const Value &x, int dim, bool descend,
                     const keel::usize pIdx = (sortDim == 2) ? k : pp;
                     const keel::usize lin = pIdx * R * C + cIdx * R + rIdx;
                     r.doubleDataMut()[lin] = buf[k].first;
-                    idx.doubleDataMut()[lin] = keel::as<double>(buf[k].second + 1);
+                    idx.doubleDataMut()[lin] = keel::as<keel::f64>(buf[k].second + 1);
                 }
             }
     return std::make_tuple(std::move(r), std::move(idx));
@@ -1179,23 +1179,23 @@ std::tuple<Value, Value> sortrows(const Value &x, keel::ArrayRef<int> cols, keel
 Value find(const Value &x, keel::Allocator *mr)
 {
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    auto indices = keel::Array<double>(scratch.allocator());
+    auto indices = keel::Array<keel::f64>(scratch.allocator());
     if (x.isLogical()) {
         const keel::u8 *ld = x.logicalData();
         for (keel::usize i = 0; i < x.numel(); ++i)
             if (ld[i])
-                indices.push_back(keel::as<double>(i + 1));
+                indices.push_back(keel::as<keel::f64>(i + 1));
     } else {
-        const double *dd = x.doubleData();
+        const keel::f64 *dd = x.doubleData();
         for (keel::usize i = 0; i < x.numel(); ++i)
             if (dd[i] != 0.0)
-                indices.push_back(keel::as<double>(i + 1));
+                indices.push_back(keel::as<keel::f64>(i + 1));
     }
     const bool rowResult = !x.dims().is3D() && x.dims().rows() == 1;
     auto r = rowResult ? Value::matrix(1, indices.size(), ValueType::DOUBLE, mr)
                        : Value::matrix(indices.size(), 1, ValueType::DOUBLE, mr);
     if (!indices.empty())
-        std::memcpy(r.doubleDataMut(), indices.data(), indices.size() * sizeof(double));
+        std::memcpy(r.doubleDataMut(), indices.data(), indices.size() * sizeof(keel::f64));
     return r;
 }
 
@@ -1207,7 +1207,7 @@ Value nnz(const Value &x, keel::Allocator *mr)
         return Value::scalar(0.0, mr);
     keel::usize count = 0;
     forEachNonzero(x, [&](keel::usize) { ++count; });
-    return Value::scalar(keel::as<double>(count), mr);
+    return Value::scalar(keel::as<keel::f64>(count), mr);
 }
 
 Value nonzeros(const Value &x, keel::Allocator *mr)
@@ -1223,12 +1223,12 @@ Value nonzeros(const Value &x, keel::Allocator *mr)
         return collectTypedNonzeros<keel::u8>(x, ValueType::LOGICAL, [&](keel::usize i) -> keel::u8 { return p[i]; }, mr);
     }
     case ValueType::DOUBLE: {
-        const double *p = x.doubleData();
-        return collectTypedNonzeros<double>(x, ValueType::DOUBLE, [&](keel::usize i) -> double { return p[i]; }, mr);
+        const keel::f64 *p = x.doubleData();
+        return collectTypedNonzeros<keel::f64>(x, ValueType::DOUBLE, [&](keel::usize i) -> keel::f64 { return p[i]; }, mr);
     }
     case ValueType::SINGLE: {
-        const float *p = x.singleData();
-        return collectTypedNonzeros<float>(x, ValueType::SINGLE, [&](keel::usize i) -> float { return p[i]; }, mr);
+        const keel::f32 *p = x.singleData();
+        return collectTypedNonzeros<keel::f32>(x, ValueType::SINGLE, [&](keel::usize i) -> keel::f32 { return p[i]; }, mr);
     }
     case ValueType::COMPLEX: {
         const keel::c64 *p = x.complexData();
@@ -1309,13 +1309,13 @@ meshgrid(const Value &x, const Value &y, const Value &z, keel::Allocator *mr)
     auto X = Value::matrix3d(ny, nx, nz, ValueType::DOUBLE, mr);
     auto Y = Value::matrix3d(ny, nx, nz, ValueType::DOUBLE, mr);
     auto Z = Value::matrix3d(ny, nx, nz, ValueType::DOUBLE, mr);
-    double *xd = X.doubleDataMut();
-    double *yd = Y.doubleDataMut();
-    double *zd = Z.doubleDataMut();
+    keel::f64 *xd = X.doubleDataMut();
+    keel::f64 *yd = Y.doubleDataMut();
+    keel::f64 *zd = Z.doubleDataMut();
     for (keel::usize p = 0; p < nz; ++p) {
-        const double zp = z.elemAsDouble(p);
+        const keel::f64 zp = z.elemAsDouble(p);
         for (keel::usize c = 0; c < nx; ++c) {
-            const double xc = x.elemAsDouble(c);
+            const keel::f64 xc = x.elemAsDouble(c);
             for (keel::usize r = 0; r < ny; ++r) {
                 const keel::usize idx = r + c * ny + p * (nx * ny);
                 xd[idx] = xc;
@@ -1388,8 +1388,8 @@ Value cumsum(const Value &x, keel::Allocator *mr)
     }
     const keel::usize R = x.dims().rows(), C = x.dims().cols();
     auto r = Value::matrix(R, C, ValueType::DOUBLE, mr);
-    const double *src = x.doubleData();
-    double *dst = r.doubleDataMut();
+    const keel::f64 *src = x.doubleData();
+    keel::f64 *dst = r.doubleDataMut();
     // Per-column inclusive scan — column data is contiguous.
     for (keel::usize c = 0; c < C; ++c)
         numkit::builtin::cumsumScan(src + c * R, dst + c * R, R);
@@ -1428,8 +1428,8 @@ Value cumsum(const Value &x, int dim, keel::Allocator *mr)
         for (int i = 0; i < d - 1; ++i) B *= dd.dim(i);
         keel::usize O = 1;
         for (int i = d; i < dd.ndim(); ++i) O *= dd.dim(i);
-        const double *src = x.doubleData();
-        double *dst = r.doubleDataMut();
+        const keel::f64 *src = x.doubleData();
+        keel::f64 *dst = r.doubleDataMut();
         if (B == 1) {
             for (keel::usize o = 0; o < O; ++o) {
                 const keel::usize base = o * sliceLen;
@@ -1440,7 +1440,7 @@ Value cumsum(const Value &x, int dim, keel::Allocator *mr)
                 for (keel::usize b = 0; b < B; ++b) {
                     const keel::usize base = o * sliceLen * B + b;
                     if (sliceLen == 0) continue;
-                    double acc = src[base];
+                    keel::f64 acc = src[base];
                     dst[base] = acc;
                     for (keel::usize k = 1; k < sliceLen; ++k) {
                         acc += src[base + k * B];
@@ -1455,8 +1455,8 @@ Value cumsum(const Value &x, int dim, keel::Allocator *mr)
     const keel::usize P = dd.is3D() ? dd.pages() : 1;
     auto r = dd.is3D() ? Value::matrix3d(R, C, P, ValueType::DOUBLE, mr)
                        : Value::matrix(R, C, ValueType::DOUBLE, mr);
-    const double *src = x.doubleData();
-    double *dst = r.doubleDataMut();
+    const keel::f64 *src = x.doubleData();
+    keel::f64 *dst = r.doubleDataMut();
 
     if (d == 1) {
         // dim=1: scan down each column. Column data is contiguous so
@@ -1470,7 +1470,7 @@ Value cumsum(const Value &x, int dim, keel::Allocator *mr)
         // Walk across columns for each (row, page). Stride = R.
         for (keel::usize pp = 0; pp < P; ++pp)
             for (keel::usize rr = 0; rr < R; ++rr) {
-                double s = 0;
+                keel::f64 s = 0;
                 const keel::usize pageBase = pp * R * C;
                 for (keel::usize c = 0; c < C; ++c) {
                     s += src[pageBase + c * R + rr];
@@ -1481,7 +1481,7 @@ Value cumsum(const Value &x, int dim, keel::Allocator *mr)
         // Walk through pages for each (row, col). Stride = R*C.
         for (keel::usize c = 0; c < C; ++c)
             for (keel::usize rr = 0; rr < R; ++rr) {
-                double s = 0;
+                keel::f64 s = 0;
                 for (keel::usize pp = 0; pp < P; ++pp) {
                     s += src[pp * R * C + c * R + rr];
                     dst[pp * R * C + c * R + rr] = s;
@@ -1515,7 +1515,7 @@ Value cumprod(const Value &x, int dim, keel::Allocator *mr)
                                   /*isProd=*/true, mr);
     if (x.isLogical())
         return cumprod(toDoubleValue(x, mr), dim, mr);
-    return cumScanDispatch(x, dim, numkit::builtin::cumprodScan, [](double a, double b) { return a * b; }, "cumprod", mr);
+    return cumScanDispatch(x, dim, numkit::builtin::cumprodScan, [](keel::f64 a, keel::f64 b) { return a * b; }, "cumprod", mr);
 }
 
 
@@ -1533,7 +1533,7 @@ Value cummax(const Value &x, int dim, keel::Allocator *mr)
     // NaN propagation: MATLAB cummax skips NaN if 'omitnan' is passed
     // and propagates otherwise. Default = 'omitnan' since R2018a; we
     // skip NaN here, treating them as identity.
-    return cumScanDispatch(x, dim, numkit::builtin::cummaxScan, [](double a, double b) {
+    return cumScanDispatch(x, dim, numkit::builtin::cummaxScan, [](keel::f64 a, keel::f64 b) {
                                if (std::isnan(b)) return a;
                                if (std::isnan(a)) return b;
                                return std::max(a, b);
@@ -1549,7 +1549,7 @@ Value cummin(const Value &x, int dim, keel::Allocator *mr)
     if (x.type() == ValueType::COMPLEX)
         return cumComplexMinMaxAlongDim(x, dim <= 0 ? firstNonSingletonDim(x) : dim,
                                         /*isMax=*/false, mr);
-    return cumScanDispatch(x, dim, numkit::builtin::cumminScan, [](double a, double b) {
+    return cumScanDispatch(x, dim, numkit::builtin::cumminScan, [](keel::f64 a, keel::f64 b) {
                                if (std::isnan(b)) return a;
                                if (std::isnan(a)) return b;
                                return std::min(a, b);
@@ -1634,7 +1634,7 @@ Value xorOf(const Value &a, const Value &b, keel::Allocator *mr)
     auto ad = promoteToDouble(a, mr);
     auto bd = promoteToDouble(b, mr);
     auto d = elementwiseDouble(ad, bd,
-        [](double aa, double bb) {
+        [](keel::f64 aa, keel::f64 bb) {
             return ((aa != 0.0) != (bb != 0.0)) ? 1.0 : 0.0;
         }, mr);
     if (d.isScalar()) return Value::logicalScalar(d.toScalar() != 0.0, mr);

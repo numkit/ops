@@ -33,7 +33,7 @@ namespace numkit::linalg {
 
 namespace {
 
-void fillIdentity(double *buf, keel::usize n)
+void fillIdentity(keel::f64 *buf, keel::usize n)
 {
     std::fill(buf, buf + n * n, 0.0);
     for (keel::usize i = 0; i < n; ++i)
@@ -54,13 +54,13 @@ Value pageView(const Value &A, keel::usize p, keel::usize m, keel::usize n,
     }
     auto out = Value::matrix(m, n, ValueType::DOUBLE, mr);
     if (A.type() == ValueType::SINGLE) {
-        const float *src = A.singleData() + p * m * n;
-        double *dst = out.doubleDataMut();
+        const keel::f32 *src = A.singleData() + p * m * n;
+        keel::f64 *dst = out.doubleDataMut();
         for (keel::usize i = 0; i < m * n; ++i)
-            dst[i] = keel::as<double>(src[i]);
+            dst[i] = keel::as<keel::f64>(src[i]);
         return out;
     }
-    const double *src = A.doubleData() + p * m * n;
+    const keel::f64 *src = A.doubleData() + p * m * n;
     std::copy(src, src + m * n, out.doubleDataMut());
     return out;
 }
@@ -103,10 +103,10 @@ Value pageinv(const Value &A, keel::Allocator *mr)
     Value Aw = detail::widenSingleToDouble(A, mr);
 
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<double> A_buf(m * n, scratch.allocator());
-    keel::Array<double> I_buf(n * n, scratch.allocator());
-    const double *src = Aw.doubleData();
-    double *dst = out.doubleDataMut();
+    keel::Array<keel::f64> A_buf(m * n, scratch.allocator());
+    keel::Array<keel::f64> I_buf(n * n, scratch.allocator());
+    const keel::f64 *src = Aw.doubleData();
+    keel::f64 *dst = out.doubleDataMut();
     const keel::usize stride = m * n;
 
     for (keel::usize p = 0; p < pages; ++p) {
@@ -136,7 +136,7 @@ Value pageeig_values(const Value &A, keel::Allocator *mr)
     }
 
     auto out = Value::matrix3d(n, 1, pages, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     for (keel::usize p = 0; p < pages; ++p) {
         auto pg = pageView(A, p, m, n, mr);
         Value evs;
@@ -166,8 +166,8 @@ pageeig_VD(const Value &A, keel::Allocator *mr)
 
     auto V = Value::matrix3d(n, n, pages, ValueType::DOUBLE, mr);
     auto D = Value::matrix3d(n, n, pages, ValueType::DOUBLE, mr);
-    double *Vd = V.doubleDataMut();
-    double *Dd = D.doubleDataMut();
+    keel::f64 *Vd = V.doubleDataMut();
+    keel::f64 *Dd = D.doubleDataMut();
     const keel::usize stride = n * n;
     for (keel::usize p = 0; p < pages; ++p) {
         auto pg = pageView(A, p, m, n, mr);
@@ -198,7 +198,7 @@ Value pagesvd_values(const Value &A, keel::Allocator *mr)
         return svd_values(A, mr);
 
     auto out = Value::matrix3d(k, 1, pages, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     for (keel::usize p = 0; p < pages; ++p) {
         auto pg = pageView(A, p, m, n, mr);
         auto sv = svd_values(pg, mr);
@@ -220,9 +220,9 @@ pagesvd_decompose(const Value &A, keel::Allocator *mr)
     auto U = Value::matrix3d(m, m, pages, ValueType::DOUBLE, mr);
     auto S = Value::matrix3d(m, n, pages, ValueType::DOUBLE, mr);
     auto V = Value::matrix3d(n, n, pages, ValueType::DOUBLE, mr);
-    double *Ud = U.doubleDataMut();
-    double *Sd = S.doubleDataMut();
-    double *Vd = V.doubleDataMut();
+    keel::f64 *Ud = U.doubleDataMut();
+    keel::f64 *Sd = S.doubleDataMut();
+    keel::f64 *Vd = V.doubleDataMut();
     const keel::usize uStride = m * m, sStride = m * n, vStride = n * n;
     for (keel::usize p = 0; p < pages; ++p) {
         auto pg = pageView(A, p, m, n, mr);
@@ -237,7 +237,7 @@ pagesvd_decompose(const Value &A, keel::Allocator *mr)
         detail::narrowDoubleToSingleIf(V, wantSingle, mr));
 }
 
-Value pagepinv(const Value &A, double tol, keel::Allocator *mr)
+Value pagepinv(const Value &A, keel::f64 tol, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "pagepinv");
     auto [m, n, pages] = pageShape(A, "pagepinv");
@@ -247,7 +247,7 @@ Value pagepinv(const Value &A, double tol, keel::Allocator *mr)
         return pinv(A, tol, mr);
 
     auto out = Value::matrix3d(n, m, pages, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     const keel::usize outStride = n * m;
     for (keel::usize p = 0; p < pages; ++p) {
         auto pg = pageView(A, p, m, n, mr);
@@ -262,7 +262,7 @@ Value pagepinv(const Value &A, double tol, keel::Allocator *mr)
 
 namespace {
 
-Value scalarNormDispatch(const Value &page, double p, bool fro_flag, bool inf_flag,
+Value scalarNormDispatch(const Value &page, keel::f64 p, bool fro_flag, bool inf_flag,
                          keel::Allocator *mr)
 {
     if (fro_flag) return norm_fro(page, mr);
@@ -272,7 +272,7 @@ Value scalarNormDispatch(const Value &page, double p, bool fro_flag, bool inf_fl
 
 } // anonymous namespace
 
-Value pagenorm(const Value &A, double p, keel::Allocator *mr)
+Value pagenorm(const Value &A, keel::f64 p, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "pagenorm");
     auto [m, n, pages] = pageShape(A, "pagenorm");
@@ -282,7 +282,7 @@ Value pagenorm(const Value &A, double p, keel::Allocator *mr)
         return scalarNormDispatch(A, p, /*fro=*/false, /*inf=*/false, mr);
 
     auto out = Value::matrix3d(1, 1, pages, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     for (keel::usize pp = 0; pp < pages; ++pp) {
         auto pg = pageView(A, pp, m, n, mr);
         auto sv = scalarNormDispatch(pg, p, /*fro=*/false, /*inf=*/false, mr);
@@ -356,12 +356,12 @@ Value pagemldivide(const Value &A, const Value &B, keel::Allocator *mr)
                 const keel::c64 *xs = xp.complexData();
                 std::copy(xs, xs + outStride, dst);
             } else {
-                const double *xs = xp.doubleData();
+                const keel::f64 *xs = xp.doubleData();
                 for (keel::usize i = 0; i < outStride; ++i) dst[i] = xs[i];
             }
         } else {
-            const double *xs = xp.doubleData();
-            double *dst = out.doubleDataMut() + p * outStride;
+            const keel::f64 *xs = xp.doubleData();
+            keel::f64 *dst = out.doubleDataMut() + p * outStride;
             std::copy(xs, xs + outStride, dst);
         }
     }
@@ -403,8 +403,8 @@ Value pagemrdivide(const Value &A, const Value &B, keel::Allocator *mr)
                 for (keel::usize j = 0; j < nA; ++j)
                     at[j + i * nA] = as[i + j * mA];
         } else {
-            const double *as = ap.doubleData();
-            double *at = ap_T.doubleDataMut();
+            const keel::f64 *as = ap.doubleData();
+            keel::f64 *at = ap_T.doubleDataMut();
             for (keel::usize i = 0; i < mA; ++i)
                 for (keel::usize j = 0; j < nA; ++j)
                     at[j + i * nA] = as[i + j * mA];
@@ -416,8 +416,8 @@ Value pagemrdivide(const Value &A, const Value &B, keel::Allocator *mr)
                 for (keel::usize j = 0; j < nB; ++j)
                     bt[j + i * nB] = bs[i + j * mB];
         } else {
-            const double *bs = bp.doubleData();
-            double *bt = bp_T.doubleDataMut();
+            const keel::f64 *bs = bp.doubleData();
+            keel::f64 *bt = bp_T.doubleDataMut();
             for (keel::usize i = 0; i < mB; ++i)
                 for (keel::usize j = 0; j < nB; ++j)
                     bt[j + i * nB] = bs[i + j * mB];
@@ -425,15 +425,15 @@ Value pagemrdivide(const Value &A, const Value &B, keel::Allocator *mr)
         auto xt = linsolve(bp_T, ap_T, mr);
         if (anyCx) {
             const keel::c64 *xc = xt.isComplex() ? xt.complexData() : nullptr;
-            const double *xd = xc ? nullptr : xt.doubleData();
+            const keel::f64 *xd = xc ? nullptr : xt.doubleData();
             keel::c64 *dst = out.complexDataMut() + p * outStride;
             for (keel::usize i = 0; i < mA; ++i)
                 for (keel::usize j = 0; j < mB; ++j)
                     dst[i + j * mA] = xc ? xc[j + i * mB]
                                           : keel::c64(xd[j + i * mB], 0.0);
         } else {
-            const double *xs = xt.doubleData();
-            double *dst = out.doubleDataMut() + p * outStride;
+            const keel::f64 *xs = xt.doubleData();
+            keel::f64 *dst = out.doubleDataMut() + p * outStride;
             for (keel::usize i = 0; i < mA; ++i)
                 for (keel::usize j = 0; j < mB; ++j)
                     dst[i + j * mA] = xs[j + i * mB];
@@ -442,7 +442,7 @@ Value pagemrdivide(const Value &A, const Value &B, keel::Allocator *mr)
     return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
 
-Value pagelsqminnorm(const Value &A, const Value &B, bool have_tol, double tol_user,
+Value pagelsqminnorm(const Value &A, const Value &B, bool have_tol, keel::f64 tol_user,
                      keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "pagelsqminnorm", "A", 1);
@@ -462,7 +462,7 @@ Value pagelsqminnorm(const Value &A, const Value &B, bool have_tol, double tol_u
     auto out = any3d
         ? Value::matrix3d(nA, nB, pages, ValueType::DOUBLE, mr)
         : Value::matrix(nA, nB, ValueType::DOUBLE, mr);
-    double *od = out.doubleDataMut();
+    keel::f64 *od = out.doubleDataMut();
     const keel::usize outStride = nA * nB;
 
     for (keel::usize p = 0; p < pages; ++p) {

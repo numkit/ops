@@ -37,9 +37,9 @@ Value uminus(const Value &x, keel::Allocator *mr)
     if (x.isComplex())
         return unaryComplex(x, [](keel::c64 v) { return -v; }, p);
     if (x.type() == ValueType::DOUBLE)
-        return unaryDouble(x, [](double v) { return -v; }, p);
+        return unaryDouble(x, [](keel::f64 v) { return -v; }, p);
     if (x.type() == ValueType::SINGLE)
-        return unaryTyped<float>(x, ValueType::SINGLE, [](float v) { return -v; }, p);
+        return unaryTyped<keel::f32>(x, ValueType::SINGLE, [](keel::f32 v) { return -v; }, p);
     if (isIntegerType(x.type())) {
         switch (x.type()) {
         case ValueType::INT8:   return unaryTyped<keel::i8>(x, x.type(),  [](keel::i8 v)   { return saturateNeg(v); }, p);
@@ -79,13 +79,13 @@ Value logical_not(const Value &x, keel::Allocator *mr)
     }
     if (x.type() == ValueType::DOUBLE) {
         if (x.isScalar()) {
-            double v = x.toScalar();
+            keel::f64 v = x.toScalar();
             if (std::isnan(v))
                 nanErr();
             return Value::logicalScalar(v == 0.0, p);
         }
         auto r = createLike(x, ValueType::LOGICAL, p);
-        const double *src = x.doubleData();
+        const keel::f64 *src = x.doubleData();
         keel::u8 *dst = r.logicalDataMut();
         for (keel::usize i = 0; i < x.numel(); ++i) {
             if (std::isnan(src[i]))
@@ -106,7 +106,7 @@ Value logical_not(const Value &x, keel::Allocator *mr)
         return r;
     }
     if (x.isScalar()) {
-        double v = x.elemAsDouble(0);
+        keel::f64 v = x.elemAsDouble(0);
         if (std::isnan(v))
             nanErr();
         return Value::logicalScalar(v == 0.0, p);
@@ -114,7 +114,7 @@ Value logical_not(const Value &x, keel::Allocator *mr)
     auto r = createLike(x, ValueType::LOGICAL, p);
     keel::u8 *dst = r.logicalDataMut();
     for (keel::usize i = 0; i < x.numel(); ++i) {
-        double v = x.elemAsDouble(i);
+        keel::f64 v = x.elemAsDouble(i);
         if (std::isnan(v))
             nanErr();
         dst[i] = (v == 0.0) ? 1 : 0;

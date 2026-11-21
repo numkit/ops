@@ -75,8 +75,8 @@ rsf2csf(const Value &UR, const Value &TR, keel::Allocator *mr)
             Value::matrix(0, 0, ValueType::COMPLEX, mr));
 
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<double> Ur(n * n, scratch.allocator());
-    keel::Array<double> Tr(n * n, scratch.allocator());
+    keel::Array<keel::f64> Ur(n * n, scratch.allocator());
+    keel::Array<keel::f64> Tr(n * n, scratch.allocator());
     for (keel::usize i = 0; i < n * n; ++i) {
         Ur[i] = UR.elemAsDouble(i);
         Tr[i] = TR.elemAsDouble(i);

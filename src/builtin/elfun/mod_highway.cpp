@@ -36,10 +36,10 @@ HWY_INLINE V ModVec(D d, V va, V vb)
     return hn::IfThenElse(hn::Eq(vb, hn::Zero(d)), va, r);
 }
 
-void ModLoopVV(const double *HWY_RESTRICT a, const double *HWY_RESTRICT b,
-               double *HWY_RESTRICT out, keel::usize n)
+void ModLoopVV(const keel::f64 *HWY_RESTRICT a, const keel::f64 *HWY_RESTRICT b,
+               keel::f64 *HWY_RESTRICT out, keel::usize n)
 {
-    const hn::ScalableTag<double> d;
+    const hn::ScalableTag<keel::f64> d;
     const keel::usize N = hn::Lanes(d);
     keel::usize i = 0;
     for (; i + N <= n; i += N)
@@ -47,10 +47,10 @@ void ModLoopVV(const double *HWY_RESTRICT a, const double *HWY_RESTRICT b,
     for (; i < n; ++i) out[i] = (b[i] != 0) ? a[i] - std::floor(a[i] / b[i]) * b[i] : a[i];
 }
 
-void ModLoopVS(const double *HWY_RESTRICT a, double s,
-               double *HWY_RESTRICT out, keel::usize n)
+void ModLoopVS(const keel::f64 *HWY_RESTRICT a, keel::f64 s,
+               keel::f64 *HWY_RESTRICT out, keel::usize n)
 {
-    const hn::ScalableTag<double> d;
+    const hn::ScalableTag<keel::f64> d;
     const keel::usize N = hn::Lanes(d);
     const auto vs = hn::Set(d, s);
     keel::usize i = 0;
@@ -59,10 +59,10 @@ void ModLoopVS(const double *HWY_RESTRICT a, double s,
     for (; i < n; ++i) out[i] = (s != 0) ? a[i] - std::floor(a[i] / s) * s : a[i];
 }
 
-void ModLoopSV(double s, const double *HWY_RESTRICT b,
-               double *HWY_RESTRICT out, keel::usize n)
+void ModLoopSV(keel::f64 s, const keel::f64 *HWY_RESTRICT b,
+               keel::f64 *HWY_RESTRICT out, keel::usize n)
 {
-    const hn::ScalableTag<double> d;
+    const hn::ScalableTag<keel::f64> d;
     const keel::usize N = hn::Lanes(d);
     const auto vs = hn::Set(d, s);
     keel::usize i = 0;
@@ -86,17 +86,17 @@ HWY_EXPORT(ModLoopSV);
 // Serial SIMD (no parallel_for): mod is memory-bandwidth bound, and on
 // Arrow Lake the worker-dispatch overhead loses to the single-threaded
 // SIMD loop at these array sizes (matches the project's threading note).
-void modLoopVV(const double *a, const double *b, double *out, keel::usize n)
+void modLoopVV(const keel::f64 *a, const keel::f64 *b, keel::f64 *out, keel::usize n)
 {
     HWY_DYNAMIC_DISPATCH(ModLoopVV)(a, b, out, n);
 }
 
-void modLoopVS(const double *a, double scalar, double *out, keel::usize n)
+void modLoopVS(const keel::f64 *a, keel::f64 scalar, keel::f64 *out, keel::usize n)
 {
     HWY_DYNAMIC_DISPATCH(ModLoopVS)(a, scalar, out, n);
 }
 
-void modLoopSV(double scalar, const double *b, double *out, keel::usize n)
+void modLoopSV(keel::f64 scalar, const keel::f64 *b, keel::f64 *out, keel::usize n)
 {
     HWY_DYNAMIC_DISPATCH(ModLoopSV)(scalar, b, out, n);
 }

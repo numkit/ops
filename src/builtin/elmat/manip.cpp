@@ -56,8 +56,8 @@ Value repmat(const Value &x, keel::usize m, keel::usize n, keel::usize p, keel::
     if (R == 0 || C == 0 || P == 0 || m == 0 || n == 0 || p == 0)
         return r;
 
-    const double *src = x.doubleData();
-    double *dst = r.doubleDataMut();
+    const keel::f64 *src = x.doubleData();
+    keel::f64 *dst = r.doubleDataMut();
 
     // Phase P6: build the first output page once, then replicate via
     // page memcpy for the remaining p-1 page tiles. The within-page
@@ -67,20 +67,20 @@ Value repmat(const Value &x, keel::usize m, keel::usize n, keel::usize p, keel::
     // (page replication) where one big memcpy per page beats redoing
     // the per-column tile loop.
     for (keel::usize srcPage = 0; srcPage < P; ++srcPage) {
-        double *firstPage = dst + (0 * P + srcPage) * outR * outC;
+        keel::f64 *firstPage = dst + (0 * P + srcPage) * outR * outC;
         for (keel::usize cTile = 0; cTile < n; ++cTile) {
             for (keel::usize c = 0; c < C; ++c) {
-                const double *colSrc = src + srcPage * R * C + c * R;
+                const keel::f64 *colSrc = src + srcPage * R * C + c * R;
                 for (keel::usize rTile = 0; rTile < m; ++rTile) {
-                    double *colDst = firstPage + (cTile * C + c) * outR
+                    keel::f64 *colDst = firstPage + (cTile * C + c) * outR
                                                  + rTile * R;
-                    std::memcpy(colDst, colSrc, R * sizeof(double));
+                    std::memcpy(colDst, colSrc, R * sizeof(keel::f64));
                 }
             }
         }
         for (keel::usize pTile = 1; pTile < p; ++pTile) {
-            double *targetPage = dst + (pTile * P + srcPage) * outR * outC;
-            std::memcpy(targetPage, firstPage, outR * outC * sizeof(double));
+            keel::f64 *targetPage = dst + (pTile * P + srcPage) * outR * outC;
+            std::memcpy(targetPage, firstPage, outR * outC * sizeof(keel::f64));
         }
     }
     return r;
@@ -454,7 +454,7 @@ Value rot90(const Value &x, int k, keel::Allocator *mr)
                       : Value::matrix(R, C, ValueType::DOUBLE, mr);
         if (x.numel() > 0)
             std::memcpy(r.doubleDataMut(), x.doubleData(),
-                        x.numel() * sizeof(double));
+                        x.numel() * sizeof(keel::f64));
         return r;
     }
 
@@ -463,8 +463,8 @@ Value rot90(const Value &x, int k, keel::Allocator *mr)
         auto r = is3D ? Value::matrix3d(R, C, P, ValueType::DOUBLE, mr)
                       : Value::matrix(R, C, ValueType::DOUBLE, mr);
         if (x.numel() == 0) return r;
-        const double *src = x.doubleData();
-        double *dst = r.doubleDataMut();
+        const keel::f64 *src = x.doubleData();
+        keel::f64 *dst = r.doubleDataMut();
         for (keel::usize pp = 0; pp < P; ++pp)
             rot180Page(src + pp * R * C, dst + pp * R * C, R, C);
         return r;
@@ -475,8 +475,8 @@ Value rot90(const Value &x, int k, keel::Allocator *mr)
     auto r = is3D ? Value::matrix3d(C, R, P, ValueType::DOUBLE, mr)
                   : Value::matrix(C, R, ValueType::DOUBLE, mr);
     if (x.numel() == 0) return r;
-    const double *src = x.doubleData();
-    double *dst = r.doubleDataMut();
+    const keel::f64 *src = x.doubleData();
+    keel::f64 *dst = r.doubleDataMut();
     if (kMod == 1) {
         for (keel::usize pp = 0; pp < P; ++pp)
             rot90OncePage(src + pp * R * C, dst + pp * C * R, R, C);
@@ -784,10 +784,10 @@ Value repelem(const Value &x, keel::usize n, keel::Allocator *mr)
                    : Value::matrix(1, outN, ValueType::DOUBLE, mr);
     if (outN == 0) return r;
 
-    const double *src = x.doubleData();
-    double *dst = r.doubleDataMut();
+    const keel::f64 *src = x.doubleData();
+    keel::f64 *dst = r.doubleDataMut();
     for (keel::usize i = 0; i < inN; ++i) {
-        const double v = src[i];
+        const keel::f64 v = src[i];
         for (keel::usize k = 0; k < n; ++k)
             dst[i * n + k] = v;
     }
@@ -809,8 +809,8 @@ Value repelem(const Value &x, keel::usize m, keel::usize n, keel::Allocator *mr)
     auto r = Value::matrix(outR, outC, ValueType::DOUBLE, mr);
     if (outR == 0 || outC == 0) return r;
 
-    const double *src = x.doubleData();
-    double *dst = r.doubleDataMut();
+    const keel::f64 *src = x.doubleData();
+    keel::f64 *dst = r.doubleDataMut();
     // Column-major: walk output by (outRow, outCol) and pull from
     // src(outRow / m, outCol / n).
     for (keel::usize oc = 0; oc < outC; ++oc) {
@@ -846,8 +846,8 @@ Value repelem(const Value &x, const Value &counts, keel::Allocator *mr)
                    : Value::matrix(1, outN, ValueType::DOUBLE, mr);
     if (outN == 0) return r;
 
-    const double *src = x.doubleData();
-    double *dst = r.doubleDataMut();
+    const keel::f64 *src = x.doubleData();
+    keel::f64 *dst = r.doubleDataMut();
     for (keel::usize k = 0; k < outN; ++k) dst[k] = src[map[k]];
     return r;
 }
@@ -876,8 +876,8 @@ Value repelem(const Value &x, const Value &rCounts, const Value &cCounts,
     auto r = Value::matrix(outR, outC, ValueType::DOUBLE, mr);
     if (outR == 0 || outC == 0) return r;
 
-    const double *src = x.doubleData();
-    double *dst = r.doubleDataMut();
+    const keel::f64 *src = x.doubleData();
+    keel::f64 *dst = r.doubleDataMut();
     for (keel::usize oc = 0; oc < outC; ++oc) {
         const keel::usize srcCol = colMap[oc];
         for (keel::usize orow = 0; orow < outR; ++orow)
@@ -894,7 +894,7 @@ Value repelem(const Value &x, const Value &rCounts, const Value &cCounts,
 // inputs only — the pad cell is `0` (matches MATLAB R2024 default).
 
 
-Value paddata(const Value &v, keel::usize n, int dim, keel::StringRef side, double fillValue, keel::Allocator *mr)
+Value paddata(const Value &v, keel::usize n, int dim, keel::StringRef side, keel::f64 fillValue, keel::Allocator *mr)
 {
     if (!v.isEmpty() && v.type() != ValueType::DOUBLE)
         throw Error("paddata: only DOUBLE inputs supported",
@@ -931,22 +931,22 @@ Value paddata(const Value &v, keel::usize n, int dim, keel::StringRef side, doub
     if (opDim == 1) {
         const keel::usize outC = (R == 0 && C == 0) ? 1 : C;
         auto out = Value::matrix(n, outC, ValueType::DOUBLE, mr);
-        double *dst = out.doubleDataMut();
+        keel::f64 *dst = out.doubleDataMut();
         for (keel::usize i = 0; i < n * outC; ++i) dst[i] = fillValue;
         if (R > 0 && C > 0) {
-            const double *src = v.doubleData();
+            const keel::f64 *src = v.doubleData();
             for (keel::usize c = 0; c < C; ++c)
-                std::memcpy(dst + c * n + padBefore, src + c * R, R * sizeof(double));
+                std::memcpy(dst + c * n + padBefore, src + c * R, R * sizeof(keel::f64));
         }
         return out;
     } else {
         const keel::usize outR = (R == 0 && C == 0) ? 1 : R;
         auto out = Value::matrix(outR, n, ValueType::DOUBLE, mr);
-        double *dst = out.doubleDataMut();
+        keel::f64 *dst = out.doubleDataMut();
         for (keel::usize i = 0; i < outR * n; ++i) dst[i] = fillValue;
         if (R > 0 && C > 0) {
-            const double *src = v.doubleData();
-            std::memcpy(dst + padBefore * outR, src, R * C * sizeof(double));
+            const keel::f64 *src = v.doubleData();
+            std::memcpy(dst + padBefore * outR, src, R * C * sizeof(keel::f64));
         }
         return out;
     }
@@ -1000,18 +1000,18 @@ Value trimdata(const Value &v, keel::usize n, int dim, keel::StringRef side, kee
     if (opDim == 1) {
         auto out = Value::matrix(n, C, ValueType::DOUBLE, mr);
         if (n > 0 && C > 0) {
-            const double *src = v.doubleData();
-            double *dst = out.doubleDataMut();
+            const keel::f64 *src = v.doubleData();
+            keel::f64 *dst = out.doubleDataMut();
             for (keel::usize c = 0; c < C; ++c)
-                std::memcpy(dst + c * n, src + c * R + keepStart, n * sizeof(double));
+                std::memcpy(dst + c * n, src + c * R + keepStart, n * sizeof(keel::f64));
         }
         return out;
     } else {
         auto out = Value::matrix(R, n, ValueType::DOUBLE, mr);
         if (R > 0 && n > 0) {
-            const double *src = v.doubleData();
-            double *dst = out.doubleDataMut();
-            std::memcpy(dst, src + keepStart * R, R * n * sizeof(double));
+            const keel::f64 *src = v.doubleData();
+            keel::f64 *dst = out.doubleDataMut();
+            std::memcpy(dst, src + keepStart * R, R * n * sizeof(keel::f64));
         }
         return out;
     }
@@ -1025,7 +1025,7 @@ Value trimdata(const Value &v, keel::usize n, keel::Allocator *mr)
     return trimdata(v, n, 0, "trailing", mr);
 }
 
-Value resize(const Value &v, keel::usize n, int dim, keel::StringRef side, double fillValue, keel::Allocator *mr)
+Value resize(const Value &v, keel::usize n, int dim, keel::StringRef side, keel::f64 fillValue, keel::Allocator *mr)
 {
     const auto &d = v.dims();
     int opDim = dim;
@@ -1053,7 +1053,7 @@ Value head(const Value &x, keel::usize k, keel::Allocator *mr)
     const keel::usize r = std::min(k, R);
     if (r == R) return x;
     const keel::usize totalElems = x.numel();
-    const keel::usize elemSize = totalElems > 0 ? (x.rawBytes() / totalElems) : sizeof(double);
+    const keel::usize elemSize = totalElems > 0 ? (x.rawBytes() / totalElems) : sizeof(keel::f64);
     auto out = Value::matrix(r, C, x.type(), mr);
     if (elemSize > 0 && x.rawData() != nullptr) {
         for (keel::usize c = 0; c < C; ++c) {
@@ -1075,7 +1075,7 @@ Value tail(const Value &x, keel::usize k, keel::Allocator *mr)
     if (r == R) return x;
     const keel::usize startRow = R - r;
     const keel::usize totalElems = x.numel();
-    const keel::usize elemSize = totalElems > 0 ? (x.rawBytes() / totalElems) : sizeof(double);
+    const keel::usize elemSize = totalElems > 0 ? (x.rawBytes() / totalElems) : sizeof(keel::f64);
     auto out = Value::matrix(r, C, x.type(), mr);
     if (elemSize > 0 && x.rawData() != nullptr) {
         for (keel::usize c = 0; c < C; ++c) {
@@ -1141,7 +1141,7 @@ Value sub2ind(const Value &siz, keel::ArrayRef<Value> subs,
                 ? Value::scalar(0.0, mr)
                 : Value::matrix(shapeRef.dims().rows(), shapeRef.dims().cols(),
                                 ValueType::DOUBLE, mr);
-    double *dst = r.doubleDataMut();
+    keel::f64 *dst = r.doubleDataMut();
     // Strides for column-major: stride[0]=1, stride[1]=dim0, stride[2]=dim0*dim1.
     auto strideOfDim = [&](keel::usize d) {
         keel::usize s = 1;
@@ -1151,12 +1151,12 @@ Value sub2ind(const Value &siz, keel::ArrayRef<Value> subs,
     for (keel::usize k = 0; k < outN; ++k) {
         keel::usize lin = 0;
         for (keel::usize d = 0; d < nSubs; ++d) {
-            const double sd = subs[d].isScalar() ? subs[d].toScalar()
+            const keel::f64 sd = subs[d].isScalar() ? subs[d].toScalar()
                                                  : subs[d].doubleData()[k];
             const keel::usize idx = keel::as<keel::usize>(sd) - 1;  // 1-based → 0-based
             lin += idx * strideOfDim(d);
         }
-        dst[k] = keel::as<double>(lin + 1);  // back to 1-based
+        dst[k] = keel::as<keel::f64>(lin + 1);  // back to 1-based
     }
     return r;
 }
@@ -1205,13 +1205,13 @@ keel::Array<Value> ind2sub(const Value &siz, const Value &ind, keel::usize nout,
     for (keel::usize i = 0; i < outDims; ++i) rs.push_back(makeLike());
 
     for (keel::usize k = 0; k < outN; ++k) {
-        const double iv = ind.isScalar() ? ind.toScalar() : ind.doubleData()[k];
+        const keel::f64 iv = ind.isScalar() ? ind.toScalar() : ind.doubleData()[k];
         keel::usize lin = keel::as<keel::usize>(iv) - 1;
         for (keel::usize d = 0; d < outDims; ++d) {
             const keel::usize v = (d + 1 < outDims)
                                  ? (lin / stride[d]) % effDim(d)
                                  : (lin / stride[d]);
-            rs[d].doubleDataMut()[k] = keel::as<double>(v + 1);
+            rs[d].doubleDataMut()[k] = keel::as<keel::f64>(v + 1);
         }
     }
     return rs;

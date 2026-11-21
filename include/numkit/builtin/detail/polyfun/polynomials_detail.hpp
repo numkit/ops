@@ -31,7 +31,7 @@ namespace numkit::builtin {
 
 namespace {
 
-keel::Array<double> readPolyAsDouble(const Value &p, const char *fn, keel::Allocator *mr)
+keel::Array<keel::f64> readPolyAsDouble(const Value &p, const char *fn, keel::Allocator *mr)
 {
     if (p.type() == ValueType::COMPLEX)
         throw Error(keel::format("{}: complex coefficient input is not supported", fn),
@@ -40,7 +40,7 @@ keel::Array<double> readPolyAsDouble(const Value &p, const char *fn, keel::Alloc
         throw Error(keel::format("{}: argument must be a vector", fn),
                      0, 0, fn, "", keel::format("numkit:{}:notVector", fn));
     const keel::usize n = p.numel();
-    keel::Array<double> v(n, mr);
+    keel::Array<keel::f64> v(n, mr);
     for (keel::usize i = 0; i < n; ++i) v[i] = p.elemAsDouble(i);
     return v;
 }
@@ -48,10 +48,10 @@ keel::Array<double> readPolyAsDouble(const Value &p, const char *fn, keel::Alloc
 // Convolve two real polynomial coefficient vectors (length-N + length-M
 // → length-N+M-1). Pointer + size for inputs so the same helper composes
 // with std::vector and std::pmr::vector backings.
-[[maybe_unused]] keel::Array<double> polyConv(const double *a, keel::usize na, const double *b, keel::usize nb, keel::Allocator *mr)
+[[maybe_unused]] keel::Array<keel::f64> polyConv(const keel::f64 *a, keel::usize na, const keel::f64 *b, keel::usize nb, keel::Allocator *mr)
 {
-    if (na == 0 || nb == 0) return keel::Array<double>(mr);
-    keel::Array<double> r(na + nb - 1, mr);
+    if (na == 0 || nb == 0) return keel::Array<keel::f64>(mr);
+    keel::Array<keel::f64> r(na + nb - 1, mr);
     for (keel::usize i = 0; i < na; ++i)
         for (keel::usize j = 0; j < nb; ++j)
             r[i + j] += a[i] * b[j];
@@ -59,27 +59,27 @@ keel::Array<double> readPolyAsDouble(const Value &p, const char *fn, keel::Alloc
 }
 
 // d/dx of a coefficient vector in MATLAB order.
-[[maybe_unused]] keel::Array<double> polyderRaw(const double *p, keel::usize pn, keel::Allocator *mr)
+[[maybe_unused]] keel::Array<keel::f64> polyderRaw(const keel::f64 *p, keel::usize pn, keel::Allocator *mr)
 {
     if (pn <= 1) {
-        keel::Array<double> r(1, mr);
+        keel::Array<keel::f64> r(1, mr);
         r[0] = 0.0;  // constant → derivative is [0].
         return r;
     }
     const keel::usize n = pn - 1;  // degree
-    keel::Array<double> r(n, mr);
+    keel::Array<keel::f64> r(n, mr);
     for (keel::usize i = 0; i < n; ++i) {
-        const double exponent = keel::as<double>(n - i);
+        const keel::f64 exponent = keel::as<keel::f64>(n - i);
         r[i] = p[i] * exponent;
     }
     return r;
 }
 
-[[maybe_unused]] Value rowFromVec(const double *v, keel::usize n, keel::Allocator *mr)
+[[maybe_unused]] Value rowFromVec(const keel::f64 *v, keel::usize n, keel::Allocator *mr)
 {
     auto out = Value::matrix(1, n, ValueType::DOUBLE, mr);
     if (n > 0)
-        std::memcpy(out.doubleDataMut(), v, n * sizeof(double));
+        std::memcpy(out.doubleDataMut(), v, n * sizeof(keel::f64));
     return out;
 }
 

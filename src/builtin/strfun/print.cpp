@@ -22,7 +22,7 @@ namespace numkit::builtin {
 keel::String dispFormat(const Value &a)
 {
     keel::String out;
-    auto appendDouble = [&](double v) {
+    auto appendDouble = [&](keel::f64 v) {
         char buf[64];
         std::snprintf(buf, sizeof(buf), "%.6g", v);
         out.append(buf);
@@ -60,7 +60,7 @@ keel::String dispFormat(const Value &a)
                 out.push_back('[');
                 for (keel::usize c = 0; c < d.cols(); ++c) {
                     if (c > 0) out.push_back(' ');
-                    double v = a(0, c);
+                    keel::f64 v = a(0, c);
                     if (v == std::floor(v) && std::isfinite(v))
                         appendLL(keel::as<long long>(v));
                     else
@@ -70,7 +70,7 @@ keel::String dispFormat(const Value &a)
             } else if (d.cols() == 1) {
                 for (keel::usize r = 0; r < d.rows(); ++r) {
                     if (r > 0) out.push_back('\n');
-                    double v = a(r, 0);
+                    keel::f64 v = a(r, 0);
                     out.append("   ");
                     if (v == std::floor(v) && std::isfinite(v))
                         appendLL(keel::as<long long>(v));
@@ -80,7 +80,7 @@ keel::String dispFormat(const Value &a)
             } else {
                 const keel::usize R = d.rows(), C = d.cols();
                 const int nd = d.ndim();
-                const double *base0 = a.doubleData();
+                const keel::f64 *base0 = a.doubleData();
                 forEachOuterPage(d, [&](keel::usize plin, const keel::usize *outerCoords) {
                     if (nd >= 3) {
                         out.append("(:,:");
@@ -90,12 +90,12 @@ keel::String dispFormat(const Value &a)
                         }
                         out.append(") =\n");
                     }
-                    const double *page = base0 + plin * R * C;
+                    const keel::f64 *page = base0 + plin * R * C;
                     for (keel::usize r = 0; r < R; ++r) {
                         if (r > 0) out.push_back('\n');
                         out.append("   ");
                         for (keel::usize c = 0; c < C; ++c) {
-                            double v = page[c * R + r];
+                            keel::f64 v = page[c * R + r];
                             out.push_back(' ');
                             if (v == std::floor(v) && std::isfinite(v))
                                 appendLL(keel::as<long long>(v));
