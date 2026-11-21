@@ -1,6 +1,6 @@
 // ops/src/image_io/io.cpp
 //
-// Image I/O facade (imread, imwrite, imfinfo) backed by keel::image.
+// Image I/O facade (imread, imwrite, imfinfo) backed by keel::imagefile.
 
 #include <keel/array.h>
 #include <keel/core.h>
@@ -21,7 +21,7 @@
 #include "jpeg_codec.hpp"
 #include "tiff_codec.hpp"
 
-#include "keel/image.h"
+#include "keel/imagefile.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -30,16 +30,16 @@ namespace numkit::image {
 
 namespace {
 
-keel::StringRef formatStringFromKeel(keel::image::ImageFormat fmt) {
+keel::StringRef formatStringFromKeel(keel::imagefile::ImageFormat fmt) {
     switch (fmt) {
-        case keel::image::ImageFormat::Png:  return "png";
-        case keel::image::ImageFormat::Tiff: return "tif";
-        case keel::image::ImageFormat::Jpeg: return "jpg";
-        case keel::image::ImageFormat::Bmp:  return "bmp";
-        case keel::image::ImageFormat::Gif:  return "gif";
-        case keel::image::ImageFormat::Pnm:  return "pnm";
-        case keel::image::ImageFormat::Tga:  return "tga";
-        case keel::image::ImageFormat::Unknown:
+        case keel::imagefile::ImageFormat::Png:  return "png";
+        case keel::imagefile::ImageFormat::Tiff: return "tif";
+        case keel::imagefile::ImageFormat::Jpeg: return "jpg";
+        case keel::imagefile::ImageFormat::Bmp:  return "bmp";
+        case keel::imagefile::ImageFormat::Gif:  return "gif";
+        case keel::imagefile::ImageFormat::Pnm:  return "pnm";
+        case keel::imagefile::ImageFormat::Tga:  return "tga";
+        case keel::imagefile::ImageFormat::Unknown:
             break;
     }
     return {};
@@ -47,9 +47,9 @@ keel::StringRef formatStringFromKeel(keel::image::ImageFormat fmt) {
 
 Value readGifViaKeel(const keel::u8 *data, keel::usize len,
                      keel::Allocator *mr) {
-    keel::image::ImageDecodeOptions opts;
+    keel::imagefile::ImageDecodeOptions opts;
     opts.expand_indexed = false;
-    auto res = keel::image::decode_gif(keel::ArrayRef<keel::u8>(data, len), opts);
+    auto res = keel::imagefile::decode_gif(keel::ArrayRef<keel::u8>(data, len), opts);
     if (!res) {
         throw Error("imread: failed to decode GIF",
                     0, 0, "imread", "", "numkit:imread:gif");
@@ -89,16 +89,16 @@ Value imreadFromBytes(keel::StringRef bytes, keel::Allocator *mr) {
                     0, 0, "imread", "", "numkit:imread:empty");
     }
 
-    const keel::image::ImageFormat fmt = keel::image::sniff_image_format(keel::ArrayRef<keel::u8>(data, len));
+    const keel::imagefile::ImageFormat fmt = keel::imagefile::sniff_image_format(keel::ArrayRef<keel::u8>(data, len));
     switch (fmt) {
-        case keel::image::ImageFormat::Png:  return readPng(data, len, mr);
-        case keel::image::ImageFormat::Tiff: return readTiff(keel::ArrayRef<keel::u8>(data, len), 1u, mr);
-        case keel::image::ImageFormat::Jpeg: return readJpeg(data, len, mr);
-        case keel::image::ImageFormat::Bmp:  return readBmp(data, len, mr);
-        case keel::image::ImageFormat::Gif:  return readGifViaKeel(data, len, mr);
-        case keel::image::ImageFormat::Pnm:  return readPnm(data, len, mr);
-        case keel::image::ImageFormat::Tga:  return readTga(data, len, mr);
-        case keel::image::ImageFormat::Unknown:
+        case keel::imagefile::ImageFormat::Png:  return readPng(data, len, mr);
+        case keel::imagefile::ImageFormat::Tiff: return readTiff(keel::ArrayRef<keel::u8>(data, len), 1u, mr);
+        case keel::imagefile::ImageFormat::Jpeg: return readJpeg(data, len, mr);
+        case keel::imagefile::ImageFormat::Bmp:  return readBmp(data, len, mr);
+        case keel::imagefile::ImageFormat::Gif:  return readGifViaKeel(data, len, mr);
+        case keel::imagefile::ImageFormat::Pnm:  return readPnm(data, len, mr);
+        case keel::imagefile::ImageFormat::Tga:  return readTga(data, len, mr);
+        case keel::imagefile::ImageFormat::Unknown:
             break;
     }
 
@@ -171,7 +171,7 @@ Value imfinfoFromBytes(keel::StringRef bytes, keel::StringRef filename,
     keel::u32 W = 0, H = 0;
     keel::u16 bits = 8, channels = 1;
     keel::String fmt = keel::String::from(formatStringFromKeel(
-        keel::image::sniff_image_format(keel::ArrayRef<keel::u8>(data, len))), mr);
+        keel::imagefile::sniff_image_format(keel::ArrayRef<keel::u8>(data, len))), mr);
     if (fmt.empty()) fmt = lowerExt(filename);
 
     bool ok = false;
@@ -190,7 +190,7 @@ Value imfinfoFromBytes(keel::StringRef bytes, keel::StringRef filename,
     } else if (fmt == "tga") {
         ok = peekTga(data, len, W, H, bits, channels);
     } else if (fmt == "gif") {
-        auto gifInfo = keel::image::peek_gif(keel::ArrayRef<keel::u8>(data, len));
+        auto gifInfo = keel::imagefile::peek_gif(keel::ArrayRef<keel::u8>(data, len));
         if (gifInfo) {
             W = gifInfo.value().width;
             H = gifInfo.value().height;

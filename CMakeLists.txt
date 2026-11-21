@@ -42,11 +42,11 @@ if(DEFINED _numkit_saved_warn_deprecated AND NOT "${_numkit_saved_warn_deprecate
     set(CMAKE_WARN_DEPRECATED "${_numkit_saved_warn_deprecated}" CACHE BOOL "" FORCE)
 endif()
 
-# Standalone keelcpp libraries (compress, image, fft, random, linalg)
+# Standalone keelcpp libraries (compress, imagefile, fft, random, linalg)
 foreach(_keel_pair
     "KEEL:keel"
     "KEEL_COMPRESS:compress"
-    "KEEL_IMAGE:image"
+    "KEEL_IMAGEFILE:imagefile"
     "KEEL_FFT:fft"
     "KEEL_RANDOM:random"
     "KEEL_LINALG:linalg"
@@ -69,7 +69,7 @@ endforeach()
 
 set(KEEL_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(KEEL_COMPRESS_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-set(KEEL_IMAGE_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(KEEL_IMAGEFILE_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(KEEL_FFT_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(KEEL_RANDOM_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(KEEL_LINALG_BUILD_TESTS OFF CACHE BOOL "" FORCE)
@@ -104,19 +104,19 @@ if(NOT TARGET keel::compress)
     FetchContent_MakeAvailable(keel_compress)
 endif()
 
-if(NOT TARGET keel::image)
-    find_package(keel_image QUIET CONFIG)
-    if(TARGET keel::keel_image AND NOT TARGET keel::image)
-        add_library(keel::image ALIAS keel::keel_image)
+if(NOT TARGET keel::imagefile)
+    find_package(keel_imagefile QUIET CONFIG)
+    if(TARGET keel::keel_imagefile AND NOT TARGET keel::imagefile)
+        add_library(keel::imagefile ALIAS keel::keel_imagefile)
     endif()
 endif()
-if(NOT TARGET keel::image)
+if(NOT TARGET keel::imagefile)
     FetchContent_Declare(
-        keel_image
-        GIT_REPOSITORY https://github.com/keelcpp/image.git
-        GIT_TAG        f96e21516545607a38bafcd81e872f14da6069d5
+        keel_imagefile
+        GIT_REPOSITORY https://github.com/keelcpp/imagefile.git
+        GIT_TAG        7b3f7c838086f6f3adc5d4ade6c1296bd46bad84
     )
-    FetchContent_MakeAvailable(keel_image)
+    FetchContent_MakeAvailable(keel_imagefile)
 endif()
 
 if(NOT TARGET keel::fft)
@@ -394,7 +394,7 @@ target_include_directories(numkit_ops
 
 target_link_libraries(numkit_ops
     PUBLIC numkit_value keel::random keel::linalg keel::specfun keel::geom keel::interp keel::ode keel::quad keel::optim keel::poly keel::signal
-    PRIVATE hwy hwy_contrib keel::compress keel::image keel::fft
+    PRIVATE hwy hwy_contrib keel::compress keel::imagefile keel::fft
 )
 
 if(NUMKIT_WITH_SIMD)

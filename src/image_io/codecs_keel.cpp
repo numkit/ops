@@ -1,7 +1,7 @@
 // ops/src/image_io/codecs_keel.cpp
 //
 // Thin PRIVATE adapters bridging NumKit's internal image codec headers
-// (PNG, JPEG, BMP, TGA, PNM, TIFF) to keel::image.
+// (PNG, JPEG, BMP, TGA, PNM, TIFF) to keel::imagefile.
 
 #include <keel/core.h>
 #include <keel/format.h>
@@ -20,7 +20,7 @@
 #include <numkit/value/error.hpp>
 #include <numkit/value/value.hpp>
 
-#include "keel/image.h"
+#include "keel/imagefile.h"
 
 #include <algorithm>
 #include <cmath>
@@ -41,16 +41,16 @@ keel::String toKeelString(const keel::Array<keel::u8> &arr) {
     return keel::String(keel::StringRef(reinterpret_cast<const char *>(arr.data()), arr.size()));
 }
 
-ValueType mapSampleType(keel::image::SampleType st) {
+ValueType mapSampleType(keel::imagefile::SampleType st) {
     switch (st) {
-        case keel::image::SampleType::U8:  return ValueType::UINT8;
-        case keel::image::SampleType::U16: return ValueType::UINT16;
-        case keel::image::SampleType::U32: return ValueType::UINT32;
-        case keel::image::SampleType::I8:  return ValueType::INT8;
-        case keel::image::SampleType::I16: return ValueType::INT16;
-        case keel::image::SampleType::I32: return ValueType::INT32;
-        case keel::image::SampleType::F32: return ValueType::SINGLE;
-        case keel::image::SampleType::F64: return ValueType::DOUBLE;
+        case keel::imagefile::SampleType::U8:  return ValueType::UINT8;
+        case keel::imagefile::SampleType::U16: return ValueType::UINT16;
+        case keel::imagefile::SampleType::U32: return ValueType::UINT32;
+        case keel::imagefile::SampleType::I8:  return ValueType::INT8;
+        case keel::imagefile::SampleType::I16: return ValueType::INT16;
+        case keel::imagefile::SampleType::I32: return ValueType::INT32;
+        case keel::imagefile::SampleType::F32: return ValueType::SINGLE;
+        case keel::imagefile::SampleType::F64: return ValueType::DOUBLE;
     }
     return ValueType::UINT8;
 }
@@ -80,7 +80,7 @@ void transposeInterleavedToPlanar(const T *src, T *dst,
     }
 }
 
-Value keelImageToValue(const keel::image::Image &img, keel::Allocator *mr,
+Value keelImageToValue(const keel::imagefile::Image &img, keel::Allocator *mr,
                        bool promoteGaToRgba = false) {
     const keel::usize H = img.height;
     const keel::usize W = img.width;
@@ -88,7 +88,7 @@ Value keelImageToValue(const keel::image::Image &img, keel::Allocator *mr,
 
     if (promoteGaToRgba && C == 2) {
         const keel::usize plane = H * W;
-        if (img.sample_type == keel::image::SampleType::U16) {
+        if (img.sample_type == keel::imagefile::SampleType::U16) {
             Value out = Value::matrix3d(H, W, 4, ValueType::UINT16, mr);
             auto *dst = out.uint16DataMut();
             const auto *src = reinterpret_cast<const keel::u16 *>(img.pixels.data());
@@ -128,40 +128,40 @@ Value keelImageToValue(const keel::image::Image &img, keel::Allocator *mr,
         : Value::matrix3d(H, W, C, vt, mr);
 
     switch (img.sample_type) {
-        case keel::image::SampleType::U8:
+        case keel::imagefile::SampleType::U8:
             transposeInterleavedToPlanar(img.pixels.data(), out.uint8DataMut(), H, W, C);
             break;
-        case keel::image::SampleType::U16:
+        case keel::imagefile::SampleType::U16:
             transposeInterleavedToPlanar(
                 reinterpret_cast<const keel::u16 *>(img.pixels.data()),
                 out.uint16DataMut(), H, W, C);
             break;
-        case keel::image::SampleType::U32:
+        case keel::imagefile::SampleType::U32:
             transposeInterleavedToPlanar(
                 reinterpret_cast<const keel::u32 *>(img.pixels.data()),
                 out.uint32DataMut(), H, W, C);
             break;
-        case keel::image::SampleType::I8:
+        case keel::imagefile::SampleType::I8:
             transposeInterleavedToPlanar(
                 reinterpret_cast<const keel::i8 *>(img.pixels.data()),
                 out.int8DataMut(), H, W, C);
             break;
-        case keel::image::SampleType::I16:
+        case keel::imagefile::SampleType::I16:
             transposeInterleavedToPlanar(
                 reinterpret_cast<const keel::i16 *>(img.pixels.data()),
                 out.int16DataMut(), H, W, C);
             break;
-        case keel::image::SampleType::I32:
+        case keel::imagefile::SampleType::I32:
             transposeInterleavedToPlanar(
                 reinterpret_cast<const keel::i32 *>(img.pixels.data()),
                 out.int32DataMut(), H, W, C);
             break;
-        case keel::image::SampleType::F32:
+        case keel::imagefile::SampleType::F32:
             transposeInterleavedToPlanar(
                 reinterpret_cast<const float *>(img.pixels.data()),
                 out.singleDataMut(), H, W, C);
             break;
-        case keel::image::SampleType::F64:
+        case keel::imagefile::SampleType::F64:
             transposeInterleavedToPlanar(
                 reinterpret_cast<const double *>(img.pixels.data()),
                 out.doubleDataMut(), H, W, C);
@@ -170,7 +170,7 @@ Value keelImageToValue(const keel::image::Image &img, keel::Allocator *mr,
     return out;
 }
 
-Value paletteToValue(const keel::image::Image &img, keel::Allocator *mr,
+Value paletteToValue(const keel::imagefile::Image &img, keel::Allocator *mr,
                      bool emptyMatrixWhenNone) {
     if (!img.has_palette()) {
         return emptyMatrixWhenNone ? Value::matrix(0, 0, ValueType::DOUBLE, mr) : Value();
@@ -191,11 +191,11 @@ struct PackedImageBuffer {
     keel::u32 width = 0;
     keel::u32 height = 0;
     keel::u16 channels = 1;
-    keel::image::SampleType sampleType = keel::image::SampleType::U8;
+    keel::imagefile::SampleType sampleType = keel::imagefile::SampleType::U8;
     keel::Array<keel::u8> bytes;
 
-    keel::image::ImageView view() const {
-        return keel::image::ImageView{
+    keel::imagefile::ImageView view() const {
+        return keel::imagefile::ImageView{
             .width = width,
             .height = height,
             .channels = channels,
@@ -231,7 +231,7 @@ PackedImageBuffer packStandardImage(const Value &A, bool allowU16, bool allow4Ch
     const keel::usize plane = H * W;
     const bool is16Bit = allowU16 && (A.type() == ValueType::UINT16);
     if (is16Bit) {
-        out.sampleType = keel::image::SampleType::U16;
+        out.sampleType = keel::imagefile::SampleType::U16;
         out.bytes.resize(H * W * C * sizeof(keel::u16));
         auto *dst = reinterpret_cast<keel::u16 *>(out.bytes.data());
         const auto *src = A.uint16Data();
@@ -244,7 +244,7 @@ PackedImageBuffer packStandardImage(const Value &A, bool allowU16, bool allow4Ch
             }
         }
     } else {
-        out.sampleType = keel::image::SampleType::U8;
+        out.sampleType = keel::imagefile::SampleType::U8;
         out.bytes.resize(H * W * C);
         auto *dst = out.bytes.data();
         if (A.type() == ValueType::UINT8) {
@@ -313,42 +313,42 @@ PackedImageBuffer packTiffImage(const Value &A) {
 
     switch (A.type()) {
         case ValueType::UINT16:
-            out.sampleType = keel::image::SampleType::U16;
+            out.sampleType = keel::imagefile::SampleType::U16;
             out.bytes.resize(H * W * C * 2);
             packPlanarToInterleavedTyped(A.uint16Data(), out.bytes.data(), H, W, C);
             break;
         case ValueType::UINT32:
-            out.sampleType = keel::image::SampleType::U32;
+            out.sampleType = keel::imagefile::SampleType::U32;
             out.bytes.resize(H * W * C * 4);
             packPlanarToInterleavedTyped(A.uint32Data(), out.bytes.data(), H, W, C);
             break;
         case ValueType::INT8:
-            out.sampleType = keel::image::SampleType::I8;
+            out.sampleType = keel::imagefile::SampleType::I8;
             out.bytes.resize(H * W * C * 1);
             packPlanarToInterleavedTyped(A.int8Data(), out.bytes.data(), H, W, C);
             break;
         case ValueType::INT16:
-            out.sampleType = keel::image::SampleType::I16;
+            out.sampleType = keel::imagefile::SampleType::I16;
             out.bytes.resize(H * W * C * 2);
             packPlanarToInterleavedTyped(A.int16Data(), out.bytes.data(), H, W, C);
             break;
         case ValueType::INT32:
-            out.sampleType = keel::image::SampleType::I32;
+            out.sampleType = keel::imagefile::SampleType::I32;
             out.bytes.resize(H * W * C * 4);
             packPlanarToInterleavedTyped(A.int32Data(), out.bytes.data(), H, W, C);
             break;
         case ValueType::SINGLE:
-            out.sampleType = keel::image::SampleType::F32;
+            out.sampleType = keel::imagefile::SampleType::F32;
             out.bytes.resize(H * W * C * 4);
             packPlanarToInterleavedTyped(A.singleData(), out.bytes.data(), H, W, C);
             break;
         case ValueType::DOUBLE:
-            out.sampleType = keel::image::SampleType::F64;
+            out.sampleType = keel::imagefile::SampleType::F64;
             out.bytes.resize(H * W * C * 8);
             packPlanarToInterleavedTyped(A.doubleData(), out.bytes.data(), H, W, C);
             break;
         default: {
-            out.sampleType = keel::image::SampleType::U8;
+            out.sampleType = keel::imagefile::SampleType::U8;
             out.bytes.resize(H * W * C);
             const keel::usize plane = H * W;
             for (keel::usize r = 0; r < H; ++r) {
@@ -377,16 +377,16 @@ keel::Array<keel::u8> loadFileBytes(keel::StringRef path, const char *who) {
     return std::move(res.value());
 }
 
-keel::image::TiffCompression parseTiffCompression(keel::StringRef s) {
-    if (s.empty() || s == "none") return keel::image::TiffCompression::None;
-    if (s == "packbits")          return keel::image::TiffCompression::PackBits;
-    if (s == "lzw")               return keel::image::TiffCompression::Lzw;
-    if (s == "deflate")           return keel::image::TiffCompression::Deflate;
+keel::imagefile::TiffCompression parseTiffCompression(keel::StringRef s) {
+    if (s.empty() || s == "none") return keel::imagefile::TiffCompression::None;
+    if (s == "packbits")          return keel::imagefile::TiffCompression::PackBits;
+    if (s == "lzw")               return keel::imagefile::TiffCompression::Lzw;
+    if (s == "deflate")           return keel::imagefile::TiffCompression::Deflate;
     throw Error(keel::format("imwrite TIFF: unknown Compression '{}' (use none, packbits, lzw, or deflate)", s),
                 0, 0, "imwrite", "", "numkit:imwrite:tiffCompression");
 }
 
-bool fillPeekInfo(const keel::Result<keel::image::ImageInfo> &res,
+bool fillPeekInfo(const keel::Result<keel::imagefile::ImageInfo> &res,
                   keel::u32 &W, keel::u32 &H,
                   keel::u16 &bitsPerSample, keel::u16 &channels) {
     if (!res) return false;
@@ -406,9 +406,9 @@ bool fillPeekInfo(const keel::Result<keel::image::ImageInfo> &res,
 
 std::pair<Value, Value> readPngWithMap(const keel::u8 *data, keel::usize len,
                                        keel::Allocator *mr) {
-    keel::image::ImageDecodeOptions opts;
+    keel::imagefile::ImageDecodeOptions opts;
     opts.expand_indexed = false;
-    auto res = keel::image::decode_png(toRef(data, len), opts);
+    auto res = keel::imagefile::decode_png(toRef(data, len), opts);
     if (!res) {
         throw Error("imread: failed to decode PNG",
                     0, 0, "imread", "", "numkit:imread:png");
@@ -429,9 +429,9 @@ keel::String writePngToBytes(const Value &A, int level) {
     auto packed = packStandardImage(
         A, /*allowU16=*/true, /*allow4Ch=*/true,
         "imwrite: input must be HxW or HxWx{1,3,4}", "numkit:imwrite:shape");
-    keel::image::PngEncodeOptions opts;
+    keel::imagefile::PngEncodeOptions opts;
     opts.compression_level = level;
-    auto res = keel::image::encode_png(packed.view(), opts);
+    auto res = keel::imagefile::encode_png(packed.view(), opts);
     if (!res) {
         throw Error("imwrite: failed to encode PNG",
                     0, 0, "imwrite", "", "numkit:imwrite:png");
@@ -442,7 +442,7 @@ keel::String writePngToBytes(const Value &A, int level) {
 bool peekPng(const keel::u8 *data, keel::usize len,
              keel::u32 &W, keel::u32 &H,
              keel::u16 &bitsPerSample, keel::u16 &channels) {
-    return fillPeekInfo(keel::image::peek_png(toRef(data, len)), W, H, bitsPerSample, channels);
+    return fillPeekInfo(keel::imagefile::peek_png(toRef(data, len)), W, H, bitsPerSample, channels);
 }
 
 // ============================================================================
@@ -451,7 +451,7 @@ bool peekPng(const keel::u8 *data, keel::usize len,
 
 Value readJpeg(const keel::u8 *data, keel::usize len,
                keel::Allocator *mr) {
-    auto res = keel::image::decode_jpeg(toRef(data, len));
+    auto res = keel::imagefile::decode_jpeg(toRef(data, len));
     if (!res) {
         throw Error("imread: failed to decode JPEG",
                     0, 0, "imread", "", "numkit:imread:jpeg");
@@ -464,9 +464,9 @@ keel::String writeJpegToBytes(const Value &A, int quality) {
         A, /*allowU16=*/false, /*allow4Ch=*/false,
         "imwrite: JPEG only supports 1 (grayscale) or 3 (RGB) channels",
         "numkit:imwrite:jpegChannels");
-    keel::image::JpegEncodeOptions opts;
+    keel::imagefile::JpegEncodeOptions opts;
     opts.quality = quality;
-    auto res = keel::image::encode_jpeg(packed.view(), opts);
+    auto res = keel::imagefile::encode_jpeg(packed.view(), opts);
     if (!res) {
         throw Error("imwrite: failed to encode JPEG",
                     0, 0, "imwrite", "", "numkit:imwrite:jpeg");
@@ -477,7 +477,7 @@ keel::String writeJpegToBytes(const Value &A, int quality) {
 bool peekJpeg(const keel::u8 *data, keel::usize len,
               keel::u32 &W, keel::u32 &H,
               keel::u16 &bitsPerSample, keel::u16 &channels) {
-    return fillPeekInfo(keel::image::peek_jpeg(toRef(data, len)), W, H, bitsPerSample, channels);
+    return fillPeekInfo(keel::imagefile::peek_jpeg(toRef(data, len)), W, H, bitsPerSample, channels);
 }
 
 // ============================================================================
@@ -486,7 +486,7 @@ bool peekJpeg(const keel::u8 *data, keel::usize len,
 
 Value readBmp(const keel::u8 *data, keel::usize len,
               keel::Allocator *mr) {
-    auto res = keel::image::decode_bmp(toRef(data, len));
+    auto res = keel::imagefile::decode_bmp(toRef(data, len));
     if (!res) {
         throw Error("imread: failed to decode BMP",
                     0, 0, "imread", "", "numkit:imread:bmp");
@@ -498,7 +498,7 @@ keel::String writeBmpToBytes(const Value &A) {
     auto packed = packStandardImage(
         A, /*allowU16=*/false, /*allow4Ch=*/true,
         "imwrite: input must be HxW or HxWx{1,3,4}", "numkit:imwrite:shape");
-    auto res = keel::image::encode_bmp(packed.view());
+    auto res = keel::imagefile::encode_bmp(packed.view());
     if (!res) {
         throw Error("imwrite: failed to encode BMP",
                     0, 0, "imwrite", "", "numkit:imwrite:bmp");
@@ -509,7 +509,7 @@ keel::String writeBmpToBytes(const Value &A) {
 bool peekBmp(const keel::u8 *data, keel::usize len,
              keel::u32 &W, keel::u32 &H,
              keel::u16 &bitsPerSample, keel::u16 &channels) {
-    return fillPeekInfo(keel::image::peek_bmp(toRef(data, len)), W, H, bitsPerSample, channels);
+    return fillPeekInfo(keel::imagefile::peek_bmp(toRef(data, len)), W, H, bitsPerSample, channels);
 }
 
 // ============================================================================
@@ -518,7 +518,7 @@ bool peekBmp(const keel::u8 *data, keel::usize len,
 
 Value readTga(const keel::u8 *data, keel::usize len,
               keel::Allocator *mr) {
-    auto res = keel::image::decode_tga(toRef(data, len));
+    auto res = keel::imagefile::decode_tga(toRef(data, len));
     if (!res) {
         throw Error("imread: failed to decode TGA",
                     0, 0, "imread", "", "numkit:imread:tga");
@@ -530,7 +530,7 @@ keel::String writeTgaToBytes(const Value &A) {
     auto packed = packStandardImage(
         A, /*allowU16=*/false, /*allow4Ch=*/true,
         "imwrite: input must be HxW or HxWx{1,3,4}", "numkit:imwrite:shape");
-    auto res = keel::image::encode_tga(packed.view());
+    auto res = keel::imagefile::encode_tga(packed.view());
     if (!res) {
         throw Error("imwrite: failed to encode TGA",
                     0, 0, "imwrite", "", "numkit:imwrite:tga");
@@ -541,7 +541,7 @@ keel::String writeTgaToBytes(const Value &A) {
 bool peekTga(const keel::u8 *data, keel::usize len,
              keel::u32 &W, keel::u32 &H,
              keel::u16 &bitsPerSample, keel::u16 &channels) {
-    return fillPeekInfo(keel::image::peek_tga(toRef(data, len)), W, H, bitsPerSample, channels);
+    return fillPeekInfo(keel::imagefile::peek_tga(toRef(data, len)), W, H, bitsPerSample, channels);
 }
 
 // ============================================================================
@@ -550,7 +550,7 @@ bool peekTga(const keel::u8 *data, keel::usize len,
 
 Value readPnm(const keel::u8 *data, keel::usize len,
               keel::Allocator *mr) {
-    auto res = keel::image::decode_pnm(toRef(data, len));
+    auto res = keel::imagefile::decode_pnm(toRef(data, len));
     if (!res) {
         throw Error("imread: failed to decode PNM",
                     0, 0, "imread", "", "numkit:imread:pnm");
@@ -563,9 +563,9 @@ keel::String writePnmToBytes(const Value &A, keel::StringRef /*ext*/) {
         A, /*allowU16=*/true, /*allow4Ch=*/false,
         "imwrite: PNM only supports 1 (PGM) or 3 (PPM) channels",
         "numkit:imwrite:pnmChannels");
-    keel::image::PnmEncodeOptions opts;
-    opts.subformat = keel::image::PnmSubformat::Auto;
-    auto res = keel::image::encode_pnm(packed.view(), opts);
+    keel::imagefile::PnmEncodeOptions opts;
+    opts.subformat = keel::imagefile::PnmSubformat::Auto;
+    auto res = keel::imagefile::encode_pnm(packed.view(), opts);
     if (!res) {
         throw Error("imwrite: failed to encode PNM",
                     0, 0, "imwrite", "", "numkit:imwrite:pnm");
@@ -576,7 +576,7 @@ keel::String writePnmToBytes(const Value &A, keel::StringRef /*ext*/) {
 bool peekPnm(const keel::u8 *data, keel::usize len,
              keel::u32 &W, keel::u32 &H,
              keel::u16 &bitsPerSample, keel::u16 &channels) {
-    return fillPeekInfo(keel::image::peek_pnm(toRef(data, len)), W, H, bitsPerSample, channels);
+    return fillPeekInfo(keel::imagefile::peek_pnm(toRef(data, len)), W, H, bitsPerSample, channels);
 }
 
 // ============================================================================
@@ -584,7 +584,7 @@ bool peekPnm(const keel::u8 *data, keel::usize len,
 // ============================================================================
 
 bool isTiffBytes(const keel::u8 *data, keel::usize len) {
-    return keel::image::is_tiff_bytes(toRef(data, len));
+    return keel::imagefile::is_tiff_bytes(toRef(data, len));
 }
 
 bool isTiffBytes(keel::StringRef b) {
@@ -597,10 +597,10 @@ std::pair<Value, Value> readTiffWithMap(keel::ArrayRef<keel::u8> buf, keel::u32 
         throw Error("imread: page index must be >= 1",
                     0, 0, "imread", "", "numkit:imread:tiffPage");
     }
-    keel::image::ImageDecodeOptions opts;
+    keel::imagefile::ImageDecodeOptions opts;
     opts.page = page - 1;
     opts.expand_indexed = false;
-    auto res = keel::image::decode_tiff(buf, opts);
+    auto res = keel::imagefile::decode_tiff(buf, opts);
     if (!res) {
         if (res.error() == keel::ErrorCode::OutOfRange) {
             throw Error(keel::format("imread: requested TIFF page {} out of range", page),
@@ -639,7 +639,7 @@ Value readTiff(keel::StringRef path, keel::Allocator *mr) {
 
 void peekTiff(keel::ArrayRef<keel::u8> buf, keel::u32 &W,
               keel::u32 &H, keel::u16 &bits, keel::u16 &channels) {
-    auto res = keel::image::peek_tiff(buf);
+    auto res = keel::imagefile::peek_tiff(buf);
     if (!res) {
         throw Error("imfinfo: failed to parse TIFF header",
                     0, 0, "imfinfo", "", "numkit:imfinfo:tiff");
@@ -659,7 +659,7 @@ void peekTiff(keel::StringRef path, keel::u32 &W, keel::u32 &H,
 
 keel::u32 tiffNumPages(keel::StringRef path) {
     const auto buf = loadFileBytes(path, "imfinfo");
-    auto res = keel::image::tiff_page_count(buf);
+    auto res = keel::imagefile::tiff_page_count(buf);
     if (!res) {
         throw Error("imfinfo: failed to count TIFF pages",
                     0, 0, "imfinfo", "", "numkit:imfinfo:tiff");
@@ -669,11 +669,11 @@ keel::u32 tiffNumPages(keel::StringRef path) {
 
 keel::Array<keel::u8> writeTiffToBytes(const Value &A, keel::StringRef compression,
                                        keel::ArrayRef<keel::u8> existing) {
-    keel::image::TiffEncodeOptions opts;
+    keel::imagefile::TiffEncodeOptions opts;
     opts.compression = parseTiffCompression(compression);
     auto packed = packTiffImage(A);
 
-    auto res = keel::image::encode_tiff(packed.view(), opts, existing);
+    auto res = keel::imagefile::encode_tiff(packed.view(), opts, existing);
     if (!res) {
         throw Error("imwrite TIFF: failed to encode TIFF",
                     0, 0, "imwrite", "", "numkit:imwrite:tiff");
