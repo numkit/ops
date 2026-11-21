@@ -32,7 +32,7 @@ inline keel::StringRef subMatchRef(const std::cmatch &m, keel::usize g)
 struct KeelStringInserter {
     using iterator_category = std::output_iterator_tag;
     using value_type        = void;
-    using difference_type   = std::ptrdiff_t;
+    using difference_type   = keel::isize;
     using pointer           = void;
     using reference         = void;
 

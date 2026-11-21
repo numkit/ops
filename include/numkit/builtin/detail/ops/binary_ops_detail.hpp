@@ -33,8 +33,6 @@
 
 namespace numkit::builtin {
 
-using namespace ::numkit::ops;
-
 namespace {
 
 inline bool sameShapeDoubleFastPath(const numkit::Value &a,
@@ -46,7 +44,6 @@ inline bool sameShapeDoubleFastPath(const numkit::Value &a,
 inline numkit::Value coerceLogicalToDouble(const numkit::Value &v,
                                            keel::Allocator *mr)
 {
-    using namespace numkit;
     if (v.type() != ValueType::LOGICAL) return v;
     Value out = numkit::createLike(v, ValueType::DOUBLE, mr);
     const keel::u8 *src = v.logicalData();
@@ -60,7 +57,6 @@ inline numkit::Value coerceLogicalToDouble(const numkit::Value &v,
 inline numkit::Value coerceCharToDouble(const numkit::Value &v,
                                         keel::Allocator *mr)
 {
-    using namespace numkit;
     if (v.type() != ValueType::CHAR) return v;
     Value out = numkit::createLike(v, ValueType::DOUBLE, mr);
     const char *src = v.charData();

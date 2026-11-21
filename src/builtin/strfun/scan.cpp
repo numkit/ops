@@ -20,7 +20,7 @@
 #include <numkit/ops/io_helpers.hpp>
 
 #include <algorithm>
-#include <array>
+#include <keel/static_array.h>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
@@ -108,7 +108,7 @@ ScanfOut scanfCycle(const keel::String &input, keel::StringRef fmt, keel::usize 
                     negate = true;
                     ++fmtPos;
                 }
-                std::array<bool, 256> member{};
+                keel::StaticArray<bool, 256> member{};
                 bool first = true;
                 while (fmtPos < fmt.size() && (first || fmt[fmtPos] != ']')) {
                     first = false;

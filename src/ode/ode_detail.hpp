@@ -19,7 +19,7 @@
 #include <numkit/value/error.hpp>
 #include <numkit/value/fn_handle.hpp>
 
-#include <array>
+#include <keel/static_array.h>
 #include <cstddef>
 #include <limits>
 
@@ -99,7 +99,7 @@ inline void callOdeRhs(FnHandle rhs, double t, keel::ArrayRef<double> y,
     Value tv = Value::scalar(t, mr);
     Value yv = Value::matrix(d, 1, ValueType::DOUBLE, mr);
     for (keel::usize i = 0; i < d; ++i) yv.doubleDataMut()[i] = y[i];
-    std::array<Value, 2> args_buf{tv, yv};
+    keel::StaticArray<Value, 2> args_buf{tv, yv};
     Value                out_buf;
     rhs(keel::ArrayRef<Value>(args_buf.data(), 2), keel::MutArrayRef<Value>(&out_buf, 1), mr);
     if (out_buf.numel() != d)

@@ -23,7 +23,6 @@
 #include "ode_detail.hpp"
 
 #include <algorithm>
-#include <array>
 #include <cmath>
 #include <limits>
 #include <utility>

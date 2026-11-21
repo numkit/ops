@@ -34,7 +34,7 @@ keel::String dispFormat(const Value &a)
     };
     auto appendUSize = [&](keel::usize v) {
         char buf[32];
-        std::snprintf(buf, sizeof(buf), "%zu", static_cast<std::size_t>(v));
+        std::snprintf(buf, sizeof(buf), "%zu", v);
         out.append(buf);
     };
 

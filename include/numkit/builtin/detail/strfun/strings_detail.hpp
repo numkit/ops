@@ -18,7 +18,7 @@
 #include <numkit/ops/reductions.hpp>  // engine-free numkit::builtin::detail dim-infra (ops re-export)
 
 #include <algorithm>
-#include <array>
+#include <keel/static_array.h>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -723,7 +723,7 @@ struct RatExpansion {
     long long q = 0;
     // Up to 64 coefficients — same safety bound as before. Inline
     // storage avoids any allocation for the typical 2-7 coefficient case.
-    std::array<long long, 64> coeffs;
+    keel::StaticArray<long long, 64> coeffs;
     int n_coeffs = 0;
 };
 

@@ -80,7 +80,7 @@ if(NOT TARGET keel::keel)
     FetchContent_Declare(
         keel
         GIT_REPOSITORY https://github.com/keelcpp/keel.git
-        GIT_TAG        3527855c8aab9cf3635fd22df883902d267482e9
+        GIT_TAG        f9fcebfba18d98d2c14c8e62a1913412f1299220
     )
     FetchContent_MakeAvailable(keel)
 endif()
@@ -140,7 +140,7 @@ if(NOT TARGET keel::random)
     FetchContent_Declare(
         keel_random
         GIT_REPOSITORY https://github.com/keelcpp/random.git
-        GIT_TAG        c880b7490075d251e2db892dea54448ce32af18a
+        GIT_TAG        fce59d71cea1c409c04dd0c62b3d2cf62e5d28aa
     )
     FetchContent_MakeAvailable(keel_random)
 endif()

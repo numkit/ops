@@ -28,8 +28,6 @@ namespace numkit::builtin {
 
 namespace {
 
-using namespace numkit::ops;
-
 // Shared shape: scalar shortcut → result; double-array → SIMD/portable
 // loop; other numeric types → fall through to unaryDouble (which calls
 // Value::elemAsDouble per element).
