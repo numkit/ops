@@ -487,23 +487,23 @@ Value invhilb(keel::usize n, keel::Allocator *mr)
     // Closed-form (1-indexed): H⁻¹[i,j] =
     //   (-1)^(i+j) * (i+j-1) * C(n+i-1, n-j) * C(n+j-1, n-i) * C(i+j-2, i-1)²
     // Computed via long-double to delay overflow on n ≈ 13.
-    auto binom = [](long n_, long k_) -> long double {
+    auto binom = [](keel::i64 n_, keel::i64 k_) -> long double { // keel-lint: ignore
         if (k_ < 0 || k_ > n_) return 0.0L;
         if (k_ > n_ - k_) k_ = n_ - k_;
-        long double r = 1.0L;
-        for (long t = 1; t <= k_; ++t)
-            r = r * keel::as<long double>(n_ - t + 1) / keel::as<long double>(t);
+        long double r = 1.0L; // keel-lint: ignore
+        for (keel::i64 t = 1; t <= k_; ++t)
+            r = r * keel::as<long double>(n_ - t + 1) / keel::as<long double>(t); // keel-lint: ignore
         return r;
     };
     for (keel::usize i0 = 0; i0 < n; ++i0)
         for (keel::usize j0 = 0; j0 < n; ++j0) {
-            const long i = keel::as<long>(i0 + 1);
-            const long j = keel::as<long>(j0 + 1);
-            const long N = keel::as<long>(n);
-            const long sgn = ((i + j) % 2 == 0) ? 1 : -1;
-            const long double v =
-                keel::as<long double>(sgn) *
-                keel::as<long double>(i + j - 1) *
+            const keel::i64 i = keel::as<keel::i64>(i0 + 1);
+            const keel::i64 j = keel::as<keel::i64>(j0 + 1);
+            const keel::i64 N = keel::as<keel::i64>(n);
+            const keel::i64 sgn = ((i + j) % 2 == 0) ? 1 : -1;
+            const long double v = // keel-lint: ignore
+                keel::as<long double>(sgn) * // keel-lint: ignore
+                keel::as<long double>(i + j - 1) * // keel-lint: ignore
                 binom(N + i - 1, N - j) *
                 binom(N + j - 1, N - i) *
                 binom(i + j - 2, i - 1) *
@@ -653,15 +653,15 @@ Value size(const Value &x, keel::Allocator *mr)
     // Output ndim: at least 2 (MATLAB convention — a row vector reports
     // [1, n], not [n]). Otherwise the actual rank, including any extra
     // dims past 3.
-    const int n = std::max(2, dims.ndim());
+    const keel::i32 n = std::max(2, dims.ndim());
     auto sv = Value::matrix(1, n, ValueType::DOUBLE, mr);
     keel::f64 *out = sv.doubleDataMut();
-    for (int i = 0; i < n; ++i)
+    for (keel::i32 i = 0; i < n; ++i)
         out[i] = keel::as<keel::f64>(dims.dim(i));
     return sv;
 }
 
-Value size(const Value &x, int dim, keel::Allocator *mr)
+Value size(const Value &x, keel::i32 dim, keel::Allocator *mr)
 {
     return Value::scalar(keel::as<keel::f64>(x.dims().dimSize(dim - 1)), mr);
 }
@@ -763,7 +763,7 @@ Value reshapeND(const Value &x, keel::ArrayRef<keel::usize> dims, keel::Allocato
     reshape_argcheck(x, dims);
 
     if (x.isObject())
-        return x.objectReshape(Dims(dims.data(), keel::as<int>(nDims)), mr);
+        return x.objectReshape(Dims(dims.data(), keel::as<keel::i32>(nDims)), mr);
 
     if (x.type() == ValueType::CELL || x.type() == ValueType::STRING) {
         if (nDims <= 3) {
@@ -773,8 +773,8 @@ Value reshapeND(const Value &x, keel::ArrayRef<keel::usize> dims, keel::Allocato
             return reshape(x, r, c, p, mr);
         }
         Value r = (x.type() == ValueType::CELL)
-            ? Value::cellND(dims.data(), keel::as<int>(nDims), mr)
-            : Value::stringArrayND(dims.data(), keel::as<int>(nDims), mr);
+            ? Value::cellND(dims.data(), keel::as<keel::i32>(nDims), mr)
+            : Value::stringArrayND(dims.data(), keel::as<keel::i32>(nDims), mr);
         auto &src = x.cellDataVec();
         auto &dst = r.cellDataVec();
         for (keel::usize i = 0; i < src.size() && i < dst.size(); ++i)
@@ -985,7 +985,7 @@ Value diag(const Value &x, keel::Allocator *mr)
     return diag(x, 0, mr);
 }
 
-Value diag(const Value &x, int k, keel::Allocator *mr)
+Value diag(const Value &x, keel::i32 k, keel::Allocator *mr)
 {
     const ValueType t = x.type();
     // MATLAB: "Inputs must be numeric, char, or logical." Cells / strings
@@ -1038,7 +1038,7 @@ Value diag(const Value &x, int k, keel::Allocator *mr)
 // sorts LAST for ascending, FIRST for descending. 'descend' fully reverses
 // both keys. Unlike min/max there is NO all-real fast path — a COMPLEX-typed
 // all-real input still sorts by |z|+angle (so sort([2 -2]+0i) = [2 -2]).
-std::tuple<Value, Value> sortComplex(const Value &x, int dim, bool descend,
+std::tuple<Value, Value> sortComplex(const Value &x, keel::i32 dim, bool descend,
                                      NanPlace nanPlace,
                                      keel::Allocator *mr)
 {
@@ -1048,7 +1048,7 @@ std::tuple<Value, Value> sortComplex(const Value &x, int dim, bool descend,
                                                        : (nanPlace == NanPlace::First);
     const keel::usize R = x.dims().rows(), C = x.dims().cols();
     const keel::usize P = x.dims().is3D() ? x.dims().pages() : 1;
-    const int sortDim = (dim >= 1) ? std::min(dim - 1, 2)
+    const keel::i32 sortDim = (dim >= 1) ? std::min(dim - 1, 2)
                                    : ((R > 1) ? 0 : (C > 1) ? 1 : 2);
     const keel::usize N = (sortDim == 0) ? R : (sortDim == 1) ? C : P;
 
@@ -1098,7 +1098,7 @@ std::tuple<Value, Value> sortComplex(const Value &x, int dim, bool descend,
     return std::make_tuple(std::move(r), std::move(idx));
 }
 
-std::tuple<Value, Value> sort(const Value &x, int dim, bool descend,
+std::tuple<Value, Value> sort(const Value &x, keel::i32 dim, bool descend,
                               NanPlace nanPlace, keel::Allocator *mr)
 {
     if (x.isScalar())
@@ -1115,7 +1115,7 @@ std::tuple<Value, Value> sort(const Value &x, int dim, bool descend,
     const keel::usize P = x.dims().is3D() ? x.dims().pages() : 1;
     // dim<1 -> auto (first non-singleton, MATLAB convention). Explicit dim
     // is 1-based: 1=down columns, 2=along rows, 3=along pages.
-    const int sortDim = (dim >= 1) ? std::min(dim - 1, 2)
+    const keel::i32 sortDim = (dim >= 1) ? std::min(dim - 1, 2)
                                    : ((R > 1) ? 0 : (C > 1) ? 1 : 2);
     const keel::usize N = (sortDim == 0) ? R : (sortDim == 1) ? C : P;
 
@@ -1171,7 +1171,7 @@ std::tuple<Value, Value> sortrows(const Value &x, keel::Allocator *mr)
     return sortRowsImpl(x, nullptr, 0, mr);
 }
 
-std::tuple<Value, Value> sortrows(const Value &x, keel::ArrayRef<int> cols, keel::Allocator *mr)
+std::tuple<Value, Value> sortrows(const Value &x, keel::ArrayRef<keel::i32> cols, keel::Allocator *mr)
 {
     return sortRowsImpl(x, cols.data(), cols.size(), mr);
 }
@@ -1398,7 +1398,7 @@ Value cumsum(const Value &x, keel::Allocator *mr)
 
 // cumsum along an explicit dim. Output shape equals input shape (this is
 // not a reduction). Vector / scalar input ignores dim and walks linearly.
-Value cumsum(const Value &x, int dim, keel::Allocator *mr)
+Value cumsum(const Value &x, keel::i32 dim, keel::Allocator *mr)
 {
     if (isIntegerType(x.type()))
         return cumIntegerNative(x, dim, /*isProd=*/false, mr);
@@ -1410,24 +1410,24 @@ Value cumsum(const Value &x, int dim, keel::Allocator *mr)
     if (dim <= 0) return cumsum(x, mr);
     if (x.dims().isVector() || x.isScalar()) return cumsum(x, mr);
 
-    const int d = numkit::ops::resolveDim(x, dim, "cumsum");
+    const keel::i32 d = numkit::ops::resolveDim(x, dim, "cumsum");
     const auto &dd = x.dims();
 
     // ND fallback for rank ≥ 4: per-slice scan along axis d-1. Inner
     // block size B = prod(dim[0..d-2]); outer count O = prod(dim[d..]).
     if (dd.ndim() >= 4) {
-        constexpr int kMaxNd = Dims::kMaxRank;
+        constexpr keel::i32 kMaxNd = Dims::kMaxRank;
         if (dd.ndim() > kMaxNd)
             throw Error("cumsum: rank exceeds 32",
                          0, 0, "cumsum", "", "numkit:cumsum:tooManyDims");
         keel::usize outDims[kMaxNd];
-        for (int i = 0; i < dd.ndim(); ++i) outDims[i] = dd.dim(i);
+        for (keel::i32 i = 0; i < dd.ndim(); ++i) outDims[i] = dd.dim(i);
         auto r = Value::matrixND(outDims, dd.ndim(), ValueType::DOUBLE, mr);
         const keel::usize sliceLen = dd.dim(d - 1);
         keel::usize B = 1;
-        for (int i = 0; i < d - 1; ++i) B *= dd.dim(i);
+        for (keel::i32 i = 0; i < d - 1; ++i) B *= dd.dim(i);
         keel::usize O = 1;
-        for (int i = d; i < dd.ndim(); ++i) O *= dd.dim(i);
+        for (keel::i32 i = d; i < dd.ndim(); ++i) O *= dd.dim(i);
         const keel::f64 *src = x.doubleData();
         keel::f64 *dst = r.doubleDataMut();
         if (B == 1) {
@@ -1506,7 +1506,7 @@ Value cumsum(const Value &x, int dim, keel::Allocator *mr)
 // strided access pattern doesn't benefit from SIMD; cumImpl's scalar
 // cumKernel still handles those (with the same Op as before).
 
-Value cumprod(const Value &x, int dim, keel::Allocator *mr)
+Value cumprod(const Value &x, keel::i32 dim, keel::Allocator *mr)
 {
     if (isIntegerType(x.type()))
         return cumIntegerNative(x, dim, /*isProd=*/true, mr);
@@ -1519,7 +1519,7 @@ Value cumprod(const Value &x, int dim, keel::Allocator *mr)
 }
 
 
-Value cummax(const Value &x, int dim, keel::Allocator *mr)
+Value cummax(const Value &x, keel::i32 dim, keel::Allocator *mr)
 {
     if (x.isLogical())
         return logicalizeCumResult(cummax(toDoubleValue(x, mr), dim, mr), mr);
@@ -1540,7 +1540,7 @@ Value cummax(const Value &x, int dim, keel::Allocator *mr)
                            }, "cummax", mr);
 }
 
-Value cummin(const Value &x, int dim, keel::Allocator *mr)
+Value cummin(const Value &x, keel::i32 dim, keel::Allocator *mr)
 {
     if (x.isLogical())
         return logicalizeCumResult(cummin(toDoubleValue(x, mr), dim, mr), mr);
@@ -1558,7 +1558,7 @@ Value cummin(const Value &x, int dim, keel::Allocator *mr)
 
 // ── diff: discrete difference ────────────────────────────────────────
 
-Value diff(const Value &x, int n, int dim, keel::Allocator *mr)
+Value diff(const Value &x, keel::i32 n, keel::i32 dim, keel::Allocator *mr)
 {
     // MATLAB: the difference order N must be a positive integer scalar; n == 0
     // (identity) and negative orders are errors. The reg validates the
@@ -1574,7 +1574,7 @@ Value diff(const Value &x, int n, int dim, keel::Allocator *mr)
     if (x.isScalar())
         return Value::matrix(1, 0, isInt ? x.type() : ValueType::DOUBLE, mr);
 
-    const int d = numkit::ops::resolveDim(x, dim, "diff");
+    const keel::i32 d = numkit::ops::resolveDim(x, dim, "diff");
     const auto &dd = x.dims();
     const keel::usize sliceLen = (d >= 1 && d <= dd.ndim()) ? dd.dim(d - 1) : 1;
 
@@ -1582,9 +1582,9 @@ Value diff(const Value &x, int n, int dim, keel::Allocator *mr)
     // (preserving the integer class for integer input).
     if (sliceLen <= keel::as<keel::usize>(n)) {
         if (isInt) {
-            const int nd = dd.ndim();
+            const keel::i32 nd = dd.ndim();
             keel::usize outDims[Dims::kMaxRank];
-            for (int i = 0; i < nd; ++i) outDims[i] = dd.dim(i);
+            for (keel::i32 i = 0; i < nd; ++i) outDims[i] = dd.dim(i);
             outDims[d - 1] = 0;
             return Value::matrixND(outDims, nd, x.type(), mr);
         }
@@ -1598,7 +1598,7 @@ Value diff(const Value &x, int n, int dim, keel::Allocator *mr)
     // Complex: difference real and imaginary parts together (MATLAB).
     if (x.type() == ValueType::COMPLEX) {
         Value cur = copyComplexSameShape(x, mr);
-        for (int pass = 0; pass < n; ++pass) {
+        for (keel::i32 pass = 0; pass < n; ++pass) {
             const auto &curDims = cur.dims();
             auto out = makeDiffOutput(curDims, d, 1, ValueType::COMPLEX, mr);
             diffOnceComplex(cur.complexData(), out.complexDataMut(), curDims, d);
@@ -1610,7 +1610,7 @@ Value diff(const Value &x, int n, int dim, keel::Allocator *mr)
     // Promote logical to DOUBLE first.
     Value cur = copyToDouble(x, mr);
 
-    for (int pass = 0; pass < n; ++pass) {
+    for (keel::i32 pass = 0; pass < n; ++pass) {
         const auto &curDims = cur.dims();
         auto out = makeDiffOutput(curDims, d, 1, ValueType::DOUBLE, mr);
         diffOnceDouble(cur.doubleData(), out.doubleDataMut(), curDims, d);

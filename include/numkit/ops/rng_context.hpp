@@ -116,7 +116,7 @@ public:
         legacyV5Rand_ = false;
         gen_.seed(keel::as<keel::u32>(seed));
     }
-    void setLegacyTwisterRandState(const keel::u32 state[MatlabMT19937::STATE_SIZE], int idx)
+    void setLegacyTwisterRandState(const keel::u32 state[MatlabMT19937::STATE_SIZE], keel::i32 idx)
     {
         enterLegacyMode();
         legacyMode_ = true;
@@ -137,7 +137,7 @@ public:
         for (keel::usize i = 0; i < 32; ++i) {
             keel::f64 s = 0.0;
             keel::f64 t = 0.5;
-            for (int b = 0; b < 53; ++b) {
+            for (keel::i32 b = 0; b < 53; ++b) {
                 j ^= (j << 13);
                 j ^= (j >> 17);
                 j ^= (j << 5);

@@ -29,7 +29,7 @@ readPngWithMap(const keel::u8 *data, keel::usize len,
 /// Encode an image Value to PNG format bytes.
 /// @param A      Image (uint8/uint16; 1, 3, or 4 channels).
 /// @param level  Compression level (0..9, default 6).
-keel::String writePngToBytes(const Value &A, int level = 6);
+keel::String writePngToBytes(const Value &A, keel::i32 level = 6);
 
 /// Inspect a PNG header without decoding pixel data.
 bool peekPng(const keel::u8 *data, keel::usize len,

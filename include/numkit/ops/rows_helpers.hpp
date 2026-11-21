@@ -19,7 +19,7 @@ namespace numkit::ops {
 // Returns -1 / 0 / +1 in standard cmp convention. NaN is treated as
 // strictly greater than any non-NaN (push to end on ascending sort) —
 // matches MATLAB sort/sortrows ordering for finite vs NaN entries.
-inline int rowLexCmp(const keel::f64 *p, keel::usize cols, keel::usize rows,
+inline keel::i32 rowLexCmp(const keel::f64 *p, keel::usize cols, keel::usize rows,
                      keel::usize a, keel::usize b)
 {
     for (keel::usize c = 0; c < cols; ++c) {
@@ -42,12 +42,12 @@ inline int rowLexCmp(const keel::f64 *p, keel::usize cols, keel::usize rows,
 // entries throw via the caller's pre-validation (this function trusts
 // the caller). Pointer + size so the same helper composes with
 // std::vector / std::pmr::vector / arrays.
-inline int rowLexCmpByCols(const keel::f64 *p, keel::usize totalCols,
+inline keel::i32 rowLexCmpByCols(const keel::f64 *p, keel::usize totalCols,
                            keel::usize rows, keel::usize a, keel::usize b,
-                           const int *cols1based, keel::usize nCols)
+                           const keel::i32 *cols1based, keel::usize nCols)
 {
     for (keel::usize k = 0; k < nCols; ++k) {
-        const int rawCol = cols1based[k];
+        const keel::i32 rawCol = cols1based[k];
         const bool desc = rawCol < 0;
         const keel::usize cIdx = keel::as<keel::usize>(desc ? -rawCol : rawCol) - 1;
         (void) totalCols;  // caller validated rawCol in range

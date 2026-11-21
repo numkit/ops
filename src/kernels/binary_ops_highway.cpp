@@ -59,7 +59,7 @@ namespace {
 HWY_INLINE keel::usize alignmentLead(const keel::f64 *out,
                                      keel::usize i, keel::usize align_bytes)
 {
-    const auto addr = reinterpret_cast<std::uintptr_t>(out + i);
+    const auto addr = reinterpret_cast<keel::usize>(out + i);
     const auto rem  = addr % align_bytes;
     if (rem == 0) return 0;
     return (align_bytes - rem) / sizeof(keel::f64);

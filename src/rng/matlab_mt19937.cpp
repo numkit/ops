@@ -17,14 +17,14 @@ keel::f64 MatlabMT19937::genRes53()
     return mt_.next_f64_open();
 }
 
-void MatlabMT19937::getState(keel::u32 out[STATE_SIZE], int &outIndex) const
+void MatlabMT19937::getState(keel::u32 out[STATE_SIZE], keel::i32 &outIndex) const
 {
     keel::usize idx = 0;
     mt_.get_state(keel::MutArrayRef<keel::u32>(out, STATE_SIZE), idx);
-    outIndex = keel::as<int>(idx);
+    outIndex = keel::as<keel::i32>(idx);
 }
 
-void MatlabMT19937::setState(const keel::u32 in[STATE_SIZE], int inIndex)
+void MatlabMT19937::setState(const keel::u32 in[STATE_SIZE], keel::i32 inIndex)
 {
     const keel::usize idx = (inIndex < 0) ? STATE_SIZE : keel::as<keel::usize>(inIndex);
     mt_.set_state(keel::ArrayRef<keel::u32>(in, STATE_SIZE), idx);

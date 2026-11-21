@@ -730,7 +730,7 @@ extractTypeArg(keel::ArrayRef<Value> args, ValueType &outType)
 inline Value createMatrixND(const keel::usize *dims, keel::usize nDims,
                              ValueType type, keel::Allocator *mr = nullptr)
 {
-    const int nd = keel::as<int>(nDims);
+    const keel::i32 nd = keel::as<keel::i32>(nDims);
     if (nd <= 1) return Value::matrix(nd == 1 ? dims[0] : 0, 1, type, mr);
     if (nd == 2) return Value::matrix(dims[0], dims[1], type, mr);
     if (nd == 3) return Value::matrix3d(dims[0], dims[1], dims[2], type, mr);

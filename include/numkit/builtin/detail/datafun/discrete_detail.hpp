@@ -183,7 +183,7 @@ inline RowKey extractRow(const keel::f64 *p, keel::usize cols, keel::usize rows,
     return k;
 }
 
-inline int rowLexCmp(const keel::f64 *p, keel::usize cols, keel::usize rows, keel::usize a, keel::usize b)
+inline keel::i32 rowLexCmp(const keel::f64 *p, keel::usize cols, keel::usize rows, keel::usize a, keel::usize b)
 {
     for (keel::usize c = 0; c < cols; ++c) {
         const keel::f64 av = p[c * rows + a];
@@ -299,12 +299,12 @@ namespace {
 
 // 11! = 39 916 800 rows of doubles ≈ 3.5 GB if we let n=12 through.
 // Capping at n=11 is exactly MATLAB's documented hard limit on perms.
-constexpr int kPermMaxN = 11;
+constexpr keel::i32 kPermMaxN = 11;
 
-[[maybe_unused]] keel::u64 permFactorial(int n)
+[[maybe_unused]] keel::u64 permFactorial(keel::i32 n)
 {
     keel::u64 f = 1;
-    for (int i = 2; i <= n; ++i) f *= keel::as<keel::u64>(i);
+    for (keel::i32 i = 2; i <= n; ++i) f *= keel::as<keel::u64>(i);
     return f;
 }
 
@@ -316,8 +316,8 @@ constexpr int kPermMaxN = 11;
     if (v > 170.0)
         return std::numeric_limits<keel::f64>::infinity();
     keel::f64 r = 1.0;
-    const int n = keel::as<int>(v);
-    for (int i = 2; i <= n; ++i) r *= keel::as<keel::f64>(i);
+    const keel::i32 n = keel::as<keel::i32>(v);
+    for (keel::i32 i = 2; i <= n; ++i) r *= keel::as<keel::f64>(i);
     return r;
 }
 

@@ -56,7 +56,7 @@ void disp(const Value &v, std::FILE *stream = stdout);
 /// @param mr Memory resource.
 /// @return Number of characters written.
 /// @see sprintf, disp
-int fprintf(std::FILE *stream, keel::StringRef fmt, keel::ArrayRef<Value> args, keel::Allocator *mr = nullptr);
+keel::i32 fprintf(std::FILE *stream, keel::StringRef fmt, keel::ArrayRef<Value> args, keel::Allocator *mr = nullptr);
 
 /// @brief Reads formatted data from a string according to format specifier `fmt` (`sscanf(str, fmt)`).
 /// @param str Source string to scan.

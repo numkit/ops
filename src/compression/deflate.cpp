@@ -62,7 +62,7 @@ keel::Array<keel::u8> inflateRaw(const keel::u8 *src, keel::usize len,
     return std::move(res.value());
 }
 
-keel::Array<keel::u8> deflateRaw(const keel::u8 *src, keel::usize len, int level,
+keel::Array<keel::u8> deflateRaw(const keel::u8 *src, keel::usize len, keel::i32 level,
                                  keel::Allocator *alloc) {
     return keel::compress::deflate_raw(toRef(src, len), level, alloc);
 }
@@ -116,7 +116,7 @@ keel::Array<keel::u8> zlibDecompress(const keel::u8 *src, keel::usize len,
     return std::move(payload);
 }
 
-keel::Array<keel::u8> zlibCompress(const keel::u8 *src, keel::usize len, int level,
+keel::Array<keel::u8> zlibCompress(const keel::u8 *src, keel::usize len, keel::i32 level,
                                    keel::Allocator *alloc) {
     return keel::compress::zlib_compress(toRef(src, len), level, alloc);
 }

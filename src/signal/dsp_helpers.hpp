@@ -31,7 +31,7 @@ namespace numkit {
 // dir=+1 matches the current sign convention used by fftRadix2 and
 // its conjugate-trick inverse wrapper in fft.cpp.
 // ============================================================
-inline void fillFftTwiddles(keel::c64 *W, keel::usize N, int dir)
+inline void fillFftTwiddles(keel::c64 *W, keel::usize N, keel::i32 dir)
 {
     const keel::usize half = N / 2;
     if (half == 0) return;
@@ -56,7 +56,7 @@ inline void fillFftTwiddles(keel::c64 *W, keel::usize N, int dir)
 // (fftAlongDim in fft.cpp), prefer the primary overload + fillFftTwiddles
 // so the table cost amortises.
 inline void fftRadix2(keel::Allocator *mr,
-                      keel::c64 *buf, keel::usize N, int dir)
+                      keel::c64 *buf, keel::usize N, keel::i32 dir)
 {
     if (N <= 1) return;
     keel::Array<keel::c64> W(N / 2, mr);
@@ -67,7 +67,7 @@ inline void fftRadix2(keel::Allocator *mr,
 // Container overload — buf.data() + buf.size() + dir. Handles both
 // std::vector<Complex> and std::pmr::vector<Complex>.
 template <typename Container>
-inline auto fftRadix2(keel::Allocator *mr, Container &buf, int dir)
+inline auto fftRadix2(keel::Allocator *mr, Container &buf, keel::i32 dir)
     -> decltype(buf.data(), buf.size(), void())
 {
     fftRadix2(mr, buf.data(), buf.size(), dir);

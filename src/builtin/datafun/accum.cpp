@@ -125,7 +125,7 @@ Value allocOutput(const keel::usize *shape, keel::usize nShape, keel::Allocator 
         return Value::matrix(shape[0], 1, ValueType::DOUBLE, mr);
     if (nShape == 2)
         return Value::matrix(shape[0], shape[1], ValueType::DOUBLE, mr);
-    return Value::matrixND(shape, keel::as<int>(nShape),
+    return Value::matrixND(shape, keel::as<keel::i32>(nShape),
                             ValueType::DOUBLE, mr);
 }
 

@@ -102,9 +102,9 @@ Value num2str(const Value &x, keel::Allocator *mr)
     // gave "1e+06"). Non-finite values use MATLAB's capitalised spelling.
     if (std::isnan(v)) return Value::fromString("NaN", mr);
     if (std::isinf(v)) return Value::fromString(v < 0 ? "-Inf" : "Inf", mr);
-    int prec = 5;
+    keel::i32 prec = 5;
     if (v != 0.0) {
-        const int e = keel::as<int>(std::floor(std::log10(std::fabs(v))));
+        const keel::i32 e = keel::as<keel::i32>(std::floor(std::log10(std::fabs(v))));
         prec = (e > 0 ? e : 0) + 5;
     }
     char buf[512];
@@ -112,15 +112,15 @@ Value num2str(const Value &x, keel::Allocator *mr)
     return Value::fromString(buf, mr);
 }
 
-Value num2str(const Value &x, int N, keel::Allocator *mr)
+Value num2str(const Value &x, keel::i32 N, keel::Allocator *mr)
 {
     if (x.type() == ValueType::COMPLEX) {
         if (!x.isScalar()) {
-            int n = N; if (n < 1) n = 1;
+            keel::i32 n = N; if (n < 1) n = 1;
             const keel::String layout = num2strComplexArray(x, n);
             return charMatrixFromLines(layout.as_ref(), mr);
         }
-        int n = N; if (n < 1) n = 1;
+        keel::i32 n = N; if (n < 1) n = 1;
         return Value::fromString(num2strComplexScalar(x.toComplex(), n), mr);
     }
     if (x.isEmpty()) return Value::fromString("", mr);
@@ -131,7 +131,7 @@ Value num2str(const Value &x, int N, keel::Allocator *mr)
         return num2str(x, afmt.as_ref(), mr);
     }
     const keel::f64 v = x.toScalar();
-    int n = N;
+    keel::i32 n = N;
     if (n < 1)  n = 1;
     if (n > 99) n = 99;
     char fmt[16];
@@ -316,9 +316,9 @@ Value int2str(const Value &x, keel::Allocator *mr)
             rd[i] = r;
             if (std::isfinite(r) && std::fabs(r) > maxabs) maxabs = std::fabs(r);
         }
-        int ndigits = 1;
+        keel::i32 ndigits = 1;
         if (maxabs >= 1.0)
-            ndigits = keel::as<int>(std::floor(std::log10(maxabs))) + 1;
+            ndigits = keel::as<keel::i32>(std::floor(std::log10(maxabs))) + 1;
         char fmt[16];
         std::snprintf(fmt, sizeof(fmt), "%%%d.0f", ndigits + 2);
         return num2str(rounded, keel::StringRef(fmt), mr);
@@ -636,12 +636,12 @@ Value toChar(const Value &x, keel::Allocator *mr)
     if (x.isNumeric()) {
         keel::String s;
         if (x.isScalar()) {
-            s.push_back(keel::as<char>(keel::as<int>(x.toScalar())));
+            s.push_back(keel::as<char>(keel::as<keel::i32>(x.toScalar())));
         } else {
             const keel::f64 *d = x.doubleData();
             s.reserve(x.numel());
             for (keel::usize i = 0; i < x.numel(); ++i)
-                s.push_back(keel::as<char>(keel::as<int>(d[i])));
+                s.push_back(keel::as<char>(keel::as<keel::i32>(d[i])));
         }
         return Value::fromString(s, p);
     }
@@ -920,7 +920,7 @@ Value strfind(const Value &s, const Value &pat, keel::Allocator *mr)
     return strfindOne(s.asStringRef(), pp, mr);
 }
 
-Value mat2str(const Value &x, int precision, keel::Allocator *mr)
+Value mat2str(const Value &x, keel::i32 precision, keel::Allocator *mr)
 {
     // CHAR: render a quoted char literal (MATLAB R2025b). A char row ->
     // 'abc'; a multi-row char matrix -> ['ab';'cd']; empty char '' -> "''".
@@ -986,7 +986,7 @@ Value mat2str(const Value &x, int precision, keel::Allocator *mr)
         return Value::fromString(out, mr);
     }
 
-    const int prec = std::clamp(precision, 1, 99);
+    const keel::i32 prec = std::clamp(precision, 1, 99);
     auto appendFmt = [prec](keel::String &dst, keel::f64 v) {
         if (v == 0.0) v = 0.0;   // normalize -0 → 0 (MATLAB never prints "-0")
         char buf[64];
@@ -1620,18 +1620,18 @@ Value replaceBetween(const Value &s, const Value &start, const Value &end, const
 // ── Pack 23 ──────────────────────────────────────────────────────────
 
 
-Value dec2bin(const Value &d, int minWidth, keel::Allocator *mr)
+Value dec2bin(const Value &d, keel::i32 minWidth, keel::Allocator *mr)
 {
     return vecToBaseMatrix(d, 2, minWidth, mr);
 }
 
-Value dec2hex(const Value &d, int minWidth, keel::Allocator *mr)
+Value dec2hex(const Value &d, keel::i32 minWidth, keel::Allocator *mr)
 {
     return vecToBaseMatrix(d, 16, minWidth, mr);
 }
 
 namespace {
-Value base2decFixed(const Value &s, int base, keel::Allocator *mr)
+Value base2decFixed(const Value &s, keel::i32 base, keel::Allocator *mr)
 {
     const keel::usize rows = keel::as<keel::usize>(s.dims().rows());
     if (s.type() == ValueType::CHAR && rows > 1) {
@@ -1726,7 +1726,7 @@ Value num2hex(const Value &x, keel::Allocator *mr)
                      0, 0, "num2hex", "", "numkit:num2hex:notFloat");
 
     const keel::usize n = x.numel();
-    const int W = single ? 8 : 16;
+    const keel::i32 W = single ? 8 : 16;
     if (n == 0) return Value::matrix(0, keel::as<keel::usize>(W), ValueType::CHAR, mr);
 
     // numel × W CHAR matrix, one row per element (column-major order).
@@ -1739,21 +1739,21 @@ Value num2hex(const Value &x, keel::Allocator *mr)
             const keel::f32 f = keel::as<keel::f32>(v);
             keel::u32 bits;
             std::memcpy(&bits, &f, sizeof(bits));
-            std::snprintf(buf, sizeof(buf), "%08x", keel::as<unsigned int>(bits));
+            std::snprintf(buf, sizeof(buf), "%08x", keel::as<keel::u32>(bits));
         } else {
             keel::u64 bits;
             std::memcpy(&bits, &v, sizeof(bits));
             std::snprintf(buf, sizeof(buf), "%016llx",
-                          keel::as<unsigned long long>(bits));
+                          keel::as<keel::u64>(bits));
         }
-        for (int c = 0; c < W; ++c)
+        for (keel::i32 c = 0; c < W; ++c)
             dst[keel::as<keel::usize>(c) * n + i] = buf[c];
     }
     return m;
 }
 
 
-Value dec2base(const Value &d, int base, int minWidth, keel::Allocator *mr)
+Value dec2base(const Value &d, keel::i32 base, keel::i32 minWidth, keel::Allocator *mr)
 {
     if (base < 2 || base > 36)
         throw Error("dec2base: base must be in 2..36",
@@ -1761,7 +1761,7 @@ Value dec2base(const Value &d, int base, int minWidth, keel::Allocator *mr)
     return vecToBaseMatrix(d, base, minWidth, mr);
 }
 
-Value base2dec(const Value &s, int base, keel::Allocator *mr)
+Value base2dec(const Value &s, keel::i32 base, keel::Allocator *mr)
 {
     if (base < 2 || base > 36)
         throw Error("base2dec: base must be in 2..36",
@@ -1807,10 +1807,10 @@ Value rat(const Value &x, keel::f64 tol, keel::Allocator *mr)
 // width = len + 1 here matches `strlength(rats(0.5))` = 14 in MATLAB R2025b.
 // For a vector input MATLAB concatenates the per-element fields into one
 // big string row.
-Value rats(const Value &x, int len, keel::Allocator *mr)
+Value rats(const Value &x, keel::i32 len, keel::Allocator *mr)
 {
     if (len <= 0) len = 13;
-    const int field_width = len + 1;  // MATLAB reserves 1 col for leading sign
+    const keel::i32 field_width = len + 1;  // MATLAB reserves 1 col for leading sign
     const keel::usize n = x.numel();
 
     // Layout per MATLAB R2025b: numerator is right-justified in the first
@@ -1819,35 +1819,35 @@ Value rats(const Value &x, int len, keel::Allocator *mr)
     // half. Empirically: rats(0.5) → '      1/2     ' (numer at col 7,
     // slash at col 8). For integer denominator (q == 1) the whole number
     // is right-justified in the full field.
-    const int num_width = field_width / 2;          // 7 for default len=13
-    const int den_width = field_width - num_width - 1;  // 6 for default
+    const keel::i32 num_width = field_width / 2;          // 7 for default len=13
+    const keel::i32 den_width = field_width - num_width - 1;  // 6 for default
     auto appendOne = [&](keel::String &dst, keel::f64 v) {
         if (!std::isfinite(v)) {
             const keel::StringRef s = std::isnan(v) ? "NaN" : (v > 0 ? "Inf" : "-Inf");
-            const int slack = std::max(0, field_width - keel::as<int>(s.size()));
-            for (int k = 0; k < slack; ++k) dst.push_back(' ');
+            const keel::i32 slack = std::max(0, field_width - keel::as<keel::i32>(s.size()));
+            for (keel::i32 k = 0; k < slack; ++k) dst.push_back(' ');
             dst.append(s);
             return;
         }
         const keel::f64 tol = defaultRatTol(v);
         const auto exp = ratExpansion(v, tol);
         char nbuf[32];
-        const int nlen = std::snprintf(nbuf, sizeof(nbuf), "%lld", exp.p);
+        const keel::i32 nlen = std::snprintf(nbuf, sizeof(nbuf), "%lld", exp.p);
         if (exp.q == 1) {
-            const int slack = std::max(0, field_width - nlen);
-            for (int k = 0; k < slack; ++k) dst.push_back(' ');
+            const keel::i32 slack = std::max(0, field_width - nlen);
+            for (keel::i32 k = 0; k < slack; ++k) dst.push_back(' ');
             dst.append(nbuf);
             return;
         }
         char dbuf[32];
-        const int dlen = std::snprintf(dbuf, sizeof(dbuf), "%lld", exp.q);
-        const int n_pad = std::max(0, num_width - nlen);
-        const int d_pad = std::max(0, den_width - dlen);
-        for (int k = 0; k < n_pad; ++k) dst.push_back(' ');
+        const keel::i32 dlen = std::snprintf(dbuf, sizeof(dbuf), "%lld", exp.q);
+        const keel::i32 n_pad = std::max(0, num_width - nlen);
+        const keel::i32 d_pad = std::max(0, den_width - dlen);
+        for (keel::i32 k = 0; k < n_pad; ++k) dst.push_back(' ');
         dst.append(nbuf);
         dst.push_back('/');
         dst.append(dbuf);
-        for (int k = 0; k < d_pad; ++k) dst.push_back(' ');
+        for (keel::i32 k = 0; k < d_pad; ++k) dst.push_back(' ');
     };
 
     if (n <= 1) {

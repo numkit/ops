@@ -248,7 +248,7 @@ void ErfLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel
 
         auto o25 = hn::Le(x, hn::Set(d, 2.5));
         V c[21];
-        for (int k = 0; k < 21; ++k)
+        for (keel::i32 k = 0; k < 21; ++k)
             c[k] = hn::IfThenElse(o25, hn::Set(d, A_lo[k]), hn::Set(d, A_hi[k]));
 
         V t = hn::MulAdd(x16, P5(x, x2, x4, c[0], c[1], c[2], c[3], c[4]),

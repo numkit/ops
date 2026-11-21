@@ -104,7 +104,7 @@ Value perms(const Value &v, keel::Allocator *mr)
     keel::Array<keel::f64> cur(vals, scratch.allocator());
     std::sort(cur.begin(), cur.end(), [](keel::f64 a, keel::f64 b) { return a > b; });
 
-    const keel::usize totalRows = keel::as<keel::usize>(permFactorial(keel::as<int>(n)));
+    const keel::usize totalRows = keel::as<keel::usize>(permFactorial(keel::as<keel::i32>(n)));
     auto out = Value::matrix(totalRows, n, ValueType::DOUBLE, mr);
     keel::f64 *dst = out.doubleDataMut();
 

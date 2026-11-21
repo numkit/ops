@@ -439,7 +439,7 @@ HWY_INLINE hn::VFromD<D> SinCospiVec(D d, DI di, hn::VFromD<D> v)
 
     auto poly = hn::IfThenElse(omask, hn::Set(d, detail::kSinpiPoly_o[0]),
                                hn::Set(d, detail::kSinpiPoly_e[0]));
-    for (int k = 1; k < 8; ++k)
+    for (keel::i32 k = 1; k < 8; ++k)
         poly = hn::MulAdd(poly, s,
                           hn::IfThenElse(omask, hn::Set(d, detail::kSinpiPoly_o[k]),
                                          hn::Set(d, detail::kSinpiPoly_e[k])));

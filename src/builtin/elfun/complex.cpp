@@ -153,7 +153,7 @@ Value isreal(const Value &x, keel::Allocator *mr)
     return Value::scalar(!x.isComplex() ? 1.0 : 0.0, mr);
 }
 
-Value unwrap(const Value &p, keel::f64 tol, int /*dim*/, keel::Allocator *mr)
+Value unwrap(const Value &p, keel::f64 tol, keel::i32 /*dim*/, keel::Allocator *mr)
 {
     if (p.isEmpty())
         return p;

@@ -180,7 +180,7 @@ Value det(const Value &A, keel::Allocator *mr)
         if (!numkit::ops::lu_factor_inplace(A_buf.data(), n, piv.data(), n, n))
             return Value::scalar(0.0, mr);
 
-        int sign = 1;
+        keel::i32 sign = 1;
         for (keel::usize k = 0; k < n; ++k) {
             if (piv[k] != keel::as<keel::i32>(k)) {
                 sign = -sign;
@@ -200,16 +200,16 @@ Value det(const Value &A, keel::Allocator *mr)
     if (!numkit::ops::lu_factor_inplace(A_buf.data(), n, piv.data(), n, n))
         return detail::narrowDoubleToSingleIf(Value::scalar(0.0, mr), wantSingle, mr);
 
-    int sign = 1;
+    keel::i32 sign = 1;
     for (keel::usize k = 0; k < n; ++k) {
         if (piv[k] != keel::as<keel::i32>(k)) {
             sign = -sign;
         }
     }
 
-    long double prod = keel::as<long double>(sign);
+    long double prod = keel::as<long double>(sign); // keel-lint: ignore
     for (keel::usize i = 0; i < n; ++i)
-        prod *= keel::as<long double>(A_buf[i + i * n]);
+        prod *= keel::as<long double>(A_buf[i + i * n]); // keel-lint: ignore
     return detail::narrowDoubleToSingleIf(Value::scalar(keel::as<keel::f64>(prod), mr), wantSingle, mr);
 }
 
@@ -227,7 +227,7 @@ Value rank_of(const Value &A, keel::f64 tol, keel::Allocator *mr)
     const keel::usize m = keel::as<keel::usize>(A.dims().dim(0));
     const keel::usize n = keel::as<keel::usize>(A.dims().dim(1));
     const keel::f64 cutoff = (tol < 0.0) ? defaultRankTol(m, n, sigma_max, isSingle) : tol;
-    int r = 0;
+    keel::i32 r = 0;
     for (keel::usize i = 0; i < k; ++i)
         if (s[i] > cutoff) ++r;
     return Value::scalar(keel::as<keel::f64>(r), mr);
@@ -250,7 +250,7 @@ Value cond_2norm(const Value &A, keel::Allocator *mr)
     return detail::narrowDoubleToSingleIf(Value::scalar(sigma_max / sigma_min, mr), wantSingle, mr);
 }
 
-Value cond_pnorm(const Value &A, int p_kind, keel::Allocator *mr)
+Value cond_pnorm(const Value &A, keel::i32 p_kind, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "cond");
     if (p_kind == 2) return cond_2norm(A, mr);

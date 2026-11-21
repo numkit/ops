@@ -171,7 +171,7 @@ Value besselk(const Value &nu, const Value &z, keel::Allocator *mr = nullptr);
 /// @param mr Memory resource.
 /// @return Hankel function values.
 /// @see besselj, bessely
-Value besselh(const Value &nu, int k, const Value &z, keel::Allocator *mr = nullptr);
+Value besselh(const Value &nu, keel::i32 k, const Value &z, keel::Allocator *mr = nullptr);
 
 /// @brief Complete elliptic integrals of the first and second kinds (`[K, E] = ellipke(M)`).
 struct EllipKE {
@@ -191,7 +191,7 @@ struct EllipJ {
 /// @param z Argument.
 /// @param mr Memory resource.
 /// @return Airy function values.
-Value airy(int k, const Value &z, keel::Allocator *mr = nullptr);
+Value airy(keel::i32 k, const Value &z, keel::Allocator *mr = nullptr);
 
 /// @brief Airy function of the first kind (`Ai(z)`).
 /// @param z Argument.
@@ -223,7 +223,7 @@ EllipJ ellipj(const Value &u, const Value &m, keel::Allocator *mr = nullptr);
 /// @param x Argument.
 /// @param mr Memory resource.
 /// @return Associated Legendre values.
-Value legendre(int n, const Value &x, keel::Allocator *mr = nullptr);
+Value legendre(keel::i32 n, const Value &x, keel::Allocator *mr = nullptr);
 
 // ── Combinatorics & Number Theory ───────────────────────────────────────────
 
@@ -288,7 +288,7 @@ Value nchoosekCombinations(const Value &v, keel::f64 kd, keel::Allocator *mr = n
 /// @param k Subset size.
 /// @param mr Memory resource.
 /// @return Binomial coefficient or combinations matrix.
-Value nchoosek(const Value &v, int k, keel::Allocator *mr = nullptr);
+Value nchoosek(const Value &v, keel::i32 k, keel::Allocator *mr = nullptr);
 
 /// @brief Binomial coefficient or all combinations (`nchoosek(v, k)`).
 /// @param v Input vector or scalar `n`.
@@ -335,7 +335,7 @@ Value colperm(const Value &s, keel::Allocator *mr = nullptr);
 Value symrcm(const Value &s, keel::Allocator *mr = nullptr);
 
 /// @brief Generalized Marcum Q-function (`q = marcumq(a, b, m)`).
-Value marcumq(const Value &a, const Value &b, int m = 1,
+Value marcumq(const Value &a, const Value &b, keel::i32 m = 1,
               keel::Allocator *mr = nullptr);
 
 /// @}

@@ -189,7 +189,7 @@ void validateMonotonicAscending(const keel::f64 *g, keel::usize n, const char *a
     const keel::usize p = g.dims().is3D() ? g.dims().pages() : 1;
     const keel::usize pageStride = r * c;
 
-    auto extractAlong = [&](int dim) {
+    auto extractAlong = [&](keel::i32 dim) {
         keel::usize n = (dim == 0) ? r : (dim == 1) ? c : p;
         keel::Array<keel::f64> v(n, out.allocator());
         for (keel::usize k = 0; k < n; ++k) {
@@ -208,9 +208,9 @@ void validateMonotonicAscending(const keel::f64 *g, keel::usize n, const char *a
     };
 
     const keel::StringRef ax(axis);
-    int preferred = (ax == "X") ? 1 : (ax == "Y") ? 0 : (ax == "Z") ? 2 : 1;
-    for (int tries = 0; tries < 3; ++tries) {
-        int dim = (preferred + tries) % 3;
+    keel::i32 preferred = (ax == "X") ? 1 : (ax == "Y") ? 0 : (ax == "Z") ? 2 : 1;
+    for (keel::i32 tries = 0; tries < 3; ++tries) {
+        keel::i32 dim = (preferred + tries) % 3;
         if (dim == 2 && !g.dims().is3D()) continue;
         auto v = extractAlong(dim);
         if (!isConst(v)) {

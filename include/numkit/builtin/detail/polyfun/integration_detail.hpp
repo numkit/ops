@@ -46,7 +46,7 @@ Value cumtrapzMatrixRowsC(const keel::c64 *src, const keel::f64 *xData, keel::us
                           keel::usize cols, keel::Allocator *mr);
 
 // trapz along `dim`; `xData` null → unit spacing.
-Value trapzImpl(const Value &y, int dim, const keel::f64 *xData,
+Value trapzImpl(const Value &y, keel::i32 dim, const keel::f64 *xData,
                 keel::Allocator *mr);
 
 } // namespace numkit::builtin::detail

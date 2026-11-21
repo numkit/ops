@@ -120,7 +120,7 @@ xcorr(const Value &x, keel::Allocator *mr = nullptr)
 std::tuple<Value, Value>
 xcov(const Value &                x,
      const Value &                y,
-     int                          maxlag,
+     keel::i32                          maxlag,
      keel::StringRef              scaleopt,
      keel::Allocator *  mr = nullptr);
 

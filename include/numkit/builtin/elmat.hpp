@@ -107,7 +107,7 @@ Value size(const Value &x, keel::Allocator *mr = nullptr);
 /// @param dim 1-based dimension index.
 /// @param mr Memory resource.
 /// @return Dimension length scalar.
-Value size(const Value &x, int dim, keel::Allocator *mr = nullptr);
+Value size(const Value &x, keel::i32 dim, keel::Allocator *mr = nullptr);
 
 /// @brief Length of largest array dimension (`length(x)`).
 /// @param x Input array.
@@ -194,7 +194,7 @@ Value pascal(keel::usize n, keel::Allocator *mr = nullptr);
 /// @param k Form selector (0=symmetric, 1=lower triangular, 2=upper triangular Cholesky factor).
 /// @param mr Memory resource.
 /// @return `n x n` Pascal matrix.
-Value pascal(keel::usize n, int k, keel::Allocator *mr = nullptr);
+Value pascal(keel::usize n, keel::i32 k, keel::Allocator *mr = nullptr);
 
 /// @brief Creates a Toeplitz matrix.
 /// @param c First column vector.
@@ -371,7 +371,7 @@ Value reshape(const Value &x, keel::usize rows, keel::usize cols, keel::usize pa
 /// @param mr Memory resource.
 /// @return Diagonal vector or diagonal matrix.
 /// @see blkdiag
-Value diag(const Value &x, int k = 0, keel::Allocator *mr = nullptr);
+Value diag(const Value &x, keel::i32 k = 0, keel::Allocator *mr = nullptr);
 
 /// @brief Constructs a block diagonal matrix from input matrices.
 /// @param matrices List of matrices to place on the diagonal.
@@ -384,7 +384,7 @@ Value blkdiag(keel::ArrayRef<Value> matrices, keel::Allocator *mr = nullptr);
 /// @param arrays List of arrays to concatenate.
 /// @param mr Memory resource.
 /// @return Concatenated array.
-Value cat(int dim, keel::ArrayRef<Value> arrays, keel::Allocator *mr = nullptr);
+Value cat(keel::i32 dim, keel::ArrayRef<Value> arrays, keel::Allocator *mr = nullptr);
 
 /// @brief Concatenates arrays horizontally (along columns, dim 2).
 /// @param arrays List of arrays.
@@ -403,7 +403,7 @@ Value vertcat(keel::ArrayRef<Value> arrays, keel::Allocator *mr = nullptr);
 /// @param k Number of 90-degree rotations (default: 1).
 /// @param mr Memory resource.
 /// @return Rotated matrix.
-Value rot90(const Value &x, int k = 1, keel::Allocator *mr = nullptr);
+Value rot90(const Value &x, keel::i32 k = 1, keel::Allocator *mr = nullptr);
 
 /// @brief Flips matrix left-to-right (along columns).
 /// @param x Input 2D matrix.
@@ -422,7 +422,7 @@ Value flipud(const Value &x, keel::Allocator *mr = nullptr);
 /// @param dim Dimension to flip along (0 = first non-singleton dimension).
 /// @param mr Memory resource.
 /// @return Flipped array.
-Value flip(const Value &x, int dim = 0, keel::Allocator *mr = nullptr);
+Value flip(const Value &x, keel::i32 dim = 0, keel::Allocator *mr = nullptr);
 
 /// @brief Circularly shifts elements of 1-D vector or along first non-singleton dimension (`circshift(x, k)`).
 /// @param x Input array.
@@ -489,7 +489,7 @@ Value repelem(const Value &x, const Value &rCounts, const Value &cCounts, keel::
 /// @param mr Memory resource.
 /// @return Permuted array.
 /// @see ipermute
-Value permute(const Value &x, keel::ArrayRef<int> order, keel::Allocator *mr = nullptr);
+Value permute(const Value &x, keel::ArrayRef<keel::i32> order, keel::Allocator *mr = nullptr);
 
 /// @brief Permutes dimensions of an N-D array using size_t order vector.
 /// @param x Input array.
@@ -503,7 +503,7 @@ Value permute(const Value &x, keel::ArrayRef<keel::usize> order, keel::Allocator
 /// @param order Ordering of dimensions used in previous `permute` call.
 /// @param mr Memory resource.
 /// @return Array with dimensions restored.
-Value ipermute(const Value &x, keel::ArrayRef<int> order, keel::Allocator *mr = nullptr);
+Value ipermute(const Value &x, keel::ArrayRef<keel::i32> order, keel::Allocator *mr = nullptr);
 
 /// @brief Inverse permutes dimensions of an N-D array using size_t order vector.
 /// @param x Input array.
@@ -515,7 +515,7 @@ Value ipermute(const Value &x, keel::ArrayRef<keel::usize> order, keel::Allocato
 /// @brief Result of automatic dimension shift (`shiftdim(x)`).
 struct ShiftDimAuto {
     Value v;          ///< Shifted array
-    int dropped = 0;  ///< Number of leading singleton dimensions removed
+    keel::i32 dropped = 0;  ///< Number of leading singleton dimensions removed
 };
 
 /// @brief Shifts dimensions of array by `n` steps (`shiftdim(x, n)`).
@@ -524,7 +524,7 @@ struct ShiftDimAuto {
 /// @param mr Memory resource.
 /// @return Shifted array.
 /// @see shiftdimAuto, squeeze
-Value shiftdim(const Value &x, int n = 0, keel::Allocator *mr = nullptr);
+Value shiftdim(const Value &x, keel::i32 n = 0, keel::Allocator *mr = nullptr);
 
 /// @brief Automatically shifts out leading singleton dimensions (`shiftdim(x)`).
 /// @param x Input array.
@@ -569,8 +569,8 @@ Value paddata(const Value &x, keel::usize len, keel::Allocator *mr = nullptr);
 /// @param side Direction (`"left"`, `"right"`).
 /// @param mr Memory resource.
 /// @return Padded array.
-Value paddata(const Value &x, keel::usize len, int dim, keel::StringRef side = "right", keel::Allocator *mr = nullptr);
-Value paddata(const Value &x, keel::usize len, int dim, keel::StringRef side, keel::f64 fillValue, keel::Allocator *mr = nullptr);
+Value paddata(const Value &x, keel::usize len, keel::i32 dim, keel::StringRef side = "right", keel::Allocator *mr = nullptr);
+Value paddata(const Value &x, keel::usize len, keel::i32 dim, keel::StringRef side, keel::f64 fillValue, keel::Allocator *mr = nullptr);
 
 /// @brief Trims data array to specified length (`trimdata(x, len)`).
 /// @param x Input array.
@@ -587,7 +587,7 @@ Value trimdata(const Value &x, keel::usize len, keel::Allocator *mr = nullptr);
 /// @param side Direction (`"left"`, `"right"`).
 /// @param mr Memory resource.
 /// @return Trimmed array.
-Value trimdata(const Value &x, keel::usize len, int dim, keel::StringRef side = "right", keel::Allocator *mr = nullptr);
+Value trimdata(const Value &x, keel::usize len, keel::i32 dim, keel::StringRef side = "right", keel::Allocator *mr = nullptr);
 
 /// @brief Resizes 1-D vector to length `n` by padding or trimming (`resize(v, n)`).
 /// @param v Input vector.
@@ -595,7 +595,7 @@ Value trimdata(const Value &x, keel::usize len, int dim, keel::StringRef side = 
 /// @param mr Memory resource.
 /// @return Resized vector.
 Value resize(const Value &v, keel::usize n, keel::Allocator *mr = nullptr);
-Value resize(const Value &v, keel::usize n, int dim, keel::StringRef side, keel::f64 fillValue = 0.0, keel::Allocator *mr = nullptr);
+Value resize(const Value &v, keel::usize n, keel::i32 dim, keel::StringRef side, keel::f64 fillValue = 0.0, keel::Allocator *mr = nullptr);
 
 /// @brief Converts subscript indices to linear index (`sub2ind(siz, i, j, ...)`).
 /// @param siz Array size vector.
@@ -628,7 +628,7 @@ Value bsxfun(keel::StringRef op, const Value &a, const Value &b, keel::Allocator
 /// @param mr Memory resource.
 /// @return Lower triangular matrix.
 /// @see triu
-Value tril(const Value &x, int k = 0, keel::Allocator *mr = nullptr);
+Value tril(const Value &x, keel::i32 k = 0, keel::Allocator *mr = nullptr);
 
 /// @brief Extracts upper triangular part of a matrix.
 /// @param x Input matrix.
@@ -636,7 +636,7 @@ Value tril(const Value &x, int k = 0, keel::Allocator *mr = nullptr);
 /// @param mr Memory resource.
 /// @return Upper triangular matrix.
 /// @see tril
-Value triu(const Value &x, int k = 0, keel::Allocator *mr = nullptr);
+Value triu(const Value &x, keel::i32 k = 0, keel::Allocator *mr = nullptr);
 
 /// @brief Placement policy for NaN elements during sorting.
 enum class NanPlace {
@@ -653,7 +653,7 @@ enum class NanPlace {
 /// @param mr Memory resource.
 /// @return Tuple containing `{sorted_values, sort_indices}`.
 /// @see sortrows, issorted
-std::tuple<Value, Value> sort(const Value &x, int dim = 0, bool descend = false, NanPlace nanPlace = NanPlace::Auto, keel::Allocator *mr = nullptr);
+std::tuple<Value, Value> sort(const Value &x, keel::i32 dim = 0, bool descend = false, NanPlace nanPlace = NanPlace::Auto, keel::Allocator *mr = nullptr);
 
 /// @brief Sorts rows of 2-D matrix in ascending order (`[B, I] = sortrows(x)`).
 /// @param x Input 2-D matrix.
@@ -667,7 +667,7 @@ std::tuple<Value, Value> sortrows(const Value &x, keel::Allocator *mr = nullptr)
 /// @param cols 1-based column indices.
 /// @param mr Memory resource.
 /// @return Tuple containing `{sorted_matrix, sort_indices}`.
-std::tuple<Value, Value> sortrows(const Value &x, keel::ArrayRef<int> cols, keel::Allocator *mr = nullptr);
+std::tuple<Value, Value> sortrows(const Value &x, keel::ArrayRef<keel::i32> cols, keel::Allocator *mr = nullptr);
 
 /// @brief Sorts rows based on columns and directions (`[B, I] = sortrows(x, cols, direction)`).
 /// @param x Input 2-D matrix.
@@ -675,7 +675,7 @@ std::tuple<Value, Value> sortrows(const Value &x, keel::ArrayRef<int> cols, keel
 /// @param desc Descending flags per column.
 /// @param mr Memory resource.
 /// @return Tuple containing `{sorted_matrix, sort_indices}`.
-std::tuple<Value, Value> sortrows(const Value &x, keel::ArrayRef<int> cols, keel::ArrayRef<bool> desc, keel::Allocator *mr = nullptr);
+std::tuple<Value, Value> sortrows(const Value &x, keel::ArrayRef<keel::i32> cols, keel::ArrayRef<bool> desc, keel::Allocator *mr = nullptr);
 
 /// @brief Tests if array is sorted (`issorted(x, dim, direction)`).
 /// @param x Input array.
@@ -683,7 +683,7 @@ std::tuple<Value, Value> sortrows(const Value &x, keel::ArrayRef<int> cols, keel
 /// @param descend True if checking for descending order.
 /// @param mr Memory resource.
 /// @return Logical true if array is sorted.
-Value issorted(const Value &x, int dim = 0, bool descend = false, keel::Allocator *mr = nullptr);
+Value issorted(const Value &x, keel::i32 dim = 0, bool descend = false, keel::Allocator *mr = nullptr);
 
 /// @brief Tests if rows of 2-D matrix are sorted in ascending order (`issortedrows(x)`).
 /// @param x Input matrix.
@@ -697,7 +697,7 @@ Value issortedrows(const Value &x, keel::Allocator *mr = nullptr);
 /// @param desc Descending flags.
 /// @param mr Memory resource.
 /// @return Logical true if rows are sorted.
-Value issortedrows(const Value &x, keel::ArrayRef<int> cols, keel::ArrayRef<bool> desc = {}, keel::Allocator *mr = nullptr);
+Value issortedrows(const Value &x, keel::ArrayRef<keel::i32> cols, keel::ArrayRef<bool> desc = {}, keel::Allocator *mr = nullptr);
 
 /// @brief Finds the top `k` sorted rows of a matrix (`[B, I] = topkrows(x, k, cols, desc)`).
 /// @param x Input matrix.
@@ -706,7 +706,7 @@ Value issortedrows(const Value &x, keel::ArrayRef<int> cols, keel::ArrayRef<bool
 /// @param desc Descending flags.
 /// @param mr Memory resource.
 /// @return Tuple containing `{top_k_rows, indices}`.
-std::tuple<Value, Value> topkrows(const Value &x, keel::usize k, keel::ArrayRef<int> cols = {}, keel::ArrayRef<bool> desc = {}, keel::Allocator *mr = nullptr);
+std::tuple<Value, Value> topkrows(const Value &x, keel::usize k, keel::ArrayRef<keel::i32> cols = {}, keel::ArrayRef<bool> desc = {}, keel::Allocator *mr = nullptr);
 
 /// @brief Finds indices of non-zero array elements (`find(x)`).
 /// @param x Input array.

@@ -68,7 +68,7 @@ Value ifftshift(const Value &x, keel::Allocator *mr = nullptr);
 /// @param mr   Memory resource (nullptr → process default).
 /// @return     Same-shape array shifted along `dim`.
 Value fftshift(const Value &                x,
-               int                          dim,
+               keel::i32                          dim,
                keel::Allocator *  mr = nullptr);
 
 /// @brief Single-dim `ifftshift` — inverse of single-dim @ref fftshift.
@@ -77,7 +77,7 @@ Value fftshift(const Value &                x,
 /// @param dim  Axis (1 = rows, 2 = cols, 3 = pages).
 /// @param mr   Memory resource (nullptr → process default).
 /// @return     Same-shape array shifted along `dim`.
-Value ifftshift(const Value &x, int dim,
+Value ifftshift(const Value &x, keel::i32 dim,
                 keel::Allocator *mr = nullptr);
 
 

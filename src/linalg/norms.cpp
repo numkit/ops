@@ -151,7 +151,7 @@ Value norm_fro(const Value &x, keel::Allocator *mr)
     return detail::narrowDoubleToSingleIf(Value::scalar(std::sqrt(s), mr), wantSingle, mr);
 }
 
-Value vecnorm(const Value &A, keel::f64 p, int dim, keel::Allocator *mr)
+Value vecnorm(const Value &A, keel::f64 p, keel::i32 dim, keel::Allocator *mr)
 {
     vecnorm_argcheck(A);
     if (A.dims().is3D())

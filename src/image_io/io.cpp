@@ -68,7 +68,7 @@ Value readGifViaKeel(const keel::u8 *data, keel::usize len,
     return out;
 }
 
-const char *colorTypeFromChannels(int c) {
+const char *colorTypeFromChannels(keel::i32 c) {
     switch (c) {
         case 1: return "grayscale";
         case 2: return "grayscalealpha";

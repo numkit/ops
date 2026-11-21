@@ -167,7 +167,7 @@ Value plus(const Value &a, const Value &b, keel::Allocator *mr)
         const char *cd = a.charData();
         keel::f64 *dd = ca.doubleDataMut();
         for (keel::usize i = 0; i < a.numel(); ++i)
-            dd[i] = keel::as<keel::f64>(keel::as<unsigned char>(cd[i]));
+            dd[i] = keel::as<keel::f64>(keel::as<keel::u8>(cd[i]));
         return elementwiseDouble(ca, b, [](keel::f64 x, keel::f64 y) { return x + y; }, p);
     }
     if (a.type() == ValueType::DOUBLE && b.isChar()) {
@@ -175,7 +175,7 @@ Value plus(const Value &a, const Value &b, keel::Allocator *mr)
         const char *cd = b.charData();
         keel::f64 *dd = cb.doubleDataMut();
         for (keel::usize i = 0; i < b.numel(); ++i)
-            dd[i] = keel::as<keel::f64>(keel::as<unsigned char>(cd[i]));
+            dd[i] = keel::as<keel::f64>(keel::as<keel::u8>(cd[i]));
         return elementwiseDouble(a, cb, [](keel::f64 x, keel::f64 y) { return x + y; }, p);
     }
     if (a.isString() && b.isString())

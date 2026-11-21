@@ -98,9 +98,9 @@ Value repmatND(const Value &x, keel::ArrayRef<keel::usize> tiles, keel::Allocato
                      0, 0, "repmat", "", "numkit:repmat:typeND");
 
     const auto &inDims = x.dims();
-    constexpr int kMaxNd = Dims::kMaxRank;
-    const int ntiles = keel::as<int>(tiles.size());
-    int outNdim = std::max(inDims.ndim(), ntiles);
+    constexpr keel::i32 kMaxNd = Dims::kMaxRank;
+    const keel::i32 ntiles = keel::as<keel::i32>(tiles.size());
+    keel::i32 outNdim = std::max(inDims.ndim(), ntiles);
     if (outNdim > kMaxNd)
         throw Error("repmat: rank exceeds 32",
                      0, 0, "repmat", "", "numkit:repmat:tooManyDims");
@@ -110,7 +110,7 @@ Value repmatND(const Value &x, keel::ArrayRef<keel::usize> tiles, keel::Allocato
     // map (per-axis modulo, same as the CELL path) and gather.
     if (x.isObject()) {
         keel::usize inDP[kMaxNd], tilesP[kMaxNd], outD[kMaxNd];
-        for (int i = 0; i < outNdim; ++i) {
+        for (keel::i32 i = 0; i < outNdim; ++i) {
             inDP[i] = (i < inDims.ndim()) ? inDims.dim(i) : 1;
             tilesP[i] = (i < ntiles) ? tiles[i] : 1;
             outD[i] = inDP[i] * tilesP[i];
@@ -123,10 +123,10 @@ Value repmatND(const Value &x, keel::ArrayRef<keel::usize> tiles, keel::Allocato
             keel::usize outStrides[kMaxNd], srcStrides[kMaxNd];
             computeStridesColMajor(outDims, outStrides);
             computeStridesColMajor(inDims, srcStrides);
-            for (int i = inDims.ndim(); i < outNdim; ++i) srcStrides[i] = 0;
+            for (keel::i32 i = inDims.ndim(); i < outNdim; ++i) srcStrides[i] = 0;
             for (keel::usize outIdx = 0; outIdx < total; ++outIdx) {
                 keel::usize rem = outIdx, srcIdx = 0;
-                for (int d = outNdim - 1; d >= 0; --d) {
+                for (keel::i32 d = outNdim - 1; d >= 0; --d) {
                     const keel::usize coord = rem / outStrides[d];
                     rem -= coord * outStrides[d];
                     if (d < inDims.ndim())
@@ -146,12 +146,12 @@ Value repmatND(const Value &x, keel::ArrayRef<keel::usize> tiles, keel::Allocato
         keel::usize inDP[kMaxNd];
         keel::usize tilesP[kMaxNd];
         keel::usize outD[kMaxNd];
-        for (int i = 0; i < outNdim; ++i) {
+        for (keel::i32 i = 0; i < outNdim; ++i) {
             inDP[i]   = (i < inDims.ndim()) ? inDims.dim(i) : 1;
             tilesP[i] = (i < ntiles)        ? tiles[i]      : 1;
             outD[i]   = inDP[i] * tilesP[i];
         }
-        int effNdim = outNdim;
+        keel::i32 effNdim = outNdim;
         while (effNdim > 2 && outD[effNdim - 1] == 1) --effNdim;
         // Build output of the same value-type (STRING, CELL, or STRUCT) with
         // the new shape.
@@ -177,7 +177,7 @@ Value repmatND(const Value &x, keel::ArrayRef<keel::usize> tiles, keel::Allocato
                 r = Value::structArray(0, 0, mr);
                 keel::usize maxCoords[kMaxNd];
                 bool anyZero = false;
-                for (int i = 0; i < effNdim; ++i) {
+                for (keel::i32 i = 0; i < effNdim; ++i) {
                     if (outD[i] == 0) { anyZero = true; break; }
                     maxCoords[i] = outD[i] - 1;
                 }
@@ -191,7 +191,7 @@ Value repmatND(const Value &x, keel::ArrayRef<keel::usize> tiles, keel::Allocato
         computeStridesColMajor(r.dims(), outStrides);
         keel::usize srcStrides[kMaxNd];
         computeStridesColMajor(inDims, srcStrides);
-        for (int i = inDims.ndim(); i < outNdim; ++i) srcStrides[i] = 0;
+        for (keel::i32 i = inDims.ndim(); i < outNdim; ++i) srcStrides[i] = 0;
 
         const keel::Array<keel::String> structFieldsOrder =
             (t == ValueType::STRUCT) ? x.fieldNamesInOrder() : keel::Array<keel::String>(mr);
@@ -201,7 +201,7 @@ Value repmatND(const Value &x, keel::ArrayRef<keel::usize> tiles, keel::Allocato
             // Recover output coord, map back to source coord by per-axis modulo.
             keel::usize rem = outIdx;
             keel::usize srcIdx = 0;
-            for (int d = outNdim - 1; d >= 0; --d) {
+            for (keel::i32 d = outNdim - 1; d >= 0; --d) {
                 const keel::usize coord = rem / outStrides[d];
                 rem -= coord * outStrides[d];
                 if (d < inDims.ndim())
@@ -226,7 +226,7 @@ Value repmatND(const Value &x, keel::ArrayRef<keel::usize> tiles, keel::Allocato
     keel::usize inDimPadded[kMaxNd];
     keel::usize tilesPadded[kMaxNd];
     keel::usize outDim[kMaxNd];
-    for (int i = 0; i < outNdim; ++i) {
+    for (keel::i32 i = 0; i < outNdim; ++i) {
         inDimPadded[i] = (i < inDims.ndim()) ? inDims.dim(i) : 1;
         tilesPadded[i] = (i < ntiles) ? tiles[i] : 1;
         outDim[i] = inDimPadded[i] * tilesPadded[i];
@@ -251,17 +251,17 @@ Value repmatND(const Value &x, keel::ArrayRef<keel::usize> tiles, keel::Allocato
     computeStridesColMajor(r.dims(), outStrides);
     keel::usize srcStrides[kMaxNd];
     computeStridesColMajor(inDims, srcStrides);
-    for (int i = inDims.ndim(); i < outNdim; ++i) srcStrides[i] = 0;
+    for (keel::i32 i = inDims.ndim(); i < outNdim; ++i) srcStrides[i] = 0;
 
     keel::usize outerDimsArr[kMaxNd];
-    for (int i = 1; i < outNdim; ++i) outerDimsArr[i - 1] = outDim[i];
+    for (keel::i32 i = 1; i < outNdim; ++i) outerDimsArr[i - 1] = outDim[i];
     Dims outerIter(outerDimsArr, outNdim - 1);
 
     keel::usize outerCoords[kMaxNd] = {0};
     do {
         keel::usize srcOff = 0;
         keel::usize dstOff = 0;
-        for (int i = 1; i < outNdim; ++i) {
+        for (keel::i32 i = 1; i < outNdim; ++i) {
             const keel::usize oc = outerCoords[i - 1];
             const keel::usize inDimI = inDimPadded[i];
             srcOff += (oc % inDimI) * srcStrides[i];
@@ -347,15 +347,15 @@ Value flipud(const Value &x, keel::Allocator *mr)
 // generalisation: k mod 4 selects 0/90/180/270° rotation. Negative k
 // is clockwise.
 
-Value rot90(const Value &x, int k, keel::Allocator *mr)
+Value rot90(const Value &x, keel::i32 k, keel::Allocator *mr)
 {
-    int kMod = k % 4;
+    keel::i32 kMod = k % 4;
     if (kMod < 0) kMod += 4;
 
     if (isCellOrString(x.type())) return rot90CellStr(x, kMod, mr);
 
     const auto &dd = x.dims();
-    const int nd = dd.ndim();
+    const keel::i32 nd = dd.ndim();
     const keel::usize R = dd.rows(), C = dd.cols();
 
     // OBJECT (2-D): rotate via the same index map as rot90CellStr (each
@@ -387,14 +387,14 @@ Value rot90(const Value &x, int k, keel::Allocator *mr)
             || t == ValueType::FUNC_HANDLE)
             throw Error(keel::format("rot90: ND fallback does not support type '{}'", mtypeName(t)),
                          0, 0, "rot90", "", "numkit:rot90:typeND");
-        constexpr int kMaxNd = Dims::kMaxRank;
+        constexpr keel::i32 kMaxNd = Dims::kMaxRank;
         if (nd > kMaxNd)
             throw Error("rot90: rank exceeds 32",
                          0, 0, "rot90", "", "numkit:rot90:tooManyDims");
         keel::usize outDims[kMaxNd];
         outDims[0] = (kMod == 1 || kMod == 3) ? C : R;
         outDims[1] = (kMod == 1 || kMod == 3) ? R : C;
-        for (int i = 2; i < nd; ++i) outDims[i] = dd.dim(i);
+        for (keel::i32 i = 2; i < nd; ++i) outDims[i] = dd.dim(i);
         auto r = Value::matrixND(outDims, nd, t, mr);
         if (x.numel() == 0) return r;
         const keel::usize es = elementSize(t);
@@ -506,8 +506,8 @@ Value circshift(const Value &x, keel::i64 k, keel::Allocator *mr)
     // k shifts along the first non-singleton dimension.
     if (x.type() != ValueType::DOUBLE) {
         if (x.isScalar() || x.numel() == 0) return x;
-        int fnsd = 0;
-        for (int i = 0; i < dd.ndim(); ++i)
+        keel::i32 fnsd = 0;
+        for (keel::i32 i = 0; i < dd.ndim(); ++i)
             if (dd.dim(i) > 1) { fnsd = i; break; }
         keel::i64 sh[Dims::kMaxRank] = {0};
         sh[fnsd] = k;
@@ -537,8 +537,8 @@ Value circshiftND(const Value &x, keel::ArrayRef<keel::i64> shifts, keel::Alloca
         throw Error(keel::format("circshift: does not support type '{}'", mtypeName(t)),
                      0, 0, "circshift", "", "numkit:circshift:typeND");
     const auto &d = x.dims();
-    const int nd = d.ndim();
-    constexpr int kMaxNd = Dims::kMaxRank;
+    const keel::i32 nd = d.ndim();
+    constexpr keel::i32 kMaxNd = Dims::kMaxRank;
     if (nd > kMaxNd)
         throw Error("circshift: rank exceeds 32",
                      0, 0, "circshift", "", "numkit:circshift:tooManyDims");
@@ -549,15 +549,15 @@ Value circshiftND(const Value &x, keel::ArrayRef<keel::i64> shifts, keel::Alloca
                      0, 0, "circshift", "", "numkit:circshift:cellND");
 
     keel::usize outDims[kMaxNd];
-    for (int i = 0; i < nd; ++i) outDims[i] = d.dim(i);
+    for (keel::i32 i = 0; i < nd; ++i) outDims[i] = d.dim(i);
     // CELL needs proper cell storage (Value::matrixND does not allocate it).
     Value r = isCell ? Value::cell(outDims[0], nd >= 2 ? outDims[1] : 1, mr)
                      : Value::matrixND(outDims, nd, t, mr);
     if (x.numel() == 0) return r;
 
-    const int nshifts = keel::as<int>(shifts.size());
+    const keel::i32 nshifts = keel::as<keel::i32>(shifts.size());
     keel::usize shiftMod[kMaxNd] = {0};
-    for (int i = 0; i < nd; ++i) {
+    for (keel::i32 i = 0; i < nd; ++i) {
         const keel::i64 s = (i < nshifts) ? shifts[i] : 0;
         shiftMod[i] = wrap(s, d.dim(i));
     }
@@ -571,7 +571,7 @@ Value circshiftND(const Value &x, keel::ArrayRef<keel::i64> shifts, keel::Alloca
         keel::Array<keel::usize> map(total, scratch.allocator());
         for (keel::usize dstLin = 0; dstLin < total; ++dstLin) {
             keel::usize rem = dstLin, srcLin = 0;
-            for (int i = nd - 1; i >= 0; --i) {
+            for (keel::i32 i = nd - 1; i >= 0; --i) {
                 const keel::usize coord = rem / strides[i];
                 rem -= coord * strides[i];
                 const keel::usize srcCoord = (coord + d.dim(i) - shiftMod[i]) % d.dim(i);
@@ -604,13 +604,13 @@ Value circshiftND(const Value &x, keel::ArrayRef<keel::i64> shifts, keel::Alloca
     computeStridesColMajor(d, srcStrides);
 
     keel::usize outerDimsArr[kMaxNd];
-    for (int i = 1; i < nd; ++i) outerDimsArr[i - 1] = d.dim(i);
+    for (keel::i32 i = 1; i < nd; ++i) outerDimsArr[i - 1] = d.dim(i);
     Dims outerIter(outerDimsArr, nd - 1);
 
     keel::usize outerCoords[kMaxNd] = {0};
     do {
         keel::usize srcOuterOff = 0, dstOuterOff = 0;
-        for (int i = 1; i < nd; ++i) {
+        for (keel::i32 i = 1; i < nd; ++i) {
             const keel::usize dimI = d.dim(i);
             const keel::usize srcCoord = (outerCoords[i - 1] + dimI - shiftMod[i]) % dimI;
             srcOuterOff += srcCoord * srcStrides[i];
@@ -676,7 +676,7 @@ Value circshift(const Value &x, keel::i64 kRow, keel::i64 kCol, keel::Allocator 
 // All numeric types supported via byte-copy + memset(0) (zero bit pattern
 // is the canonical zero for DOUBLE/SINGLE/integer/LOGICAL/COMPLEX).
 
-Value tril(const Value &x, int k, keel::Allocator *mr)
+Value tril(const Value &x, keel::i32 k, keel::Allocator *mr)
 {
     const auto &dd = x.dims();
     if (dd.ndim() >= 4)
@@ -705,7 +705,7 @@ Value tril(const Value &x, int k, keel::Allocator *mr)
     return r;
 }
 
-Value triu(const Value &x, int k, keel::Allocator *mr)
+Value triu(const Value &x, keel::i32 k, keel::Allocator *mr)
 {
     const auto &dd = x.dims();
     if (dd.ndim() >= 4)
@@ -735,14 +735,14 @@ Value triu(const Value &x, int k, keel::Allocator *mr)
 // flip — generalized N-D flip
 // ────────────────────────────────────────────────────────────────────
 
-Value flip(const Value &x, int dim1Based, keel::Allocator *mr)
+Value flip(const Value &x, keel::i32 dim1Based, keel::Allocator *mr)
 {
-    int axis;
+    keel::i32 axis;
     if (dim1Based <= 0) {
         // First non-singleton dim, 0-based.
         axis = 0;
         const auto &d = x.dims();
-        for (int i = 0; i < d.ndim(); ++i) {
+        for (keel::i32 i = 0; i < d.ndim(); ++i) {
             if (d.dim(i) > 1) { axis = i; break; }
         }
     } else {
@@ -894,7 +894,7 @@ Value repelem(const Value &x, const Value &rCounts, const Value &cCounts,
 // inputs only — the pad cell is `0` (matches MATLAB R2024 default).
 
 
-Value paddata(const Value &v, keel::usize n, int dim, keel::StringRef side, keel::f64 fillValue, keel::Allocator *mr)
+Value paddata(const Value &v, keel::usize n, keel::i32 dim, keel::StringRef side, keel::f64 fillValue, keel::Allocator *mr)
 {
     if (!v.isEmpty() && v.type() != ValueType::DOUBLE)
         throw Error("paddata: only DOUBLE inputs supported",
@@ -912,7 +912,7 @@ Value paddata(const Value &v, keel::usize n, int dim, keel::StringRef side, keel
                      0, 0, "paddata", "", "numkit:paddata:badSide");
 
     // Determine operating dimension: 1 = rows, 2 = cols.
-    int opDim = dim;
+    keel::i32 opDim = dim;
     if (opDim <= 0) {
         if (d.rows() == 1 && d.cols() >= 1) opDim = 2;
         else if (d.rows() == 0 && d.cols() == 0) opDim = 2;
@@ -960,12 +960,12 @@ Value paddata(const Value &v, keel::usize n, keel::Allocator *mr)
     return paddata(v, n, 0, "trailing", 0.0, mr);
 }
 
-Value paddata(const Value &x, keel::usize len, int dim, keel::StringRef side, keel::Allocator *mr)
+Value paddata(const Value &x, keel::usize len, keel::i32 dim, keel::StringRef side, keel::Allocator *mr)
 {
     return paddata(x, len, dim, side, 0.0, mr);
 }
 
-Value trimdata(const Value &v, keel::usize n, int dim, keel::StringRef side, keel::Allocator *mr)
+Value trimdata(const Value &v, keel::usize n, keel::i32 dim, keel::StringRef side, keel::Allocator *mr)
 {
     if (!v.isEmpty() && v.type() != ValueType::DOUBLE)
         throw Error("trimdata: only DOUBLE inputs supported",
@@ -982,7 +982,7 @@ Value trimdata(const Value &v, keel::usize n, int dim, keel::StringRef side, kee
         throw Error("trimdata: side must be 'trailing', 'leading', or 'both'",
                      0, 0, "trimdata", "", "numkit:trimdata:badSide");
 
-    int opDim = dim;
+    keel::i32 opDim = dim;
     if (opDim <= 0) {
         if (d.rows() == 1 && d.cols() >= 1) opDim = 2;
         else opDim = 1;
@@ -1025,10 +1025,10 @@ Value trimdata(const Value &v, keel::usize n, keel::Allocator *mr)
     return trimdata(v, n, 0, "trailing", mr);
 }
 
-Value resize(const Value &v, keel::usize n, int dim, keel::StringRef side, keel::f64 fillValue, keel::Allocator *mr)
+Value resize(const Value &v, keel::usize n, keel::i32 dim, keel::StringRef side, keel::f64 fillValue, keel::Allocator *mr)
 {
     const auto &d = v.dims();
-    int opDim = dim;
+    keel::i32 opDim = dim;
     if (opDim <= 0) {
         if (d.rows() == 1 && d.cols() >= 1) opDim = 2;
         else if (d.rows() == 0 && d.cols() == 0) opDim = 2;

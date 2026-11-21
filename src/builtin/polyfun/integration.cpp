@@ -62,14 +62,14 @@ void gradientAlongRows(const keel::f64 *src, keel::f64 *dst, keel::usize R, keel
 // column-major layout. Central differences on the interior, one-sided at the
 // ends, uniform scalar spacing h. A singleton dimension yields all zeros.
 void gradientAlongDim(const keel::f64 *src, keel::f64 *dst, const Dims &shape,
-                      int dim, keel::f64 h)
+                      keel::i32 dim, keel::f64 h)
 {
     const keel::usize N = shape.numel();
     if (N == 0) return;
     const keel::usize L = shape.dim(dim);
     if (L <= 1) { for (keel::usize i = 0; i < N; ++i) dst[i] = 0.0; return; }
     keel::usize inner = 1;
-    for (int k = 0; k < dim; ++k) inner *= shape.dim(k);
+    for (keel::i32 k = 0; k < dim; ++k) inner *= shape.dim(k);
     const keel::usize block = L * inner;
     const keel::usize outer = N / block;
     for (keel::usize o = 0; o < outer; ++o) {
@@ -263,12 +263,12 @@ keel::Array<Value> gradientND(const Value &f, const keel::f64 *hs, keel::usize n
     }
 
     const Dims &shape = f.dims();
-    const int R = shape.ndim();
+    const keel::i32 R = shape.ndim();
     auto src = toDoubleCopy(f, mr);
     keel::Array<Value> outs(mr);
     outs.reserve(nout);
     for (keel::usize o = 0; o < nout; ++o) {
-        const int dim = (o == 0) ? 1 : (o == 1) ? 0 : keel::as<int>(o);
+        const keel::i32 dim = (o == 0) ? 1 : (o == 1) ? 0 : keel::as<keel::i32>(o);
         if (dim >= R)
             throw Error("gradient: too many output arguments for the input "
                         "dimensionality",
@@ -367,7 +367,7 @@ Value cumtrapzMatrixRowsC(const keel::c64 *src, const keel::f64 *xData, keel::us
 // A vector is treated as the matrix it is (1×N or N×1): integrating along
 // the singleton dimension is a no-op (all zeros), matching MATLAB — e.g.
 // cumtrapz([1 2 3 4], 1) → [0 0 0 0], cumtrapz([1 2 3 4], 2) → cumulative.
-Value cumtrapzDim(const Value &y, int dim, keel::Allocator *mr)
+Value cumtrapzDim(const Value &y, keel::i32 dim, keel::Allocator *mr)
 {
     const keel::usize rows = y.dims().rows(), cols = y.dims().cols();
     if (dim <= 0) dim = 1;
@@ -579,7 +579,7 @@ namespace detail {
 // y along dim) gives non-uniform spacing; nullptr = unit spacing. A vector
 // reduces to a scalar; a matrix reduces along `dim` (MATLAB trapz semantics:
 // trapz(M) = 1xC over columns, trapz(M,2) = Rx1 over rows).
-Value trapzImpl(const Value &y, int dim, const keel::f64 *xData,
+Value trapzImpl(const Value &y, keel::i32 dim, const keel::f64 *xData,
                 keel::Allocator *mr)
 {
     const keel::usize R = y.dims().rows(), C = y.dims().cols();
@@ -613,10 +613,10 @@ Value trapzImpl(const Value &y, int dim, const keel::f64 *xData,
     return out;
 }
 
-int trapzFirstNonSingletonDim(const Value &y)
+keel::i32 trapzFirstNonSingletonDim(const Value &y)
 {
     const auto &d = y.dims();
-    for (int k = 0; k < d.ndim(); ++k)
+    for (keel::i32 k = 0; k < d.ndim(); ++k)
         if (d.dim(k) > 1) return k + 1;
     return 1;
 }
@@ -634,7 +634,7 @@ Value trapz(const Value &y, keel::Allocator *mr)
 
 Value trapz(const Value &x, const Value &y, keel::Allocator *mr)
 {
-    const int dim = trapzFirstNonSingletonDim(y);
+    const keel::i32 dim = trapzFirstNonSingletonDim(y);
     const keel::usize along = (dim != 2) ? y.dims().rows() : y.dims().cols();
     if (x.numel() != along)
         throw Error("trapz: x and y must have same length",

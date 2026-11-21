@@ -72,7 +72,7 @@ keel::u8 scanSlice(const Value &x, keel::usize base, keel::usize n, keel::usize 
 }
 
 template <bool IsAny>
-Value logicalReduceImpl(const Value &x, int dim, keel::Allocator *mr)
+Value logicalReduceImpl(const Value &x, keel::i32 dim, keel::Allocator *mr)
 {
     if (x.isEmpty())
         return Value::logicalScalar(IsAny ? false : true, mr);
@@ -87,7 +87,7 @@ Value logicalReduceImpl(const Value &x, int dim, keel::Allocator *mr)
         return Value::logicalScalar(v != 0, mr);
     }
 
-    const int d = numkit::ops::resolveDim(x, dim, IsAny ? "any" : "all");
+    const keel::i32 d = numkit::ops::resolveDim(x, dim, IsAny ? "any" : "all");
     const auto &dd = x.dims();
 
     // ND fallback: rank ≥ 4 — stride arithmetic via scanSlice.
@@ -95,14 +95,14 @@ Value logicalReduceImpl(const Value &x, int dim, keel::Allocator *mr)
         keel::ArenaTemp scratch = keel::get_scratch(mr);
         auto shape = numkit::ops::outShapeForDimND(x, d, scratch.allocator());
         Value out = Value::matrixND(shape.data(),
-                                      keel::as<int>(shape.size()),
+                                      keel::as<keel::i32>(shape.size()),
                                       ValueType::LOGICAL, mr);
         keel::u8 *dst = out.logicalDataMut();
         const keel::usize sliceLen = dd.dim(d - 1);
         keel::usize B = 1;
-        for (int i = 0; i < d - 1; ++i) B *= dd.dim(i);
+        for (keel::i32 i = 0; i < d - 1; ++i) B *= dd.dim(i);
         keel::usize O = 1;
-        for (int i = d; i < dd.ndim(); ++i) O *= dd.dim(i);
+        for (keel::i32 i = d; i < dd.ndim(); ++i) O *= dd.dim(i);
         for (keel::usize o = 0; o < O; ++o)
             for (keel::usize b = 0; b < B; ++b) {
                 const keel::usize base = o * sliceLen * B + b;
@@ -144,12 +144,12 @@ Value logicalReduceImpl(const Value &x, int dim, keel::Allocator *mr)
 
 } // namespace
 
-Value anyOf(const Value &x, int dim, keel::Allocator *mr)
+Value anyOf(const Value &x, keel::i32 dim, keel::Allocator *mr)
 {
     return logicalReduceImpl<true>(x, dim, mr);
 }
 
-Value allOf(const Value &x, int dim, keel::Allocator *mr)
+Value allOf(const Value &x, keel::i32 dim, keel::Allocator *mr)
 {
     return logicalReduceImpl<false>(x, dim, mr);
 }

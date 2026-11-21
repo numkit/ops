@@ -37,7 +37,7 @@ Value num2str(const Value &x, keel::Allocator *mr = nullptr);
 /// @param mr Memory resource.
 /// @return Character vector representation.
 /// @see int2str, mat2str, str2num
-Value num2str(const Value &x, int N, keel::Allocator *mr = nullptr);
+Value num2str(const Value &x, keel::i32 N, keel::Allocator *mr = nullptr);
 
 /// @brief Formats numeric array into character vector with format specification (`num2str(x, fmt)`).
 /// @param x Input numeric array or scalar.
@@ -67,7 +67,7 @@ Value mat2str(const Value &x, keel::Allocator *mr = nullptr);
 /// @param mr Memory resource.
 /// @return Formatted character vector.
 /// @see num2str
-Value mat2str(const Value &x, int precision, keel::Allocator *mr = nullptr);
+Value mat2str(const Value &x, keel::i32 precision, keel::Allocator *mr = nullptr);
 
 /// @brief Converts string representation to numeric matrix (`str2num(s)`).
 /// @param s Character vector or string.
@@ -535,7 +535,7 @@ Value stringsND(keel::ArrayRef<keel::usize> dims, keel::Allocator *mr = nullptr)
 /// @param mr Memory resource.
 /// @return Character array of binary representations.
 /// @see bin2dec, dec2hex
-Value dec2bin(const Value &d, int minDigits = 0, keel::Allocator *mr = nullptr);
+Value dec2bin(const Value &d, keel::i32 minDigits = 0, keel::Allocator *mr = nullptr);
 
 /// @brief Decimal to hexadecimal string (`dec2hex(d, minDigits)`).
 /// @param d Non-negative integer value(s).
@@ -543,7 +543,7 @@ Value dec2bin(const Value &d, int minDigits = 0, keel::Allocator *mr = nullptr);
 /// @param mr Memory resource.
 /// @return Character array of hex representations.
 /// @see hex2dec, dec2bin
-Value dec2hex(const Value &d, int minDigits = 0, keel::Allocator *mr = nullptr);
+Value dec2hex(const Value &d, keel::i32 minDigits = 0, keel::Allocator *mr = nullptr);
 
 /// @brief Decimal to base-N string (`dec2base(d, base, minDigits)`).
 /// @param d Non-negative integer value(s).
@@ -552,7 +552,7 @@ Value dec2hex(const Value &d, int minDigits = 0, keel::Allocator *mr = nullptr);
 /// @param mr Memory resource.
 /// @return Base-N character array.
 /// @see base2dec
-Value dec2base(const Value &d, int base, int minDigits = 0, keel::Allocator *mr = nullptr);
+Value dec2base(const Value &d, keel::i32 base, keel::i32 minDigits = 0, keel::Allocator *mr = nullptr);
 
 /// @brief Base-N string to decimal (`base2dec(s, base)`).
 /// @param s Base-N text.
@@ -560,7 +560,7 @@ Value dec2base(const Value &d, int base, int minDigits = 0, keel::Allocator *mr 
 /// @param mr Memory resource.
 /// @return Decimal double.
 /// @see dec2base
-Value base2dec(const Value &s, int base, keel::Allocator *mr = nullptr);
+Value base2dec(const Value &s, keel::i32 base, keel::Allocator *mr = nullptr);
 
 /// @brief Binary string to decimal (`bin2dec(s)`).
 /// @param s Binary text.
@@ -604,7 +604,7 @@ Value rat(const Value &x, keel::f64 tol = 0.0, keel::Allocator *mr = nullptr);
 /// @param mr Memory resource.
 /// @return Character array of formatted rational strings.
 /// @see rat
-Value rats(const Value &x, int len = 13, keel::Allocator *mr = nullptr);
+Value rats(const Value &x, keel::i32 len = 13, keel::Allocator *mr = nullptr);
 
 /// @brief Extracts first token from character vector up to delimiter (`[token, rem] = strtok(str, delim)`).
 /// @param str Input string.

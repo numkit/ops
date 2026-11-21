@@ -149,7 +149,7 @@ Value orth(const Value &A, keel::f64 tol, keel::Allocator *mr)
     const keel::f64 sigma_max = (k > 0) ? S_data[0] : 0.0;
     const keel::f64 cutoff = (tol < 0.0) ? defaultRankTol(m, n, sigma_max, wantSingle) : tol;
 
-    int r = 0;
+    keel::i32 r = 0;
     for (keel::usize i = 0; i < k; ++i)
         if (S_data[i + i * Srows] > cutoff) ++r;
 
@@ -180,7 +180,7 @@ Value null_basis(const Value &A, keel::f64 tol, keel::Allocator *mr)
     const keel::f64 sigma_max = (k > 0) ? S_data[0] : 0.0;
     const keel::f64 cutoff = (tol < 0.0) ? defaultRankTol(m, n, sigma_max, wantSingle) : tol;
 
-    int r = 0;
+    keel::i32 r = 0;
     for (keel::usize i = 0; i < k; ++i)
         if (S_data[i + i * Srows] > cutoff) ++r;
 

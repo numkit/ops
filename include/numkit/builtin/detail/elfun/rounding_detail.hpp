@@ -63,13 +63,13 @@ Value roundLikeDispatch(const Value &x, ScalarOp scalar, SimdOp simdLoop, keel::
 
 // round(x, N): N decimal places (N may be negative). round(x, N,
 // 'significant'): N significant digits. Round-half-away-from-zero (MATLAB).
-inline keel::f64 roundNScalar(keel::f64 v, int n, bool significant)
+inline keel::f64 roundNScalar(keel::f64 v, keel::i32 n, bool significant)
 {
     if (!std::isfinite(v)) return v;
-    int digits = n;
+    keel::i32 digits = n;
     if (significant) {
         if (v == 0.0) return 0.0;
-        digits = n - keel::as<int>(std::floor(std::log10(std::fabs(v)))) - 1;
+        digits = n - keel::as<keel::i32>(std::floor(std::log10(std::fabs(v)))) - 1;
     }
     const keel::f64 f = std::pow(10.0, digits);
     return std::round(v * f) / f;
@@ -78,6 +78,6 @@ inline keel::f64 roundNScalar(keel::f64 v, int n, bool significant)
 } // namespace
 
 // round(x,n)/round(x,n,'significant') worker (def in rounding.cpp, external).
-Value roundN(const Value &x, int n, bool significant, keel::Allocator *mr);
+Value roundN(const Value &x, keel::i32 n, bool significant, keel::Allocator *mr);
 
 } // namespace numkit::builtin

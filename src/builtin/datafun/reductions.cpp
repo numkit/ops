@@ -43,10 +43,10 @@ Value sum(const Value &x, keel::Allocator *mr)
     return reduce(x, [](keel::f64 a, keel::f64 b) { return a + b; }, 0.0, mr);
 }
 
-Value sum(const Value &x, int dim, keel::Allocator *mr)
+Value sum(const Value &x, keel::i32 dim, keel::Allocator *mr)
 {
     if (dim <= 0) return sum(x, mr);
-    const int d = numkit::ops::resolveDim(x, dim, "sum");
+    const keel::i32 d = numkit::ops::resolveDim(x, dim, "sum");
 
     // Phase P6 followup: 2D dim=2 column-pass row reduction. The
     // applyAlongDim path gathers each row into a scratch buffer with a
@@ -82,10 +82,10 @@ Value prod(const Value &x, keel::Allocator *mr)
     return reduce(x, [](keel::f64 a, keel::f64 b) { return a * b; }, 1.0, mr);
 }
 
-Value prod(const Value &x, int dim, keel::Allocator *mr)
+Value prod(const Value &x, keel::i32 dim, keel::Allocator *mr)
 {
     if (dim <= 0) return prod(x, mr);
-    const int d = numkit::ops::resolveDim(x, dim, "prod");
+    const keel::i32 d = numkit::ops::resolveDim(x, dim, "prod");
     return numkit::ops::applyAlongDim(x, d,
         [](keel::usize, keel::f64 *slice, keel::usize n) {
             keel::f64 acc = 1.0;
@@ -99,10 +99,10 @@ Value mean(const Value &x, keel::Allocator *mr)
     return reduce(x, [](keel::f64 a, keel::f64 b) { return a + b; }, 0.0, mr, /*meanMode=*/true);
 }
 
-Value mean(const Value &x, int dim, keel::Allocator *mr)
+Value mean(const Value &x, keel::i32 dim, keel::Allocator *mr)
 {
     if (dim <= 0) return mean(x, mr);
-    const int d = numkit::ops::resolveDim(x, dim, "mean");
+    const keel::i32 d = numkit::ops::resolveDim(x, dim, "mean");
     return numkit::ops::applyAlongDim(x, d,
         [](keel::usize, keel::f64 *slice, keel::usize n) {
             keel::f64 acc = 0.0;
@@ -131,33 +131,33 @@ std::tuple<Value, Value> min(const Value &x, keel::Allocator *mr)
     return dispatchMinMaxAll<false>(x, [](auto v, auto best) { return v < best; }, mr, "min");
 }
 
-std::tuple<Value, Value> max(const Value &x, int dim, keel::Allocator *mr)
+std::tuple<Value, Value> max(const Value &x, keel::i32 dim, keel::Allocator *mr)
 {
     if (dim <= 0) return max(x, mr);
-    const int d = numkit::ops::resolveDim(x, dim, "max");
+    const keel::i32 d = numkit::ops::resolveDim(x, dim, "max");
     return dispatchMinMaxAlongDim<true>(x, d, [](auto v, auto best) { return v > best; }, mr, "max");
 }
 
-std::tuple<Value, Value> maxOmitNan(const Value &x, int dim, keel::Allocator *mr)
+std::tuple<Value, Value> maxOmitNan(const Value &x, keel::i32 dim, keel::Allocator *mr)
 {
     if (dim <= 0)
         return dispatchMinMaxNanAll<true>(x, [](auto v, auto best) { return v > best; }, mr, "max");
-    const int d = numkit::ops::resolveDim(x, dim, "max");
+    const keel::i32 d = numkit::ops::resolveDim(x, dim, "max");
     return dispatchMinMaxNanAlongDim<true>(x, d, [](auto v, auto best) { return v > best; }, mr, "max");
 }
 
-std::tuple<Value, Value> minOmitNan(const Value &x, int dim, keel::Allocator *mr)
+std::tuple<Value, Value> minOmitNan(const Value &x, keel::i32 dim, keel::Allocator *mr)
 {
     if (dim <= 0)
         return dispatchMinMaxNanAll<false>(x, [](auto v, auto best) { return v < best; }, mr, "min");
-    const int d = numkit::ops::resolveDim(x, dim, "min");
+    const keel::i32 d = numkit::ops::resolveDim(x, dim, "min");
     return dispatchMinMaxNanAlongDim<false>(x, d, [](auto v, auto best) { return v < best; }, mr, "min");
 }
 
-std::tuple<Value, Value> min(const Value &x, int dim, keel::Allocator *mr)
+std::tuple<Value, Value> min(const Value &x, keel::i32 dim, keel::Allocator *mr)
 {
     if (dim <= 0) return min(x, mr);
-    const int d = numkit::ops::resolveDim(x, dim, "min");
+    const keel::i32 d = numkit::ops::resolveDim(x, dim, "min");
     return dispatchMinMaxAlongDim<false>(x, d, [](auto v, auto best) { return v < best; }, mr, "min");
 }
 

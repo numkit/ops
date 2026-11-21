@@ -30,14 +30,14 @@ struct OdeOpts {
     keel::Array<keel::f64> abs_tol      = keel::Array<keel::f64>(1, 1e-6, nullptr);
     keel::f64              max_step     = keel::Limits<keel::f64>::infinity();
     keel::f64              initial_step = 0.0;
-    int                 refine       = 4;
+    keel::i32                 refine       = 4;
     bool                norm_control = false;
     bool                stats        = false;
 };
 
 // Parse the options struct. `refine_default` is the solver's default Refine
 // (ode45 -> 4, ode23 -> 1); an explicit opts.Refine field overrides it.
-inline OdeOpts read_opts(const Value &opts, int refine_default)
+inline OdeOpts read_opts(const Value &opts, keel::i32 refine_default)
 {
     OdeOpts o;
     o.refine = refine_default;
@@ -56,7 +56,7 @@ inline OdeOpts read_opts(const Value &opts, int refine_default)
         const Value &v = opts.field("Refine");
         if (!v.isEmpty()) {
             const keel::f64 r = v.toScalar();
-            o.refine = (r >= 1.0) ? keel::as<int>(r) : 1;
+            o.refine = (r >= 1.0) ? keel::as<keel::i32>(r) : 1;
         }
     }
     if (opts.hasField("NormControl")) {
@@ -89,7 +89,7 @@ using KeelOdeSolverFn = keel::ode::Solution (*)(keel::ode::RhsFn, keel::ArrayRef
                                                 keel::Allocator *);
 
 inline std::tuple<Value, Value>
-runKeelOde(KeelOdeSolverFn solver_fn, const char *solver, int refine_default,
+runKeelOde(KeelOdeSolverFn solver_fn, const char *solver, keel::i32 refine_default,
            FnHandle rhs, const Value &tspan, const Value &y0,
            const Value &opts, keel::Allocator *mr)
 {

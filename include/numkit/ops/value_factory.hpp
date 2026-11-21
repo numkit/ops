@@ -37,10 +37,10 @@ inline Value createMatrix(DimsArg d, ValueType type, keel::Allocator *mr = nullp
 // (matrix / matrix3d / matrixND).
 inline Value createForDims(const Dims &d, ValueType type, keel::Allocator *mr = nullptr)
 {
-    const int nd = d.ndim();
+    const keel::i32 nd = d.ndim();
     if (nd >= 4) {
         keel::usize dims[Dims::kMaxRank];
-        for (int i = 0; i < nd; ++i)
+        for (keel::i32 i = 0; i < nd; ++i)
             dims[i] = d.dim(i);
         return Value::matrixND(dims, nd, type, mr);
     }

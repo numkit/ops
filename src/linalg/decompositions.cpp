@@ -545,7 +545,7 @@ qrdelete_row(const Value &Q, const Value &R, keel::usize k_1based,
 // cholupdate — rank-1 Cholesky update/downdate (via keel::linalg::cholesky_update)
 // ────────────────────────────────────────────────────────────────────────
 
-Value cholupdate(const Value &R, const Value &x, int sign,
+Value cholupdate(const Value &R, const Value &x, keel::i32 sign,
                  keel::Allocator *mr)
 {
     detail::requireDoubleInput(R, "cholupdate", "R", 1);

@@ -63,7 +63,7 @@ inline numkit::Value coerceCharToDouble(const numkit::Value &v,
     keel::f64 *dst = out.doubleDataMut();
     const keel::usize n = v.numel();
     for (keel::usize i = 0; i < n; ++i)
-        dst[i] = keel::as<keel::f64>(keel::as<unsigned char>(src[i]));
+        dst[i] = keel::as<keel::f64>(keel::as<keel::u8>(src[i]));
     return out;
 }
 
@@ -313,7 +313,7 @@ inline bool applyCmp(Cmp c, keel::f64 x, keel::f64 y)
         };
         keel::String sa = toStr(a), sb = toStr(b);
         const keel::usize minLen = std::min(sa.size(), sb.size());
-        int cmpRes = (minLen > 0) ? std::memcmp(sa.data(), sb.data(), minLen) : 0;
+        keel::i32 cmpRes = (minLen > 0) ? std::memcmp(sa.data(), sb.data(), minLen) : 0;
         if (cmpRes == 0)
             cmpRes = (sa.size() < sb.size()) ? -1 : (sa.size() > sb.size() ? 1 : 0);
         switch (c) {
@@ -698,8 +698,8 @@ Value pagemtimesImpl(const Value &x, TranspOp tx, const Value &y, TranspOp ty, k
 {
     const auto &xd = x.dims();
     const auto &yd = y.dims();
-    const int xnd = xd.ndim();
-    const int ynd = yd.ndim();
+    const keel::i32 xnd = xd.ndim();
+    const keel::i32 ynd = yd.ndim();
     if (xnd < 2 || ynd < 2)
         throw Error("pagemtimes: each input must have at least 2 dimensions",
                      0, 0, "pagemtimes", "", "numkit:pagemtimes:rank");
@@ -716,12 +716,12 @@ Value pagemtimesImpl(const Value &x, TranspOp tx, const Value &y, TranspOp ty, k
                      0, 0, "pagemtimes", "", "numkit:pagemtimes:innerdim");
     const keel::usize K = Kx;
 
-    constexpr int kMaxNd = Dims::kMaxRank;
-    const int xb = std::max(0, xnd - 2);
-    const int yb = std::max(0, ynd - 2);
-    const int outBatchNd = std::max(xb, yb);
+    constexpr keel::i32 kMaxNd = Dims::kMaxRank;
+    const keel::i32 xb = std::max(0, xnd - 2);
+    const keel::i32 yb = std::max(0, ynd - 2);
+    const keel::i32 outBatchNd = std::max(xb, yb);
     keel::usize xBatch[kMaxNd], yBatch[kMaxNd], outBatch[kMaxNd];
-    for (int i = 0; i < outBatchNd; ++i) {
+    for (keel::i32 i = 0; i < outBatchNd; ++i) {
         xBatch[i] = (i < xb) ? xd.dim(2 + i) : 1;
         yBatch[i] = (i < yb) ? yd.dim(2 + i) : 1;
         if (xBatch[i] != yBatch[i] && xBatch[i] != 1 && yBatch[i] != 1)
@@ -732,13 +732,13 @@ Value pagemtimesImpl(const Value &x, TranspOp tx, const Value &y, TranspOp ty, k
     }
 
     keel::usize batchN = 1;
-    for (int i = 0; i < outBatchNd; ++i) batchN *= outBatch[i];
+    for (keel::i32 i = 0; i < outBatchNd; ++i) batchN *= outBatch[i];
 
-    const int outNd = 2 + outBatchNd;
+    const keel::i32 outNd = 2 + outBatchNd;
     keel::usize outDimArr[kMaxNd];
     outDimArr[0] = M;
     outDimArr[1] = N;
-    for (int i = 0; i < outBatchNd; ++i) outDimArr[2 + i] = outBatch[i];
+    for (keel::i32 i = 0; i < outBatchNd; ++i) outDimArr[2 + i] = outBatch[i];
     auto z = createForDims(Dims(outDimArr, outNd), pagemtimesElemMType<T>(), mr);
     if (M == 0 || N == 0 || batchN == 0)
         return z;
@@ -776,7 +776,7 @@ Value pagemtimesImpl(const Value &x, TranspOp tx, const Value &y, TranspOp ty, k
     keel::usize xBatchStride[kMaxNd], yBatchStride[kMaxNd];
     {
         keel::usize sx = 1, sy = 1;
-        for (int i = 0; i < outBatchNd; ++i) {
+        for (keel::i32 i = 0; i < outBatchNd; ++i) {
             xBatchStride[i] = sx;
             yBatchStride[i] = sy;
             sx *= xBatch[i];
@@ -789,7 +789,7 @@ Value pagemtimesImpl(const Value &x, TranspOp tx, const Value &y, TranspOp ty, k
     keel::usize pageIdx = 0;
     do {
         keel::usize xOff = 0, yOff = 0;
-        for (int i = 0; i < outBatchNd; ++i) {
+        for (keel::i32 i = 0; i < outBatchNd; ++i) {
             const keel::usize xc = (xBatch[i] == 1) ? 0 : coords[i];
             const keel::usize yc = (yBatch[i] == 1) ? 0 : coords[i];
             xOff += xc * xBatchStride[i];

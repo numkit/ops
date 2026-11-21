@@ -86,7 +86,7 @@ inline Value shapeFreadOutput(const keel::f64 *values, keel::usize n,
 
 struct PrecisionInfo
 {
-    int first;
+    keel::i32 first;
     keel::usize second;
 };
 

@@ -34,10 +34,10 @@ keel::String date() {
     char buf[64];
     static const char *kMonths[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
                                     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
-    const int n = std::snprintf(buf, sizeof(buf), "%02d-%s-%04d",
-                                keel::as<int>(t.day),
+    const keel::i32 n = std::snprintf(buf, sizeof(buf), "%02d-%s-%04d",
+                                keel::as<keel::i32>(t.day),
                                 kMonths[(t.month - 1) % 12],
-                                keel::as<int>(t.year));
+                                keel::as<keel::i32>(t.year));
     return keel::String(keel::StringRef(buf, n > 0 ? keel::as<keel::usize>(n) : 0));
 }
 

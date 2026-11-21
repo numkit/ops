@@ -123,7 +123,7 @@ static Value crossToDouble(const Value &v, keel::Allocator *mr)
 // subtraction, and the subtraction saturates too. e.g. cross(int8([100 100 0]),
 // int8([0 100 100])) = [127 -127 127], not [127 -128 127]. Operands are read
 // class-agnostically (elemAsDouble); the result is narrowed to outType.
-static Value crossIntegerSaturating(const Value &a, const Value &b, int crossDim,
+static Value crossIntegerSaturating(const Value &a, const Value &b, keel::i32 crossDim,
                                     ValueType outType, keel::usize nr, keel::usize nc,
                                     keel::Allocator *mr)
 {
@@ -163,7 +163,7 @@ static Value crossIntegerSaturating(const Value &a, const Value &b, int crossDim
 
 // Core cross-product along crossDim (0 = each column is a 3-vec / MATLAB
 // dim 1; 1 = each row is a 3-vec / MATLAB dim 2). Shape already validated.
-static Value crossCore(const Value &a, const Value &b, int crossDim,
+static Value crossCore(const Value &a, const Value &b, keel::i32 crossDim,
                        keel::Allocator *mr)
 {
     const keel::usize nr = a.dims().rows();
@@ -250,7 +250,7 @@ Value cross(const Value &a, const Value &b, keel::Allocator *mr)
     if (da.rows() != db.rows() || da.cols() != db.cols())
         throw Error("cross: A and B must have the same shape",
                      0, 0, "cross", "", "numkit:cross:shapeMismatch");
-    int crossDim;
+    keel::i32 crossDim;
     if (da.rows() == 3)      crossDim = 0; // each column is a 3-vec (dim 1)
     else if (da.cols() == 3) crossDim = 1; // each row is a 3-vec (dim 2)
     else
@@ -259,7 +259,7 @@ Value cross(const Value &a, const Value &b, keel::Allocator *mr)
     return crossCore(a, b, crossDim, mr);
 }
 
-Value cross(const Value &a, const Value &b, int dim, keel::Allocator *mr)
+Value cross(const Value &a, const Value &b, keel::i32 dim, keel::Allocator *mr)
 {
     if (dim == 0) return cross(a, b, mr);   // default: first length-3 dimension
     const auto &da = a.dims();
@@ -340,7 +340,7 @@ Value dot(const Value &a, const Value &b, keel::Allocator *mr)
     return out;
 }
 
-Value dot(const Value &a, const Value &b, int dim, keel::Allocator *mr)
+Value dot(const Value &a, const Value &b, keel::i32 dim, keel::Allocator *mr)
 {
     if (dim == 0)
         return dot(a, b, mr);   // default (vector â†’ scalar, matrix â†’ per-column)

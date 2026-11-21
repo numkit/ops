@@ -71,41 +71,41 @@ inline void decimVisibleRange(const keel::f64 *x, keel::usize n, keel::f64 x0, k
 // M4: {first, min, max, last} per pixel column over the visible range.
 // At most 4*width points, in x order.
 inline DecimatedSeries decimateM4(const keel::f64 *x, const keel::f64 *y, keel::usize n,
-                                  keel::f64 x0, keel::f64 x1, int width) {
+                                  keel::f64 x0, keel::f64 x1, keel::i32 width) {
     DecimatedSeries out;
     keel::usize i0, i1;
     decimVisibleRange(x, n, x0, x1, i0, i1);
     if (i1 <= i0) return out;
-    const int cols = width < 1 ? 1 : width;
+    const keel::i32 cols = width < 1 ? 1 : width;
     const keel::f64 span = (x1 - x0) != 0.0 ? (x1 - x0) : 1.0;
-    auto bucketOf = [&](keel::f64 xv) -> int {
-        int b = keel::as<int>(std::floor(((xv - x0) / span) * cols));
+    auto bucketOf = [&](keel::f64 xv) -> keel::i32 {
+        keel::i32 b = keel::as<keel::i32>(std::floor(((xv - x0) / span) * cols));
         if (b < 0) b = 0; else if (b >= cols) b = cols - 1;
         return b;
     };
 
     out.x.reserve(keel::as<keel::usize>(cols) * 4);
     out.y.reserve(keel::as<keel::usize>(cols) * 4);
-    int curBucket = -1;
+    keel::i32 curBucket = -1;
     keel::usize bFirst = i0, bLast = i0, bMinI = i0, bMaxI = i0;
     keel::f64 bMinY = 0.0, bMaxY = 0.0;
     auto flush = [&]() {
         if (curBucket < 0) return;
         keel::usize idxs[4] = { bFirst, bMinI, bMaxI, bLast };
         std::sort(idxs, idxs + 4);
-        long long prev = -1;
+        keel::i64 prev = -1;
         for (keel::usize ii : idxs) {
-            if (keel::as<long long>(ii) != prev) {
+            if (keel::as<keel::i64>(ii) != prev) {
                 out.x.push_back(x[ii]);
                 out.y.push_back(y[ii]);
-                prev = keel::as<long long>(ii);
+                prev = keel::as<keel::i64>(ii);
             }
         }
     };
 
     for (keel::usize i = i0; i < i1; ++i) {
         keel::f64 xv = x[i], yv = y[i];
-        int b = bucketOf(xv);
+        keel::i32 b = bucketOf(xv);
         if (b != curBucket) {
             flush();
             curBucket = b;
@@ -127,21 +127,21 @@ inline DecimatedSeries decimateM4(const keel::f64 *x, const keel::f64 *y, keel::
 // M2: {min, max} per pixel column (2 points vs M4's 4) — a lighter mode for
 // dense data; keeps spikes / true extent. Mirrors decimate.js decimateM2.
 inline DecimatedSeries decimateM2(const keel::f64 *x, const keel::f64 *y, keel::usize n,
-                                  keel::f64 x0, keel::f64 x1, int width) {
+                                  keel::f64 x0, keel::f64 x1, keel::i32 width) {
     DecimatedSeries out;
     keel::usize i0, i1;
     decimVisibleRange(x, n, x0, x1, i0, i1);
     if (i1 <= i0) return out;
-    const int cols = width < 1 ? 1 : width;
+    const keel::i32 cols = width < 1 ? 1 : width;
     const keel::f64 span = (x1 - x0) != 0.0 ? (x1 - x0) : 1.0;
-    auto bucketOf = [&](keel::f64 xv) -> int {
-        int b = keel::as<int>(std::floor(((xv - x0) / span) * cols));
+    auto bucketOf = [&](keel::f64 xv) -> keel::i32 {
+        keel::i32 b = keel::as<keel::i32>(std::floor(((xv - x0) / span) * cols));
         if (b < 0) b = 0; else if (b >= cols) b = cols - 1;
         return b;
     };
     out.x.reserve(keel::as<keel::usize>(cols) * 2);
     out.y.reserve(keel::as<keel::usize>(cols) * 2);
-    int curBucket = -1;
+    keel::i32 curBucket = -1;
     keel::usize bMinI = i0, bMaxI = i0;
     keel::f64 bMinY = 0.0, bMaxY = 0.0;
     auto flush = [&]() {
@@ -152,7 +152,7 @@ inline DecimatedSeries decimateM2(const keel::f64 *x, const keel::f64 *y, keel::
     };
     for (keel::usize i = i0; i < i1; ++i) {
         keel::f64 xv = x[i], yv = y[i];
-        int bk = bucketOf(xv);
+        keel::i32 bk = bucketOf(xv);
         if (bk != curBucket) {
             flush();
             curBucket = bk; bMinI = i; bMaxI = i;
@@ -169,7 +169,7 @@ inline DecimatedSeries decimateM2(const keel::f64 *x, const keel::f64 *y, keel::
 
 // LTTB: ~threshold points preserving visual shape (smooth trends).
 inline DecimatedSeries decimateLTTB(const keel::f64 *x, const keel::f64 *y, keel::usize n,
-                                    keel::f64 x0, keel::f64 x1, int threshold) {
+                                    keel::f64 x0, keel::f64 x1, keel::i32 threshold) {
     DecimatedSeries out;
     keel::usize i0, i1;
     decimVisibleRange(x, n, x0, x1, i0, i1);
@@ -184,7 +184,7 @@ inline DecimatedSeries decimateLTTB(const keel::f64 *x, const keel::f64 *y, keel
     const keel::f64 bucketSize = keel::as<keel::f64>(cnt - 2) / (threshold - 2);
     keel::usize a = i0;                       // first point is always kept
     out.x.push_back(x[i0]); out.y.push_back(y[i0]);
-    for (int i = 0; i < threshold - 2; ++i) {
+    for (keel::i32 i = 0; i < threshold - 2; ++i) {
         keel::usize avgStart = i0 + keel::as<keel::usize>(std::floor((i + 1) * bucketSize)) + 1;
         keel::usize avgEnd   = i0 + keel::as<keel::usize>(std::floor((i + 2) * bucketSize)) + 1;
         if (avgEnd > i1) avgEnd = i1;
@@ -213,8 +213,8 @@ inline DecimatedSeries decimateLTTB(const keel::f64 *x, const keel::f64 *y, keel
 enum class DecimAlgo { M4 = 0, LTTB = 1, None = 2, M2 = 3 };
 
 inline DecimatedSeries decimateSeries(const keel::f64 *x, const keel::f64 *y, keel::usize n,
-                                      keel::f64 x0, keel::f64 x1, int width, DecimAlgo algo) {
-    const int w = width < 1 ? 1 : width;
+                                      keel::f64 x0, keel::f64 x1, keel::i32 width, DecimAlgo algo) {
+    const keel::i32 w = width < 1 ? 1 : width;
     keel::usize i0, i1;
     decimVisibleRange(x, n, x0, x1, i0, i1);
     const keel::usize cnt = i1 - i0;
@@ -240,7 +240,7 @@ inline keel::Array<DecimatedSeries> buildPyramid(const keel::f64 *x, const keel:
     const keel::f64 *cy = y;
     keel::usize s = n;
     while (s > baseTarget) {
-        const int cols = keel::as<int>(std::max<keel::usize>(1, (s + 7) / 8));
+        const keel::i32 cols = keel::as<keel::i32>(std::max<keel::usize>(1, (s + 7) / 8));
         DecimatedSeries d = decimateM4(cx, cy, s, cx[0], cx[s - 1], cols);
         if (d.x.size() >= s) break;            // no progress
         levels.push_back(std::move(d));
@@ -256,12 +256,12 @@ inline keel::Array<DecimatedSeries> buildPyramid(const keel::f64 *x, const keel:
 // points in [x0,x1] (finer as you zoom in) → O(width) per call at any zoom.
 inline DecimatedSeries decimateLOD(const keel::f64 *rawX, const keel::f64 *rawY, keel::usize rawN,
                                    keel::ArrayRef<DecimatedSeries> pyramid,
-                                   keel::f64 x0, keel::f64 x1, int width, DecimAlgo algo) {
-    const int w = width < 1 ? 1 : width;
+                                   keel::f64 x0, keel::f64 x1, keel::i32 width, DecimAlgo algo) {
+    const keel::i32 w = width < 1 ? 1 : width;
     const keel::f64 *bx = rawX;
     const keel::f64 *by = rawY;
     keel::usize bn = rawN;
-    for (int i = keel::as<int>(pyramid.size()) - 1; i >= -1; --i) {
+    for (keel::i32 i = keel::as<keel::i32>(pyramid.size()) - 1; i >= -1; --i) {
         const keel::f64 *lx; const keel::f64 *ly; keel::usize ln;
         if (i >= 0) {
             const DecimatedSeries &lvl = pyramid[keel::as<keel::usize>(i)];

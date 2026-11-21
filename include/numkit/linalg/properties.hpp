@@ -59,7 +59,7 @@ Value cond_2norm(const Value &A, keel::Allocator *mr = nullptr);
 ///
 /// `p_kind`: 1 â†’ 1-norm, 2 â†’ 2-norm, 3 â†’ Inf-norm, 4 â†’ Frobenius.
 /// (Integer enum to avoid a string allocation in the hot path.)
-Value cond_pnorm(const Value &A, int p_kind, keel::Allocator *mr = nullptr);
+Value cond_pnorm(const Value &A, keel::i32 p_kind, keel::Allocator *mr = nullptr);
 
 /// @brief 2-norm estimate (`n = normest(A)`).
 ///

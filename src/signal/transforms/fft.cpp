@@ -51,7 +51,7 @@ void fftSoaStagesDispatch(keel::f64 *re, keel::f64 *im, keel::usize N, const kee
 namespace numkit::signal {
 
 // ── Shared algorithm core (delegated to keel::fft) ─────────────────────
-static Value fftAlongDim(const Value &x_in, keel::usize N_req, int dim, int dir,
+static Value fftAlongDim(const Value &x_in, keel::usize N_req, keel::i32 dim, keel::i32 dir,
                          keel::Allocator *mr) {
     Value xPromoted;
     const bool needsPromote = (x_in.type() != ValueType::DOUBLE && !x_in.isComplex());
@@ -171,7 +171,7 @@ static Value fftAlongDim(const Value &x_in, keel::usize N_req, int dim, int dir,
 
 // ── Public API ─────────────────────────────────────────────────────────
 
-static int resolveDefaultDim(const Value &x)
+static keel::i32 resolveDefaultDim(const Value &x)
 {
     const auto &d = x.dims();
     if (d.rows() > 1) return 1;
@@ -180,7 +180,7 @@ static int resolveDefaultDim(const Value &x)
     return 1;
 }
 
-Value fft(const Value &x, int n, int dim, keel::Allocator *mr)
+Value fft(const Value &x, keel::i32 n, keel::i32 dim, keel::Allocator *mr)
 {
     if (dim < 0 || dim > 3)
         throw Error("fft: dim must be 0 (auto), 1, 2, or 3",
@@ -191,7 +191,7 @@ Value fft(const Value &x, int n, int dim, keel::Allocator *mr)
     return fftAlongDim(x, N, dim, /*dir=*/1, mr);
 }
 
-Value ifft(const Value &X, int n, int dim, keel::Allocator *mr)
+Value ifft(const Value &X, keel::i32 n, keel::i32 dim, keel::Allocator *mr)
 {
     if (dim < 0 || dim > 3)
         throw Error("ifft: dim must be 0 (auto), 1, 2, or 3",
@@ -202,14 +202,14 @@ Value ifft(const Value &X, int n, int dim, keel::Allocator *mr)
     return fftAlongDim(X, N, dim, /*dir=*/-1, mr);
 }
 
-Value ifftSymmetric(const Value &X, int n, int dim, keel::Allocator *mr)
+Value ifftSymmetric(const Value &X, keel::i32 n, keel::i32 dim, keel::Allocator *mr)
 {
     detail::requireNumericOrLogicalInput(X, "ifft", "X", 1);
     const auto &d = X.dims();
     if (d.ndim() > 2)
         throw Error("ifft: the 'symmetric' option supports vectors and matrices only",
                      0, 0, "ifft", "", "numkit:ifft:symmetricNdims");
-    int useDim = (dim == 0) ? resolveDefaultDim(X) : dim;
+    keel::i32 useDim = (dim == 0) ? resolveDefaultDim(X) : dim;
     if (useDim != 1 && useDim != 2)
         throw Error("ifft: the 'symmetric' option supports dim 1 or 2",
                      0, 0, "ifft", "", "numkit:ifft:symmetricDim");
@@ -226,7 +226,7 @@ Value ifftSymmetric(const Value &X, int n, int dim, keel::Allocator *mr)
     const keel::usize outR = (useDim == 1) ? L : R;
     const keel::usize outC = (useDim == 1) ? C : L;
     Value Xh = Value::matrix(outR, outC, ValueType::COMPLEX, mr);
-    if (Xh.numel() == 0) return ifft(Xh, keel::as<int>(L), useDim, mr);
+    if (Xh.numel() == 0) return ifft(Xh, keel::as<keel::i32>(L), useDim, mr);
     keel::c64 *h = Xh.complexDataMut();
     for (keel::usize i = 0; i < Xh.numel(); ++i) h[i] = keel::c64(0.0, 0.0);
 
@@ -243,7 +243,7 @@ Value ifftSymmetric(const Value &X, int n, int dim, keel::Allocator *mr)
             h[outIdx(L / 2)] = keel::c64(h[outIdx(L / 2)].real(), 0.0);
     }
 
-    Value Y = ifft(Xh, keel::as<int>(L), useDim, mr);
+    Value Y = ifft(Xh, keel::as<keel::i32>(L), useDim, mr);
     if (!Y.isComplex()) return Y;
     Value re = Value::matrix(Y.dims().rows(), Y.dims().cols(), ValueType::DOUBLE, mr);
     const keel::c64 *yc = Y.complexData();
@@ -270,13 +270,13 @@ Value ifft2Symmetric(const Value &X, keel::Allocator *mr)
     return y;
 }
 
-Value fft2(const Value &X, int m, int n, keel::Allocator *mr)
+Value fft2(const Value &X, keel::i32 m, keel::i32 n, keel::Allocator *mr)
 {
     Value step1 = fft(X, m, 1, mr);
     return fft(step1, n, 2, mr);
 }
 
-Value ifft2(const Value &X, int m, int n, keel::Allocator *mr)
+Value ifft2(const Value &X, keel::i32 m, keel::i32 n, keel::Allocator *mr)
 {
     Value step1 = ifft(X, m, 1, mr);
     return ifft(step1, n, 2, mr);
@@ -284,7 +284,7 @@ Value ifft2(const Value &X, int m, int n, keel::Allocator *mr)
 
 namespace {
 
-inline int effectiveNdim(const Value &X)
+inline keel::i32 effectiveNdim(const Value &X)
 {
     const auto &d = X.dims();
     if (d.is3D()) return 3;
@@ -293,19 +293,19 @@ inline int effectiveNdim(const Value &X)
 }
 
 Value fftnImpl(const Value &X, keel::ArrayRef<keel::usize> sz,
-               Value (*op)(const Value &, int, int, keel::Allocator *),
+               Value (*op)(const Value &, keel::i32, keel::i32, keel::Allocator *),
                keel::Allocator *mr)
 {
     if (X.isEmpty()) return X;
-    const int ndim = effectiveNdim(X);
+    const keel::i32 ndim = effectiveNdim(X);
     if (sz.size() > keel::as<keel::usize>(ndim))
         throw Error("fftn: size vector length exceeds ndims(X)",
                      0, 0, "fftn", "", "numkit:fftn:badSize");
     Value Y = X;
-    for (int d = 1; d <= ndim; ++d) {
-        int n = -1;
+    for (keel::i32 d = 1; d <= ndim; ++d) {
+        keel::i32 n = -1;
         if (keel::as<keel::usize>(d) <= sz.size())
-            n = keel::as<int>(sz[d - 1]);
+            n = keel::as<keel::i32>(sz[d - 1]);
         Y = op(Y, n, d, mr);
     }
     return Y;
@@ -325,7 +325,7 @@ Value ifftn(const Value &X, keel::ArrayRef<keel::usize> sz,
     return fftnImpl(X, sz, &ifft, mr);
 }
 
-static Value cztVector(const keel::c64 *xData, keel::usize N, int m, keel::c64 w, keel::c64 a, keel::Allocator *mr)
+static Value cztVector(const keel::c64 *xData, keel::usize N, keel::i32 m, keel::c64 w, keel::c64 a, keel::Allocator *mr)
 {
 if (m <= 0) return Value::complexMatrix(0, 0, mr);
     const keel::usize M = keel::as<keel::usize>(m);
@@ -358,14 +358,14 @@ if (m <= 0) return Value::complexMatrix(0, 0, mr);
         hd[L - n] = keel::pow(w, -n2_half);
     }
 
-    Value G = fft(g, keel::as<int>(L), 1, mr);
-    Value H = fft(h, keel::as<int>(L), 1, mr);
+    Value G = fft(g, keel::as<keel::i32>(L), 1, mr);
+    Value H = fft(h, keel::as<keel::i32>(L), 1, mr);
     const keel::c64 *Gd = G.complexData();
     const keel::c64 *Hd = H.complexData();
     Value P = Value::complexMatrix(L, 1, mr);
     keel::c64 *Pd = P.complexDataMut();
     for (keel::usize i = 0; i < L; ++i) Pd[i] = Gd[i] * Hd[i];
-    Value yL = ifft(P, keel::as<int>(L), 1, mr);
+    Value yL = ifft(P, keel::as<keel::i32>(L), 1, mr);
 
     Value Y = Value::complexMatrix(1, M, mr);
     keel::c64 *Yd = Y.complexDataMut();
@@ -385,7 +385,7 @@ if (m <= 0) return Value::complexMatrix(0, 0, mr);
     return Y;
 }
 
-Value czt(const Value &x, int m, keel::c64 w, keel::c64 a, keel::Allocator *mr)
+Value czt(const Value &x, keel::i32 m, keel::c64 w, keel::c64 a, keel::Allocator *mr)
 {
 detail::requireFloatInput(x, "czt");
     if (x.isEmpty()) return Value::complexMatrix(0, 0, mr);
@@ -410,14 +410,14 @@ detail::requireFloatInput(x, "czt");
         Value yCol = Value::complexMatrix(keel::as<keel::usize>(m), 1, mr);
         keel::c64 *col = yCol.complexDataMut();
         const keel::c64 *row = y.complexData();
-        for (int k = 0; k < m; ++k) col[k] = row[k];
+        for (keel::i32 k = 0; k < m; ++k) col[k] = row[k];
         return yCol;
     }
 
-    const int nd = d.ndim();
+    const keel::i32 nd = d.ndim();
     keel::Array<keel::usize> outDims(nd, mr);
     outDims[0] = keel::as<keel::usize>(m);
-    for (int i = 1; i < nd; ++i)
+    for (keel::i32 i = 1; i < nd; ++i)
         outDims[keel::as<keel::usize>(i)] = d.dim(i);
     Value out = (nd <= 2)
         ? Value::complexMatrix(keel::as<keel::usize>(m), C, mr)
@@ -435,12 +435,12 @@ detail::requireFloatInput(x, "czt");
         }
         Value y = cztVector(col.data(), R, m, w, a, mr);
         const keel::c64 *yd = y.complexData();
-        for (int k = 0; k < m; ++k) od[c * m + k] = yd[k];
+        for (keel::i32 k = 0; k < m; ++k) od[c * m + k] = yd[k];
     }
     return out;
 }
 
-Value interpft(const Value &x, int n, int dim, keel::Allocator *mr)
+Value interpft(const Value &x, keel::i32 n, keel::i32 dim, keel::Allocator *mr)
 {
     if (n <= 0)
         throw Error("interpft: output length n must be positive",
@@ -449,7 +449,7 @@ Value interpft(const Value &x, int n, int dim, keel::Allocator *mr)
         throw Error("interpft: dim must be 0 (auto), 1, 2, or 3",
                      0, 0, "interpft", "", "numkit:interpft:badDim");
 
-    int useDim = dim;
+    keel::i32 useDim = dim;
     if (useDim == 0) {
         const auto &d = x.dims();
         if (d.rows() > 1)                   useDim = 1;

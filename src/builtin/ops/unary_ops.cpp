@@ -132,7 +132,7 @@ Value transpose(const Value &x, keel::Allocator *mr)
     return transpose2D(x, /*conjugate=*/false, "transpose", mr);
 }
 
-Value any(const Value &x, int /*dim*/, keel::Allocator *mr)
+Value any(const Value &x, keel::i32 /*dim*/, keel::Allocator *mr)
 {
     if (x.isEmpty())
         return Value::logicalScalar(false, mr);
@@ -148,7 +148,7 @@ Value any(const Value &x, int /*dim*/, keel::Allocator *mr)
     return Value::logicalScalar(false, mr);
 }
 
-Value all(const Value &x, int /*dim*/, keel::Allocator *mr)
+Value all(const Value &x, keel::i32 /*dim*/, keel::Allocator *mr)
 {
     if (x.isEmpty())
         return Value::logicalScalar(true, mr);

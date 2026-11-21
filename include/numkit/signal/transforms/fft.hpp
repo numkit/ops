@@ -49,8 +49,8 @@ namespace numkit::signal {
 ///
 /// @see ifft, fft2, fftn, czt
 Value fft(const Value &                x,
-          int                          n   = -1,
-          int                          dim = 0,
+          keel::i32                          n   = -1,
+          keel::i32                          dim = 0,
           keel::Allocator *  mr  = nullptr);
 
 /// 1-D inverse discrete Fourier transform along a given dimension.
@@ -66,8 +66,8 @@ Value fft(const Value &                x,
 ///
 /// @see fft
 Value ifft(const Value &                X,
-           int                          n   = -1,
-           int                          dim = 0,
+           keel::i32                          n   = -1,
+           keel::i32                          dim = 0,
            keel::Allocator *  mr  = nullptr);
 
 /// Inverse DFT with conjugate-symmetric input (MATLAB's `ifft(X,...,
@@ -86,8 +86,8 @@ Value ifft(const Value &                X,
 ///
 /// @see ifft
 Value ifftSymmetric(const Value &                X,
-                    int                          n   = -1,
-                    int                          dim = 0,
+                    keel::i32                          n   = -1,
+                    keel::i32                          dim = 0,
                     keel::Allocator *  mr  = nullptr);
 
 /// 2-D forward FFT.
@@ -103,8 +103,8 @@ Value ifftSymmetric(const Value &                X,
 ///
 /// @see ifft2, fftn
 Value fft2(const Value &                X,
-           int                          m  = -1,
-           int                          n  = -1,
+           keel::i32                          m  = -1,
+           keel::i32                          n  = -1,
            keel::Allocator *  mr = nullptr);
 
 /// @brief 2-D inverse FFT (`Y = ifft2(X, m, n)`).
@@ -118,7 +118,7 @@ Value fft2(const Value &                X,
 /// @param mr  Memory resource (nullptr → process default).
 /// @return    `m × n` array (COMPLEX or DOUBLE).
 /// @see fft2, ifft, ifftn
-Value ifft2(const Value &X, int m = -1, int n = -1,
+Value ifft2(const Value &X, keel::i32 m = -1, keel::i32 n = -1,
             keel::Allocator *mr = nullptr);
 
 /// 2-D inverse FFT with conjugate-symmetric input (MATLAB's
@@ -203,7 +203,7 @@ Value ifftn(const Value &              X,
 /// Value Y = czt(x, m, w, a);
 /// @endcode
 Value czt(const Value &                x,
-          int                          m,
+          keel::i32                          m,
           keel::c64                      w,
           keel::c64                      a,
           keel::Allocator *  mr = nullptr);
@@ -222,8 +222,8 @@ Value czt(const Value &                x,
 ///
 /// @see fft
 Value interpft(const Value &                x,
-               int                          n,
-               int                          dim = 0,
+               keel::i32                          n,
+               keel::i32                          dim = 0,
                keel::Allocator *  mr  = nullptr);
 
 

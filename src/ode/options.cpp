@@ -125,9 +125,9 @@ Value odeget(const Value &opts, const Value &name,
 
     // 4. Case-insensitive unambiguous prefix over the canonical names.
     const char *canon = nullptr;
-    int matches = 0;
+    keel::i32 matches = 0;
     if (raw.empty()) {
-        matches = keel::as<int>(kNumOptions);   // every name matches ""
+        matches = keel::as<keel::i32>(kNumOptions);   // every name matches ""
     } else {
         const keel::StringRef rawRef = raw.as_ref();
         for (keel::usize i = 0; i < kNumOptions; ++i) {

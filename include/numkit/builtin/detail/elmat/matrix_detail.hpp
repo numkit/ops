@@ -316,8 +316,8 @@ Value pagemtimesImpl(const Value &x, TranspOp tx, const Value &y, TranspOp ty, k
 {
     const auto &xd = x.dims();
     const auto &yd = y.dims();
-    const int xnd = xd.ndim();
-    const int ynd = yd.ndim();
+    const keel::i32 xnd = xd.ndim();
+    const keel::i32 ynd = yd.ndim();
     if (xnd < 2 || ynd < 2)
         throw Error("pagemtimes: each input must have at least 2 dimensions",
                      0, 0, "pagemtimes", "", "numkit:pagemtimes:rank");
@@ -334,12 +334,12 @@ Value pagemtimesImpl(const Value &x, TranspOp tx, const Value &y, TranspOp ty, k
                      0, 0, "pagemtimes", "", "numkit:pagemtimes:innerdim");
     const keel::usize K = Kx;
 
-    constexpr int kMaxNd = Dims::kMaxRank;
-    const int xb = std::max(0, xnd - 2);
-    const int yb = std::max(0, ynd - 2);
-    const int outBatchNd = std::max(xb, yb);
+    constexpr keel::i32 kMaxNd = Dims::kMaxRank;
+    const keel::i32 xb = std::max(0, xnd - 2);
+    const keel::i32 yb = std::max(0, ynd - 2);
+    const keel::i32 outBatchNd = std::max(xb, yb);
     keel::usize xBatch[kMaxNd], yBatch[kMaxNd], outBatch[kMaxNd];
-    for (int i = 0; i < outBatchNd; ++i) {
+    for (keel::i32 i = 0; i < outBatchNd; ++i) {
         xBatch[i] = (i < xb) ? xd.dim(2 + i) : 1;
         yBatch[i] = (i < yb) ? yd.dim(2 + i) : 1;
         if (xBatch[i] != yBatch[i] && xBatch[i] != 1 && yBatch[i] != 1)
@@ -350,13 +350,13 @@ Value pagemtimesImpl(const Value &x, TranspOp tx, const Value &y, TranspOp ty, k
     }
 
     keel::usize batchN = 1;
-    for (int i = 0; i < outBatchNd; ++i) batchN *= outBatch[i];
+    for (keel::i32 i = 0; i < outBatchNd; ++i) batchN *= outBatch[i];
 
-    const int outNd = 2 + outBatchNd;
+    const keel::i32 outNd = 2 + outBatchNd;
     keel::usize outDimArr[kMaxNd];
     outDimArr[0] = M;
     outDimArr[1] = N;
-    for (int i = 0; i < outBatchNd; ++i) outDimArr[2 + i] = outBatch[i];
+    for (keel::i32 i = 0; i < outBatchNd; ++i) outDimArr[2 + i] = outBatch[i];
     auto z = createForDims(Dims(outDimArr, outNd), pagemtimesElemMType<T>(), mr);
     if (M == 0 || N == 0 || batchN == 0)
         return z;
@@ -397,7 +397,7 @@ Value pagemtimesImpl(const Value &x, TranspOp tx, const Value &y, TranspOp ty, k
     keel::usize xBatchStride[kMaxNd], yBatchStride[kMaxNd];
     {
         keel::usize sx = 1, sy = 1;
-        for (int i = 0; i < outBatchNd; ++i) {
+        for (keel::i32 i = 0; i < outBatchNd; ++i) {
             xBatchStride[i] = sx;
             yBatchStride[i] = sy;
             sx *= xBatch[i];
@@ -410,7 +410,7 @@ Value pagemtimesImpl(const Value &x, TranspOp tx, const Value &y, TranspOp ty, k
     keel::usize pageIdx = 0;
     do {
         keel::usize xOff = 0, yOff = 0;
-        for (int i = 0; i < outBatchNd; ++i) {
+        for (keel::i32 i = 0; i < outBatchNd; ++i) {
             const keel::usize xc = (xBatch[i] == 1) ? 0 : coords[i];
             const keel::usize yc = (yBatch[i] == 1) ? 0 : coords[i];
             xOff += xc * xBatchStride[i];
@@ -469,7 +469,7 @@ inline bool cxRowLess(keel::c64 a, keel::c64 b)
 }
 
 std::tuple<Value, Value>
-sortRowsComplex(const Value &x, const int *cols, keel::usize nCols,
+sortRowsComplex(const Value &x, const keel::i32 *cols, keel::usize nCols,
                 keel::Allocator *mr)
 {
     if (x.dims().is3D() || x.dims().ndim() > 2)
@@ -481,14 +481,14 @@ sortRowsComplex(const Value &x, const int *cols, keel::usize nCols,
         return std::make_tuple(x, Value::matrix(0, 1, ValueType::DOUBLE, mr));
 
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<int> sortKeys(scratch.allocator());
+    keel::Array<keel::i32> sortKeys(scratch.allocator());
     if (nCols == 0) {
         sortKeys.reserve(C);
-        for (keel::usize c = 1; c <= C; ++c) sortKeys.push_back(keel::as<int>(c));
+        for (keel::usize c = 1; c <= C; ++c) sortKeys.push_back(keel::as<keel::i32>(c));
     } else {
-        sortKeys.assign(keel::ArrayRef<int>(cols, nCols));
-        for (int rawCol : sortKeys) {
-            const int absC = (rawCol < 0) ? -rawCol : rawCol;
+        sortKeys.assign(keel::ArrayRef<keel::i32>(cols, nCols));
+        for (keel::i32 rawCol : sortKeys) {
+            const keel::i32 absC = (rawCol < 0) ? -rawCol : rawCol;
             if (rawCol == 0 || keel::as<keel::usize>(absC) > C)
                 throw Error("sortrows: column index out of range",
                              0, 0, "sortrows", "", "numkit:sortrows:badCol");
@@ -500,7 +500,7 @@ sortRowsComplex(const Value &x, const int *cols, keel::usize nCols,
     for (keel::usize i = 0; i < R; ++i) perm[i] = i;
     std::stable_sort(perm.begin(), perm.end(),
         [&](keel::usize a, keel::usize b) {
-            for (int key : sortKeys) {
+            for (keel::i32 key : sortKeys) {
                 const bool desc = key < 0;
                 const keel::usize c = keel::as<keel::usize>((desc ? -key : key) - 1);
                 const keel::c64 va = src[c * R + a], vb = src[c * R + b];
@@ -523,7 +523,7 @@ sortRowsComplex(const Value &x, const int *cols, keel::usize nCols,
 }
 
 [[maybe_unused]] std::tuple<Value, Value>
-sortRowsImpl(const Value &x, const int *cols, keel::usize nCols, keel::Allocator *mr)
+sortRowsImpl(const Value &x, const keel::i32 *cols, keel::usize nCols, keel::Allocator *mr)
 {
     if (x.type() == ValueType::COMPLEX)
         return sortRowsComplex(x, cols, nCols, mr);
@@ -540,15 +540,15 @@ sortRowsImpl(const Value &x, const int *cols, keel::usize nCols, keel::Allocator
     keel::ArenaTemp scratch = keel::get_scratch(mr);
 
     // Validate cols list. nCols==0 ⇒ all columns ascending in order.
-    keel::Array<int> sortKeys(scratch.allocator());
+    keel::Array<keel::i32> sortKeys(scratch.allocator());
     if (nCols == 0) {
         sortKeys.reserve(C);
         for (keel::usize c = 1; c <= C; ++c)
-            sortKeys.push_back(keel::as<int>(c));
+            sortKeys.push_back(keel::as<keel::i32>(c));
     } else {
-        sortKeys.assign(keel::ArrayRef<int>(cols, nCols));
-        for (int rawCol : sortKeys) {
-            const int absC = (rawCol < 0) ? -rawCol : rawCol;
+        sortKeys.assign(keel::ArrayRef<keel::i32>(cols, nCols));
+        for (keel::i32 rawCol : sortKeys) {
+            const keel::i32 absC = (rawCol < 0) ? -rawCol : rawCol;
             if (rawCol == 0 || keel::as<keel::usize>(absC) > C)
                 throw Error("sortrows: column index out of range",
                              0, 0, "sortrows", "", "numkit:sortrows:badCol");
@@ -724,25 +724,25 @@ void cumIntegerScanInto(const Value &x, T *dst, keel::usize strideD, keel::usize
     }
 }
 
-[[maybe_unused]] Value cumIntegerNative(const Value &x, int dim, bool isProd,
+[[maybe_unused]] Value cumIntegerNative(const Value &x, keel::i32 dim, bool isProd,
                        keel::Allocator *mr)
 {
     const auto &dd = x.dims();
-    const int nd = dd.ndim();
-    int d;
+    const keel::i32 nd = dd.ndim();
+    keel::i32 d;
     if (dim > 0) {
         d = numkit::ops::resolveDim(x, dim, isProd ? "cumprod" : "cumsum");
     } else {
         d = 1;                          // first non-singleton dim (MATLAB default)
-        for (int k = 0; k < nd; ++k)
+        for (keel::i32 k = 0; k < nd; ++k)
             if (dd.dim(k) > 1) { d = k + 1; break; }
     }
     keel::usize strideD = 1;
-    for (int k = 0; k < d - 1; ++k) strideD *= dd.dim(k);
+    for (keel::i32 k = 0; k < d - 1; ++k) strideD *= dd.dim(k);
     const keel::usize lenD = (d - 1 < nd) ? dd.dim(d - 1) : 1;
 
     keel::usize outDims[Dims::kMaxRank];
-    for (int k = 0; k < nd; ++k) outDims[k] = dd.dim(k);
+    for (keel::i32 k = 0; k < nd; ++k) outDims[k] = dd.dim(k);
     Value r = Value::matrixND(outDims, nd, x.type(), mr);
     if (x.numel() == 0 || lenD == 0 || strideD == 0) return r;
 
@@ -764,23 +764,23 @@ void cumIntegerScanInto(const Value &x, T *dst, keel::usize strideD, keel::usize
 // when isProd=false, product when isProd=true). Output shape == input shape.
 // Uniform inner-block (B) / outer-count (O) strides cover vector/2D/3D/ND.
 // (Complex isn't perf-critical here — correctness over a SIMD prefix scan.)
-[[maybe_unused]] Value cumComplexAlongDim(const Value &x, int d, bool isProd,
+[[maybe_unused]] Value cumComplexAlongDim(const Value &x, keel::i32 d, bool isProd,
                          keel::Allocator *mr)
 {
     const auto &dd = x.dims();
-    const int nd = dd.ndim();
-    constexpr int kMaxNd = Dims::kMaxRank;
+    const keel::i32 nd = dd.ndim();
+    constexpr keel::i32 kMaxNd = Dims::kMaxRank;
     if (nd > kMaxNd)
         throw Error("cumsum: rank exceeds 32",
                      0, 0, "cumsum", "", "numkit:cumsum:tooManyDims");
     keel::usize outDims[kMaxNd];
-    for (int i = 0; i < nd; ++i) outDims[i] = dd.dim(i);
+    for (keel::i32 i = 0; i < nd; ++i) outDims[i] = dd.dim(i);
     auto r = Value::matrixND(outDims, nd, ValueType::COMPLEX, mr);
     if (x.numel() == 0) return r;
     const keel::usize sliceLen = (d >= 1 && d <= nd) ? dd.dim(d - 1) : 1;
     if (sliceLen == 0) return r;
-    keel::usize B = 1; for (int i = 0; i < d - 1 && i < nd; ++i) B *= dd.dim(i);
-    keel::usize O = 1; for (int i = d; i < nd; ++i) O *= dd.dim(i);
+    keel::usize B = 1; for (keel::i32 i = 0; i < d - 1 && i < nd; ++i) B *= dd.dim(i);
+    keel::usize O = 1; for (keel::i32 i = d; i < nd; ++i) O *= dd.dim(i);
     const keel::c64 *src = x.complexData();
     keel::c64 *dst = r.complexDataMut();
     for (keel::usize o = 0; o < O; ++o)
@@ -805,23 +805,23 @@ void cumIntegerScanInto(const Value &x, T *dst, keel::usize strideD, keel::usize
 // the first finite element. Mirrors complexMinMaxPick (omitNan=true) in
 // math/.../reductions_detail.hpp — keep the order rule in sync. (Complex isn't
 // perf-critical here — correctness over a SIMD scan.)
-[[maybe_unused]] Value cumComplexMinMaxAlongDim(const Value &x, int d, bool isMax,
+[[maybe_unused]] Value cumComplexMinMaxAlongDim(const Value &x, keel::i32 d, bool isMax,
                                keel::Allocator *mr)
 {
     const auto &dd = x.dims();
-    const int nd = dd.ndim();
-    constexpr int kMaxNd = Dims::kMaxRank;
+    const keel::i32 nd = dd.ndim();
+    constexpr keel::i32 kMaxNd = Dims::kMaxRank;
     if (nd > kMaxNd)
         throw Error("cummax: rank exceeds 32",
                      0, 0, "cummax", "", "numkit:cummax:tooManyDims");
     keel::usize outDims[kMaxNd];
-    for (int i = 0; i < nd; ++i) outDims[i] = dd.dim(i);
+    for (keel::i32 i = 0; i < nd; ++i) outDims[i] = dd.dim(i);
     auto r = Value::matrixND(outDims, nd, ValueType::COMPLEX, mr);
     if (x.numel() == 0) return r;
     const keel::usize sliceLen = (d >= 1 && d <= nd) ? dd.dim(d - 1) : 1;
     if (sliceLen == 0) return r;
-    keel::usize B = 1; for (int i = 0; i < d - 1 && i < nd; ++i) B *= dd.dim(i);
-    keel::usize O = 1; for (int i = d; i < nd; ++i) O *= dd.dim(i);
+    keel::usize B = 1; for (keel::i32 i = 0; i < d - 1 && i < nd; ++i) B *= dd.dim(i);
+    keel::usize O = 1; for (keel::i32 i = d; i < nd; ++i) O *= dd.dim(i);
     const keel::c64 *src = x.complexData();
     keel::c64 *dst = r.complexDataMut();
     auto isMissing = [](keel::c64 z) {
@@ -852,10 +852,10 @@ void cumIntegerScanInto(const Value &x, T *dst, keel::usize strideD, keel::usize
 }
 
 // First non-singleton dimension (1-based), default 1 — MATLAB's default op dim.
-[[maybe_unused]] int firstNonSingletonDim(const Value &x)
+[[maybe_unused]] keel::i32 firstNonSingletonDim(const Value &x)
 {
     const auto &dd = x.dims();
-    for (int k = 0; k < dd.ndim(); ++k)
+    for (keel::i32 k = 0; k < dd.ndim(); ++k)
         if (dd.dim(k) > 1) return k + 1;
     return 1;
 }
@@ -864,7 +864,7 @@ void cumIntegerScanInto(const Value &x, T *dst, keel::usize strideD, keel::usize
 namespace {
 
 template <typename Op>
-void cumKernel(const Value &x, int d, Op op, keel::f64 *dst)
+void cumKernel(const Value &x, keel::i32 d, Op op, keel::f64 *dst)
 {
     const auto &dd = x.dims();
     const keel::usize R = dd.rows(), C = dd.cols();
@@ -910,7 +910,7 @@ void cumKernel(const Value &x, int d, Op op, keel::f64 *dst)
 }
 
 template <typename Op>
-Value cumImpl(const Value &x, int dim, Op op, const char *fn, keel::Allocator *mr)
+Value cumImpl(const Value &x, keel::i32 dim, Op op, const char *fn, keel::Allocator *mr)
 {
     if (x.isEmpty())
         return Value::matrix(0, 0, ValueType::DOUBLE, mr);
@@ -928,7 +928,7 @@ Value cumImpl(const Value &x, int dim, Op op, const char *fn, keel::Allocator *m
         return r;
     }
 
-    const int d = numkit::ops::resolveDim(x, dim, fn);
+    const keel::i32 d = numkit::ops::resolveDim(x, dim, fn);
     const auto &dd = x.dims();
     auto r = dd.is3D() ? Value::matrix3d(dd.rows(), dd.cols(), dd.pages(),
                                           ValueType::DOUBLE, mr)
@@ -944,7 +944,7 @@ namespace {
 using ScanFn = void (*)(const keel::f64 *, keel::f64 *, keel::usize);
 
 template <typename Op>
-Value cumScanDispatch(const Value &x, int dim, ScanFn scan, Op scalarOp, const char *fn, keel::Allocator *mr)
+Value cumScanDispatch(const Value &x, keel::i32 dim, ScanFn scan, Op scalarOp, const char *fn, keel::Allocator *mr)
 {
     if (x.isEmpty())
         return Value::matrix(0, 0, ValueType::DOUBLE, mr);
@@ -959,23 +959,23 @@ Value cumScanDispatch(const Value &x, int dim, ScanFn scan, Op scalarOp, const c
         return r;
     }
 
-    const int d = numkit::ops::resolveDim(x, dim, fn);
+    const keel::i32 d = numkit::ops::resolveDim(x, dim, fn);
     const auto &dd = x.dims();
 
     // ND fallback (rank ≥ 4): per-slice scan along axis d-1.
     if (dd.ndim() >= 4) {
-        constexpr int kMaxNd = Dims::kMaxRank;
+        constexpr keel::i32 kMaxNd = Dims::kMaxRank;
         if (dd.ndim() > kMaxNd)
             throw Error(keel::format("{}: rank exceeds 32", fn),
                          0, 0, fn, "", keel::format("numkit:{}:tooManyDims", fn));
         keel::usize outDims[kMaxNd];
-        for (int i = 0; i < dd.ndim(); ++i) outDims[i] = dd.dim(i);
+        for (keel::i32 i = 0; i < dd.ndim(); ++i) outDims[i] = dd.dim(i);
         auto r = Value::matrixND(outDims, dd.ndim(), ValueType::DOUBLE, mr);
         const keel::usize sliceLen = dd.dim(d - 1);
         keel::usize B = 1;
-        for (int i = 0; i < d - 1; ++i) B *= dd.dim(i);
+        for (keel::i32 i = 0; i < d - 1; ++i) B *= dd.dim(i);
         keel::usize O = 1;
-        for (int i = d; i < dd.ndim(); ++i) O *= dd.dim(i);
+        for (keel::i32 i = d; i < dd.ndim(); ++i) O *= dd.dim(i);
         const keel::f64 *src = x.doubleData();
         keel::f64 *dst = r.doubleDataMut();
         if (B == 1) {
@@ -1048,7 +1048,7 @@ Value logicalizeCumResult(const Value &d, keel::Allocator *mr)
     const keel::f64 *src = d.doubleData();
     const keel::usize n = d.numel();
     for (keel::usize i = 0; i < n; ++i)
-        dst[i] = keel::as<char>(keel::as<int>(src[i]));
+        dst[i] = keel::as<char>(keel::as<keel::i32>(src[i]));
     return r;
 }
 } // namespace
@@ -1058,16 +1058,16 @@ namespace {
 // dim[d-1] = sliceLen; output has dim[d-1] = sliceLen - 1. Column-major
 // strides (innerStride = prod(dim[0..d-2])).
 [[maybe_unused]] void diffOnceDouble(const keel::f64 *src, keel::f64 *dst,
-                    const Dims &srcDims, int d)
+                    const Dims &srcDims, keel::i32 d)
 {
-    const int nd = srcDims.ndim();
+    const keel::i32 nd = srcDims.ndim();
     const keel::usize sliceLen = srcDims.dim(d - 1);
     if (sliceLen < 2) return;  // out has zero elements
 
     keel::usize innerStride = 1;
-    for (int i = 0; i < d - 1; ++i) innerStride *= srcDims.dim(i);
+    for (keel::i32 i = 0; i < d - 1; ++i) innerStride *= srcDims.dim(i);
     keel::usize outerCount = 1;
-    for (int i = d; i < nd; ++i) outerCount *= srcDims.dim(i);
+    for (keel::i32 i = d; i < nd; ++i) outerCount *= srcDims.dim(i);
     const keel::usize outSliceLen = sliceLen - 1;
 
     if (innerStride == 1) {
@@ -1091,31 +1091,31 @@ namespace {
     }
 }
 
-[[maybe_unused]] Value makeDiffOutput(const Dims &srcDims, int d, keel::usize step, ValueType vt,
+[[maybe_unused]] Value makeDiffOutput(const Dims &srcDims, keel::i32 d, keel::usize step, ValueType vt,
                      keel::Allocator *mr)
 {
-    const int nd = srcDims.ndim();
-    constexpr int kMaxNd = Dims::kMaxRank;
+    const keel::i32 nd = srcDims.ndim();
+    constexpr keel::i32 kMaxNd = Dims::kMaxRank;
     if (nd > kMaxNd)
         throw Error("diff: rank exceeds 32",
                      0, 0, "diff", "", "numkit:diff:tooManyDims");
     keel::usize outDims[kMaxNd];
-    for (int i = 0; i < nd; ++i) outDims[i] = srcDims.dim(i);
+    for (keel::i32 i = 0; i < nd; ++i) outDims[i] = srcDims.dim(i);
     outDims[d - 1] = (outDims[d - 1] >= step) ? outDims[d - 1] - step : 0;
     return Value::matrixND(outDims, nd, vt, mr);
 }
 
 // Complex counterpart of diffOnceDouble — successive differences over Complex
 // storage (real and imaginary differenced together), same strided layout.
-[[maybe_unused]] void diffOnceComplex(const keel::c64 *src, keel::c64 *dst, const Dims &srcDims, int d)
+[[maybe_unused]] void diffOnceComplex(const keel::c64 *src, keel::c64 *dst, const Dims &srcDims, keel::i32 d)
 {
-    const int nd = srcDims.ndim();
+    const keel::i32 nd = srcDims.ndim();
     const keel::usize sliceLen = srcDims.dim(d - 1);
     if (sliceLen < 2) return;
     keel::usize innerStride = 1;
-    for (int i = 0; i < d - 1; ++i) innerStride *= srcDims.dim(i);
+    for (keel::i32 i = 0; i < d - 1; ++i) innerStride *= srcDims.dim(i);
     keel::usize outerCount = 1;
-    for (int i = d; i < nd; ++i) outerCount *= srcDims.dim(i);
+    for (keel::i32 i = d; i < nd; ++i) outerCount *= srcDims.dim(i);
     const keel::usize outSliceLen = sliceLen - 1;
     if (innerStride == 1) {
         for (keel::usize o = 0; o < outerCount; ++o) {
@@ -1140,9 +1140,9 @@ namespace {
 [[maybe_unused]] Value copyComplexSameShape(const Value &x, keel::Allocator *mr)
 {
     const auto &dd = x.dims();
-    const int nd = dd.ndim();
+    const keel::i32 nd = dd.ndim();
     keel::usize dims[Dims::kMaxRank];
-    for (int i = 0; i < nd; ++i) dims[i] = dd.dim(i);
+    for (keel::i32 i = 0; i < nd; ++i) dims[i] = dd.dim(i);
     auto r = Value::matrixND(dims, nd, ValueType::COMPLEX, mr);
     if (x.numel() > 0)
         std::memcpy(r.complexDataMut(), x.complexData(), x.numel() * sizeof(keel::c64));
@@ -1152,10 +1152,10 @@ namespace {
 Value copyToDouble(const Value &x, keel::Allocator *mr)
 {
     const auto &dd = x.dims();
-    const int nd = dd.ndim();
-    constexpr int kMaxNd = Dims::kMaxRank;
+    const keel::i32 nd = dd.ndim();
+    constexpr keel::i32 kMaxNd = Dims::kMaxRank;
     keel::usize dims[kMaxNd];
-    for (int i = 0; i < nd; ++i) dims[i] = dd.dim(i);
+    for (keel::i32 i = 0; i < nd; ++i) dims[i] = dd.dim(i);
     auto r = Value::matrixND(dims, nd, ValueType::DOUBLE, mr);
     if (x.type() == ValueType::DOUBLE) {
         std::memcpy(r.doubleDataMut(), x.doubleData(),
@@ -1172,14 +1172,14 @@ Value copyToDouble(const Value &x, keel::Allocator *mr)
 // saturation (matches MATLAB: diff(int8([-100 100]))=127 int8). Same strided
 // layout as diffOnceDouble.
 template <typename T>
-void diffOnceIntegerT(const T *src, T *dst, const Dims &srcDims, int d)
+void diffOnceIntegerT(const T *src, T *dst, const Dims &srcDims, keel::i32 d)
 {
-    const int nd = srcDims.ndim();
+    const keel::i32 nd = srcDims.ndim();
     const keel::usize sliceLen = srcDims.dim(d - 1);
     keel::usize innerStride = 1;
-    for (int i = 0; i < d - 1; ++i) innerStride *= srcDims.dim(i);
+    for (keel::i32 i = 0; i < d - 1; ++i) innerStride *= srcDims.dim(i);
     keel::usize outerCount = 1;
-    for (int i = d; i < nd; ++i) outerCount *= srcDims.dim(i);
+    for (keel::i32 i = d; i < nd; ++i) outerCount *= srcDims.dim(i);
     const keel::usize outSliceLen = sliceLen - 1;
     const keel::f64 lo = keel::as<keel::f64>(std::numeric_limits<T>::min());
     const keel::f64 hi = keel::as<keel::f64>(std::numeric_limits<T>::max());
@@ -1211,15 +1211,15 @@ void diffOnceIntegerT(const T *src, T *dst, const Dims &srcDims, int d)
 // n-th order diff of an integer-typed Value: keeps the class and saturates at
 // each pass (the saturated pass-k result feeds pass k+1). Caller guarantees
 // sliceLen > n along d.
-[[maybe_unused]] Value diffInteger(const Value &x, int n, int d, keel::Allocator *mr)
+[[maybe_unused]] Value diffInteger(const Value &x, keel::i32 n, keel::i32 d, keel::Allocator *mr)
 {
     const ValueType vt = x.type();
     Value cur = copyIntegerSameClass(x, mr);
-    for (int pass = 0; pass < n; ++pass) {
+    for (keel::i32 pass = 0; pass < n; ++pass) {
         const auto &curDims = cur.dims();
-        const int nd = curDims.ndim();
+        const keel::i32 nd = curDims.ndim();
         keel::usize outDims[Dims::kMaxRank];
-        for (int i = 0; i < nd; ++i) outDims[i] = curDims.dim(i);
+        for (keel::i32 i = 0; i < nd; ++i) outDims[i] = curDims.dim(i);
         outDims[d - 1] = (outDims[d - 1] >= 1) ? outDims[d - 1] - 1 : 0;
         Value out = Value::matrixND(outDims, nd, vt, mr);
         switch (vt) {

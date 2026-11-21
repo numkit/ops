@@ -34,6 +34,6 @@ void addInto(keel::f64 *dst, const keel::f64 *src, keel::usize n);
 // Convenience: full two-pass variance. normFlag = 0 → sample (divide
 // by n-1), 1 → population (divide by n). Matches MATLAB var(X, 0/1).
 // Empty: NaN. n=1: 0 if normFlag==1 else NaN.
-keel::f64 varianceTwoPass(const keel::f64 *p, keel::usize n, int normFlag);
+keel::f64 varianceTwoPass(const keel::f64 *p, keel::usize n, keel::i32 normFlag);
 
 } // namespace numkit::builtin

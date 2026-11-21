@@ -273,7 +273,7 @@ PolyDiv polydiv(const Value &b, const Value &a, keel::Allocator *mr)
 
 // ── padecoef ─────────────────────────────────────────────────────────
 
-PadeCoef padecoef(keel::f64 T, int N, keel::Allocator *mr)
+PadeCoef padecoef(keel::f64 T, keel::i32 N, keel::Allocator *mr)
 {
     if (N < 0)
         throw Error("padecoef: order N must be >= 0",
@@ -363,7 +363,7 @@ ResidueResult residuez(const Value &b, const Value &a, keel::Allocator *mr)
 
 // ── Curve fitting / evaluation ───────────────────────────────────────
 
-Value polyfit(const Value &x, const Value &y, int deg, keel::Allocator *mr)
+Value polyfit(const Value &x, const Value &y, keel::i32 deg, keel::Allocator *mr)
 {
     const keel::usize m = x.numel();
     if (m == 0)

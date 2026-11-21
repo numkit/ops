@@ -24,12 +24,12 @@ void disp(const Value &v, std::FILE *stream) {
     }
 }
 
-int fprintf(std::FILE *stream, keel::StringRef fmt, keel::ArrayRef<Value> args, keel::Allocator *mr) {
+keel::i32 fprintf(std::FILE *stream, keel::StringRef fmt, keel::ArrayRef<Value> args, keel::Allocator *mr) {
     keel::String s = numkit::builtin::formatCyclic(fmt, args, 0, mr);
     if (stream && !s.empty()) {
         std::fwrite(s.data(), 1, s.size(), stream);
     }
-    return keel::as<int>(s.size());
+    return keel::as<keel::i32>(s.size());
 }
 
 Value sscanf(keel::StringRef str, keel::StringRef fmt, keel::Allocator *mr) {

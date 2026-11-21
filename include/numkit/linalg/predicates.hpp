@@ -22,7 +22,7 @@ namespace numkit::linalg {
 ///
 /// True iff entries outside the `[-lower, +upper]` diagonal band are
 /// exactly zero. Exact comparison (no tolerance).
-Value isbanded(const Value &A, long lower, long upper, keel::Allocator *mr = nullptr);
+Value isbanded(const Value &A, keel::i64 lower, keel::i64 upper, keel::Allocator *mr = nullptr);
 
 /// @brief Diagonal structure (`tf = isdiag(A)`). True iff `isbanded(A, 0, 0)`.
 Value isdiag(const Value &A, keel::Allocator *mr = nullptr);

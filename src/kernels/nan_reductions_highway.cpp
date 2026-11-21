@@ -313,7 +313,7 @@ keel::f64 nanMinScan(const keel::f64 *p, keel::usize n)
     return (allNaN != 0.0) ? std::nan("") : best;
 }
 
-keel::f64 nanVarianceTwoPass(const keel::f64 *p, keel::usize n, int normFlag)
+keel::f64 nanVarianceTwoPass(const keel::f64 *p, keel::usize n, keel::i32 normFlag)
 {
     if (n == 0) return std::nan("");
     const auto sc = nanSumCountScan(p, n);

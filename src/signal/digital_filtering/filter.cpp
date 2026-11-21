@@ -48,8 +48,8 @@ keel::Array<keel::c64> toComplexBuf(const Value &v, keel::usize n, keel::Allocat
 keel::usize firstNonSingletonExtent(const Value &x)
 {
     const Dims &d = x.dims();
-    const int nd = d.ndim();
-    for (int k = 0; k < nd; ++k)
+    const keel::i32 nd = d.ndim();
+    for (keel::i32 k = 0; k < nd; ++k)
         if (d.dim(k) != 1) return d.dim(k);
     return x.numel();
 }

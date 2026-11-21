@@ -51,7 +51,7 @@ void AbsLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel
     const keel::usize align_bytes = N * sizeof(keel::f64);
 
     keel::usize i = 0;
-    const auto addr = reinterpret_cast<std::uintptr_t>(out);
+    const auto addr = reinterpret_cast<keel::usize>(out);
     const auto rem  = addr % align_bytes;
     const keel::usize head = (rem == 0) ? 0
                                         : std::min<keel::usize>((align_bytes - rem) / sizeof(keel::f64), n);
@@ -131,7 +131,7 @@ Value abs(const Value &x, Value *hint, keel::Allocator *mr)
             const auto *in = x.charData();
             for (keel::usize i = 0; i < x.numel(); ++i)
                 out[i] = keel::as<keel::f64>(
-                    keel::as<unsigned char>(in[i]));
+                    keel::as<keel::u8>(in[i]));
         }
         return r;
     }

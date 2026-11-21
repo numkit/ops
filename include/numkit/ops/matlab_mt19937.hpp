@@ -65,8 +65,8 @@ public:
     // State serialisation -- 624 uint32 state words + the index pointer.
     // Used by rng() to snapshot/restore.
     static constexpr keel::usize STATE_SIZE = keel::random::Mt19937::kStateSize;
-    void getState(keel::u32 out[STATE_SIZE], int &outIndex) const;
-    void setState(const keel::u32 in[STATE_SIZE], int inIndex);
+    void getState(keel::u32 out[STATE_SIZE], keel::i32 &outIndex) const;
+    void setState(const keel::u32 in[STATE_SIZE], keel::i32 inIndex);
 
 private:
     keel::random::Mt19937 mt_;

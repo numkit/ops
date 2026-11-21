@@ -138,7 +138,7 @@ lsqnonneg_impl(const Value &C, const Value &d, keel::Allocator *mr)
     const keel::linalg::NnlsStats st = keel::linalg::lsqnonneg(Cw.doubleData(), M, N, db.data(),
                                                R.x.doubleDataMut(), R.residual.doubleDataMut(), mr);
     R.resnorm = st.resnorm;
-    R.iterations = keel::as<int>(st.iterations);
+    R.iterations = keel::as<keel::i32>(st.iterations);
     R.x = detail::narrowDoubleToSingleIf(R.x, wantSingle, mr);
     R.residual = detail::narrowDoubleToSingleIf(R.residual, wantSingle, mr);
     return R;

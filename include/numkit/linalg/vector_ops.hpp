@@ -45,7 +45,7 @@ Value cross(const Value &a, const Value &b, keel::Allocator *mr = nullptr);
 /// @return    Cross product (same shape as the inputs).
 /// @throws Error  Shape mismatch, `dim` length â‰  3, or invalid `dim`.
 /// @see cross, dot
-Value cross(const Value &a, const Value &b, int dim, keel::Allocator *mr = nullptr);
+Value cross(const Value &a, const Value &b, keel::i32 dim, keel::Allocator *mr = nullptr);
 
 /// @brief Dot product of two equal-length vectors.
 ///
@@ -72,7 +72,7 @@ Value dot(const Value &a, const Value &b, keel::Allocator *mr = nullptr);
 /// @return    Dot product reduced along `dim`.
 /// @throws Error  Shape mismatch, 3-D input, or invalid `dim`.
 /// @see dot
-Value dot(const Value &a, const Value &b, int dim, keel::Allocator *mr = nullptr);
+Value dot(const Value &a, const Value &b, keel::i32 dim, keel::Allocator *mr = nullptr);
 
 /// @brief Kronecker product (`K = kron(A, B)`).
 ///

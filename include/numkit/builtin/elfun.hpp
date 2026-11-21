@@ -847,7 +847,7 @@ Value sign(const Value &x, keel::Allocator *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array with unwrapped continuous phase.
 /// @see angle, wrapToPi
-Value unwrap(const Value &p, keel::f64 tol = 3.14159265358979323846, int dim = -1, keel::Allocator *mr = nullptr);
+Value unwrap(const Value &p, keel::f64 tol = 3.14159265358979323846, keel::i32 dim = -1, keel::Allocator *mr = nullptr);
 
 /// @brief Tests if array contains real values (false if complex storage is active).
 ///
@@ -878,7 +878,7 @@ Value round(const Value &x, keel::Allocator *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array of same shape with rounded elements.
 /// @see round, floor, ceil
-Value roundN(const Value &x, int n, bool significant = false, keel::Allocator *mr = nullptr);
+Value roundN(const Value &x, keel::i32 n, bool significant = false, keel::Allocator *mr = nullptr);
 
 /// @brief Rounds down towards negative infinity (`y = floor(x)`).
 ///

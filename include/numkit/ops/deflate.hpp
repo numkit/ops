@@ -38,7 +38,7 @@ keel::Array<keel::u8> inflateRaw(const keel::u8 *src, keel::usize len,
 /// @param level  Compression level: 0 = store uncompressed, 1..9 = LZ77 + Huffman.
 /// @return       Compressed Deflate bitstream.
 keel::Array<keel::u8> deflateRaw(const keel::u8 *src, keel::usize len,
-                                 int level = 6,
+                                 keel::i32 level = 6,
                                  keel::Allocator *alloc = nullptr);
 
 /// Decompress RFC 1950 ZLIB stream (2-byte header + Deflate stream + 4-byte Adler-32).
@@ -59,7 +59,7 @@ keel::Array<keel::u8> zlibDecompress(const keel::u8 *src, keel::usize len,
 /// @param level  Compression level (0..9).
 /// @return       Complete ZLIB stream (header + Deflate + Adler-32).
 keel::Array<keel::u8> zlibCompress(const keel::u8 *src, keel::usize len,
-                                   int level = 6,
+                                   keel::i32 level = 6,
                                    keel::Allocator *alloc = nullptr);
 
 } // namespace numkit::ops

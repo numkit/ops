@@ -27,7 +27,7 @@ keel::String dispFormat(const Value &a)
         std::snprintf(buf, sizeof(buf), "%.6g", v);
         out.append(buf);
     };
-    auto appendLL = [&](long long v) {
+    auto appendLL = [&](keel::i64 v) {
         char buf[32];
         std::snprintf(buf, sizeof(buf), "%lld", v);
         out.append(buf);
@@ -62,7 +62,7 @@ keel::String dispFormat(const Value &a)
                     if (c > 0) out.push_back(' ');
                     keel::f64 v = a(0, c);
                     if (v == std::floor(v) && std::isfinite(v))
-                        appendLL(keel::as<long long>(v));
+                        appendLL(keel::as<keel::i64>(v));
                     else
                         appendDouble(v);
                 }
@@ -73,18 +73,18 @@ keel::String dispFormat(const Value &a)
                     keel::f64 v = a(r, 0);
                     out.append("   ");
                     if (v == std::floor(v) && std::isfinite(v))
-                        appendLL(keel::as<long long>(v));
+                        appendLL(keel::as<keel::i64>(v));
                     else
                         appendDouble(v);
                 }
             } else {
                 const keel::usize R = d.rows(), C = d.cols();
-                const int nd = d.ndim();
+                const keel::i32 nd = d.ndim();
                 const keel::f64 *base0 = a.doubleData();
                 forEachOuterPage(d, [&](keel::usize plin, const keel::usize *outerCoords) {
                     if (nd >= 3) {
                         out.append("(:,:");
-                        for (int i = 2; i < nd; ++i) {
+                        for (keel::i32 i = 2; i < nd; ++i) {
                             out.push_back(',');
                             appendUSize(outerCoords[i - 2] + 1);
                         }
@@ -98,7 +98,7 @@ keel::String dispFormat(const Value &a)
                             keel::f64 v = page[c * R + r];
                             out.push_back(' ');
                             if (v == std::floor(v) && std::isfinite(v))
-                                appendLL(keel::as<long long>(v));
+                                appendLL(keel::as<keel::i64>(v));
                             else
                                 appendDouble(v);
                         }

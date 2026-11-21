@@ -104,7 +104,7 @@ qrdelete_row(const Value &Q, const Value &R, keel::usize k_1based,
 /// @param mr      Memory resource.
 /// @return        Updated upper-triangular factor.
 /// @throws Error  Shape mismatch, or downdate breaks positive-definiteness.
-Value cholupdate(const Value &R, const Value &x, int sign = 1,
+Value cholupdate(const Value &R, const Value &x, keel::i32 sign = 1,
                  keel::Allocator *mr = nullptr);
 
 

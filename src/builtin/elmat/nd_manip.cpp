@@ -33,7 +33,7 @@ namespace {
 // Check the perm list is a valid 1-based permutation of [1..N].
 // Throws on bad input. Stack-mounted scratch (perm length is bounded
 // by Dims::kMaxRank); no heap traffic.
-void validatePerm(const int *perm, keel::usize N, const char *fn)
+void validatePerm(const keel::i32 *perm, keel::usize N, const char *fn)
 {
     if (N == 0)
         throw Error(keel::format("{}: perm vector must not be empty", fn),
@@ -41,11 +41,11 @@ void validatePerm(const int *perm, keel::usize N, const char *fn)
     if (N > Dims::kMaxRank)
         throw Error(keel::format("{}: perm length exceeds 32", fn),
                      0, 0, fn, "", keel::format("numkit:{}:tooManyDims", fn));
-    int sorted[Dims::kMaxRank];
+    keel::i32 sorted[Dims::kMaxRank];
     for (keel::usize i = 0; i < N; ++i) sorted[i] = perm[i];
     std::sort(sorted, sorted + N);
     for (keel::usize i = 0; i < N; ++i) {
-        if (sorted[i] != keel::as<int>(i + 1))
+        if (sorted[i] != keel::as<keel::i32>(i + 1))
             throw Error(keel::format("{}: perm must be a permutation of 1..N", fn),
                          0, 0, fn, "", keel::format("numkit:{}:badPerm", fn));
     }
@@ -99,13 +99,13 @@ void transposePage(const keel::f64 *src, keel::f64 *dst, keel::usize inR, keel::
 //   B(i_1, i_2, ..., i_N) = A(i_{p_1}, i_{p_2}, ..., i_{p_N})
 // i.e. output axis k corresponds to input axis perm[k]. So the size
 // of output along axis k equals the size of input along perm[k].
-Value permute(const Value &x, keel::ArrayRef<int> perm, keel::Allocator *mr)
+Value permute(const Value &x, keel::ArrayRef<keel::i32> perm, keel::Allocator *mr)
 {
     const keel::usize n = perm.size();
     validatePerm(perm.data(), n, "permute");
 
     const auto &dd = x.dims();
-    const int inNd = std::max<int>(dd.ndim(), keel::as<int>(n));
+    const keel::i32 inNd = std::max<keel::i32>(dd.ndim(), keel::as<keel::i32>(n));
     if (inNd > Dims::kMaxRank)
         throw Error("permute: rank exceeds 32",
                      0, 0, "permute", "", "numkit:permute:tooManyDims");
@@ -113,13 +113,13 @@ Value permute(const Value &x, keel::ArrayRef<int> perm, keel::Allocator *mr)
     // All shape arrays on the stack — no per-call heap traffic. Avoids
     // 4 std::vector allocs that dominated cost at small sizes (post-ND
     // generalisation regressed BM_Permute3D /16 by 1.77× before this).
-    int p[Dims::kMaxRank];
+    keel::i32 p[Dims::kMaxRank];
     keel::usize inDims[Dims::kMaxRank];
     keel::usize outDimsArr[Dims::kMaxRank];
-    for (int i = 0; i < inNd; ++i)
-        p[i] = (i < keel::as<int>(n)) ? perm[i] : (i + 1);
-    for (int i = 0; i < inNd; ++i) inDims[i] = dd.dim(i);
-    for (int k = 0; k < inNd; ++k) outDimsArr[k] = inDims[p[k] - 1];
+    for (keel::i32 i = 0; i < inNd; ++i)
+        p[i] = (i < keel::as<keel::i32>(n)) ? perm[i] : (i + 1);
+    for (keel::i32 i = 0; i < inNd; ++i) inDims[i] = dd.dim(i);
+    for (keel::i32 k = 0; k < inNd; ++k) outDimsArr[k] = inDims[p[k] - 1];
 
     // OBJECT: permute dimensions via the strided gather map → objectGather.
     if (x.isObject()) {
@@ -134,7 +134,7 @@ Value permute(const Value &x, keel::ArrayRef<int> perm, keel::Allocator *mr)
         keel::usize dstOff = 0;
         do {
             keel::usize srcOff = 0;
-            for (int k = 0; k < inNd; ++k)
+            for (keel::i32 k = 0; k < inNd; ++k)
                 srcOff += outCoords[k] * inStrides[p[k] - 1];
             map[dstOff++] = srcOff;
         } while (incrementCoords(outCoords, outDimsObj));
@@ -167,7 +167,7 @@ Value permute(const Value &x, keel::ArrayRef<int> perm, keel::Allocator *mr)
         keel::usize dstOff = 0;
         do {
             keel::usize srcOff = 0;
-            for (int k = 0; k < inNd; ++k)
+            for (keel::i32 k = 0; k < inNd; ++k)
                 srcOff += outCoords[k] * inStrides[p[k] - 1];
             if (isCell) r.cellAt(dstOff) = x.cellAt(srcOff);
             else        std::memcpy(dst + dstOff * es, src + srcOff * es, es);
@@ -189,12 +189,12 @@ Value permute(const Value &x, keel::ArrayRef<int> perm, keel::Allocator *mr)
     // For ND inputs, iterate over the trailing pages of the first 2 axes.
     if (inNd >= 2 && p[0] == 2 && p[1] == 1) {
         bool tailIsIdentity = true;
-        for (int k = 2; k < inNd; ++k)
+        for (keel::i32 k = 2; k < inNd; ++k)
             if (p[k] != k + 1) { tailIsIdentity = false; break; }
         if (tailIsIdentity) {
             const keel::usize inR = inDims[0], inC = inDims[1];
             keel::usize P = 1;
-            for (int k = 2; k < inNd; ++k) P *= inDims[k];
+            for (keel::i32 k = 2; k < inNd; ++k) P *= inDims[k];
             for (keel::usize pp = 0; pp < P; ++pp)
                 transposePage(src + pp * inR * inC,
                               dst + pp * inC * inR,
@@ -248,8 +248,8 @@ Value permute(const Value &x, keel::ArrayRef<int> perm, keel::Allocator *mr)
     keel::usize dstOff = 0;
     do {
         keel::usize srcOff = 0;
-        for (int k = 0; k < inNd; ++k) {
-            const int axIn = p[k] - 1;
+        for (keel::i32 k = 0; k < inNd; ++k) {
+            const keel::i32 axIn = p[k] - 1;
             srcOff += outCoords[k] * inStrides[axIn];
         }
         dst[dstOff] = src[srcOff];
@@ -258,16 +258,16 @@ Value permute(const Value &x, keel::ArrayRef<int> perm, keel::Allocator *mr)
     return r;
 }
 
-Value ipermute(const Value &x, keel::ArrayRef<int> perm, keel::Allocator *mr)
+Value ipermute(const Value &x, keel::ArrayRef<keel::i32> perm, keel::Allocator *mr)
 {
     const keel::usize n = perm.size();
     validatePerm(perm.data(), n, "ipermute");
     // Compute inverse permutation: invPerm[perm[i] - 1] = i + 1.
     // Stack-mounted: perm length is bounded by Dims::kMaxRank.
-    int inv[Dims::kMaxRank];
+    keel::i32 inv[Dims::kMaxRank];
     for (keel::usize i = 0; i < n; ++i)
-        inv[perm[i] - 1] = keel::as<int>(i + 1);
-    return permute(x, keel::ArrayRef<int>(inv, n), mr);
+        inv[perm[i] - 1] = keel::as<keel::i32>(i + 1);
+    return permute(x, keel::ArrayRef<keel::i32>(inv, n), mr);
 }
 
 // ────────────────────────────────────────────────────────────────────
@@ -289,7 +289,7 @@ Value ipermute(const Value &x, keel::ArrayRef<int> perm, keel::Allocator *mr)
 Value squeeze(const Value &x, keel::Allocator *mr)
 {
     const auto &dd = x.dims();
-    int nd = dd.ndim();
+    keel::i32 nd = dd.ndim();
     while (nd > 2 && dd.dim(nd - 1) == 1)
         --nd;
 
@@ -304,7 +304,7 @@ Value squeeze(const Value &x, keel::Allocator *mr)
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     auto kept = keel::Array<keel::usize>(scratch.allocator());
     kept.reserve(nd);
-    for (int i = 0; i < nd; ++i) {
+    for (keel::i32 i = 0; i < nd; ++i) {
         const keel::usize d = dd.dim(i);
         if (d != 1) kept.push_back(d);
     }
@@ -400,25 +400,25 @@ Value catDim3(const Value *values, keel::usize count, keel::Allocator *mr)
 // max(dim, max input ndim). All numeric types supported via byte-copy
 // (elementSize-based). All inputs must share a type (no implicit
 // promotion). CELL / STRUCT / STRING / FUNC_HANDLE rejected.
-Value catND(int dim, const Value *values, keel::usize count, keel::Allocator *mr)
+Value catND(keel::i32 dim, const Value *values, keel::usize count, keel::Allocator *mr)
 {
     if (count == 0) return Value();
-    const int k = dim - 1;
+    const keel::i32 k = dim - 1;
 
     // Determine output rank: at least `dim`, plus any input may force higher.
-    int outNdim = dim;
+    keel::i32 outNdim = dim;
     for (keel::usize i = 0; i < count; ++i) {
         const auto &v = values[i];
         if (v.isEmpty() || v.numel() == 0) continue;
         outNdim = std::max(outNdim, v.dims().ndim());
     }
-    constexpr int kMaxNd = Dims::kMaxRank;
+    constexpr keel::i32 kMaxNd = Dims::kMaxRank;
     if (outNdim > kMaxNd)
         throw Error("cat: rank exceeds 32",
                      0, 0, "cat", "", "numkit:cat:tooManyDims");
 
     keel::usize outDim[kMaxNd];
-    for (int j = 0; j < outNdim; ++j) outDim[j] = 0;
+    for (keel::i32 j = 0; j < outNdim; ++j) outDim[j] = 0;
     bool anchored = false;
     ValueType outType = ValueType::DOUBLE;
 
@@ -432,7 +432,7 @@ Value catND(int dim, const Value *values, keel::usize count, keel::Allocator *mr
                          0, 0, "cat", "", "numkit:cat:typeND");
         const auto &d = v.dims();
         if (!anchored) {
-            for (int j = 0; j < outNdim; ++j)
+            for (keel::i32 j = 0; j < outNdim; ++j)
                 outDim[j] = (j < d.ndim()) ? d.dim(j) : 1;
             outType = t;
             anchored = true;
@@ -440,7 +440,7 @@ Value catND(int dim, const Value *values, keel::usize count, keel::Allocator *mr
             if (t != outType)
                 throw Error("cat: ND cat requires all inputs to share a type",
                              0, 0, "cat", "", "numkit:cat:typeMismatchND");
-            for (int j = 0; j < outNdim; ++j) {
+            for (keel::i32 j = 0; j < outNdim; ++j) {
                 const keel::usize vd = (j < d.ndim()) ? d.dim(j) : 1;
                 if (j == k) {
                     outDim[j] += vd;
@@ -455,9 +455,9 @@ Value catND(int dim, const Value *values, keel::usize count, keel::Allocator *mr
 
     // Inner block size B = prod(outDim[0..k-1]); outer count O = prod(outDim[k+1..]).
     keel::usize B = 1;
-    for (int j = 0; j < k; ++j) B *= outDim[j];
+    for (keel::i32 j = 0; j < k; ++j) B *= outDim[j];
     keel::usize O = 1;
-    for (int j = k + 1; j < outNdim; ++j) O *= outDim[j];
+    for (keel::i32 j = k + 1; j < outNdim; ++j) O *= outDim[j];
 
     auto result = Value::matrixND(outDim, outNdim, outType, mr);
     if (B == 0 || O == 0 || outDim[k] == 0) return result;
@@ -487,7 +487,7 @@ Value catND(int dim, const Value *values, keel::usize count, keel::Allocator *mr
 
 } // namespace
 
-Value cat(int dim, keel::ArrayRef<Value> values, keel::Allocator *mr)
+Value cat(keel::i32 dim, keel::ArrayRef<Value> values, keel::Allocator *mr)
 {
     if (dim < 1)
         throw Error("cat: dim must be a positive integer",
@@ -573,42 +573,42 @@ Value blkdiag(keel::ArrayRef<Value> values, keel::Allocator *mr)
 // Cyclic semantics: n is taken mod N for n > 0 (so shiftdim(A, N) is
 // the identity, matching MATLAB).
 
-Value shiftdim(const Value &x, int n, keel::Allocator *mr)
+Value shiftdim(const Value &x, keel::i32 n, keel::Allocator *mr)
 {
     if (n == 0) return x;
 
     const auto &d = x.dims();
-    const int N = d.ndim();
+    const keel::i32 N = d.ndim();
 
     if (n > 0) {
         // Reduce n mod N — shifting by N is the identity.
-        const int eff = (N > 0) ? (n % N) : 0;
+        const keel::i32 eff = (N > 0) ? (n % N) : 0;
         if (eff == 0) return x;
-        constexpr int kMaxNd = Dims::kMaxRank;
-        int perm[kMaxNd];
-        for (int i = 0; i < N; ++i)
+        constexpr keel::i32 kMaxNd = Dims::kMaxRank;
+        keel::i32 perm[kMaxNd];
+        for (keel::i32 i = 0; i < N; ++i)
             perm[i] = ((i + eff) % N) + 1;  // 1-based
-        return permute(x, keel::ArrayRef<int>(perm, keel::as<keel::usize>(N)), mr);
+        return permute(x, keel::ArrayRef<keel::i32>(perm, keel::as<keel::usize>(N)), mr);
     }
 
     // n < 0: prepend |n| singleton dims via reshape.
-    const int k = -n;
-    const int newN = N + k;
-    constexpr int kMaxNd = Dims::kMaxRank;
+    const keel::i32 k = -n;
+    const keel::i32 newN = N + k;
+    constexpr keel::i32 kMaxNd = Dims::kMaxRank;
     if (newN > kMaxNd)
         throw Error("shiftdim: rank exceeds 32",
                      0, 0, "shiftdim", "", "numkit:shiftdim:tooManyDims");
     keel::usize newDims[kMaxNd];
-    for (int i = 0; i < k; ++i) newDims[i] = 1;
-    for (int i = 0; i < N; ++i) newDims[k + i] = d.dim(i);
+    for (keel::i32 i = 0; i < k; ++i) newDims[i] = 1;
+    for (keel::i32 i = 0; i < N; ++i) newDims[k + i] = d.dim(i);
     return reshape(x, keel::ArrayRef<keel::usize>(newDims, keel::as<keel::usize>(newN)), mr);
 }
 
 ShiftDimAuto shiftdimAuto(const Value &x, keel::Allocator *mr)
 {
     const auto &d = x.dims();
-    const int N = d.ndim();
-    int k = 0;
+    const keel::i32 N = d.ndim();
+    keel::i32 k = 0;
     while (k < N && d.dim(k) == 1) ++k;
     if (k == 0) return { x, 0 };
     // Avoid collapsing all dims to "scalar with rank 0" — keep at least
@@ -622,13 +622,13 @@ ShiftDimAuto shiftdimAuto(const Value &x, keel::Allocator *mr)
     // 3-D 1000x1000x1). The explicit shiftdim(A, n) form does not.
     // See BUGS.md #20.
     const auto &yd = y.dims();
-    const int Ny = yd.ndim();
-    int newN = Ny;
+    const keel::i32 Ny = yd.ndim();
+    keel::i32 newN = Ny;
     while (newN > 2 && yd.dim(newN - 1) == 1) --newN;
     if (newN < Ny) {
-        constexpr int kMaxNd = Dims::kMaxRank;
+        constexpr keel::i32 kMaxNd = Dims::kMaxRank;
         keel::usize trimmed[kMaxNd];
-        for (int i = 0; i < newN; ++i) trimmed[i] = yd.dim(i);
+        for (keel::i32 i = 0; i < newN; ++i) trimmed[i] = yd.dim(i);
         y = reshape(y, keel::ArrayRef<keel::usize>(trimmed, keel::as<keel::usize>(newN)), mr);
     }
     return { std::move(y), k };

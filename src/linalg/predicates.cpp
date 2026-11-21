@@ -47,16 +47,16 @@ inline void requireMatrix(const Value &A, const char *who)
                     0, 0, who, "", keel::format("numkit:{}:Not2D", who));
 }
 
-bool isbandedImpl(const Value &A, long lower, long upper)
+bool isbandedImpl(const Value &A, keel::i64 lower, keel::i64 upper)
 {
-    const long R = keel::as<long>(A.dims().rows());
-    const long C = keel::as<long>(A.dims().cols());
+    const keel::i64 R = keel::as<keel::i64>(A.dims().rows());
+    const keel::i64 C = keel::as<keel::i64>(A.dims().cols());
     if (R == 0 || C == 0) return true;
 
     const keel::usize Rs = keel::as<keel::usize>(R);
     if (A.isComplex()) {
-        for (long j = 0; j < C; ++j)
-            for (long i = 0; i < R; ++i) {
+        for (keel::i64 j = 0; j < C; ++j)
+            for (keel::i64 i = 0; i < R; ++i) {
                 if (j - i > upper || i - j > lower) {
                     keel::c64 z = A.complexElem(keel::as<keel::usize>(i), keel::as<keel::usize>(j));
                     if (z.real() != 0.0 || z.imag() != 0.0) return false;
@@ -64,8 +64,8 @@ bool isbandedImpl(const Value &A, long lower, long upper)
             }
         return true;
     }
-    for (long j = 0; j < C; ++j)
-        for (long i = 0; i < R; ++i) {
+    for (keel::i64 j = 0; j < C; ++j)
+        for (keel::i64 i = 0; i < R; ++i) {
             if (j - i > upper || i - j > lower) {
                 if (A.elemAsDouble(lin(keel::as<keel::usize>(i),
                                       keel::as<keel::usize>(j), Rs)) != 0.0)
@@ -119,30 +119,30 @@ bool ishermitianImpl(const Value &A, bool skew)
     return issymmetricImpl(A, skew);
 }
 
-std::pair<long, long> bandwidthImpl(const Value &A)
+std::pair<keel::i64, keel::i64> bandwidthImpl(const Value &A)
 {
-    const long R = keel::as<long>(A.dims().rows());
-    const long C = keel::as<long>(A.dims().cols());
-    long lower = 0, upper = 0;
+    const keel::i64 R = keel::as<keel::i64>(A.dims().rows());
+    const keel::i64 C = keel::as<keel::i64>(A.dims().cols());
+    keel::i64 lower = 0, upper = 0;
     if (R == 0 || C == 0) return {0, 0};
 
     const keel::usize Rs = keel::as<keel::usize>(R);
     if (A.isComplex()) {
-        for (long j = 0; j < C; ++j)
-            for (long i = 0; i < R; ++i) {
+        for (keel::i64 j = 0; j < C; ++j)
+            for (keel::i64 i = 0; i < R; ++i) {
                 keel::c64 z = A.complexElem(keel::as<keel::usize>(i), keel::as<keel::usize>(j));
                 if (z.real() == 0.0 && z.imag() == 0.0) continue;
-                long d = i - j;
+                keel::i64 d = i - j;
                 if (d > 0) lower = std::max(lower, d);
                 else        upper = std::max(upper, -d);
             }
     } else {
-        for (long j = 0; j < C; ++j)
-            for (long i = 0; i < R; ++i) {
+        for (keel::i64 j = 0; j < C; ++j)
+            for (keel::i64 i = 0; i < R; ++i) {
                 if (A.elemAsDouble(lin(keel::as<keel::usize>(i),
                                        keel::as<keel::usize>(j), Rs)) == 0.0)
                     continue;
-                long d = i - j;
+                keel::i64 d = i - j;
                 if (d > 0) lower = std::max(lower, d);
                 else        upper = std::max(upper, -d);
             }
@@ -152,7 +152,7 @@ std::pair<long, long> bandwidthImpl(const Value &A)
 
 } // anonymous namespace
 
-Value isbanded(const Value &A, long lower, long upper, keel::Allocator *mr)
+Value isbanded(const Value &A, keel::i64 lower, keel::i64 upper, keel::Allocator *mr)
 {
     detail::requireFloatOrLogicalInput(A, "isbanded");
     if (A.dims().ndim() > 2)
@@ -176,7 +176,7 @@ Value istril(const Value &A, keel::Allocator *mr)
     detail::requireFloatOrLogicalInput(A, "istril");
     if (A.dims().ndim() > 2)
         return Value::logicalScalar(false, mr);
-    const long R = keel::as<long>(A.dims().rows());
+    const keel::i64 R = keel::as<keel::i64>(A.dims().rows());
     return Value::logicalScalar(isbandedImpl(A, R, 0), mr);
 }
 
@@ -185,7 +185,7 @@ Value istriu(const Value &A, keel::Allocator *mr)
     detail::requireFloatOrLogicalInput(A, "istriu");
     if (A.dims().ndim() > 2)
         return Value::logicalScalar(false, mr);
-    const long C = keel::as<long>(A.dims().cols());
+    const keel::i64 C = keel::as<keel::i64>(A.dims().cols());
     return Value::logicalScalar(isbandedImpl(A, 0, C), mr);
 }
 

@@ -61,7 +61,7 @@ Value abs(const Value &x, Value *hint, keel::Allocator *mr)
             const auto *in = x.charData();
             for (keel::usize i = 0; i < x.numel(); ++i)
                 out[i] = keel::as<keel::f64>(
-                    keel::as<unsigned char>(in[i]));
+                    keel::as<keel::u8>(in[i]));
         }
         return r;
     }

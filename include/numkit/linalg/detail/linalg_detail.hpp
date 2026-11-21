@@ -38,7 +38,7 @@ inline keel::String shapeOf(const Value &v)
 {
     const Dims &d = v.dims();
     keel::String s = keel::format("{}", d.dim(0));
-    for (int k = 1; k < d.ndim(); ++k) {
+    for (keel::i32 k = 1; k < d.ndim(); ++k) {
         keel::format_into(s, "x{}", d.dim(k));
     }
     return s;
@@ -50,7 +50,7 @@ inline keel::String shapeOf(const Value &v)
 // char, string and cell as one inputType class.
 inline void requireDoubleInput(const Value &A, keel::StringRef fn,
                                keel::StringRef argName = "A",
-                               int argNum = 1)
+                               keel::i32 argNum = 1)
 {
     const ValueType t = A.type();
     if (t == ValueType::DOUBLE || t == ValueType::COMPLEX || t == ValueType::SINGLE)
@@ -104,7 +104,7 @@ inline Value narrowDoubleToSingleIf(const Value &v, bool wantSingle, keel::Alloc
 // class-correct logical).
 inline void requireFloatOrLogicalInput(const Value &A, keel::StringRef fn,
                                        keel::StringRef argName = "A",
-                                       int argNum = 1)
+                                       keel::i32 argNum = 1)
 {
     const ValueType t = A.type();
     if (t == ValueType::DOUBLE || t == ValueType::COMPLEX

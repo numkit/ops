@@ -40,7 +40,7 @@ inline keel::f64 sinpi_poly(bool o, keel::f64 s)
 {
     const keel::f64 *c = o ? kSinpiPoly_o : kSinpiPoly_e;
     keel::f64 x = c[0];
-    for (int k = 1; k < 8; ++k)
+    for (keel::i32 k = 1; k < 8; ++k)
         x = x * s + c[k];
     return x;
 }

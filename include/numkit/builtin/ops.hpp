@@ -332,7 +332,7 @@ inline Value xor_op(const Value &a, const Value &b, keel::Allocator *mr = nullpt
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return LOGICAL reduced array.
 /// @see all, logical_or
-Value any(const Value &x, int dim = 0, keel::Allocator *mr = nullptr);
+Value any(const Value &x, keel::i32 dim = 0, keel::Allocator *mr = nullptr);
 
 /// @brief True if all elements of array are non-zero (`y = all(x, dim)`).
 ///
@@ -343,7 +343,7 @@ Value any(const Value &x, int dim = 0, keel::Allocator *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return LOGICAL reduced array.
 /// @see any, logical_and
-Value all(const Value &x, int dim = 0, keel::Allocator *mr = nullptr);
+Value all(const Value &x, keel::i32 dim = 0, keel::Allocator *mr = nullptr);
 
 // ── Transposition ──────────────────────────────────────────────────────────
 
@@ -415,7 +415,7 @@ Value bitshift(const Value &a, const Value &k, keel::Allocator *mr = nullptr);
 /// @param width Number of bits in unsigned bit representation (default: 64).
 /// @param mr Memory resource.
 /// @return Bitwise inverted values.
-Value bitcmp(const Value &a, int width = 64, keel::Allocator *mr = nullptr);
+Value bitcmp(const Value &a, keel::i32 width = 64, keel::Allocator *mr = nullptr);
 
 /// @brief Sets specified bit in integer array (`bitset(a, n, val)`).
 /// @param a Input integer array.

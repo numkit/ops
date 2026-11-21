@@ -70,7 +70,7 @@ Value polyint(const Value &p, keel::f64 k = 0.0, keel::Allocator *mr = nullptr);
 /// @param n Degree of the fitting polynomial.
 /// @param mr Memory resource.
 /// @return Fitted polynomial coefficients of length `n + 1`.
-Value polyfit(const Value &x, const Value &y, int n, keel::Allocator *mr = nullptr);
+Value polyfit(const Value &x, const Value &y, keel::i32 n, keel::Allocator *mr = nullptr);
 
 /// @brief Result of polynomial division and deconvolution (`[q, r] = polydiv(b, a)`).
 struct PolyDiv {
@@ -114,7 +114,7 @@ Value poly_of_matrix(const Value &A, keel::Allocator *mr = nullptr);
 /// @param N Approximation order.
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return PadeCoef containing numerator and denominator polynomials.
-PadeCoef padecoef(keel::f64 T, int N, keel::Allocator *mr = nullptr);
+PadeCoef padecoef(keel::f64 T, keel::i32 N, keel::Allocator *mr = nullptr);
 
 /// @brief Polynomial deconvolution and division (`[q, r] = polydiv(b, a)`).
 ///
@@ -336,7 +336,7 @@ Value trapz(const Value &x, const Value &y, keel::Allocator *mr = nullptr);
 /// @param dim Dimension along which to integrate.
 /// @param mr Memory resource.
 /// @return Integrated array.
-Value trapz(const Value &x, const Value &y, int dim, keel::Allocator *mr = nullptr);
+Value trapz(const Value &x, const Value &y, keel::i32 dim, keel::Allocator *mr = nullptr);
 
 /// @brief Cumulative trapezoidal numerical integration with unit spacing (`cumtrapz(y)`).
 /// @param y Function values.
@@ -358,14 +358,14 @@ Value cumtrapz(const Value &x, const Value &y, keel::Allocator *mr = nullptr);
 /// @param dim Operating dimension.
 /// @param mr Memory resource.
 /// @return Cumulative integral array.
-Value cumtrapz(const Value &x, const Value &y, int dim, keel::Allocator *mr = nullptr);
+Value cumtrapz(const Value &x, const Value &y, keel::i32 dim, keel::Allocator *mr = nullptr);
 
 /// @brief Cumulative trapezoidal numerical integration with unit spacing along dimension (`cumtrapz(y, dim)`).
 /// @param y Function values.
 /// @param dim Operating dimension.
 /// @param mr Memory resource.
 /// @return Cumulative integral array.
-Value cumtrapzDim(const Value &y, int dim, keel::Allocator *mr = nullptr);
+Value cumtrapzDim(const Value &y, keel::i32 dim, keel::Allocator *mr = nullptr);
 
 /// @brief Numerical 1-D adaptive quadrature integration (`integral(fn, a, b)`).
 /// @param fn Function handle taking numeric vector argument.

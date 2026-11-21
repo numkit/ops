@@ -104,7 +104,7 @@ Value bitshift(const Value &a, const Value &k, keel::Allocator *mr)
     }, mr);
 }
 
-Value bitcmp(const Value &a, int width, keel::Allocator *mr)
+Value bitcmp(const Value &a, keel::i32 width, keel::Allocator *mr)
 {
     if (width != 8 && width != 16 && width != 32 && width != 64)
         throw Error("bitcmp: width must be 8, 16, 32, or 64",
@@ -122,13 +122,13 @@ Value bitcmp(const Value &a, int width, keel::Allocator *mr)
 // MATLAB convention: bit 1 is the LSB.
 Value bitset(const Value &a, const Value &n, const Value &val, keel::Allocator *mr)
 {
-    const int v = val.isEmpty() ? 1 : keel::as<int>(val.toScalar());
+    const keel::i32 v = val.isEmpty() ? 1 : keel::as<keel::i32>(val.toScalar());
     if (v != 0 && v != 1)
         throw Error("bitset: third argument must be 0 or 1",
                      0, 0, "bitset", "", "numkit:bitset:badVal");
     return elementwiseDouble(a, n, [v](keel::f64 xv, keel::f64 nv) {
         const keel::i64 x = toInt64(xv);
-        const int bit = keel::as<int>(nv);
+        const keel::i32 bit = keel::as<keel::i32>(nv);
         if (bit < 1 || bit > 64) return xv;
         const keel::u64 mask = keel::u64{1} << (bit - 1);
         const keel::u64 ux = keel::as<keel::u64>(x);
@@ -142,7 +142,7 @@ Value bitget(const Value &a, const Value &n, keel::Allocator *mr)
 {
     return elementwiseDouble(a, n, [](keel::f64 xv, keel::f64 nv) {
         const keel::i64 x = toInt64(xv);
-        const int bit = keel::as<int>(nv);
+        const keel::i32 bit = keel::as<keel::i32>(nv);
         if (bit < 1 || bit > 64) return 0.0;
         const keel::u64 ux = keel::as<keel::u64>(x);
         return keel::as<keel::f64>((ux >> (bit - 1)) & 1u);

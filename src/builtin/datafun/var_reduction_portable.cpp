@@ -35,7 +35,7 @@ void addInto(keel::f64 *dst, const keel::f64 *src, keel::usize n)
     for (keel::usize i = 0; i < n; ++i) dst[i] += src[i];
 }
 
-keel::f64 varianceTwoPass(const keel::f64 *p, keel::usize n, int normFlag)
+keel::f64 varianceTwoPass(const keel::f64 *p, keel::usize n, keel::i32 normFlag)
 {
     if (n == 0) return std::nan("");
     // MATLAB: variance of a single observation is 0 for BOTH the N-1

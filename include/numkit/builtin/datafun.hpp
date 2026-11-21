@@ -48,7 +48,7 @@ Value sum(const Value &x, keel::Allocator *mr = nullptr);
 /// @param mr Memory resource.
 /// @return Sum array.
 /// @see prod, mean, cumsum
-Value sum(const Value &x, int dim, keel::Allocator *mr = nullptr);
+Value sum(const Value &x, keel::i32 dim, keel::Allocator *mr = nullptr);
 
 /// @brief Product of array elements along first non-singleton dimension (`prod(x)`).
 /// @param x Input array.
@@ -63,7 +63,7 @@ Value prod(const Value &x, keel::Allocator *mr = nullptr);
 /// @param mr Memory resource.
 /// @return Product array.
 /// @see sum, mean, cumprod
-Value prod(const Value &x, int dim, keel::Allocator *mr = nullptr);
+Value prod(const Value &x, keel::i32 dim, keel::Allocator *mr = nullptr);
 
 /// @brief Mean (arithmetic average) of array elements (`mean(x)`).
 /// @param x Input array.
@@ -78,7 +78,7 @@ Value mean(const Value &x, keel::Allocator *mr = nullptr);
 /// @param mr Memory resource.
 /// @return Mean array.
 /// @see sum, median
-Value mean(const Value &x, int dim, keel::Allocator *mr = nullptr);
+Value mean(const Value &x, keel::i32 dim, keel::Allocator *mr = nullptr);
 
 /// @brief Largest elements in array. Returns tuple `(values, indices)` (`[M, I] = max(x)`).
 /// @param x Input array.
@@ -92,7 +92,7 @@ std::tuple<Value, Value> max(const Value &x, keel::Allocator *mr = nullptr);
 /// @param dim Operating dimension.
 /// @param mr Memory resource.
 /// @return Tuple containing `{max_values, max_indices}`.
-std::tuple<Value, Value> max(const Value &x, int dim, keel::Allocator *mr = nullptr);
+std::tuple<Value, Value> max(const Value &x, keel::i32 dim, keel::Allocator *mr = nullptr);
 
 /// @brief Element-wise maximum of two arrays (`max(a, b)`).
 /// @param a First array.
@@ -106,7 +106,7 @@ Value max(const Value &a, const Value &b, keel::Allocator *mr = nullptr);
 /// @param dim Operating dimension.
 /// @param mr Memory resource.
 /// @return Tuple containing `{max_values, max_indices}`.
-std::tuple<Value, Value> maxOmitNan(const Value &x, int dim, keel::Allocator *mr = nullptr);
+std::tuple<Value, Value> maxOmitNan(const Value &x, keel::i32 dim, keel::Allocator *mr = nullptr);
 
 /// @brief Element-wise maximum of two arrays omitting NaNs (`max(a, b, 'omitnan')`).
 /// @param a First array.
@@ -127,7 +127,7 @@ std::tuple<Value, Value> min(const Value &x, keel::Allocator *mr = nullptr);
 /// @param dim Operating dimension.
 /// @param mr Memory resource.
 /// @return Tuple containing `{min_values, min_indices}`.
-std::tuple<Value, Value> min(const Value &x, int dim, keel::Allocator *mr = nullptr);
+std::tuple<Value, Value> min(const Value &x, keel::i32 dim, keel::Allocator *mr = nullptr);
 
 /// @brief Element-wise minimum of two arrays (`min(a, b)`).
 /// @param a First array.
@@ -141,7 +141,7 @@ Value min(const Value &a, const Value &b, keel::Allocator *mr = nullptr);
 /// @param dim Operating dimension.
 /// @param mr Memory resource.
 /// @return Tuple containing `{min_values, min_indices}`.
-std::tuple<Value, Value> minOmitNan(const Value &x, int dim, keel::Allocator *mr = nullptr);
+std::tuple<Value, Value> minOmitNan(const Value &x, keel::i32 dim, keel::Allocator *mr = nullptr);
 
 /// @brief Element-wise minimum of two arrays omitting NaNs (`min(a, b, 'omitnan')`).
 /// @param a First array.
@@ -162,7 +162,7 @@ Value cumsum(const Value &x, keel::Allocator *mr = nullptr);
 /// @param dim Operating dimension.
 /// @param mr Memory resource.
 /// @return Cumulative sum array.
-Value cumsum(const Value &x, int dim, keel::Allocator *mr = nullptr);
+Value cumsum(const Value &x, keel::i32 dim, keel::Allocator *mr = nullptr);
 
 /// @brief Cumulative product of array elements (`cumprod(x)`).
 /// @param x Input array.
@@ -176,7 +176,7 @@ Value cumprod(const Value &x, keel::Allocator *mr = nullptr);
 /// @param dim Operating dimension.
 /// @param mr Memory resource.
 /// @return Cumulative product array.
-Value cumprod(const Value &x, int dim, keel::Allocator *mr = nullptr);
+Value cumprod(const Value &x, keel::i32 dim, keel::Allocator *mr = nullptr);
 
 /// @brief Cumulative maximum of array elements (`cummax(x)`).
 /// @param x Input array.
@@ -190,7 +190,7 @@ Value cummax(const Value &x, keel::Allocator *mr = nullptr);
 /// @param dim Operating dimension.
 /// @param mr Memory resource.
 /// @return Cumulative maximum array.
-Value cummax(const Value &x, int dim, keel::Allocator *mr = nullptr);
+Value cummax(const Value &x, keel::i32 dim, keel::Allocator *mr = nullptr);
 
 /// @brief Cumulative minimum of array elements (`cummin(x)`).
 /// @param x Input array.
@@ -204,7 +204,7 @@ Value cummin(const Value &x, keel::Allocator *mr = nullptr);
 /// @param dim Operating dimension.
 /// @param mr Memory resource.
 /// @return Cumulative minimum array.
-Value cummin(const Value &x, int dim, keel::Allocator *mr = nullptr);
+Value cummin(const Value &x, keel::i32 dim, keel::Allocator *mr = nullptr);
 
 /// @brief Differences between adjacent elements (`diff(x)`).
 /// @param x Input array.
@@ -218,21 +218,21 @@ Value diff(const Value &x, keel::Allocator *mr = nullptr);
 /// @param dim Operating dimension (default 0 for first non-singleton).
 /// @param mr Memory resource.
 /// @return Nth-order difference array.
-Value diff(const Value &x, int n, int dim = 0, keel::Allocator *mr = nullptr);
+Value diff(const Value &x, keel::i32 n, keel::i32 dim = 0, keel::Allocator *mr = nullptr);
 
 /// @brief True if any element along dimension is nonzero (`any(x, dim)`).
 /// @param x Input array.
 /// @param dim Operating dimension (0 for first non-singleton).
 /// @param mr Memory resource.
 /// @return Logical array.
-Value anyOf(const Value &x, int dim = 0, keel::Allocator *mr = nullptr);
+Value anyOf(const Value &x, keel::i32 dim = 0, keel::Allocator *mr = nullptr);
 
 /// @brief True if all elements along dimension are nonzero (`all(x, dim)`).
 /// @param x Input array.
 /// @param dim Operating dimension (0 for first non-singleton).
 /// @param mr Memory resource.
 /// @return Logical array.
-Value allOf(const Value &x, int dim = 0, keel::Allocator *mr = nullptr);
+Value allOf(const Value &x, keel::i32 dim = 0, keel::Allocator *mr = nullptr);
 
 // ── Random Number Generation ────────────────────────────────────────────────
 // See RngContext-taking declarations re-exported at header top.

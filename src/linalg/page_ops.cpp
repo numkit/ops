@@ -68,7 +68,7 @@ Value pageView(const Value &A, keel::usize p, keel::usize m, keel::usize n,
 std::tuple<keel::usize, keel::usize, keel::usize>
 pageShape(const Value &A, const char *who)
 {
-    const int nd = A.dims().ndim();
+    const keel::i32 nd = A.dims().ndim();
     if (nd < 2 || nd > 3)
         throw Error(keel::format("{}: input must be 2-D or 3-D", who),
                     0, 0, who, "", keel::format("numkit:{}:badDim", who));
@@ -298,8 +298,8 @@ namespace {
 void checkPagePair(const Value &A, const Value &B, const char *who,
                    keel::usize &pages)
 {
-    const int nda = A.dims().ndim();
-    const int ndb = B.dims().ndim();
+    const keel::i32 nda = A.dims().ndim();
+    const keel::i32 ndb = B.dims().ndim();
     if (nda < 2 || nda > 3 || ndb < 2 || ndb > 3)
         throw Error(keel::format("{}: inputs must be 2-D or 3-D", who),
                     0, 0, who, "", keel::format("numkit:{}:badDim", who));

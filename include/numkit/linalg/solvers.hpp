@@ -37,8 +37,8 @@ struct NnlsResult {
     Value x;             ///< Non-negative solution column.
     keel::f64 resnorm;      ///< Squared 2-norm of the residual `â€–CÂ·x âˆ’ dâ€–Â²`.
     Value residual;      ///< Residual column `d âˆ’ CÂ·x`.
-    int exitflag;        ///< 1 on convergence.
-    int iterations;      ///< Outer-loop iteration count.
+    keel::i32 exitflag;        ///< 1 on convergence.
+    keel::i32 iterations;      ///< Outer-loop iteration count.
     keel::String algorithm; ///< Always "active-set".
     keel::String message; ///< Termination message.
 };

@@ -26,14 +26,14 @@ inline keel::String shapeOf(const Value &v)
 {
     const Dims &d = v.dims();
     keel::String s = keel::format("{}", d.dim(0));
-    for (int k = 1; k < d.ndim(); ++k) {
+    for (keel::i32 k = 1; k < d.ndim(); ++k) {
         keel::format_into(s, "x{}", d.dim(k));
     }
     return s;
 }
 
 inline void throwInputType(const Value &v, keel::StringRef fn,
-                           keel::StringRef argName, int argNum,
+                           keel::StringRef argName, keel::i32 argNum,
                            keel::StringRef expectation)
 {
     throw Error(keel::format("{}: input {} ({}) must be {} (got a {} {} array).",
@@ -48,7 +48,7 @@ inline void throwInputType(const Value &v, keel::StringRef fn,
 // rejected as one inputType class.
 inline void requireNumericOrLogicalInput(const Value &v, keel::StringRef fn,
                                          keel::StringRef argName = "x",
-                                         int argNum = 1)
+                                         keel::i32 argNum = 1)
 {
     if (v.isNumeric() || v.isLogical())
         return;
@@ -57,7 +57,7 @@ inline void requireNumericOrLogicalInput(const Value &v, keel::StringRef fn,
 
 inline void requireNumericSignalInput(const Value &v, keel::StringRef fn,
                                       keel::StringRef argName = "x",
-                                      int argNum = 1)
+                                      keel::i32 argNum = 1)
 {
     requireNumericOrLogicalInput(v, fn, argName, argNum);
 }
@@ -66,7 +66,7 @@ inline void requireNumericSignalInput(const Value &v, keel::StringRef fn,
 // double, single, and complex double pass; logical / integer /
 // char / cell are rejected (the reference rejects them as invalidType).
 inline void requireFloatInput(const Value &v, keel::StringRef fn,
-                              keel::StringRef argName = "x", int argNum = 1)
+                              keel::StringRef argName = "x", keel::i32 argNum = 1)
 {
     const ValueType t = v.type();
     if (t == ValueType::DOUBLE || t == ValueType::SINGLE
@@ -86,7 +86,7 @@ inline Value widenSingleToDouble(const Value &v, keel::Allocator *mr)
         out = Value::matrix3d(d.rows(), d.cols(), d.pages(), ValueType::DOUBLE, mr);
     } else {
         keel::Array<keel::usize> od(d.ndim(), mr);
-        for (int k = 0; k < d.ndim(); ++k) od[keel::as<keel::usize>(k)] = d.dim(k);
+        for (keel::i32 k = 0; k < d.ndim(); ++k) od[keel::as<keel::usize>(k)] = d.dim(k);
         out = Value::matrixND(od.data(), d.ndim(), ValueType::DOUBLE, mr);
     }
     const keel::f32 *src = v.singleData();
@@ -108,7 +108,7 @@ inline Value narrowDoubleToSingle(const Value &v, keel::Allocator *mr)
         out = Value::matrix3d(d.rows(), d.cols(), d.pages(), ValueType::SINGLE, mr);
     } else {
         keel::Array<keel::usize> od(d.ndim(), mr);
-        for (int k = 0; k < d.ndim(); ++k) od[keel::as<keel::usize>(k)] = d.dim(k);
+        for (keel::i32 k = 0; k < d.ndim(); ++k) od[keel::as<keel::usize>(k)] = d.dim(k);
         out = Value::matrixND(od.data(), d.ndim(), ValueType::SINGLE, mr);
     }
     const keel::f64 *src = v.doubleData();
@@ -129,7 +129,7 @@ inline Value narrowDoubleToSingleIf(const Value &v, bool wantSingle,
 // complex input with an expectedReal-class error.
 inline void requireRealFloatInput(const Value &v, keel::StringRef fn,
                                   keel::StringRef argName = "x",
-                                  int argNum = 1)
+                                  keel::i32 argNum = 1)
 {
     if (v.type() == ValueType::COMPLEX)
         throw Error(keel::format("{}: input {} ({}) must be real (got a {} complex array).",
@@ -144,7 +144,7 @@ inline void requireRealFloatInput(const Value &v, keel::StringRef fn,
 // (bugs/opened/signal/complex-kernel-gaps.md).
 inline void requireDoubleNotComplexInput(const Value &v, keel::StringRef fn,
                                          keel::StringRef argName = "x",
-                                         int argNum = 1)
+                                         keel::i32 argNum = 1)
 {
     if (v.type() == ValueType::COMPLEX)
         throw Error(keel::format("{}: input {} ({}): complex inputs are not supported yet (got a {} complex array).",
@@ -157,7 +157,7 @@ inline void requireDoubleNotComplexInput(const Value &v, keel::StringRef fn,
 // Non-empty vector (conv / convmtx / polystab / extractsigroi x):
 // the reference rejects matrices AND empties with one notVector class.
 inline void requireVectorInput(const Value &v, keel::StringRef fn,
-                               keel::StringRef argName = "x", int argNum = 1)
+                               keel::StringRef argName = "x", keel::i32 argNum = 1)
 {
     if (!v.dims().isVector() || v.numel() == 0)
         throw Error(keel::format("{}: input {} ({}) must be a non-empty row or column vector (got a {} {} array).",

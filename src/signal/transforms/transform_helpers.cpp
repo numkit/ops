@@ -32,7 +32,7 @@ namespace {
 // `mode = -1` -> ifftshift (shift = floor(extent/2))
 template <typename T>
 void shiftAlongDim(const T *src, T *dst, keel::usize R, keel::usize C, keel::usize P,
-                   int dim, int mode)
+                   keel::i32 dim, keel::i32 mode)
 {
     auto pickShift = [mode](keel::usize extent) -> keel::usize {
         if (extent <= 1) return 0;
@@ -54,7 +54,7 @@ void shiftAlongDim(const T *src, T *dst, keel::usize R, keel::usize C, keel::usi
 }
 
 // Apply fftshift/ifftshift across all non-singleton dims (mode=+1/-1).
-Value cyclicShiftAll(const Value &x, int mode, keel::Allocator *mr)
+Value cyclicShiftAll(const Value &x, keel::i32 mode, keel::Allocator *mr)
 {
     const keel::usize R = x.dims().rows();
     const keel::usize C = x.dims().cols();
@@ -91,7 +91,7 @@ Value cyclicShiftAll(const Value &x, int mode, keel::Allocator *mr)
 }
 
 // Single-dim form (when user passes explicit dim argument).
-Value cyclicShiftOneDim(const Value &x, int dim, int mode,
+Value cyclicShiftOneDim(const Value &x, keel::i32 dim, keel::i32 mode,
                         keel::Allocator *mr)
 {
     const keel::usize R = x.dims().rows();
@@ -164,12 +164,12 @@ Value ifftshift(const Value &x, keel::Allocator *mr)
     return cyclicShiftAll(x, -1, mr);
 }
 
-Value fftshift(const Value &x, int dim, keel::Allocator *mr)
+Value fftshift(const Value &x, keel::i32 dim, keel::Allocator *mr)
 {
     return cyclicShiftOneDim(x, dim, +1, mr);
 }
 
-Value ifftshift(const Value &x, int dim, keel::Allocator *mr)
+Value ifftshift(const Value &x, keel::i32 dim, keel::Allocator *mr)
 {
     return cyclicShiftOneDim(x, dim, -1, mr);
 }

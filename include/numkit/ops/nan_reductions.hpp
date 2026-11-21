@@ -42,6 +42,6 @@ keel::f64 nanMinScan(const keel::f64 *p, keel::usize n);
 // Result divided by (count - {0,1}) per the normFlag (matches MATLAB
 // var(x, 0/1) semantics). All-NaN -> NaN; one valid value -> 0 for
 // normFlag==1, NaN for normFlag==0.
-keel::f64 nanVarianceTwoPass(const keel::f64 *p, keel::usize n, int normFlag);
+keel::f64 nanVarianceTwoPass(const keel::f64 *p, keel::usize n, keel::i32 normFlag);
 
 } // namespace numkit::ops

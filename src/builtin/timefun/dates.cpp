@@ -38,7 +38,7 @@ static inline keel::f64 civilToSerial(keel::f64 yd, keel::f64 md, keel::f64 dd, 
     return keel::as<keel::f64>(days) + 719529.0 + frac;
 }
 
-static inline void civilFromDays(keel::i64 z, keel::i64 &Y, int &M, int &D) {
+static inline void civilFromDays(keel::i64 z, keel::i64 &Y, keel::i32 &M, keel::i32 &D) {
     z += 719468;
     const keel::i64 era = (z >= 0 ? z : z - 146096) / 146097;
     const keel::i64 doe = z - era * 146097;
@@ -46,16 +46,16 @@ static inline void civilFromDays(keel::i64 z, keel::i64 &Y, int &M, int &D) {
     const keel::i64 y = yoe + era * 400;
     const keel::i64 doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
     const keel::i64 mp = (5 * doy + 2) / 153;
-    D = keel::as<int>(doy - (153 * mp + 2) / 5 + 1);
-    M = keel::as<int>(mp < 10 ? mp + 3 : mp - 9);
+    D = keel::as<keel::i32>(doy - (153 * mp + 2) / 5 + 1);
+    M = keel::as<keel::i32>(mp < 10 ? mp + 3 : mp - 9);
     Y = y + (M <= 2 ? 1 : 0);
 }
 
-static inline void extractTime(keel::f64 frac, int &H, int &MI, keel::f64 &S) {
+static inline void extractTime(keel::f64 frac, keel::i32 &H, keel::i32 &MI, keel::f64 &S) {
     const keel::f64 total_ms = std::round(frac * 86400.0 * 1.0e3);
     keel::i64 ms = keel::as<keel::i64>(total_ms);
-    H  = keel::as<int>(ms / 3600000LL); ms %= 3600000LL;
-    MI = keel::as<int>(ms / 60000LL);   ms %= 60000LL;
+    H  = keel::as<keel::i32>(ms / 3600000LL); ms %= 3600000LL;
+    MI = keel::as<keel::i32>(ms / 60000LL);   ms %= 60000LL;
     S  = keel::as<keel::f64>(ms) / 1.0e3;
 }
 
@@ -68,7 +68,7 @@ static inline void serialToCivil(keel::f64 serial, keel::f64 &yd, keel::f64 &md,
     const keel::i64 days = keel::as<keel::i64>(floored);
     const keel::f64 frac = serial - floored;
     const keel::i64 z = days - 719529;
-    keel::i64 Y; int M, D, H, MI; keel::f64 S;
+    keel::i64 Y; keel::i32 M, D, H, MI; keel::f64 S;
     civilFromDays(z, Y, M, D);
     extractTime(frac, H, MI, S);
     if (S >= 60.0) { S -= 60.0; ++MI; }
@@ -118,9 +118,9 @@ Value weeknum(keel::ArrayRef<Value> args, keel::Allocator *mr) {
     if (args.empty())
         throw std::runtime_error("weeknum: requires a date argument");
 
-    int weekStart = 1;
+    keel::i32 weekStart = 1;
     if (args.size() >= 2 && !args[1].isEmpty())
-        weekStart = keel::as<int>(args[1].toScalar());
+        weekStart = keel::as<keel::i32>(args[1].toScalar());
     if (weekStart < 1 || weekStart > 7)
         throw std::runtime_error("weeknum: WeekStart must be an integer in 1..7 (1=Sunday)");
     bool european = false;
@@ -145,32 +145,32 @@ Value weeknum(keel::ArrayRef<Value> args, keel::Allocator *mr) {
         const keel::i64 mp = (5 * dy + 2) / 153;
         const keel::i64 m = mp < 10 ? mp + 3 : mp - 9;
         if (m <= 2) y += 1;
-        return keel::as<int>(y);
+        return keel::as<keel::i32>(y);
     };
-    auto isLeap = [](int y) {
+    auto isLeap = [](keel::i32 y) {
         return (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
     };
-    auto wdJan1 = [](int y) {
-        static const int t[] = {0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4};
-        const int yy = y - 1;
-        const int dow = ((yy + yy / 4 - yy / 100 + yy / 400 + t[0] + 1) % 7 + 7) % 7;
+    auto wdJan1 = [](keel::i32 y) {
+        static const keel::i32 t[] = {0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4};
+        const keel::i32 yy = y - 1;
+        const keel::i32 dow = ((yy + yy / 4 - yy / 100 + yy / 400 + t[0] + 1) % 7 + 7) % 7;
         return dow + 1;
     };
-    auto weekOf = [&](int y, int doy) {
-        const int offset = (wdJan1(y) - weekStart + 7) % 7;
+    auto weekOf = [&](keel::i32 y, keel::i32 doy) {
+        const keel::i32 offset = (wdJan1(y) - weekStart + 7) % 7;
         if (!european)
             return (doy - 1 + offset) / 7 + 1;
-        const int partial = (offset == 0) ? 0 : (7 - offset);
-        const int firstWS = (offset == 0) ? 1 : (8 - offset);
+        const keel::i32 partial = (offset == 0) ? 0 : (7 - offset);
+        const keel::i32 firstWS = (offset == 0) ? 1 : (8 - offset);
         if (partial >= 4)
             return (doy - 1 + offset) / 7 + 1;
         if (doy >= firstWS)
             return (doy - firstWS) / 7 + 1;
-        const int yp = y - 1;
-        const int doyp = isLeap(yp) ? 366 : 365;
-        const int offp = (wdJan1(yp) - weekStart + 7) % 7;
-        const int partp = (offp == 0) ? 0 : (7 - offp);
-        const int fwp = (offp == 0) ? 1 : (8 - offp);
+        const keel::i32 yp = y - 1;
+        const keel::i32 doyp = isLeap(yp) ? 366 : 365;
+        const keel::i32 offp = (wdJan1(yp) - weekStart + 7) % 7;
+        const keel::i32 partp = (offp == 0) ? 0 : (7 - offp);
+        const keel::i32 fwp = (offp == 0) ? 1 : (8 - offp);
         if (partp >= 4)
             return (doyp - 1 + offp) / 7 + 1;
         return (doyp - fwp) / 7 + 1;
@@ -184,8 +184,8 @@ Value weeknum(keel::ArrayRef<Value> args, keel::Allocator *mr) {
     keel::f64 *o = out.doubleDataMut();
     for (keel::usize i = 0; i < n; ++i) {
         const keel::f64 serial = D.elemAsDouble(i);
-        const int y = yearOf(serial);
-        const int doy = keel::as<int>(std::floor(serial) - civilToSerialSimple(y, 1, 1)) + 1;
+        const keel::i32 y = yearOf(serial);
+        const keel::i32 doy = keel::as<keel::i32>(std::floor(serial) - civilToSerialSimple(y, 1, 1)) + 1;
         o[i] = keel::as<keel::f64>(weekOf(y, doy));
     }
     return out;
@@ -236,7 +236,7 @@ Value addtodate(const Value &d, keel::f64 quantity, keel::StringRef unit, keel::
         auto leap = [](keel::i64 y) {
             return (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
         };
-        static const int dim[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+        static const keel::i32 dim[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
         keel::i64 maxD = dim[nM - 1];
         if (nM == 2 && leap(nY)) maxD = 29;
         keel::i64 nD = D < maxD ? D : maxD;
@@ -282,8 +282,8 @@ Value datenum(keel::ArrayRef<Value> args, keel::Allocator *mr) {
         auto tryFmt = [&](keel::StringRef fmt, keel::f64 &Y, keel::f64 &Mo, keel::f64 &D, keel::f64 &H, keel::f64 &MI, keel::f64 &S) -> bool {
             Y = 0; Mo = 1; D = 1; H = 0; MI = 0; S = 0;
             keel::usize si = 0, fi = 0;
-            auto readNum = [&](int maxD) -> long {
-                long v = 0; int n = 0;
+            auto readNum = [&](keel::i32 maxD) -> keel::i64 {
+                keel::i64 v = 0; keel::i32 n = 0;
                 while (si < s.size() && n < maxD && keel::is_ascii_digit(s[si])) {
                     v = v * 10 + (s[si] - '0'); ++si; ++n;
                 }
@@ -294,32 +294,32 @@ Value datenum(keel::ArrayRef<Value> args, keel::Allocator *mr) {
             };
             while (fi < fmt.size()) {
                 if (fAt("yyyy")) {
-                    long v = readNum(4); if (v < 0) return false; Y = v; fi += 4;
+                    keel::i64 v = readNum(4); if (v < 0) return false; Y = v; fi += 4;
                 } else if (fAt("yy")) {
-                    long v = readNum(2); if (v < 0) return false;
+                    keel::i64 v = readNum(2); if (v < 0) return false;
                     const keel::CalendarTime nowCal = keel::local_time();
-                    long curCent = (keel::as<long>(nowCal.year) / 100) * 100;
+                    keel::i64 curCent = (keel::as<keel::i64>(nowCal.year) / 100) * 100;
                     Y = curCent + v; fi += 2;
                 } else if (fAt("mmmm") || fAt("mmm")) {
                     keel::usize mlen = fAt("mmmm") ? 4 : 3;
                     if (si + 3 > s.size()) return false;
                     const keel::StringRef m3 = s.substr(si, 3);
-                    int mIdx = -1;
-                    for (int i = 0; i < 12; ++i) { if (m3.equals_ignore_ascii_case(MON3[i])) { mIdx = i + 1; break; } }
+                    keel::i32 mIdx = -1;
+                    for (keel::i32 i = 0; i < 12; ++i) { if (m3.equals_ignore_ascii_case(MON3[i])) { mIdx = i + 1; break; } }
                     if (mIdx < 0) return false;
                     Mo = mIdx; si += 3;
                     if (mlen == 4) { while (si < s.size() && keel::is_ascii_alpha(s[si])) ++si; }
                     fi += mlen;
                 } else if (fAt("mm")) {
-                    long v = readNum(2); if (v < 0) return false; Mo = v; fi += 2;
+                    keel::i64 v = readNum(2); if (v < 0) return false; Mo = v; fi += 2;
                 } else if (fAt("dd")) {
-                    long v = readNum(2); if (v < 0) return false; D = v; fi += 2;
+                    keel::i64 v = readNum(2); if (v < 0) return false; D = v; fi += 2;
                 } else if (fAt("HH")) {
-                    long v = readNum(2); if (v < 0) return false; H = v; fi += 2;
+                    keel::i64 v = readNum(2); if (v < 0) return false; H = v; fi += 2;
                 } else if (fAt("MM")) {
-                    long v = readNum(2); if (v < 0) return false; MI = v; fi += 2;
+                    keel::i64 v = readNum(2); if (v < 0) return false; MI = v; fi += 2;
                 } else if (fAt("SS")) {
-                    long v = readNum(2); if (v < 0) return false; S = v; fi += 2;
+                    keel::i64 v = readNum(2); if (v < 0) return false; S = v; fi += 2;
                     if (si < s.size() && (s[si] == '.' || s[si] == ',')) {
                         ++si; keel::f64 scale = 0.1;
                         while (si < s.size() && keel::is_ascii_digit(s[si])) {
@@ -348,7 +348,7 @@ Value datenum(keel::ArrayRef<Value> args, keel::Allocator *mr) {
             "dd-mmm-yyyy HH:MM:SS", "dd-mmm-yyyy", "yyyy/mm/dd HH:MM:SS", "yyyy/mm/dd",
             "mm/dd/yyyy HH:MM:SS", "mm/dd/yyyy", "HH:MM:SS", "dd-mmmm-yyyy", nullptr
         };
-        for (int i = 0; kAutoFmts[i]; ++i) {
+        for (keel::i32 i = 0; kAutoFmts[i]; ++i) {
             if (tryFmt(kAutoFmts[i], Y, Mo, D, H, MI, S))
                 return Value::scalar(civilToSerial(Y, Mo, D, H, MI, S), mr);
         }
@@ -416,11 +416,11 @@ Value datenum(keel::ArrayRef<Value> args, keel::Allocator *mr) {
 }
 
 Value weekday(const Value &d, keel::Allocator *mr) {
-    auto dayIndex = [](keel::f64 val) -> int {
+    auto dayIndex = [](keel::f64 val) -> keel::i32 {
         keel::i64 f = keel::as<keel::i64>(std::floor(val)) - 2;
         keel::i64 r = f % 7;
         if (r < 0) r += 7;
-        return keel::as<int>(r) + 1;
+        return keel::as<keel::i32>(r) + 1;
     };
     const keel::usize N = d.numel();
     if (N == 1) {
@@ -483,7 +483,7 @@ Value eomday(const Value &y, const Value &m, keel::Allocator *mr) {
     auto isLeap = [](keel::i64 yr) {
         return (yr % 4 == 0 && yr % 100 != 0) || yr % 400 == 0;
     };
-    static const int dim[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    static const keel::i32 dim[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
     auto eomOne = [&](keel::f64 yr, keel::f64 mo) -> keel::f64 {
         keel::i64 yi = keel::as<keel::i64>(yr);
         keel::i64 mi = keel::as<keel::i64>(mo);
@@ -529,22 +529,22 @@ Value calendar(keel::ArrayRef<Value> args, keel::Allocator *mr) {
     auto isLeap = [](keel::i64 y) {
         return (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
     };
-    static const int dim[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
-    int daysInMonth = (mi == 2 && isLeap(yi)) ? 29 : dim[mi];
+    static const keel::i32 dim[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    keel::i32 daysInMonth = (mi == 2 && isLeap(yi)) ? 29 : dim[mi];
     keel::f64 s1 = civilToSerial(keel::as<keel::f64>(yi), keel::as<keel::f64>(mi), 1.0, 0, 0, 0);
     keel::i64 f = keel::as<keel::i64>(std::floor(s1)) - 2;
     keel::i64 r = f % 7; if (r < 0) r += 7;
-    int startCol = keel::as<int>(r);
+    keel::i32 startCol = keel::as<keel::i32>(r);
 
     auto out = Value::matrix(6, 7, ValueType::DOUBLE, mr);
     keel::f64 *o = out.doubleDataMut();
     std::fill(o, o + 42, 0.0);
-    int day = 1;
-    for (int col = startCol; col < 7 && day <= daysInMonth; ++col) {
+    keel::i32 day = 1;
+    for (keel::i32 col = startCol; col < 7 && day <= daysInMonth; ++col) {
         o[0 + col * 6] = day++;
     }
-    for (int row = 1; row < 6 && day <= daysInMonth; ++row) {
-        for (int col = 0; col < 7 && day <= daysInMonth; ++col) {
+    for (keel::i32 row = 1; row < 6 && day <= daysInMonth; ++row) {
+        for (keel::i32 col = 0; col < 7 && day <= daysInMonth; ++col) {
             o[row + col * 6] = day++;
         }
     }
@@ -559,21 +559,21 @@ Value datestr(keel::ArrayRef<Value> args, keel::Allocator *mr) {
     }
     const Value &din = args[0];
 
-    struct Comp { int y, mo, d, h, mi, s; };
+    struct Comp { keel::i32 y, mo, d, h, mi, s; };
     auto serialToComp = [&](keel::f64 dval) -> Comp {
         const keel::f64 floored = std::floor(dval);
         const keel::i64 z = keel::as<keel::i64>(floored) - 719529;
         const keel::f64 frac = dval - floored;
-        keel::i64 Y; int M, D;
+        keel::i64 Y; keel::i32 M, D;
         civilFromDays(z, Y, M, D);
         keel::i64 ms = keel::as<keel::i64>(std::round(frac * 86400.0 * 1.0e3));
-        int H  = keel::as<int>(ms / 3600000LL); ms %= 3600000LL;
-        int MI = keel::as<int>(ms / 60000LL);   ms %= 60000LL;
+        keel::i32 H  = keel::as<keel::i32>(ms / 3600000LL); ms %= 3600000LL;
+        keel::i32 MI = keel::as<keel::i32>(ms / 60000LL);   ms %= 60000LL;
         keel::f64 S = keel::as<keel::f64>(ms) / 1.0e3;
         if (S >= 60.0) { S -= 60.0; ++MI; }
         if (MI >= 60)  { MI -= 60;  ++H;  }
         if (H  >= 24)  { H  -= 24; civilFromDays(z + 1, Y, M, D); }
-        return Comp{ keel::as<int>(Y), M, D, H, MI, keel::as<int>(std::round(S)) };
+        return Comp{ keel::as<keel::i32>(Y), M, D, H, MI, keel::as<keel::i32>(std::round(S)) };
     };
 
     keel::ArenaTemp scratch = keel::get_scratch(mr);
@@ -586,11 +586,11 @@ Value datestr(keel::ArrayRef<Value> args, keel::Allocator *mr) {
         const keel::String sOwned = din.toString();
         const keel::StringRef s = sOwned.as_ref();
         auto tryFmt = [&](const char *fmt, Comp &c) -> bool {
-            int Y = 0, Mo = 1, D = 1, H = 0, MI = 0, S = 0;
+            keel::i32 Y = 0, Mo = 1, D = 1, H = 0, MI = 0, S = 0;
             const keel::StringRef F(fmt);
             keel::usize si = 0, fi = 0;
-            auto readNum = [&](int maxD) -> long {
-                long v = 0; int n = 0;
+            auto readNum = [&](keel::i32 maxD) -> keel::i64 {
+                keel::i64 v = 0; keel::i32 n = 0;
                 while (si < s.size() && n < maxD && keel::is_ascii_digit(s[si])) {
                     v = v * 10 + (s[si] - '0'); ++si; ++n;
                 }
@@ -600,18 +600,18 @@ Value datestr(keel::ArrayRef<Value> args, keel::Allocator *mr) {
                 return F.substr(fi).starts_with(tok);
             };
             while (fi < F.size()) {
-                if (fAt("yyyy")) { long v=readNum(4); if(v<0)return false; Y=(int)v; fi+=4; }
+                if (fAt("yyyy")) { keel::i64 v=readNum(4); if(v<0)return false; Y=(keel::i32)v; fi+=4; }
                 else if (fAt("mmm")) {
                     if (si+3>s.size()) return false;
                     const keel::StringRef m=s.substr(si,3);
-                    int mi=-1; for(int k=0;k<12;++k) if(m.equals_ignore_ascii_case(MON3p[k])){mi=k+1;break;}
+                    keel::i32 mi=-1; for(keel::i32 k=0;k<12;++k) if(m.equals_ignore_ascii_case(MON3p[k])){mi=k+1;break;}
                     if (mi<0) return false; Mo=mi; si+=3; fi+=3;
                 }
-                else if (fAt("mm")) { long v=readNum(2); if(v<0)return false; Mo=(int)v; fi+=2; }
-                else if (fAt("dd")) { long v=readNum(2); if(v<0)return false; D=(int)v; fi+=2; }
-                else if (fAt("HH")) { long v=readNum(2); if(v<0)return false; H=(int)v; fi+=2; }
-                else if (fAt("MM")) { long v=readNum(2); if(v<0)return false; MI=(int)v; fi+=2; }
-                else if (fAt("SS")) { long v=readNum(2); if(v<0)return false; S=(int)v; fi+=2; }
+                else if (fAt("mm")) { keel::i64 v=readNum(2); if(v<0)return false; Mo=(keel::i32)v; fi+=2; }
+                else if (fAt("dd")) { keel::i64 v=readNum(2); if(v<0)return false; D=(keel::i32)v; fi+=2; }
+                else if (fAt("HH")) { keel::i64 v=readNum(2); if(v<0)return false; H=(keel::i32)v; fi+=2; }
+                else if (fAt("MM")) { keel::i64 v=readNum(2); if(v<0)return false; MI=(keel::i32)v; fi+=2; }
+                else if (fAt("SS")) { keel::i64 v=readNum(2); if(v<0)return false; S=(keel::i32)v; fi+=2; }
                 else { if (si<s.size() && s[si]==F[fi]) { ++si; ++fi; } else return false; }
             }
             if (si != s.size()) return false;
@@ -634,12 +634,12 @@ Value datestr(keel::ArrayRef<Value> args, keel::Allocator *mr) {
             dates.reserve(Rr);
             for (keel::usize r = 0; r < Rr; ++r)
                 dates.push_back(Comp{
-                    keel::as<int>(din.elemAsDouble(0 * Rr + r)),
-                    keel::as<int>(din.elemAsDouble(1 * Rr + r)),
-                    keel::as<int>(din.elemAsDouble(2 * Rr + r)),
-                    keel::as<int>(din.elemAsDouble(3 * Rr + r)),
-                    keel::as<int>(din.elemAsDouble(4 * Rr + r)),
-                    keel::as<int>(std::round(din.elemAsDouble(5 * Rr + r)))});
+                    keel::as<keel::i32>(din.elemAsDouble(0 * Rr + r)),
+                    keel::as<keel::i32>(din.elemAsDouble(1 * Rr + r)),
+                    keel::as<keel::i32>(din.elemAsDouble(2 * Rr + r)),
+                    keel::as<keel::i32>(din.elemAsDouble(3 * Rr + r)),
+                    keel::as<keel::i32>(din.elemAsDouble(4 * Rr + r)),
+                    keel::as<keel::i32>(std::round(din.elemAsDouble(5 * Rr + r)))});
         } else {
             const keel::usize n = din.numel();
             dates.reserve(n);
@@ -695,7 +695,7 @@ Value datestr(keel::ArrayRef<Value> args, keel::Allocator *mr) {
                 "yyyymmddTHHMMSS",      // 30
                 "yyyy-mm-dd HH:MM:SS",  // 31
             };
-            const int code = keel::as<int>(std::round(f.elemAsDouble(0)));
+            const keel::i32 code = keel::as<keel::i32>(std::round(f.elemAsDouble(0)));
             if (code < 0 || code > 31)
                 throw std::runtime_error("datestr: unsupported numeric format code (expected 0-31)");
             fmt = DATEFORM[code];
@@ -716,7 +716,7 @@ Value datestr(keel::ArrayRef<Value> args, keel::Allocator *mr) {
     static const char *DOWF[] = {
         "Sunday","Monday","Tuesday","Wednesday",
         "Thursday","Friday","Saturday"};
-    static const int dt[] = {0,3,2,5,0,3,5,1,4,6,2,4};
+    static const keel::i32 dt[] = {0,3,2,5,0,3,5,1,4,6,2,4};
     bool hour12 = false;
     for (keel::usize k = 0; k + 1 < fmt.size(); ++k) {
         char a = keel::to_ascii_lower(fmt[k]);
@@ -725,11 +725,11 @@ Value datestr(keel::ArrayRef<Value> args, keel::Allocator *mr) {
     }
 
     auto renderOne = [&](const Comp &cc) -> keel::String {
-        const int yi = cc.y, moi = cc.mo, di = cc.d,
+        const keel::i32 yi = cc.y, moi = cc.mo, di = cc.d,
                   hi = cc.h, mii = cc.mi, si = cc.s;
-        int yw = yi - (moi < 3 ? 1 : 0);
-        int dow = ((yw + yw/4 - yw/100 + yw/400 + dt[(moi - 1 + 12) % 12] + di) % 7 + 7) % 7;
-        const int h12 = (hi % 12 == 0) ? 12 : (hi % 12);
+        keel::i32 yw = yi - (moi < 3 ? 1 : 0);
+        keel::i32 dow = ((yw + yw/4 - yw/100 + yw/400 + dt[(moi - 1 + 12) % 12] + di) % 7 + 7) % 7;
+        const keel::i32 h12 = (hi % 12 == 0) ? 12 : (hi % 12);
         keel::String out(salloc);
         char buf[16];
         keel::usize i = 0;
@@ -798,8 +798,8 @@ Value datevec(keel::ArrayRef<Value> args, keel::Allocator *mr) {
         auto tryFmt = [&](keel::StringRef fmt, keel::f64 &Y, keel::f64 &Mo, keel::f64 &D, keel::f64 &H, keel::f64 &MI, keel::f64 &S) -> bool {
             Y = 0; Mo = 1; D = 1; H = 0; MI = 0; S = 0;
             keel::usize si = 0, fi = 0;
-            auto readNum = [&](int maxD) -> long {
-                long v = 0; int n = 0;
+            auto readNum = [&](keel::i32 maxD) -> keel::i64 {
+                keel::i64 v = 0; keel::i32 n = 0;
                 while (si < s.size() && n < maxD && keel::is_ascii_digit(s[si])) {
                     v = v * 10 + (s[si] - '0'); ++si; ++n;
                 }
@@ -810,13 +810,13 @@ Value datevec(keel::ArrayRef<Value> args, keel::Allocator *mr) {
             };
             while (fi < fmt.size()) {
                 if (fAt("yyyy")) {
-                    long v = readNum(4); if (v < 0) return false; Y = keel::as<keel::f64>(v); fi += 4;
+                    keel::i64 v = readNum(4); if (v < 0) return false; Y = keel::as<keel::f64>(v); fi += 4;
                 } else if (fAt("mmmm") || fAt("mmm")) {
                     bool full = fAt("mmmm");
                     if (si + 3 > s.size()) return false;
                     const keel::StringRef mon = s.substr(si, 3);
-                    int mi = -1;
-                    for (int k = 0; k < 12; ++k) if (mon.equals_ignore_ascii_case(MON3s[k])) { mi = k + 1; break; }
+                    keel::i32 mi = -1;
+                    for (keel::i32 k = 0; k < 12; ++k) if (mon.equals_ignore_ascii_case(MON3s[k])) { mi = k + 1; break; }
                     if (mi < 0) return false;
                     Mo = keel::as<keel::f64>(mi); si += 3;
                     if (full) {
@@ -824,15 +824,15 @@ Value datevec(keel::ArrayRef<Value> args, keel::Allocator *mr) {
                         fi += 4;
                     } else { fi += 3; }
                 } else if (fAt("mm")) {
-                    long v = readNum(2); if (v < 0) return false; Mo = keel::as<keel::f64>(v); fi += 2;
+                    keel::i64 v = readNum(2); if (v < 0) return false; Mo = keel::as<keel::f64>(v); fi += 2;
                 } else if (fAt("dd")) {
-                    long v = readNum(2); if (v < 0) return false; D = keel::as<keel::f64>(v); fi += 2;
+                    keel::i64 v = readNum(2); if (v < 0) return false; D = keel::as<keel::f64>(v); fi += 2;
                 } else if (fAt("HH")) {
-                    long v = readNum(2); if (v < 0) return false; H = keel::as<keel::f64>(v); fi += 2;
+                    keel::i64 v = readNum(2); if (v < 0) return false; H = keel::as<keel::f64>(v); fi += 2;
                 } else if (fAt("MM")) {
-                    long v = readNum(2); if (v < 0) return false; MI = keel::as<keel::f64>(v); fi += 2;
+                    keel::i64 v = readNum(2); if (v < 0) return false; MI = keel::as<keel::f64>(v); fi += 2;
                 } else if (fAt("SS")) {
-                    long v = readNum(2); if (v < 0) return false; S = keel::as<keel::f64>(v); fi += 2;
+                    keel::i64 v = readNum(2); if (v < 0) return false; S = keel::as<keel::f64>(v); fi += 2;
                 } else {
                     if (si < s.size() && s[si] == fmt[fi]) { ++si; ++fi; }
                     else return false;
@@ -857,7 +857,7 @@ Value datevec(keel::ArrayRef<Value> args, keel::Allocator *mr) {
         const keel::f64 vals[6] = {Y, Mo, D, H, MI, S};
         auto out = Value::matrix(1, 6, ValueType::DOUBLE, mr);
         keel::f64 *o = out.doubleDataMut();
-        for (int k = 0; k < 6; ++k) o[k] = vals[k];
+        for (keel::i32 k = 0; k < 6; ++k) o[k] = vals[k];
         return out;
     }
 
@@ -868,7 +868,7 @@ Value datevec(keel::ArrayRef<Value> args, keel::Allocator *mr) {
     keel::f64 tmp[6];
     for (keel::usize i = 0; i < N; ++i) {
         serialToCivil(Din.elemAsDouble(i), tmp[0], tmp[1], tmp[2], tmp[3], tmp[4], tmp[5]);
-        for (int c = 0; c < 6; ++c)
+        for (keel::i32 c = 0; c < 6; ++c)
             o[i + c * N] = tmp[c];
     }
     return out;
@@ -884,7 +884,7 @@ Value yyyymmdd(keel::ArrayRef<Value> args, keel::Allocator *mr) {
         if (dval == 0.0) return 0.0;
         const keel::i64 days = keel::as<keel::i64>(std::floor(dval));
         const keel::i64 z = days - 719529;
-        keel::i64 Y; int M, D;
+        keel::i64 Y; keel::i32 M, D;
         civilFromDays(z, Y, M, D);
         return keel::as<keel::f64>(Y * 10000 + M * 100 + D);
     };

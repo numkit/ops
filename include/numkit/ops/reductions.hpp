@@ -38,11 +38,11 @@ namespace numkit::ops {
 
 // Return MATLAB's "first non-singleton dim" (1-based). For an all-
 // singleton input (scalar) returns 1. Used when the user omits `dim`.
-inline int firstNonSingletonDim(const Value &x)
+inline keel::i32 firstNonSingletonDim(const Value &x)
 {
     const auto &d = x.dims();
-    const int nd = d.ndim();
-    for (int i = 0; i < nd; ++i)
+    const keel::i32 nd = d.ndim();
+    for (keel::i32 i = 0; i < nd; ++i)
         if (d.dim(i) > 1) return i + 1;
     return 1;
 }
@@ -50,12 +50,12 @@ inline int firstNonSingletonDim(const Value &x)
 // Validate user-supplied dim. dim must be a positive integer; dim
 // past the input's actual ndim is treated as a trailing-singleton
 // (returns sentinel = ndim+1 so callers know to do an identity copy).
-inline int validateDim(const Value &x, int dim, const char *fn)
+inline keel::i32 validateDim(const Value &x, keel::i32 dim, const char *fn)
 {
     if (dim < 1)
         throw Error(keel::format("{}: dim must be a positive integer", fn),
                      0, 0, fn, "", keel::format("numkit:{}:badDim", fn));
-    const int nd = x.dims().ndim();
+    const keel::i32 nd = x.dims().ndim();
     if (dim > nd) {
         // Trailing-singleton semantics — caller produces an identity copy.
         return nd + 1;
@@ -65,7 +65,7 @@ inline int validateDim(const Value &x, int dim, const char *fn)
 
 // Compute output shape for a reduce-along-dim operation. The reduced
 // dim becomes 1; other dims preserved.
-inline DimsArg outShapeForDim(const Value &x, int dim)
+inline DimsArg outShapeForDim(const Value &x, keel::i32 dim)
 {
     const auto &d = x.dims();
     DimsArg o{d.rows(), d.cols(), d.is3D() ? d.pages() : 0};
@@ -79,7 +79,7 @@ inline DimsArg outShapeForDim(const Value &x, int dim)
 }
 
 // Shape of one slice (count of elements traversed when collapsing dim).
-inline keel::usize sliceLenForDim(const Value &x, int dim)
+inline keel::usize sliceLenForDim(const Value &x, keel::i32 dim)
 {
     const auto &d = x.dims();
     switch (dim) {
@@ -91,7 +91,7 @@ inline keel::usize sliceLenForDim(const Value &x, int dim)
 }
 
 // Number of independent slices we'll produce.
-inline keel::usize sliceCountForDim(const Value &x, int dim)
+inline keel::usize sliceCountForDim(const Value &x, keel::i32 dim)
 {
     return x.numel() / sliceLenForDim(x, dim);
 }
@@ -109,7 +109,7 @@ inline keel::usize sliceCountForDim(const Value &x, int dim)
 // (like mode returning value+count) the caller must allocate two
 // MValues and capture both buffers in F's closure.
 template <typename F>
-void forEachSlice(const Value &x, int dim, F &&f,
+void forEachSlice(const Value &x, keel::i32 dim, F &&f,
                   keel::Allocator *mr = nullptr)
 {
     const auto &d = x.dims();
@@ -177,12 +177,12 @@ void forEachSlice(const Value &x, int dim, F &&f,
 // caller threads in `mr` (typically the same arena that backs the
 // reduction's per-slice scratch) so the shape buffer never hits the
 // global heap.
-inline keel::Array<keel::usize> outShapeForDimND(const Value &x, int dim,
+inline keel::Array<keel::usize> outShapeForDimND(const Value &x, keel::i32 dim,
                                             keel::Allocator *mr = nullptr)
 {
     const auto &d = x.dims();
     keel::Array<keel::usize> shape(d.ndim(), mr);
-    for (int i = 0; i < d.ndim(); ++i)
+    for (keel::i32 i = 0; i < d.ndim(); ++i)
         shape[i] = (i + 1 == dim) ? 1 : d.dim(i);
     return shape;
 }
@@ -195,16 +195,16 @@ inline keel::Array<keel::usize> outShapeForDimND(const Value &x, int dim,
 //
 // `mr` backs the per-call scratch buffer (see forEachSlice).
 template <typename F>
-void forEachSliceND(const Value &x, int dim, keel::f64 *dst, F &&f,
+void forEachSliceND(const Value &x, keel::i32 dim, keel::f64 *dst, F &&f,
                     keel::Allocator *mr = nullptr)
 {
     const auto &d = x.dims();
-    const int redAxis = dim - 1;
+    const keel::i32 redAxis = dim - 1;
     const keel::usize sliceLen = d.dim(redAxis);
     keel::usize B = 1;
-    for (int i = 0; i < redAxis; ++i) B *= d.dim(i);
+    for (keel::i32 i = 0; i < redAxis; ++i) B *= d.dim(i);
     keel::usize O = 1;
-    for (int i = redAxis + 1; i < d.ndim(); ++i) O *= d.dim(i);
+    for (keel::i32 i = redAxis + 1; i < d.ndim(); ++i) O *= d.dim(i);
 
     const bool fastDouble = (x.type() == ValueType::DOUBLE);
     const keel::f64 *src = fastDouble ? x.doubleData() : nullptr;
@@ -247,7 +247,7 @@ void forEachSliceND(const Value &x, int dim, keel::f64 *dst, F &&f,
 // Returns an Value with the dim collapsed to 1. dim==-1 means "reduce
 // all elements to a single scalar" (vector/scalar case).
 template <typename F>
-Value applyAlongDim(const Value &x, int dim, F &&f, keel::Allocator *mr = nullptr)
+Value applyAlongDim(const Value &x, keel::i32 dim, F &&f, keel::Allocator *mr = nullptr)
 {
     // 2D/3D empty: collapse to 0×0 (legacy behaviour; MATLAB's
     // shape-preservation for empty 2D inputs was never wired up here).
@@ -271,7 +271,7 @@ Value applyAlongDim(const Value &x, int dim, F &&f, keel::Allocator *mr = nullpt
     if (x.dims().ndim() >= 4 && dim >= 1 && dim <= x.dims().ndim()) {
         auto shape = outShapeForDimND(x, dim, scratch.allocator());
         Value out = Value::matrixND(shape.data(),
-                                      keel::as<int>(shape.size()),
+                                      keel::as<keel::i32>(shape.size()),
                                       ValueType::DOUBLE, mr);
         keel::f64 *dst = out.doubleDataMut();
         forEachSliceND(x, dim, dst, std::forward<F>(f), scratch.allocator());
@@ -290,7 +290,7 @@ Value applyAlongDim(const Value &x, int dim, F &&f, keel::Allocator *mr = nullpt
 // per slice. Used by min/max with dim. Returns (values, indices).
 template <typename F>
 std::pair<Value, Value>
-applyAlongDimWithIndex(const Value &x, int dim, F &&f, keel::Allocator *mr = nullptr)
+applyAlongDimWithIndex(const Value &x, keel::i32 dim, F &&f, keel::Allocator *mr = nullptr)
 {
     if (x.isEmpty() && x.dims().ndim() < 4) {
         return {Value::matrix(0, 0, ValueType::DOUBLE, mr),
@@ -314,10 +314,10 @@ applyAlongDimWithIndex(const Value &x, int dim, F &&f, keel::Allocator *mr = nul
     if (x.dims().ndim() >= 4 && dim >= 1 && dim <= x.dims().ndim()) {
         auto shape = outShapeForDimND(x, dim, scratch.allocator());
         Value out    = Value::matrixND(shape.data(),
-                                         keel::as<int>(shape.size()),
+                                         keel::as<keel::i32>(shape.size()),
                                          ValueType::DOUBLE, mr);
         Value outIdx = Value::matrixND(shape.data(),
-                                         keel::as<int>(shape.size()),
+                                         keel::as<keel::i32>(shape.size()),
                                          ValueType::DOUBLE, mr);
         keel::f64 *dst  = out.doubleDataMut();
         keel::f64 *dstI = outIdx.doubleDataMut();
@@ -347,7 +347,7 @@ applyAlongDimWithIndex(const Value &x, int dim, F &&f, keel::Allocator *mr = nul
 
 // Resolve effective dim: explicit user-supplied if provided, else the
 // "first non-singleton" rule. Returns 1-based dim or 0 for "scalar".
-inline int resolveDim(const Value &x, int explicitDim, const char *fn)
+inline keel::i32 resolveDim(const Value &x, keel::i32 explicitDim, const char *fn)
 {
     if (explicitDim > 0) return validateDim(x, explicitDim, fn);
     return firstNonSingletonDim(x);

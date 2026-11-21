@@ -21,7 +21,7 @@ Value pow2(const Value &f, const Value &e, keel::Allocator *mr)
 {
     return elementwiseDouble(f, e,
         [](keel::f64 ff, keel::f64 ee) {
-            return std::ldexp(ff, keel::as<int>(std::floor(ee)));
+            return std::ldexp(ff, keel::as<keel::i32>(std::floor(ee)));
         }, mr);
 }
 
@@ -31,7 +31,7 @@ Value nextpow2(const Value &n, keel::Allocator *mr)
         if (std::isnan(v)) return v;
         keel::f64 a = std::fabs(v);
         if (a <= 1.0) return 0.0;
-        int exp_val;
+        keel::i32 exp_val;
         keel::f64 frac = std::frexp(a, &exp_val);
         if (frac == 0.5) return keel::as<keel::f64>(exp_val - 1);
         return keel::as<keel::f64>(exp_val);
@@ -53,7 +53,7 @@ Value nthroot(const Value &x, const Value &n, keel::Allocator *mr)
         if (xv >= 0.0) return std::pow(xv, 1.0 / nv);
         const keel::f64 rounded = std::round(nv);
         if (rounded != nv) return std::nan("");
-        const long long ni = keel::as<long long>(rounded);
+        const keel::i64 ni = keel::as<keel::i64>(rounded);
         if (ni % 2 == 0) return std::nan("");
         return -std::pow(-xv, 1.0 / nv);
     }, mr);

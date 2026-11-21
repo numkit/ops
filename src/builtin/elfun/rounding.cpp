@@ -44,7 +44,7 @@ Value round(const Value &x, keel::Allocator *mr)
     return roundLikeDispatch(x, [](keel::f64 v) { return std::round(v); }, ::numkit::builtin::detail::doubleRoundLoop, mr);
 }
 
-Value roundN(const Value &x, int n, bool significant, keel::Allocator *mr)
+Value roundN(const Value &x, keel::i32 n, bool significant, keel::Allocator *mr)
 {
     return unaryDouble(x, [n, significant](keel::f64 v) { return roundNScalar(v, n, significant); }, mr);
 }

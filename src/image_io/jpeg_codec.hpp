@@ -22,7 +22,7 @@ Value readJpeg(const keel::u8 *data, keel::usize len,
 /// Encode an image Value to JPEG format bytes.
 /// @param A        Image (uint8; HÃ—W grayscale or HÃ—WÃ—3 RGB).
 /// @param quality  Quality level (1..100, default 90).
-keel::String writeJpegToBytes(const Value &A, int quality = 90);
+keel::String writeJpegToBytes(const Value &A, keel::i32 quality = 90);
 
 /// Inspect a JPEG header without decoding pixels.
 bool peekJpeg(const keel::u8 *data, keel::usize len,

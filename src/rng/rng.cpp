@@ -37,7 +37,7 @@ namespace {
 keel::String serializeState(const MatlabMT19937 &gen)
 {
     keel::u32 state[MatlabMT19937::STATE_SIZE];
-    int idx;
+    keel::i32 idx;
     gen.getState(state, idx);
     keel::String out;
     out.reserve(MatlabMT19937::STATE_SIZE * 11 + 24);
@@ -78,7 +78,7 @@ void deserializeState(MatlabMT19937 &gen, keel::StringRef blob)
         out = keel::as<keel::u32>(acc);
         return true;
     };
-    auto parseInt = [](keel::StringRef tok, int &out) -> bool {
+    auto parseInt = [](keel::StringRef tok, keel::i32 &out) -> bool {
         if (tok.empty()) return false;
         keel::usize pos = 0;
         bool neg = false;
@@ -94,7 +94,7 @@ void deserializeState(MatlabMT19937 &gen, keel::StringRef blob)
             acc = acc * 10ULL + keel::as<keel::u64>(c - '0');
             if (acc > 0x7FFFFFFFULL) return false;
         }
-        out = neg ? -keel::as<int>(acc) : keel::as<int>(acc);
+        out = neg ? -keel::as<keel::i32>(acc) : keel::as<keel::i32>(acc);
         return true;
     };
 
@@ -107,8 +107,8 @@ void deserializeState(MatlabMT19937 &gen, keel::StringRef blob)
             throw Error("rng: malformed state blob",
                          0, 0, "rng", "", "numkit:rng:badState");
     }
-    int idx = 0;
-    if (!parseInt(nextToken(), idx) || idx < 0 || idx > keel::as<int>(MatlabMT19937::STATE_SIZE))
+    keel::i32 idx = 0;
+    if (!parseInt(nextToken(), idx) || idx < 0 || idx > keel::as<keel::i32>(MatlabMT19937::STATE_SIZE))
         throw Error("rng: malformed state blob",
                      0, 0, "rng", "", "numkit:rng:badState");
     bool anyNonZero = ((state[0] & 0x80000000UL) != 0);
@@ -267,7 +267,7 @@ Value randn(RngContext &rng, keel::usize rows, keel::usize cols, keel::usize pag
 
 Value randND(RngContext &rng, keel::ArrayRef<keel::usize> dims, keel::Allocator *mr)
 {
-    auto m = Value::matrixND(dims.data(), keel::as<int>(dims.size()), ValueType::DOUBLE, mr);
+    auto m = Value::matrixND(dims.data(), keel::as<keel::i32>(dims.size()), ValueType::DOUBLE, mr);
     keel::f64 *dst = m.doubleDataMut();
     const keel::usize n = m.numel();
     for (keel::usize i = 0; i < n; ++i)
@@ -277,7 +277,7 @@ Value randND(RngContext &rng, keel::ArrayRef<keel::usize> dims, keel::Allocator 
 
 Value randnND(RngContext &rng, keel::ArrayRef<keel::usize> dims, keel::Allocator *mr)
 {
-    auto m = Value::matrixND(dims.data(), keel::as<int>(dims.size()), ValueType::DOUBLE, mr);
+    auto m = Value::matrixND(dims.data(), keel::as<keel::i32>(dims.size()), ValueType::DOUBLE, mr);
     keel::f64 *dst = m.doubleDataMut();
     const keel::usize n = m.numel();
     for (keel::usize i = 0; i < n; ++i)

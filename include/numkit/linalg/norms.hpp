@@ -57,7 +57,7 @@ Value norm_fro(const Value &x, keel::Allocator *mr = nullptr);
 /// @param dim  1-based dimension (0 â†’ first non-singleton).
 /// @param mr   Memory resource (nullptr â†’ process default).
 /// @return     Norms reduced along `dim`.
-Value vecnorm(const Value &A, keel::f64 p = 2.0, int dim = 0, keel::Allocator *mr = nullptr);
+Value vecnorm(const Value &A, keel::f64 p = 2.0, keel::i32 dim = 0, keel::Allocator *mr = nullptr);
 
 
 /// @}

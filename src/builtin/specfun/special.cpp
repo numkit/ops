@@ -103,7 +103,7 @@ Value betainc(const Value &x, const Value &a, const Value &b, keel::Allocator *m
     return r;
 }
 
-Value legendre(int n, const Value &x, keel::Allocator *mr)
+Value legendre(keel::i32 n, const Value &x, keel::Allocator *mr)
 {
     if (n < 0) {
         throw Error("legendre: n must be >= 0", 0, 0, "legendre", "", "numkit:legendre:badN");
@@ -139,7 +139,7 @@ Value besselk(const Value &nu, const Value &x, keel::Allocator *mr)
     return elementwiseDouble(nu, x, [](keel::f64 n, keel::f64 xx) { return keel::specfun::besselk(n, xx); }, mr);
 }
 
-Value besselh(const Value &nu, int k, const Value &x, keel::Allocator *mr)
+Value besselh(const Value &nu, keel::i32 k, const Value &x, keel::Allocator *mr)
 {
     if (k != 1 && k != 2) {
         throw Error("besselh: k must be 1 or 2", 0, 0, "besselh", "", "numkit:besselh:badK");
@@ -177,7 +177,7 @@ EllipKE ellipke(const Value &m, keel::Allocator *mr)
     return {std::move(K), std::move(E)};
 }
 
-Value airy(int k, const Value &x, keel::Allocator *mr)
+Value airy(keel::i32 k, const Value &x, keel::Allocator *mr)
 {
     if (k < 0 || k > 3) {
         throw Error(keel::format("airy: kind k must be 0..3 (got {})", k),
@@ -237,7 +237,7 @@ EllipJ ellipj(const Value &u, const Value &m, keel::Allocator *mr)
     return {std::move(sn), std::move(cn), std::move(dn)};
 }
 
-Value marcumq(const Value &a_v, const Value &b_v, int m, keel::Allocator *mr)
+Value marcumq(const Value &a_v, const Value &b_v, keel::i32 m, keel::Allocator *mr)
 {
     if (m < 1) m = 1;
     const keel::usize Na = a_v.numel(), Nb = b_v.numel();

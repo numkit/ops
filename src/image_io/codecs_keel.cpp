@@ -265,7 +265,7 @@ PackedImageBuffer packStandardImage(const Value &A, bool allowU16, bool allow4Ch
                         keel::f64 dv = A.elemAsDouble(idx);
                         if (dv < 0.0) dv = 0.0;
                         else if (dv > 255.0) dv = 255.0;
-                        dst[(r * W + c) * C + ch] = keel::as<keel::u8>(keel::as<int>(dv));
+                        dst[(r * W + c) * C + ch] = keel::as<keel::u8>(keel::as<keel::i32>(dv));
                     }
                 }
             }
@@ -358,7 +358,7 @@ PackedImageBuffer packTiffImage(const Value &A) {
                         keel::f64 dv = A.elemAsDouble(idx);
                         if (dv < 0.0) dv = 0.0;
                         else if (dv > 255.0) dv = 255.0;
-                        out.bytes[(r * W + c) * C + ch] = keel::as<keel::u8>(keel::as<int>(dv));
+                        out.bytes[(r * W + c) * C + ch] = keel::as<keel::u8>(keel::as<keel::i32>(dv));
                     }
                 }
             }
@@ -425,7 +425,7 @@ Value readPng(const keel::u8 *data, keel::usize len,
     return readPngWithMap(data, len, mr).first;
 }
 
-keel::String writePngToBytes(const Value &A, int level) {
+keel::String writePngToBytes(const Value &A, keel::i32 level) {
     auto packed = packStandardImage(
         A, /*allowU16=*/true, /*allow4Ch=*/true,
         "imwrite: input must be HxW or HxWx{1,3,4}", "numkit:imwrite:shape");
@@ -459,7 +459,7 @@ Value readJpeg(const keel::u8 *data, keel::usize len,
     return keelImageToValue(res.value(), mr);
 }
 
-keel::String writeJpegToBytes(const Value &A, int quality) {
+keel::String writeJpegToBytes(const Value &A, keel::i32 quality) {
     auto packed = packStandardImage(
         A, /*allowU16=*/false, /*allow4Ch=*/false,
         "imwrite: JPEG only supports 1 (grayscale) or 3 (RGB) channels",

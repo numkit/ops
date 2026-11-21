@@ -62,7 +62,7 @@ inline void copyCellElem(Value &dst, keel::usize dstIdx, const Value &src, keel:
 // Reverse a CELL/STRING array along `axis` (0=rows, 1=cols). Supports up to
 // 2-D (the only ranks Value::cell can represent); higher-rank cell/string
 // flips are rare and deferred with a clear error.
-Value flipCellStr(const Value &x, int axis, const char *fn, keel::Allocator *mr)
+Value flipCellStr(const Value &x, keel::i32 axis, const char *fn, keel::Allocator *mr)
 {
     const auto &d = x.dims();
     if (d.ndim() > 2)
@@ -90,14 +90,14 @@ Value flipCellStr(const Value &x, int axis, const char *fn, keel::Allocator *mr)
 // The slab stride is B = prod(dims[0..axis-1]) elements; outer count
 // O = prod(dims[axis+1..N-1]). Used by the ND fallback for fliplr
 // (axis=1) and flipud (axis=0). Type-preserving via byte-copy.
-[[maybe_unused]] Value flipNDAlongAxis(const Value &x, int axis, const char *fn, keel::Allocator *mr)
+[[maybe_unused]] Value flipNDAlongAxis(const Value &x, keel::i32 axis, const char *fn, keel::Allocator *mr)
 {
     const ValueType t = x.type();
     if (isCellOrString(t)) return flipCellStr(x, axis, fn, mr);
     if (x.isObject()) {
         // Reverse the `axis` dimension via an index map → objectGather.
         const auto &d = x.dims();
-        const int nd = d.ndim();
+        const keel::i32 nd = d.ndim();
         const keel::usize flipDim = (axis < nd) ? d.dim(axis) : 1;
         const keel::usize total = d.numel();
         keel::ArenaTemp scratch = keel::get_scratch(mr);
@@ -106,9 +106,9 @@ Value flipCellStr(const Value &x, int axis, const char *fn, keel::Allocator *mr)
             for (keel::usize i = 0; i < total; ++i) map[i] = i;
         } else {
             keel::usize B = 1;
-            for (int i = 0; i < axis; ++i) B *= d.dim(i);
+            for (keel::i32 i = 0; i < axis; ++i) B *= d.dim(i);
             keel::usize O = 1;
-            for (int i = axis + 1; i < nd; ++i) O *= d.dim(i);
+            for (keel::i32 i = axis + 1; i < nd; ++i) O *= d.dim(i);
             for (keel::usize o = 0; o < O; ++o) {
                 const keel::usize outerBase = o * flipDim * B;
                 for (keel::usize i = 0; i < flipDim; ++i)
@@ -122,14 +122,14 @@ Value flipCellStr(const Value &x, int axis, const char *fn, keel::Allocator *mr)
         throw Error(keel::format("{}: ND fallback does not support type '{}'", fn, mtypeName(t)),
                      0, 0, fn, "", keel::format("numkit:{}:typeND", fn));
     const auto &d = x.dims();
-    const int nd = d.ndim();
-    constexpr int kMaxNd = Dims::kMaxRank;
+    const keel::i32 nd = d.ndim();
+    constexpr keel::i32 kMaxNd = Dims::kMaxRank;
     if (nd > kMaxNd)
         throw Error(keel::format("{}: rank exceeds 32", fn),
                      0, 0, fn, "", keel::format("numkit:{}:tooManyDims", fn));
 
     keel::usize outDimArr[kMaxNd];
-    for (int i = 0; i < nd; ++i) outDimArr[i] = d.dim(i);
+    for (keel::i32 i = 0; i < nd; ++i) outDimArr[i] = d.dim(i);
     auto r = Value::matrixND(outDimArr, nd, t, mr);
     if (x.numel() == 0) return r;
 
@@ -145,9 +145,9 @@ Value flipCellStr(const Value &x, int axis, const char *fn, keel::Allocator *mr)
     }
 
     keel::usize B = 1;
-    for (int i = 0; i < axis; ++i) B *= d.dim(i);
+    for (keel::i32 i = 0; i < axis; ++i) B *= d.dim(i);
     keel::usize O = 1;
-    for (int i = axis + 1; i < nd; ++i) O *= d.dim(i);
+    for (keel::i32 i = axis + 1; i < nd; ++i) O *= d.dim(i);
 
     for (keel::usize o = 0; o < O; ++o) {
         const keel::usize outerBase = o * flipDim * B;
@@ -223,7 +223,7 @@ inline void rot270PageBytes(const char *src, char *dst,
 
 // rot90 for CELL / STRING arrays (element-wise Value copy). kMod selects
 // the rotation (0/1/2/3 → 0/90/180/270° CCW). Supports up to 2-D.
-[[maybe_unused]] Value rot90CellStr(const Value &x, int kMod, keel::Allocator *mr)
+[[maybe_unused]] Value rot90CellStr(const Value &x, keel::i32 kMod, keel::Allocator *mr)
 {
     const auto &d = x.dims();
     if (d.ndim() > 2)
@@ -290,11 +290,11 @@ namespace {
 // types (DOUBLE, SINGLE, integer, LOGICAL, COMPLEX) zero correctly via
 // memset since their zero element is all-zero bits.
 inline void trilPageBytes(const char *src, char *dst, keel::usize R, keel::usize C,
-                          int k, keel::usize es)
+                          keel::i32 k, keel::usize es)
 {
     for (keel::usize c = 0; c < C; ++c)
         for (keel::usize rr = 0; rr < R; ++rr) {
-            const int diff = keel::as<int>(c) - keel::as<int>(rr);
+            const keel::i32 diff = keel::as<keel::i32>(c) - keel::as<keel::i32>(rr);
             const keel::usize off = (c * R + rr) * es;
             if (diff <= k) std::memcpy(dst + off, src + off, es);
             else           std::memset(dst + off, 0, es);
@@ -302,11 +302,11 @@ inline void trilPageBytes(const char *src, char *dst, keel::usize R, keel::usize
 }
 
 inline void triuPageBytes(const char *src, char *dst, keel::usize R, keel::usize C,
-                          int k, keel::usize es)
+                          keel::i32 k, keel::usize es)
 {
     for (keel::usize c = 0; c < C; ++c)
         for (keel::usize rr = 0; rr < R; ++rr) {
-            const int diff = keel::as<int>(c) - keel::as<int>(rr);
+            const keel::i32 diff = keel::as<keel::i32>(c) - keel::as<keel::i32>(rr);
             const keel::usize off = (c * R + rr) * es;
             if (diff >= k) std::memcpy(dst + off, src + off, es);
             else           std::memset(dst + off, 0, es);
@@ -317,11 +317,11 @@ inline void triuPageBytes(const char *src, char *dst, keel::usize R, keel::usize
 namespace {
 
 template <typename PageBytesFn>
-Value trilTriuND(const Value &x, int k, PageBytesFn pageFn, const char *fn, keel::Allocator *mr)
+Value trilTriuND(const Value &x, keel::i32 k, PageBytesFn pageFn, const char *fn, keel::Allocator *mr)
 {
     const auto &dd = x.dims();
-    constexpr int kMaxNd = Dims::kMaxRank;
-    const int nd = dd.ndim();
+    constexpr keel::i32 kMaxNd = Dims::kMaxRank;
+    const keel::i32 nd = dd.ndim();
     if (nd > kMaxNd)
         throw Error(keel::format("{}: rank exceeds 32", fn),
                      0, 0, fn, "", keel::format("numkit:{}:tooManyDims", fn));
@@ -333,7 +333,7 @@ Value trilTriuND(const Value &x, int k, PageBytesFn pageFn, const char *fn, keel
 
     const keel::usize R = dd.rows(), C = dd.cols();
     keel::usize outDimArr[kMaxNd];
-    for (int i = 0; i < nd; ++i) outDimArr[i] = dd.dim(i);
+    for (keel::i32 i = 0; i < nd; ++i) outDimArr[i] = dd.dim(i);
     auto r = Value::matrixND(outDimArr, nd, t, mr);
     if (x.numel() == 0) return r;
 

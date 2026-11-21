@@ -90,7 +90,7 @@ ScanfOut scanfCycle(const keel::String &input, keel::StringRef fmt, keel::usize 
 
             bool suppress = false;
             if (fmt[fmtPos] == '*') { suppress = true; ++fmtPos; }
-            int width = -1;
+            keel::i32 width = -1;
             while (fmtPos < fmt.size() &&
                    keel::is_ascii_digit(fmt[fmtPos])) {
                 if (width < 0) width = 0;
@@ -115,14 +115,14 @@ ScanfOut scanfCycle(const keel::String &input, keel::StringRef fmt, keel::usize 
                     char c = fmt[fmtPos];
                     if (fmtPos + 2 < fmt.size() && fmt[fmtPos + 1] == '-'
                         && fmt[fmtPos + 2] != ']') {
-                        unsigned lo = keel::as<unsigned char>(c);
-                        unsigned hi = keel::as<unsigned char>(fmt[fmtPos + 2]);
+                        keel::u32 lo = keel::as<keel::u8>(c);
+                        keel::u32 hi = keel::as<keel::u8>(fmt[fmtPos + 2]);
                         if (lo > hi) std::swap(lo, hi);
-                        for (unsigned ch = lo; ch <= hi; ++ch)
+                        for (keel::u32 ch = lo; ch <= hi; ++ch)
                             member[ch] = true;
                         fmtPos += 3;
                     } else {
-                        member[keel::as<unsigned char>(c)] = true;
+                        member[keel::as<keel::u8>(c)] = true;
                         ++fmtPos;
                     }
                 }
@@ -137,7 +137,7 @@ ScanfOut scanfCycle(const keel::String &input, keel::StringRef fmt, keel::usize 
                                     : std::min(inPos + keel::as<keel::usize>(width),
                                                input.size());
                 while (inPos < maxEnd) {
-                    bool m = member[keel::as<unsigned char>(input[inPos])];
+                    bool m = member[keel::as<keel::u8>(input[inPos])];
                     if (negate ? m : !m) break;
                     ++inPos;
                 }
@@ -145,7 +145,7 @@ ScanfOut scanfCycle(const keel::String &input, keel::StringRef fmt, keel::usize 
                 if (!suppress) {
                     for (keel::usize p = tokenStart; p < inPos && count < limit; ++p) {
                         out.push_back(keel::as<keel::f64>(
-                            keel::as<unsigned char>(input[p])));
+                            keel::as<keel::u8>(input[p])));
                         ++count;
                     }
                 }
@@ -176,7 +176,7 @@ ScanfOut scanfCycle(const keel::String &input, keel::StringRef fmt, keel::usize 
                 if (!suppress) {
                     for (keel::usize p = tokenStart; p < inPos && count < limit; ++p) {
                         out.push_back(keel::as<keel::f64>(
-                            keel::as<unsigned char>(input[p])));
+                            keel::as<keel::u8>(input[p])));
                         ++count;
                     }
                 }
@@ -189,7 +189,7 @@ ScanfOut scanfCycle(const keel::String &input, keel::StringRef fmt, keel::usize 
                 if (!suppress) {
                     for (keel::usize p = 0; p < n && count < limit; ++p) {
                         out.push_back(keel::as<keel::f64>(
-                            keel::as<unsigned char>(input[inPos + p])));
+                            keel::as<keel::u8>(input[inPos + p])));
                         ++count;
                     }
                 }
@@ -203,13 +203,13 @@ ScanfOut scanfCycle(const keel::String &input, keel::StringRef fmt, keel::usize 
 
             switch (spec) {
             case 'd': case 'i': {
-                long long iv = std::strtoll(start, &endp, 10);
+                keel::i64 iv = std::strtoll(start, &endp, 10);
                 if (endp == start) { ok = false; break; }
                 v = keel::as<keel::f64>(iv);
                 break;
             }
             case 'u': {
-                unsigned long long uv = std::strtoull(start, &endp, 10);
+                keel::u64 uv = std::strtoull(start, &endp, 10);
                 if (endp == start) { ok = false; break; }
                 v = keel::as<keel::f64>(uv);
                 break;
@@ -220,13 +220,13 @@ ScanfOut scanfCycle(const keel::String &input, keel::StringRef fmt, keel::usize 
                 break;
             }
             case 'x': case 'X': {
-                unsigned long long uv = std::strtoull(start, &endp, 16);
+                keel::u64 uv = std::strtoull(start, &endp, 16);
                 if (endp == start) { ok = false; break; }
                 v = keel::as<keel::f64>(uv);
                 break;
             }
             case 'o': {
-                unsigned long long uv = std::strtoull(start, &endp, 8);
+                keel::u64 uv = std::strtoull(start, &endp, 8);
                 if (endp == start) { ok = false; break; }
                 v = keel::as<keel::f64>(uv);
                 break;
@@ -269,7 +269,7 @@ Value makeCharRow(const keel::f64 *vals, keel::usize n, keel::Allocator *mr)
     keel::String s(scratch.allocator());
     s.reserve(n);
     for (keel::usize i = 0; i < n; ++i)
-        s.push_back(keel::as<char>(keel::as<int>(vals[i])));
+        s.push_back(keel::as<char>(keel::as<keel::i32>(vals[i])));
     return Value::fromString(s, mr);
 }
 
@@ -286,7 +286,7 @@ Value makeCharMatrix(const keel::f64 *vals, keel::usize n,
     Value M = Value::matrix(sz.rows, cols_out, ValueType::CHAR, mr);
     char *data = M.charDataMut();
     for (keel::usize i = 0; i < n; ++i)
-        data[i] = keel::as<char>(keel::as<int>(vals[i]));
+        data[i] = keel::as<char>(keel::as<keel::i32>(vals[i]));
     return M;
 }
 

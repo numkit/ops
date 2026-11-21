@@ -44,16 +44,16 @@ namespace {
 // with exactly-zero imaginary part prints as a bare real (num2str(complex(5,0))
 // = "5"). The DEFAULT-precision/N forms for complex ARRAYS use MATLAB's
 // column-aligned layout and remain a deferred gap (see num2str_reg).
-keel::String num2strComplexScalar(keel::c64 z, int precOverride,
+keel::String num2strComplexScalar(keel::c64 z, keel::i32 precOverride,
                                   keel::Allocator *alloc = keel::default_allocator())
 {
     const keel::f64 re = z.real(), im = z.imag();
-    int prec = precOverride;
+    keel::i32 prec = precOverride;
     if (prec < 1) {
         const keel::f64 M = std::max(std::fabs(re), std::fabs(im));
         prec = 5;
         if (M != 0.0) {
-            const int e = keel::as<int>(std::floor(std::log10(M)));
+            const keel::i32 e = keel::as<keel::i32>(std::floor(std::log10(M)));
             prec = (e > 0 ? e : 0) + 5;
         }
     }
@@ -81,7 +81,7 @@ keel::String num2strComplexScalar(keel::c64 z, int precOverride,
 // common complex-typed-storage-of-real-data case), columns padded to the
 // max element width of the column, rows joined with '\n'.
 // (bugs/opened/lang/num2str-complex-array.md)
-inline keel::String num2strComplexArray(const Value &x, int precOverride,
+inline keel::String num2strComplexArray(const Value &x, keel::i32 precOverride,
                                         keel::Allocator *alloc = keel::default_allocator())
 {
     const keel::usize rows = x.dims().rows();
@@ -117,7 +117,7 @@ inline keel::String num2strComplexArray(const Value &x, int precOverride,
             cells.push_back(std::move(s));
         }
         const keel::usize W = allInt ? wmax + 2
-                                     : (keel::as<keel::usize>(std::max(0, keel::as<int>(std::floor(std::log10(maxAbs > 0 ? maxAbs : 1.0))))) + 5 + 7);
+                                     : (keel::as<keel::usize>(std::max(0, keel::as<keel::i32>(std::floor(std::log10(maxAbs > 0 ? maxAbs : 1.0))))) + 5 + 7);
         keel::String out(salloc);
         for (keel::usize r = 0; r < rows; ++r) {
             if (r) out.push_back('\n');
@@ -195,18 +195,18 @@ inline keel::String num2strComplexArray(const Value &x, int precOverride,
 // through the FMT overload, which performs MATLAB's common-blank-column
 // stripping and NaN/Inf spelling. Matches MATLAB R2025b across integer,
 // fractional, negative, and large/small-magnitude probes.
-[[maybe_unused]] keel::String num2strArrayFormat(const Value &x, int N)
+[[maybe_unused]] keel::String num2strArrayFormat(const Value &x, keel::i32 N)
 {
     const keel::usize n = x.numel();
     char fmt[32];
     if (N >= 1) {
-        int p = N; if (p > 99) p = 99;
+        keel::i32 p = N; if (p > 99) p = 99;
         std::snprintf(fmt, sizeof(fmt), "%%%d.%dg", p + 7, p);
         return keel::String::from(fmt);
     }
     keel::f64 maxabs = 0.0;
     bool allInt = true;
-    int maxChars = 1;
+    keel::i32 maxChars = 1;
     for (keel::usize i = 0; i < n; ++i) {
         const keel::f64 v = x.elemAsDouble(i);
         if (!std::isfinite(v)) { allInt = false; continue; }
@@ -219,16 +219,16 @@ inline keel::String num2strComplexArray(const Value &x, int precOverride,
         // -100])='-1   10 -100' (width 5), not width 6. Measuring "%.0f" of v
         // (which includes '-') over-counted by one for negatives.
         char b[64];
-        const int len = std::snprintf(b, sizeof(b), "%.0f", a);
+        const keel::i32 len = std::snprintf(b, sizeof(b), "%.0f", a);
         if (len > maxChars) maxChars = len;
     }
     if (allInt) {
         std::snprintf(fmt, sizeof(fmt), "%%%d.0f", maxChars + 2);
         return keel::String::from(fmt);
     }
-    int p = 5;
+    keel::i32 p = 5;
     if (maxabs != 0.0) {
-        const int e = keel::as<int>(std::floor(std::log10(maxabs)));
+        const keel::i32 e = keel::as<keel::i32>(std::floor(std::log10(maxabs)));
         p = (e > 0 ? e : 0) + 5;
     }
     if (p > 99) p = 99;
@@ -508,7 +508,7 @@ PosRange resolvePos(keel::StringRef s, const Value &p)
         return {pos, pos + pat.size(), true};
     }
     // Numeric scalar (1-based).
-    const auto p1 = keel::as<long long>(p.toScalar());
+    const auto p1 = keel::as<keel::i64>(p.toScalar());
     if (p1 < 1 || keel::as<keel::usize>(p1) > s.size())
         return {0, 0, false};
     return {keel::as<keel::usize>(p1 - 1), keel::as<keel::usize>(p1), true};
@@ -576,32 +576,32 @@ findAllBetweenPairs(keel::StringRef ss, const Value &start, const Value &end,
 
 } // namespace
 namespace {
-keel::String toBaseString(keel::u64 v, int base, int minWidth,
+keel::String toBaseString(keel::u64 v, keel::i32 base, keel::i32 minWidth,
                           keel::Allocator *alloc = keel::default_allocator())
 {
     keel::String out(alloc);
     if (v == 0) {
-        const int w = std::max(1, minWidth);
+        const keel::i32 w = std::max(1, minWidth);
         out.reserve(w);
-        for (int i = 0; i < w; ++i) out.push_back('0');
+        for (keel::i32 i = 0; i < w; ++i) out.push_back('0');
         return out;
     }
     while (v > 0) {
-        const int d = keel::as<int>(v % keel::as<keel::u64>(base));
+        const keel::i32 d = keel::as<keel::i32>(v % keel::as<keel::u64>(base));
         out.push_back(d < 10 ? char('0' + d) : char('A' + d - 10));
         v /= keel::as<keel::u64>(base);
     }
-    while (keel::as<int>(out.size()) < minWidth) out.push_back('0');
+    while (keel::as<keel::i32>(out.size()) < minWidth) out.push_back('0');
     std::reverse(out.begin(), out.end());
     return out;
 }
 
-[[maybe_unused]] keel::u64 parseBase(keel::StringRef s, int base)
+[[maybe_unused]] keel::u64 parseBase(keel::StringRef s, keel::i32 base)
 {
     keel::u64 v = 0;
     for (char c : s) {
         if (keel::is_ascii_space(c)) continue;
-        int d;
+        keel::i32 d;
         if (c >= '0' && c <= '9') d = c - '0';
         else if (c >= 'a' && c <= 'f') d = 10 + (c - 'a');
         else if (c >= 'A' && c <= 'F') d = 10 + (c - 'A');
@@ -618,7 +618,7 @@ keel::String toBaseString(keel::u64 v, int base, int minWidth,
 // Convert an N-element double vector to a 2-D char matrix where each
 // row holds the base-`base` representation, padded to the maximum
 // observed width (and at least minWidth).
-[[maybe_unused]] Value vecToBaseMatrix(const Value &d, int base, int minWidth, keel::Allocator *mr)
+[[maybe_unused]] Value vecToBaseMatrix(const Value &d, keel::i32 base, keel::i32 minWidth, keel::Allocator *mr)
 {
     const keel::usize n = d.numel();
     if (n == 0) return Value::fromString("", mr);
@@ -634,22 +634,22 @@ keel::String toBaseString(keel::u64 v, int base, int minWidth,
     auto *salloc = scratch.allocator();
     auto rows = keel::Array<keel::String>(salloc);
     rows.reserve(n);
-    int maxW = minWidth;
+    keel::i32 maxW = minWidth;
     for (keel::usize i = 0; i < n; ++i) {
         const keel::f64 v = d.elemAsDouble(i);
         if (v < 0) throw Error("dec2*: value must be non-negative",
                                 0, 0, "dec2", "", "numkit:dec2:negative");
         rows.push_back(toBaseString(keel::as<keel::u64>(v), base, 0, salloc));
-        maxW = std::max<int>(maxW, keel::as<int>(rows.back().size()));
+        maxW = std::max<keel::i32>(maxW, keel::as<keel::i32>(rows.back().size()));
     }
     // Build a CHAR matrix n × maxW, column-major, left-padded with leading zeros.
     auto m = Value::matrix(n, maxW, ValueType::CHAR, mr);
     char *dst = static_cast<char *>(m.rawDataMut());
     for (keel::usize r = 0; r < n; ++r) {
-        const int pad = maxW - keel::as<int>(rows[r].size());
-        for (int c = 0; c < pad; ++c)
+        const keel::i32 pad = maxW - keel::as<keel::i32>(rows[r].size());
+        for (keel::i32 c = 0; c < pad; ++c)
             dst[c * n + r] = '0';
-        for (int c = pad; c < maxW; ++c)
+        for (keel::i32 c = pad; c < maxW; ++c)
             dst[c * n + r] = rows[r][keel::as<keel::usize>(c - pad)];
     }
     return m;
@@ -662,16 +662,16 @@ namespace {
 [[maybe_unused]] keel::f64 hexBitsToDouble(keel::StringRef raw)
 {
     char h[16];
-    int hlen = 0;
+    keel::i32 hlen = 0;
     for (char c : raw) {
         if (keel::is_ascii_space(c)) continue;
         if (hlen < 16) h[hlen++] = c;
     }
     while (hlen < 16) h[hlen++] = '0';  // right-pad with zeros
     keel::u64 bits = 0;
-    for (int i = 0; i < 16; ++i) {
+    for (keel::i32 i = 0; i < 16; ++i) {
         const char c = h[i];
-        int d;
+        keel::i32 d;
         if      (c >= '0' && c <= '9') d = c - '0';
         else if (c >= 'a' && c <= 'f') d = 10 + (c - 'a');
         else if (c >= 'A' && c <= 'F') d = 10 + (c - 'A');
@@ -687,12 +687,12 @@ namespace {
 namespace {
 // Parse a base-`base` (2..36) digit string: 0-9 then A-Z / a-z. Whitespace
 // is skipped (MATLAB pads short rows of a char matrix with spaces).
-[[maybe_unused]] keel::u64 parseBaseN(keel::StringRef s, int base)
+[[maybe_unused]] keel::u64 parseBaseN(keel::StringRef s, keel::i32 base)
 {
     keel::u64 v = 0;
     for (char c : s) {
         if (keel::is_ascii_space(c)) continue;
-        int d;
+        keel::i32 d;
         if      (c >= '0' && c <= '9') d = c - '0';
         else if (c >= 'a' && c <= 'z') d = 10 + (c - 'a');
         else if (c >= 'A' && c <= 'Z') d = 10 + (c - 'A');
@@ -719,12 +719,12 @@ namespace {
 // final converged p/q (denominator normalised positive). Stops when
 // |x - p/q| ≤ tol, with tol defaulting (caller-side) to 1e-6·max(1,|x|).
 struct RatExpansion {
-    long long p = 0;
-    long long q = 0;
+    keel::i64 p = 0;
+    keel::i64 q = 0;
     // Up to 64 coefficients — same safety bound as before. Inline
     // storage avoids any allocation for the typical 2-7 coefficient case.
-    keel::StaticArray<long long, 64> coeffs;
-    int n_coeffs = 0;
+    keel::StaticArray<keel::i64, 64> coeffs;
+    keel::i32 n_coeffs = 0;
 };
 
 RatExpansion ratExpansion(keel::f64 x, keel::f64 tol)
@@ -734,13 +734,13 @@ RatExpansion ratExpansion(keel::f64 x, keel::f64 tol)
 
     keel::f64 rem = x;
     // Track the last two convergents.
-    long long prev_p = 0, curr_p = 1;
-    long long prev_q = 1, curr_q = 0;
+    keel::i64 prev_p = 0, curr_p = 1;
+    keel::i64 prev_q = 1, curr_q = 0;
 
-    for (int i = 0; i < 64; ++i) {
-        const long long a = keel::as<long long>(std::round(rem));
-        const long long new_p = a * curr_p + prev_p;
-        const long long new_q = a * curr_q + prev_q;
+    for (keel::i32 i = 0; i < 64; ++i) {
+        const keel::i64 a = keel::as<keel::i64>(std::round(rem));
+        const keel::i64 new_p = a * curr_p + prev_p;
+        const keel::i64 new_q = a * curr_q + prev_q;
         r.coeffs[r.n_coeffs++] = a;
         prev_p = curr_p; curr_p = new_p;
         prev_q = curr_q; curr_q = new_q;
@@ -773,7 +773,7 @@ RatExpansion ratExpansion(keel::f64 x, keel::f64 tol)
     char buf[32];
     std::snprintf(buf, sizeof(buf), "%lld", r.coeffs[r.n_coeffs - 1]);
     keel::String s = keel::String::from(buf);
-    for (int i = r.n_coeffs - 2; i >= 0; --i) {
+    for (keel::i32 i = r.n_coeffs - 2; i >= 0; --i) {
         std::snprintf(buf, sizeof(buf), "%lld", r.coeffs[i]);
         keel::String next;
         next.reserve(std::strlen(buf) + 6 + s.size() + 1);
