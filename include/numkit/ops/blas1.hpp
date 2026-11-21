@@ -1,12 +1,15 @@
 // ops/include/numkit/ops/blas1.hpp
 #pragma once
 
-#include <keel/core.h>
-#include <cstddef>
+#include <keel/linalg.h>
 
 namespace numkit::ops {
 
-/// @brief Vector add scaled y = alpha * x + y (real double).
-void axpy(keel::usize n, keel::f64 alpha, const keel::f64 *x, keel::f64 *y);
+using keel::axpy;
+using keel::dot;
+using keel::dotc;
+using keel::dotu;
+using keel::nrm2;
+using keel::scal;
 
 } // namespace numkit::ops

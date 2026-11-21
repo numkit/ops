@@ -42,13 +42,14 @@ if(DEFINED _numkit_saved_warn_deprecated AND NOT "${_numkit_saved_warn_deprecate
     set(CMAKE_WARN_DEPRECATED "${_numkit_saved_warn_deprecated}" CACHE BOOL "" FORCE)
 endif()
 
-# Standalone keelcpp libraries (compress, image, fft, random)
+# Standalone keelcpp libraries (compress, image, fft, random, linalg)
 foreach(_keel_pair
     "KEEL:keel"
     "KEEL_COMPRESS:compress"
     "KEEL_IMAGE:image"
     "KEEL_FFT:fft"
     "KEEL_RANDOM:random"
+    "KEEL_LINALG:linalg"
 )
     string(REPLACE ":" ";" _keel_parts "${_keel_pair}")
     list(GET _keel_parts 0 _keel_var)
@@ -71,7 +72,10 @@ set(KEEL_COMPRESS_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(KEEL_IMAGE_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(KEEL_FFT_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(KEEL_RANDOM_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(KEEL_LINALG_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(KEEL_FFT_WITH_HIGHWAY ${NUMKIT_WITH_SIMD} CACHE BOOL "" FORCE)
+set(KEEL_LINALG_WITH_HIGHWAY ${NUMKIT_WITH_SIMD} CACHE BOOL "" FORCE)
+set(KEEL_LINALG_WITH_THREADS ${NUMKIT_WITH_THREADS} CACHE BOOL "" FORCE)
 
 if(NOT TARGET keel::keel)
     find_package(keel QUIET CONFIG)
@@ -145,13 +149,24 @@ if(NOT TARGET keel::random)
     FetchContent_MakeAvailable(keel_random)
 endif()
 
+if(NOT TARGET keel::linalg)
+    find_package(keel_linalg QUIET CONFIG)
+    if(TARGET keel::keel_linalg AND NOT TARGET keel::linalg)
+        add_library(keel::linalg ALIAS keel::keel_linalg)
+    endif()
+endif()
+if(NOT TARGET keel::linalg)
+    FetchContent_Declare(
+        keel_linalg
+        GIT_REPOSITORY https://github.com/keelcpp/linalg.git
+        GIT_TAG        e6e29ad227ff97d01e837e281ab6a7d9c440f075
+    )
+    FetchContent_MakeAvailable(keel_linalg)
+endif()
+
 set(NUMKIT_OPS_SOURCES
     src/rng/matlab_mt19937.cpp
     src/rng/rng.cpp
-    src/blas/la_solve.cpp
-    src/blas/blas1_highway.cpp
-    src/blas/blas2_highway.cpp
-    src/blas/blas3_highway.cpp
     src/compression/deflate.cpp
     src/dsp/conv.cpp
     src/dsp/iir_filter.cpp
@@ -226,7 +241,7 @@ target_include_directories(numkit_ops
 )
 
 target_link_libraries(numkit_ops
-    PUBLIC numkit_value keel::random
+    PUBLIC numkit_value keel::random keel::linalg
     PRIVATE hwy hwy_contrib keel::compress keel::image keel::fft
 )
 

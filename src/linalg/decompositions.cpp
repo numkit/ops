@@ -30,67 +30,7 @@ namespace numkit::linalg {
 // Cholesky
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-// Shared raw-buffer kernels (defined as inline templates in decompositions_detail.hpp)
-
-template <typename T>
-static keel::usize cholUpperTiled(T *r, keel::usize n, keel::usize ldr) {
-    constexpr keel::usize B_SIZE = 64;
-    for (keel::usize j = 0; j < n; j += B_SIZE) {
-        keel::usize jb = std::min(B_SIZE, n - j);
-        
-        // 1. Factor diagonal block (sequentially)
-        for (keel::usize k = j; k < j + jb; ++k) {
-            if constexpr (detail::is_complex_v<T>) {
-                if (keel::abs(r[k + k * ldr].imag()) > 1e-11) return k + 1;
-            }
-            double s_real = detail::real_part(r[k + k * ldr]);
-            if (s_real <= 0.0) return k + 1;
-            const double diag = std::sqrt(s_real);
-            r[k + k * ldr] = T(diag);
-            const T inv_diag = T(1.0 / diag);
-            for (keel::usize col = k + 1; col < j + jb; ++col) {
-                r[k + col * ldr] *= inv_diag;
-                for (keel::usize row = k + 1; row <= col; ++row) {
-                    if constexpr (detail::is_complex_v<T>) {
-                        r[row + col * ldr] -= keel::conj(r[k + row * ldr]) * r[k + col * ldr];
-                    } else {
-                        r[row + col * ldr] -= r[k + row * ldr] * r[k + col * ldr];
-                    }
-                }
-            }
-        }
-        
-        // 2. Update panel (TRSM) & Trailing matrix (SYRK)
-        if (j + jb < n) {
-            ops::trsm(ops::MatrixSide::Left, ops::MatrixUplo::Upper,
-                      ops::MatrixTranspose::ConjTrans, ops::MatrixDiag::NonUnit,
-                      jb, n - j - jb, T(1), 
-                      r + j + j * ldr, ldr, 
-                      r + j + (j + jb) * ldr, ldr);
-                      
-            ops::syrk(ops::MatrixUplo::Upper, ops::MatrixTranspose::ConjTrans,
-                      n - j - jb, jb, 
-                      T(-1), r + j + (j + jb) * ldr, ldr, 
-                      T(1), r + (j + jb) + (j + jb) * ldr, ldr);
-        }
-    }
-    return 0;
-}
-
-template <typename T>
-static keel::usize cholUpperFactorBlockedImpl(const T *a, T *r, keel::usize n) {
-    std::fill(r, r + n * n, T(0));
-    for (keel::usize col = 0; col < n; ++col) {
-        for (keel::usize row = 0; row <= col; ++row) {
-            r[row + col * n] = a[row + col * n];
-        }
-    }
-    return cholUpperTiled(r, n, n);
-}
-
-static keel::usize cholUpperFactorBlocked(const double *a, double *r, keel::usize n) {
-    return cholUpperFactorBlockedImpl(a, r, n);
-}
+// Shared raw-buffer kernels delegated to keel::linalg
 
 Value chol(const Value &A, keel::Allocator *mr)
 {
@@ -120,13 +60,13 @@ Value chol(const Value &A, keel::Allocator *mr)
             }
         }
         auto R = Value::complexMatrix(n, n, mr);
-        if (cholUpperFactorBlockedImpl(Aw.complexData(), R.complexDataMut(), n) != 0)
+        if (keel::cholesky_upper(Aw.complexData(), R.complexDataMut(), n) != 0)
             throw Error("chol: matrix is not positive-definite",
                         0, 0, "chol", "", "numkit:chol:notPosDef");
         return detail::narrowDoubleToSingleIf(detail::narrow_if_real(R), wantSingle, mr);
     } else {
         auto R = Value::matrix(n, n, ValueType::DOUBLE, mr);
-        if (cholUpperFactorBlocked(Aw.doubleData(), R.doubleDataMut(), n) != 0)
+        if (keel::cholesky_upper(Aw.doubleData(), R.doubleDataMut(), n) != 0)
             throw Error("chol: matrix is not positive-definite",
                         0, 0, "chol", "", "numkit:chol:notPosDef");
         return detail::narrowDoubleToSingleIf(R, wantSingle, mr);
@@ -303,194 +243,15 @@ void qrFullHouseholder(const T *A_in, keel::usize m, keel::usize n,
                        T *Qout, T *Rout,
                        keel::Allocator *mr)
 {
-    keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<T> R_work(m * n, scratch.allocator());
-    keel::Array<T> V(m * n, T(0), scratch.allocator());
-    keel::Array<T> tau(n, T(0), scratch.allocator());
-    std::copy(A_in, A_in + m * n, R_work.begin());
-
-    for (keel::usize k = 0; k < n; ++k) {
-        // LAPACK dlarfg rule: when the SUBDIAGONAL tail is entirely
-        // zero, tau = 0 and the diagonal is left UNCHANGED â€” no
-        // reflector is applied. (Always true for the trailing 1x1
-        // block of a square matrix, which is why our last R diagonal
-        // and Q column came out sign-flipped vs MATLAB/LAPACK.)
-        double tail_sq = 0.0;
-        for (keel::usize i = k + 1; i < m; ++i)
-            tail_sq += detail::abs_sq(R_work[i + k * m]);
-        if (tail_sq == 0.0) {
-            tau[k] = T(0);
-            continue;
-        }
-        double norm_sq = tail_sq;
-        const T xk = R_work[k + k * m];
-        norm_sq += detail::abs_sq(xk);
-        if (norm_sq == 0.0) {
-            tau[k] = T(0);
-            continue;
-        }
-        const double norm = std::sqrt(norm_sq);
-
-        T alpha;
-        if constexpr (detail::is_complex_v<T>) {
-            const double abs_xk = keel::abs(xk);
-            const T phase = (abs_xk > 0.0) ? (xk / abs_xk) : T(1.0, 0.0);
-            alpha = -phase * norm;
-        } else {
-            alpha = (xk >= 0.0) ? -norm : norm;
-        }
-
-        V[k + k * m] = xk - alpha;
-        for (keel::usize i = k + 1; i < m; ++i)
-            V[i + k * m] = R_work[i + k * m];
-
-        double v_norm_sq = 0.0;
-        for (keel::usize i = k; i < m; ++i)
-            v_norm_sq += detail::abs_sq(V[i + k * m]);
-
-        if (v_norm_sq == 0.0) {
-            R_work[k + k * m] = alpha;
-            tau[k] = T(0);
-            continue;
-        }
-        tau[k] = T(2.0 / v_norm_sq);
-        for (keel::usize j = k + 1; j < n; ++j) {
-            T dot = T(0);
-            for (keel::usize i = k; i < m; ++i) {
-                if constexpr (detail::is_complex_v<T>) {
-                    dot += keel::conj(V[i + k * m]) * R_work[i + j * m];
-                } else {
-                    dot += V[i + k * m] * R_work[i + j * m];
-                }
-            }
-            const T s = tau[k] * dot;
-            for (keel::usize i = k; i < m; ++i)
-                R_work[i + j * m] -= s * V[i + k * m];
-        }
-        R_work[k + k * m] = alpha;
-        for (keel::usize i = k + 1; i < m; ++i)
-            R_work[i + k * m] = T(0);
-    }
-
-    for (keel::usize j = 0; j < n; ++j)
-        for (keel::usize i = 0; i < m; ++i)
-            Rout[i + j * m] = (i <= j) ? R_work[i + j * m] : T(0);
-
-    std::fill(Qout, Qout + m * m, T(0));
-    for (keel::usize i = 0; i < m; ++i)
-        Qout[i + i * m] = T(1);
-
-    for (keel::usize kk = n; kk-- > 0;) {
-        const keel::usize k = kk;
-        if (detail::abs_sq(tau[k]) == 0.0) continue;
-        for (keel::usize j = 0; j < m; ++j) {
-            T dot = T(0);
-            for (keel::usize i = k; i < m; ++i) {
-                if constexpr (detail::is_complex_v<T>) {
-                    dot += keel::conj(V[i + k * m]) * Qout[i + j * m];
-                } else {
-                    dot += V[i + k * m] * Qout[i + j * m];
-                }
-            }
-            const T s = tau[k] * dot;
-            for (keel::usize i = k; i < m; ++i)
-                Qout[i + j * m] -= s * V[i + k * m];
-        }
-    }
+    keel::qr_householder(A_in, m, n, Qout, Rout, mr);
 }
 
-// Column-pivoted Householder QR: AÂ·P = QÂ·R
 template <typename T>
 void qrPivotedHouseholder(const T *A_in, keel::usize m, keel::usize n,
                           T *Qout, T *Rout, keel::usize *permOut,
                           keel::Allocator *mr)
 {
-    keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<T> R_work(m * n, scratch.allocator());
-    keel::Array<T> V(m * n, T(0), scratch.allocator());
-    keel::Array<T> tau(n, T(0), scratch.allocator());
-    std::copy(A_in, A_in + m * n, R_work.begin());
-    for (keel::usize j = 0; j < n; ++j) permOut[j] = j;
-
-    for (keel::usize k = 0; k < n; ++k) {
-        keel::usize pj = k;
-        double pmax = -1.0;
-        for (keel::usize j = k; j < n; ++j) {
-            double s = 0.0;
-            for (keel::usize i = k; i < m; ++i) {
-                s += detail::abs_sq(R_work[i + j * m]);
-            }
-            if (s > pmax) { pmax = s; pj = j; }
-        }
-        if (pj != k) {
-            for (keel::usize i = 0; i < m; ++i)
-                std::swap(R_work[i + k * m], R_work[i + pj * m]);
-            std::swap(permOut[k], permOut[pj]);
-        }
-        // dlarfg tail rule â€” see qrFullHouseholder.
-        double norm_sq = 0.0;
-        for (keel::usize i = k + 1; i < m; ++i) {
-            norm_sq += detail::abs_sq(R_work[i + k * m]);
-        }
-        if (norm_sq == 0.0) { tau[k] = T(0); continue; }
-        norm_sq += detail::abs_sq(R_work[k + k * m]);
-        if (norm_sq == 0.0) { tau[k] = T(0); continue; }
-        const T xk = R_work[k + k * m];
-        const double norm = std::sqrt(norm_sq);
-
-        T alpha;
-        if constexpr (detail::is_complex_v<T>) {
-            const double abs_xk = keel::abs(xk);
-            const T phase = (abs_xk > 0.0) ? (xk / abs_xk) : T(1.0, 0.0);
-            alpha = -phase * norm;
-        } else {
-            alpha = (xk >= 0.0) ? -norm : norm;
-        }
-
-        V[k + k * m] = xk - alpha;
-        for (keel::usize i = k + 1; i < m; ++i) V[i + k * m] = R_work[i + k * m];
-        double v_norm_sq = 0.0;
-        for (keel::usize i = k; i < m; ++i) v_norm_sq += detail::abs_sq(V[i + k * m]);
-        if (v_norm_sq == 0.0) { R_work[k + k * m] = alpha; tau[k] = T(0); continue; }
-        tau[k] = T(2.0 / v_norm_sq);
-        for (keel::usize j = k + 1; j < n; ++j) {
-            T dot = T(0);
-            for (keel::usize i = k; i < m; ++i) {
-                if constexpr (detail::is_complex_v<T>) {
-                    dot += keel::conj(V[i + k * m]) * R_work[i + j * m];
-                } else {
-                    dot += V[i + k * m] * R_work[i + j * m];
-                }
-            }
-            const T s = tau[k] * dot;
-            for (keel::usize i = k; i < m; ++i) R_work[i + j * m] -= s * V[i + k * m];
-        }
-        R_work[k + k * m] = alpha;
-        for (keel::usize i = k + 1; i < m; ++i) R_work[i + k * m] = T(0);
-    }
-
-    for (keel::usize j = 0; j < n; ++j)
-        for (keel::usize i = 0; i < m; ++i)
-            Rout[i + j * m] = (i <= j) ? R_work[i + j * m] : T(0);
-
-    std::fill(Qout, Qout + m * m, T(0));
-    for (keel::usize i = 0; i < m; ++i) Qout[i + i * m] = T(1);
-    for (keel::usize kk = n; kk-- > 0;) {
-        const keel::usize k = kk;
-        if (detail::abs_sq(tau[k]) == 0.0) continue;
-        for (keel::usize j = 0; j < m; ++j) {
-            T dot = T(0);
-            for (keel::usize i = k; i < m; ++i) {
-                if constexpr (detail::is_complex_v<T>) {
-                    dot += keel::conj(V[i + k * m]) * Qout[i + j * m];
-                } else {
-                    dot += V[i + k * m] * Qout[i + j * m];
-                }
-            }
-            const T s = tau[k] * dot;
-            for (keel::usize i = k; i < m; ++i) Qout[i + j * m] -= s * V[i + k * m];
-        }
-    }
+    keel::qr_pivoted(A_in, m, n, Qout, Rout, permOut, mr);
 }
 
 } // anonymous namespace
@@ -539,16 +300,13 @@ Value qr_R_only(const Value &A, keel::Allocator *mr)
                     0, 0, "qr", "", "numkit:qr:wide");
     const bool wantSingle = (A.type() == ValueType::SINGLE);
     const Value Aw = detail::widenSingleToDouble(A, mr);
-    keel::ArenaTemp scratch = keel::get_scratch(mr);
     if (Aw.isComplex()) {
-        keel::Array<keel::c64> Q_unused(m * m, scratch.allocator());
         auto R = Value::complexMatrix(m, n, mr);
-        qrFullHouseholder(Aw.complexData(), m, n, Q_unused.data(), R.complexDataMut(), mr);
+        keel::qr_householder(Aw.complexData(), m, n, nullptr, R.complexDataMut(), mr);
         return detail::narrowDoubleToSingleIf(detail::narrow_if_real(R, mr), wantSingle, mr);
     }
-    keel::Array<double> Q_unused(m * m, scratch.allocator());
     auto R = Value::matrix(m, n, ValueType::DOUBLE, mr);
-    qrFullHouseholder(Aw.doubleData(), m, n, Q_unused.data(), R.doubleDataMut(), mr);
+    keel::qr_householder(Aw.doubleData(), m, n, nullptr, R.doubleDataMut(), mr);
     return detail::narrowDoubleToSingleIf(R, wantSingle, mr);
 }
 
