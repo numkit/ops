@@ -190,30 +190,12 @@ Value ppval(const Value &pp, const Value &x, keel::Allocator *mr)
     const keel::usize cR     = coefs.dims().rows();   // pieces (column-major stride)
 
     auto out = createLike(x, ValueType::DOUBLE, mr);
-    double *dst = out.doubleDataMut();
     const keel::usize N = x.numel();
-    for (keel::usize i = 0; i < N; ++i) {
-        const double xi = x.elemAsDouble(i);
-        // Find piece index j such that breaks[j] <= xi < breaks[j+1].
-        // Linear scan is fine for typical L ≤ ~64; binary search if it
-        // ever matters.
-        keel::usize j = 0;
-        if (xi <= bp[0]) j = 0;
-        else if (xi >= bp[L]) j = L - 1;
-        else {
-            // First k with bp[k+1] > xi.
-            j = L - 1;
-            for (keel::usize k = 0; k < L; ++k) {
-                if (xi < bp[k + 1]) { j = k; break; }
-            }
-        }
-        const double u = xi - bp[j];
-        // Local polynomial: coefs(j, 0) is the leading (highest) power.
-        double y = cp[0 * cR + j];
-        for (keel::usize k = 1; k < order; ++k)
-            y = y * u + cp[k * cR + j];
-        dst[i] = y;
-    }
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<double> xq(N, scratch.allocator());
+    for (keel::usize i = 0; i < N; ++i) xq[i] = x.elemAsDouble(i);
+    (void)keel::ppval({bp, L + 1}, {cp, cR * order}, cR, order, xq.as_ref(),
+                      {out.doubleDataMut(), N});
     return out;
 }
 

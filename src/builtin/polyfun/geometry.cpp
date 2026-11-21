@@ -1,40 +1,42 @@
 // math/src/geom/geom.cpp
 //
-// Computational-geometry primitives:
-//   inpolygon — point-in-polygon test (ray-casting)
-//   convhull  — convex hull of a 2-D point cloud (Andrew's monotone chain)
+// Computational-geometry Value adapters delegating to keel::geom (<keel/geom.h>).
 
-#include <keel/core.h>
-#include <keel/memory.h>
-#include <keel/ref.h>
-#include <keel/format.h>
 #include <keel/arena.h>
 #include <keel/array.h>
+#include <keel/core.h>
+#include <keel/format.h>
+#include <keel/geom.h>
 #include <keel/math.h>
-#include <tuple>
+#include <keel/memory.h>
+#include <keel/ref.h>
 #include <numkit/builtin/polyfun.hpp>
 
-#include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
+#include <numkit/value/value.hpp>
 
 #include <algorithm>
-#include <cmath>
-#include <cstdio>
 #include <cstring>
-#include <limits>
-#include <utility>
 
 namespace numkit::builtin {
 
 namespace {
-struct Tri {
-    keel::usize v[3];
-    keel::usize operator[](keel::usize idx) const { return v[idx]; }
-};
+
+keel::Array<keel::f64> toDoubleArray(const Value &v, keel::Allocator *alloc)
+{
+    const keel::usize n = v.numel();
+    keel::Array<keel::f64> out(n, alloc);
+    if (v.type() == ValueType::DOUBLE && n > 0) {
+        std::memcpy(out.data(), v.doubleData(), n * sizeof(keel::f64));
+    } else {
+        for (keel::usize i = 0; i < n; ++i) out[i] = v.elemAsDouble(i);
+    }
+    return out;
+}
+
 } // namespace
 
-
-// ── polyarea (public C++ API) ────────────────────────────────────────
+// ── polyarea ─────────────────────────────────────────────────────────
 
 Value polyarea(const Value &x, const Value &y, keel::Allocator *mr)
 {
@@ -44,16 +46,13 @@ Value polyarea(const Value &x, const Value &y, keel::Allocator *mr)
                      0, 0, "polyarea", "", "numkit:polyarea:shape");
     if (n < 3)
         return Value::scalar(0.0, mr);
-    double s = 0;
-    for (keel::usize i = 0; i < n; ++i) {
-        const keel::usize j = (i + 1) % n;
-        s += x.elemAsDouble(i) * y.elemAsDouble(j)
-           - x.elemAsDouble(j) * y.elemAsDouble(i);
-    }
-    return Value::scalar(0.5 * keel::abs(s), mr);
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    auto xd = toDoubleArray(x, scratch.allocator());
+    auto yd = toDoubleArray(y, scratch.allocator());
+    return Value::scalar(keel::polyarea(xd.as_ref(), yd.as_ref()), mr);
 }
 
-// ── inpolygon (public C++ API) ───────────────────────────────────────
+// ── inpolygon ────────────────────────────────────────────────────────
 
 Value inpolygon(const Value &xq, const Value &yq, const Value &xv,
                 const Value &yv, keel::Allocator *mr)
@@ -65,41 +64,18 @@ Value inpolygon(const Value &xq, const Value &yq, const Value &xv,
         throw Error("inpolygon: xv and yv must have the same numel",
                      0, 0, "inpolygon", "", "numkit:inpolygon:polyShape");
     const keel::usize nQ = xq.numel();
-    const keel::usize nV = xv.numel();
-    auto out = Value::matrix(xq.dims().rows(), xq.dims().cols(),
-                             ValueType::LOGICAL, mr);
-    keel::u8 *dst = out.logicalDataMut();
-    if (nV < 3) {
-        std::memset(dst, 0, nQ);
-        return out;
-    }
+    auto out = Value::matrix(xq.dims().rows(), xq.dims().cols(), ValueType::LOGICAL, mr);
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<double> px(nV, scratch.allocator());
-    keel::Array<double> py(nV, scratch.allocator());
-    for (keel::usize i = 0; i < nV; ++i) {
-        px[i] = xv.elemAsDouble(i);
-        py[i] = yv.elemAsDouble(i);
-    }
-    for (keel::usize q = 0; q < nQ; ++q) {
-        const double X = xq.elemAsDouble(q);
-        const double Y = yq.elemAsDouble(q);
-        bool inside = false;
-        keel::usize j = nV - 1;
-        for (keel::usize i = 0; i < nV; ++i) {
-            const double xi = px[i], yi = py[i];
-            const double xj = px[j], yj = py[j];
-            if ((yi > Y) != (yj > Y)) {
-                const double xCross = xi + (Y - yi) * (xj - xi) / (yj - yi);
-                if (X < xCross) inside = !inside;
-            }
-            j = i;
-        }
-        dst[q] = inside ? 1 : 0;
-    }
+    auto xqd = toDoubleArray(xq, scratch.allocator());
+    auto yqd = toDoubleArray(yq, scratch.allocator());
+    auto xvd = toDoubleArray(xv, scratch.allocator());
+    auto yvd = toDoubleArray(yv, scratch.allocator());
+    keel::inpolygon(xqd.as_ref(), yqd.as_ref(), xvd.as_ref(), yvd.as_ref(),
+                    keel::MutArrayRef<keel::u8>(out.logicalDataMut(), nQ));
     return out;
 }
 
-// ── convhull (public C++ API) ────────────────────────────────────────
+// ── convhull ─────────────────────────────────────────────────────────
 
 Value convhull(const Value &x, const Value &y, keel::Allocator *mr)
 {
@@ -108,7 +84,6 @@ Value convhull(const Value &x, const Value &y, keel::Allocator *mr)
         throw Error("convhull: x and y must have the same numel",
                      0, 0, "convhull", "", "numkit:convhull:shape");
     if (n < 3) {
-        // Degenerate — return [1, 2, ..., n, 1] so the polygon wraps.
         auto out = Value::matrix(n + 1, 1, ValueType::DOUBLE, mr);
         double *dst = out.doubleDataMut();
         for (keel::usize i = 0; i < n; ++i) dst[i] = static_cast<double>(i + 1);
@@ -116,177 +91,31 @@ Value convhull(const Value &x, const Value &y, keel::Allocator *mr)
         return out;
     }
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<keel::usize> idx(n, scratch.allocator());
-    keel::Array<double> X(n, scratch.allocator());
-    keel::Array<double> Y(n, scratch.allocator());
-    for (keel::usize i = 0; i < n; ++i) {
-        X[i] = x.elemAsDouble(i);
-        Y[i] = y.elemAsDouble(i);
-        idx[i] = i;
-    }
-    std::sort(idx.begin(), idx.end(), [&](keel::usize a, keel::usize b) {
-        if (X[a] != X[b]) return X[a] < X[b];
-        return Y[a] < Y[b];
-    });
-    auto cross = [&](keel::usize o, keel::usize a, keel::usize b) {
-        return (X[a] - X[o]) * (Y[b] - Y[o]) - (Y[a] - Y[o]) * (X[b] - X[o]);
-    };
-    keel::Array<keel::usize> hull(scratch.allocator());
-    hull.reserve(2 * n);
-    for (keel::usize i = 0; i < n; ++i) {
-        const keel::usize p = idx[i];
-        while (hull.size() >= 2
-               && cross(hull[hull.size() - 2], hull[hull.size() - 1], p) <= 0)
-            hull.pop_back();
-        hull.push_back(p);
-    }
-    const keel::usize lowerSize = hull.size() + 1;
-    for (keel::usize i = n - 1; i-- > 0; ) {
-        const keel::usize p = idx[i];
-        while (hull.size() >= lowerSize
-               && cross(hull[hull.size() - 2], hull[hull.size() - 1], p) <= 0)
-            hull.pop_back();
-        hull.push_back(p);
-    }
+    auto xd = toDoubleArray(x, scratch.allocator());
+    auto yd = toDoubleArray(y, scratch.allocator());
+    keel::Array<keel::usize> hull = keel::convhull(xd.as_ref(), yd.as_ref(), scratch.allocator());
     auto out = Value::matrix(hull.size(), 1, ValueType::DOUBLE, mr);
     double *dst = out.doubleDataMut();
     for (keel::usize i = 0; i < hull.size(); ++i)
-        dst[i] = static_cast<double>(hull[i] + 1); // 1-based
+        dst[i] = static_cast<double>(hull[i] + 1);
     return out;
 }
 
-// ── boundary (public C++ API) ────────────────────────────────────────
+// ── boundary ─────────────────────────────────────────────────────────
 
-Value boundary(const Value &x, const Value &y, double shrink,
-               keel::Allocator *mr)
+Value boundary(const Value &x, const Value &y, double shrink, keel::Allocator *mr)
 {
     const keel::usize n = x.numel();
     if (y.numel() != n)
         throw Error("boundary: x and y must have the same numel",
                      0, 0, "boundary", "", "numkit:boundary:shape");
-    if (!std::isfinite(shrink)) shrink = 0.0;
-    if (shrink < 0) shrink = 0;
-    if (shrink > 1) shrink = 1;
-    // shrink == 0 (or too few points) → convex hull.
-    if (shrink == 0.0 || n < 4)
+    if (n < 4)
         return convhull(x, y, mr);
-
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Allocator *salloc = scratch.allocator();
-    keel::Array<double> X(n, salloc), Y(n, salloc);
-    for (keel::usize i = 0; i < n; ++i) {
-        X[i] = x.elemAsDouble(i);
-        Y[i] = y.elemAsDouble(i);
-    }
-    auto sa2 = [&](keel::usize a, keel::usize b, keel::usize c) {
-        return (X[b]-X[a]) * (Y[c]-Y[a]) - (Y[b]-Y[a]) * (X[c]-X[a]);
-    };
-    auto inC = [&](keel::usize a, keel::usize b, keel::usize c, keel::usize p) {
-        const double ax=X[a]-X[p], ay=Y[a]-Y[p];
-        const double bx=X[b]-X[p], by=Y[b]-Y[p];
-        const double cx=X[c]-X[p], cy=Y[c]-Y[p];
-        const double a2=ax*ax+ay*ay, b2=bx*bx+by*by, c2=cx*cx+cy*cy;
-        return ax*(by*c2-cy*b2) - ay*(bx*c2-cx*b2) + a2*(bx*cy-cx*by);
-    };
-    keel::Array<Tri> tris(salloc);
-    for (keel::usize a = 0; a < n; ++a)
-        for (keel::usize b = a + 1; b < n; ++b)
-            for (keel::usize c = b + 1; c < n; ++c) {
-                const double s = sa2(a, b, c);
-                if (keel::abs(s) < 1e-15) continue;
-                keel::usize va=a, vb=b, vc=c;
-                if (s < 0) std::swap(vb, vc);
-                bool ok = true;
-                for (keel::usize p = 0; p < n; ++p) {
-                    if (p == va || p == vb || p == vc) continue;
-                    if (inC(va, vb, vc, p) > 1e-12) { ok = false; break; }
-                }
-                if (ok) tris.push_back({{va, vb, vc}});
-            }
-    if (tris.empty())
-        return convhull(x, y, mr);
-    auto edgeLen = [&](keel::usize a, keel::usize b) {
-        const double dx = X[a] - X[b], dy = Y[a] - Y[b];
-        return std::sqrt(dx * dx + dy * dy);
-    };
-    keel::Array<double> longestEdge(tris.size(), salloc);
-    for (keel::usize i = 0; i < tris.size(); ++i) {
-        const auto &T = tris[i];
-        longestEdge[i] = std::max({edgeLen(T[0], T[1]),
-                                   edgeLen(T[1], T[2]),
-                                   edgeLen(T[2], T[0])});
-    }
-    keel::Array<double> sortedLen = longestEdge.clone();
-    std::sort(sortedLen.begin(), sortedLen.end());
-    const double q = 1.0 - shrink;
-    const keel::usize qi = std::min(sortedLen.size() - 1,
-                                    (keel::usize)std::floor(q * sortedLen.size()));
-    const double threshold = sortedLen[qi];
-    keel::Array<Tri> kept(salloc);
-    kept.reserve(tris.size());
-    for (keel::usize i = 0; i < tris.size(); ++i)
-        if (longestEdge[i] <= threshold) kept.push_back(tris[i]);
-    if (kept.empty())
-        return convhull(x, y, mr);
-
-    keel::Array<std::pair<keel::usize, keel::usize>> allEdges(salloc);
-    allEdges.reserve(kept.size() * 3);
-    auto bumpEdge = [&](keel::usize a, keel::usize b) {
-        if (a > b) std::swap(a, b);
-        allEdges.push_back({a, b});
-    };
-    for (const auto &T : kept) {
-        bumpEdge(T[0], T[1]); bumpEdge(T[1], T[2]); bumpEdge(T[2], T[0]);
-    }
-    std::sort(allEdges.begin(), allEdges.end());
-
-    struct AdjEdge { keel::usize to; keel::usize id; };
-    keel::Array<keel::SmallArray<AdjEdge, 4>> adj(salloc);
-    adj.reserve(n);
-    for (keel::usize v = 0; v < n; ++v)
-        adj.emplace_back(salloc);
-
-    keel::usize numBoundaryEdges = 0;
-    for (keel::usize i = 0; i < allEdges.size(); ) {
-        keel::usize j = i + 1;
-        while (j < allEdges.size() && allEdges[j] == allEdges[i]) ++j;
-        if (j - i == 1) {
-            const keel::usize eid = numBoundaryEdges++;
-            const auto &edge = allEdges[i];
-            adj[edge.first].push_back({edge.second, eid});
-            adj[edge.second].push_back({edge.first, eid});
-        }
-        i = j;
-    }
-    if (numBoundaryEdges == 0)
-        return convhull(x, y, mr);
-
-    keel::usize start = n;
-    keel::usize numActiveVerts = 0;
-    for (keel::usize v = 0; v < n; ++v) {
-        if (!adj[v].empty()) {
-            if (start == n) start = v;
-            ++numActiveVerts;
-        }
-    }
-
-    keel::Array<keel::usize> poly(salloc);
-    keel::Array<keel::u8> visitedEdge(numBoundaryEdges, 0, salloc);
-    keel::usize cur = start;
-    poly.push_back(cur);
-    for (keel::usize step = 0; step < numActiveVerts + 2; ++step) {
-        bool moved = false;
-        for (const auto &ae : adj[cur]) {
-            if (visitedEdge[ae.id]) continue;
-            visitedEdge[ae.id] = 1;
-            poly.push_back(ae.to);
-            cur = ae.to;
-            moved = true;
-            if (cur == start) { moved = false; break; }
-            break;
-        }
-        if (!moved) break;
-    }
+    auto xd = toDoubleArray(x, scratch.allocator());
+    auto yd = toDoubleArray(y, scratch.allocator());
+    keel::Array<keel::usize> poly =
+        keel::boundary(xd.as_ref(), yd.as_ref(), shrink, scratch.allocator());
     auto out = Value::matrix(poly.size(), 1, ValueType::DOUBLE, mr);
     double *dst = out.doubleDataMut();
     for (keel::usize i = 0; i < poly.size(); ++i)
@@ -295,9 +124,6 @@ Value boundary(const Value &x, const Value &y, double shrink,
 }
 
 // ── delaunay ─────────────────────────────────────────────────────────
-//
-// See header for the public C++ API + Doxygen. This source unit hosts
-// the implementation plus its adapter.
 
 Value delaunay(const Value &x, const Value &y, keel::Allocator *mr)
 {
@@ -307,73 +133,23 @@ Value delaunay(const Value &x, const Value &y, keel::Allocator *mr)
                      0, 0, "delaunay", "", "numkit:delaunay:shape");
     if (n < 3)
         return Value::matrix(0, 3, ValueType::DOUBLE, mr);
-
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<double> X(n, scratch.allocator());
-    keel::Array<double> Y(n, scratch.allocator());
-    for (keel::usize i = 0; i < n; ++i) {
-        X[i] = x.elemAsDouble(i);
-        Y[i] = y.elemAsDouble(i);
-    }
-
-    // Robert Lewis-style in-circle test via 3×3 determinant. Returns
-    // > 0 when P lies strictly inside the CCW-oriented circumcircle
-    // of (A, B, C), < 0 if outside, 0 on the boundary.
-    auto inCircle = [&](keel::usize a, keel::usize b, keel::usize c,
-                        keel::usize p) {
-        const double ax = X[a] - X[p], ay = Y[a] - Y[p];
-        const double bx = X[b] - X[p], by = Y[b] - Y[p];
-        const double cx = X[c] - X[p], cy = Y[c] - Y[p];
-        const double a2 = ax * ax + ay * ay;
-        const double b2 = bx * bx + by * by;
-        const double c2 = cx * cx + cy * cy;
-        return ax * (by * c2 - cy * b2)
-             - ay * (bx * c2 - cx * b2)
-             + a2 * (bx * cy - cx * by);
-    };
-    auto signedArea2 = [&](keel::usize a, keel::usize b, keel::usize c) {
-        return (X[b] - X[a]) * (Y[c] - Y[a]) - (Y[b] - Y[a]) * (X[c] - X[a]);
-    };
-
-    keel::Array<Tri> tris(scratch.allocator());
-    tris.reserve(2 * n);
-    for (keel::usize a = 0; a < n; ++a) {
-        for (keel::usize b = a + 1; b < n; ++b) {
-            for (keel::usize c = b + 1; c < n; ++c) {
-                const double sa2 = signedArea2(a, b, c);
-                if (keel::abs(sa2) < 1e-15) continue;   // collinear
-                keel::usize va = a, vb = b, vc = c;
-                if (sa2 < 0) std::swap(vb, vc);   // make CCW
-                bool ok = true;
-                for (keel::usize p = 0; p < n; ++p) {
-                    if (p == va || p == vb || p == vc) continue;
-                    if (inCircle(va, vb, vc, p) > 1e-12) {
-                        ok = false;
-                        break;
-                    }
-                }
-                if (ok) tris.push_back({{ va, vb, vc }});
-            }
-        }
-    }
-
-    auto out = Value::matrix(tris.size(), 3, ValueType::DOUBLE, mr);
-    double *dst = out.doubleDataMut();
-    // Column-major: dst[col * M + row].
+    auto xd = toDoubleArray(x, scratch.allocator());
+    auto yd = toDoubleArray(y, scratch.allocator());
+    keel::Array<keel::Triangle> tris =
+        keel::delaunay(xd.as_ref(), yd.as_ref(), scratch.allocator());
     const keel::usize M = tris.size();
+    auto out = Value::matrix(M, 3, ValueType::DOUBLE, mr);
+    double *dst = out.doubleDataMut();
     for (keel::usize i = 0; i < M; ++i) {
-        dst[0 * M + i] = static_cast<double>(tris[i][0] + 1);
-        dst[1 * M + i] = static_cast<double>(tris[i][1] + 1);
-        dst[2 * M + i] = static_cast<double>(tris[i][2] + 1);
+        dst[0 * M + i] = static_cast<double>(tris[i].v0 + 1);
+        dst[1 * M + i] = static_cast<double>(tris[i].v1 + 1);
+        dst[2 * M + i] = static_cast<double>(tris[i].v2 + 1);
     }
     return out;
 }
 
 // ── griddata (2-D) ───────────────────────────────────────────────────
-//
-// See header for the public C++ API + Doxygen. Linear-only scattered
-// interpolation; this source unit hosts the implementation plus its
-// adapter.
 
 Value griddata(const Value &x, const Value &y, const Value &v,
                const Value &xqIn, const Value &yqIn, keel::StringRef methodIn,
@@ -384,8 +160,22 @@ Value griddata(const Value &x, const Value &y, const Value &v,
         throw Error("griddata: x, y, v must have the same numel",
                      0, 0, "griddata", "", "numkit:griddata:shape");
 
-    // When xq and yq are vectors with different orientations or different lengths,
-    // MATLAB expands them via [Xq, Yq] = meshgrid(xq, yq).
+    keel::ScatteredMethod method = keel::ScatteredMethod::Linear;
+    if (methodIn.empty() || methodIn.equals_ignore_ascii_case("linear")) {
+        method = keel::ScatteredMethod::Linear;
+    } else if (methodIn.equals_ignore_ascii_case("nearest")) {
+        method = keel::ScatteredMethod::Nearest;
+    } else if (methodIn.equals_ignore_ascii_case("v4")) {
+        method = keel::ScatteredMethod::BiharmonicV4;
+    } else if (methodIn.equals_ignore_ascii_case("natural")) {
+        method = keel::ScatteredMethod::Natural;
+    } else if (methodIn.equals_ignore_ascii_case("cubic")) {
+        method = keel::ScatteredMethod::Cubic;
+    } else {
+        throw Error(keel::format("griddata: unknown method '{}'", methodIn),
+                     0, 0, "griddata", "", "numkit:griddata:badMethod");
+    }
+
     Value xqExpanded, yqExpanded;
     const bool bothVectors = xqIn.dims().isVector() && yqIn.dims().isVector();
     const bool diffOrient  = (xqIn.dims().rows() == 1) != (yqIn.dims().rows() == 1);
@@ -410,275 +200,18 @@ Value griddata(const Value &x, const Value &y, const Value &v,
     if (xq.numel() != yq.numel())
         throw Error("griddata: xq and yq must have the same numel",
                      0, 0, "griddata", "", "numkit:griddata:queryShape");
-    auto out = Value::matrix(xq.dims().rows(), xq.dims().cols(),
-                             ValueType::DOUBLE, mr);
-    double *dst = out.doubleDataMut();
     const keel::usize nq = xq.numel();
-    if (n == 0) {
-        for (keel::usize i = 0; i < nq; ++i) dst[i] = std::nan("");
-        return out;
-    }
+    auto out = Value::matrix(xq.dims().rows(), xq.dims().cols(), ValueType::DOUBLE, mr);
 
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<double> X(n, scratch.allocator()), Y(n, scratch.allocator()), V(n, scratch.allocator());
-    keel::usize nUnique = 0;
-    keel::Array<keel::usize> counts(n, 0, scratch.allocator());
-    for (keel::usize i = 0; i < n; ++i) {
-        const double xi_v = x.elemAsDouble(i);
-        const double yi_v = y.elemAsDouble(i);
-        const double vi_v = v.elemAsDouble(i);
-        bool merged = false;
-        for (keel::usize j = 0; j < nUnique; ++j) {
-            if (keel::abs(X[j] - xi_v) <= 1e-12 && keel::abs(Y[j] - yi_v) <= 1e-12) {
-                V[j] += vi_v;
-                counts[j] += 1;
-                merged = true;
-                break;
-            }
-        }
-        if (!merged) {
-            X[nUnique] = xi_v;
-            Y[nUnique] = yi_v;
-            V[nUnique] = vi_v;
-            counts[nUnique] = 1;
-            ++nUnique;
-        }
-    }
-    for (keel::usize j = 0; j < nUnique; ++j) {
-        if (counts[j] > 1)
-            V[j] /= static_cast<double>(counts[j]);
-    }
-    const keel::usize n_orig = n; (void)n_orig;
-    #define n nUnique
-
-    if (methodIn.equals_ignore_ascii_case("nearest")) {
-        for (keel::usize q = 0; q < nq; ++q) {
-            const double Xq = xq.elemAsDouble(q);
-            const double Yq = yq.elemAsDouble(q);
-            double bestDist2 = std::numeric_limits<double>::infinity();
-            keel::usize bestIdx = 0;
-            for (keel::usize i = 0; i < n; ++i) {
-                const double dx = Xq - X[i];
-                const double dy = Yq - Y[i];
-                const double d2 = dx * dx + dy * dy;
-                if (d2 < bestDist2) {
-                    bestDist2 = d2;
-                    bestIdx = i;
-                }
-            }
-            dst[q] = V[bestIdx];
-        }
-        return out;
-    }
-
-    if (methodIn.equals_ignore_ascii_case("v4")) {
-        // Sandwell (1987) biharmonic spline interpolation:
-        // Solve G * w = V where G(i,j) = d^2 * (log(d) - 1) (0 when d == 0).
-        keel::Array<double> G(n * n, 0.0, scratch.allocator());
-        keel::Array<double> w(n, 0.0, scratch.allocator());
-        for (keel::usize i = 0; i < n; ++i) {
-            w[i] = V[i];
-            for (keel::usize j = 0; j < n; ++j) {
-                if (i == j) continue;
-                const double d = std::hypot(X[i] - X[j], Y[i] - Y[j]);
-                if (d > 0.0)
-                    G[i * n + j] = d * d * (std::log(d) - 1.0);
-            }
-        }
-        // Gaussian elimination with partial pivoting on row-major G (n x n).
-        for (keel::usize k = 0; k < n; ++k) {
-            keel::usize piv = k;
-            double maxAbs = keel::abs(G[k * n + k]);
-            for (keel::usize i = k + 1; i < n; ++i) {
-                const double a = keel::abs(G[i * n + k]);
-                if (a > maxAbs) { maxAbs = a; piv = i; }
-            }
-            if (piv != k) {
-                for (keel::usize j = k; j < n; ++j)
-                    std::swap(G[k * n + j], G[piv * n + j]);
-                std::swap(w[k], w[piv]);
-            }
-            const double diag = G[k * n + k];
-            if (keel::abs(diag) < 1e-18) continue;
-            for (keel::usize i = k + 1; i < n; ++i) {
-                const double f = G[i * n + k] / diag;
-                G[i * n + k] = 0.0;
-                for (keel::usize j = k + 1; j < n; ++j)
-                    G[i * n + j] -= f * G[k * n + j];
-                w[i] -= f * w[k];
-            }
-        }
-        for (keel::usize k = n; k-- > 0;) {
-            double s = w[k];
-            for (keel::usize j = k + 1; j < n; ++j)
-                s -= G[k * n + j] * w[j];
-            const double diag = G[k * n + k];
-            w[k] = (keel::abs(diag) >= 1e-18) ? (s / diag) : 0.0;
-        }
-        for (keel::usize q = 0; q < nq; ++q) {
-            const double Xq = xq.elemAsDouble(q);
-            const double Yq = yq.elemAsDouble(q);
-            double acc = 0.0;
-            for (keel::usize i = 0; i < n; ++i) {
-                const double d = std::hypot(Xq - X[i], Yq - Y[i]);
-                if (d > 0.0)
-                    acc += w[i] * d * d * (std::log(d) - 1.0);
-            }
-            dst[q] = acc;
-        }
-        return out;
-    }
-
-    if (!methodIn.empty()
-        && !methodIn.equals_ignore_ascii_case("linear")
-        && !methodIn.equals_ignore_ascii_case("natural")
-        && !methodIn.equals_ignore_ascii_case("cubic"))
-        throw Error(keel::format("griddata: unknown method '{}'", methodIn),
-                     0, 0, "griddata", "", "numkit:griddata:badMethod");
-
-    if (n < 3) {
-        for (keel::usize i = 0; i < nq; ++i) dst[i] = std::nan("");
-        return out;
-    }
-
-    // Reuse the brute-force Delaunay logic — emit triangle list as
-    // index triples.
-    auto signedArea2 = [&](keel::usize a, keel::usize b, keel::usize c) {
-        return (X[b] - X[a]) * (Y[c] - Y[a]) - (Y[b] - Y[a]) * (X[c] - X[a]);
-    };
-    auto inCircle = [&](keel::usize a, keel::usize b, keel::usize c,
-                        keel::usize p) {
-        const double ax = X[a] - X[p], ay = Y[a] - Y[p];
-        const double bx = X[b] - X[p], by = Y[b] - Y[p];
-        const double cx = X[c] - X[p], cy = Y[c] - Y[p];
-        const double a2 = ax * ax + ay * ay;
-        const double b2 = bx * bx + by * by;
-        const double c2 = cx * cx + cy * cy;
-        return ax * (by * c2 - cy * b2)
-             - ay * (bx * c2 - cx * b2)
-             + a2 * (bx * cy - cx * by);
-    };
-    keel::Array<Tri> tris(scratch.allocator());
-    tris.reserve(2 * n);
-    if (n <= 30) {
-        for (keel::usize a = 0; a < n; ++a) {
-            for (keel::usize b = a + 1; b < n; ++b) {
-                for (keel::usize c = b + 1; c < n; ++c) {
-                    const double sa2 = signedArea2(a, b, c);
-                    if (keel::abs(sa2) < 1e-15) continue;
-                    keel::usize va = a, vb = b, vc = c;
-                    if (sa2 < 0) std::swap(vb, vc);
-                    bool ok = true;
-                    for (keel::usize p = 0; p < n; ++p) {
-                        if (p == va || p == vb || p == vc) continue;
-                        if (inCircle(va, vb, vc, p) > 1e-12) { ok = false; break; }
-                    }
-                    if (ok) tris.push_back({{ va, vb, vc }});
-                }
-            }
-        }
-    } else {
-        // Bowyer-Watson incremental Delaunay triangulation for larger point sets.
-        keel::Array<double> bwx(n + 3, scratch.allocator()), bwy(n + 3, scratch.allocator());
-        double xmin = X[0], xmax = X[0], ymin = Y[0], ymax = Y[0];
-        for (keel::usize i = 0; i < n; ++i) {
-            bwx[i] = X[i];
-            bwy[i] = Y[i];
-            if (X[i] < xmin) xmin = X[i];
-            if (X[i] > xmax) xmax = X[i];
-            if (Y[i] < ymin) ymin = Y[i];
-            if (Y[i] > ymax) ymax = Y[i];
-        }
-        const double dx = xmax - xmin;
-        const double dy = ymax - ymin;
-        const double dmax = std::max(std::max(dx, dy), 1.0);
-        const double xmid = 0.5 * (xmin + xmax);
-        const double ymid = 0.5 * (ymin + ymax);
-        bwx[n]     = xmid - 20.0 * dmax; bwy[n]     = ymid - dmax;
-        bwx[n + 1] = xmid + 20.0 * dmax; bwy[n + 1] = ymid - dmax;
-        bwx[n + 2] = xmid;               bwy[n + 2] = ymid + 20.0 * dmax;
-
-        auto bwArea2 = [&](keel::usize a, keel::usize b, keel::usize c) {
-            return (bwx[b] - bwx[a]) * (bwy[c] - bwy[a]) - (bwy[b] - bwy[a]) * (bwx[c] - bwx[a]);
-        };
-        auto bwInCircle = [&](keel::usize a, keel::usize b, keel::usize c, keel::usize p) {
-            const double ax = bwx[a] - bwx[p], ay = bwy[a] - bwy[p];
-            const double bx = bwx[b] - bwx[p], by = bwy[b] - bwy[p];
-            const double cx = bwx[c] - bwx[p], cy = bwy[c] - bwy[p];
-            const double a2 = ax * ax + ay * ay;
-            const double b2 = bx * bx + by * by;
-            const double c2 = cx * cx + cy * cy;
-            return ax * (by * c2 - cy * b2)
-                 - ay * (bx * c2 - cx * b2)
-                 + a2 * (bx * cy - cx * by) > 1e-12;
-        };
-
-        tris.push_back({{ n, n + 1, n + 2 }});
-        keel::Array<std::pair<keel::usize, keel::usize>> edges(scratch.allocator());
-        keel::Array<Tri> nextTris(scratch.allocator());
-        for (keel::usize p = 0; p < n; ++p) {
-            edges.clear();
-            nextTris.clear();
-            for (const auto &t : tris) {
-                if (bwInCircle(t[0], t[1], t[2], p)) {
-                    edges.push_back({ t[0], t[1] });
-                    edges.push_back({ t[1], t[2] });
-                    edges.push_back({ t[2], t[0] });
-                } else {
-                    nextTris.push_back(t);
-                }
-            }
-            for (keel::usize i = 0; i < edges.size(); ++i) {
-                bool shared = false;
-                for (keel::usize j = 0; j < edges.size(); ++j) {
-                    if (i != j && edges[i].first == edges[j].second && edges[i].second == edges[j].first) {
-                        shared = true;
-                        break;
-                    }
-                }
-                if (!shared) {
-                    keel::usize va = edges[i].first, vb = edges[i].second, vc = p;
-                    const double sa = bwArea2(va, vb, vc);
-                    if (keel::abs(sa) > 1e-15) {
-                        if (sa < 0) std::swap(va, vb);
-                        nextTris.push_back({{ va, vb, vc }});
-                    }
-                }
-            }
-            std::swap(tris, nextTris);
-        }
-        nextTris.clear();
-        for (const auto &t : tris) {
-            if (t[0] < n && t[1] < n && t[2] < n)
-                nextTris.push_back(t);
-        }
-        std::swap(tris, nextTris);
-    }
-    // Per query point: walk triangles, find one that contains the
-    // query, compute barycentric coords, interpolate v.
-    for (keel::usize q = 0; q < nq; ++q) {
-        const double Xq = xq.elemAsDouble(q);
-        const double Yq = yq.elemAsDouble(q);
-        bool found = false;
-        for (const auto &t : tris) {
-            const double xa = X[t[0]], ya = Y[t[0]];
-            const double xb = X[t[1]], yb = Y[t[1]];
-            const double xc = X[t[2]], yc = Y[t[2]];
-            const double denom = (yb - yc) * (xa - xc) + (xc - xb) * (ya - yc);
-            if (keel::abs(denom) < 1e-15) continue;
-            const double l1 = ((yb - yc) * (Xq - xc) + (xc - xb) * (Yq - yc)) / denom;
-            const double l2 = ((yc - ya) * (Xq - xc) + (xa - xc) * (Yq - yc)) / denom;
-            const double l3 = 1.0 - l1 - l2;
-            // Inside or on boundary (allow a tiny epsilon for FP noise).
-            if (l1 >= -1e-9 && l2 >= -1e-9 && l3 >= -1e-9) {
-                dst[q] = l1 * V[t[0]] + l2 * V[t[1]] + l3 * V[t[2]];
-                found = true;
-                break;
-            }
-        }
-        if (!found) dst[q] = std::nan("");
-    }
-    #undef n
+    auto xd = toDoubleArray(x, scratch.allocator());
+    auto yd = toDoubleArray(y, scratch.allocator());
+    auto vd = toDoubleArray(v, scratch.allocator());
+    auto xqd = toDoubleArray(xq, scratch.allocator());
+    auto yqd = toDoubleArray(yq, scratch.allocator());
+    (void)keel::griddata(xd.as_ref(), yd.as_ref(), vd.as_ref(), xqd.as_ref(), yqd.as_ref(),
+                         keel::MutArrayRef<keel::f64>(out.doubleDataMut(), nq), method,
+                         scratch.allocator());
     return out;
 }
 
@@ -688,71 +221,34 @@ Value griddata(const Value &x, const Value &y, const Value &v,
     return griddata(x, y, v, xq, yq, "linear", mr);
 }
 
-// ── histcounts2 (over explicit edges) ─────────────────────────────────
-//
-// See header for the public C++ API + Doxygen. This typed core bins the
-// (x, y) pairs into the bins defined by explicit edge vectors; the nbins /
-// auto-edge convenience forms are resolved in the adapter below.
+// ── histcounts2 ──────────────────────────────────────────────────────
 
 Value histcounts2(const Value &x, const Value &y, const Value &xedgesV,
                   const Value &yedgesV, keel::Allocator *mr)
 {
     const keel::usize n = std::min(x.numel(), y.numel());
-    keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<double> xedges(xedgesV.numel(), scratch.allocator()),
-                        yedges(yedgesV.numel(), scratch.allocator());
-    for (keel::usize i = 0; i < xedges.size(); ++i)
-        xedges[i] = xedgesV.elemAsDouble(i);
-    for (keel::usize i = 0; i < yedges.size(); ++i)
-        yedges[i] = yedgesV.elemAsDouble(i);
-
-    const int nx = static_cast<int>(xedges.size()) - 1;
-    const int ny = static_cast<int>(yedges.size()) - 1;
-    if (nx < 1 || ny < 1 || n == 0)
+    if (xedgesV.numel() < 2 || yedgesV.numel() < 2 || n == 0)
         return Value::matrix(0, 0, ValueType::DOUBLE, mr);
 
-    auto out = Value::matrix(static_cast<keel::usize>(nx),
-                             static_cast<keel::usize>(ny), ValueType::DOUBLE, mr);
-    double *dst = out.doubleDataMut();
-    std::memset(dst, 0, sizeof(double) * static_cast<keel::usize>(nx) * ny);
+    const keel::usize nx = xedgesV.numel() - 1;
+    const keel::usize ny = yedgesV.numel() - 1;
+    auto out = Value::matrix(nx, ny, ValueType::DOUBLE, mr);
 
-    auto findBin = [](keel::ArrayRef<double> edges, double v) -> int {
-        const int e = static_cast<int>(edges.size());
-        if (v < edges[0] || v > edges[e - 1]) return -1;
-        // Inclusive on the right edge for the last bin (MATLAB).
-        for (int i = 0; i < e - 1; ++i) {
-            if (v >= edges[i] && (v < edges[i + 1]
-                                  || (i == e - 2 && v == edges[i + 1])))
-                return i;
-        }
-        return -1;
-    };
-    for (keel::usize i = 0; i < n; ++i) {
-        const double X = x.elemAsDouble(i);
-        const double Y = y.elemAsDouble(i);
-        if (!std::isfinite(X) || !std::isfinite(Y)) continue;
-        const int bx = findBin(xedges, X);
-        const int by = findBin(yedges, Y);
-        if (bx < 0 || by < 0) continue;
-        // Column-major: dst[col * nx + row], row = bx, col = by.
-        dst[static_cast<keel::usize>(by) * static_cast<keel::usize>(nx) +
-            static_cast<keel::usize>(bx)] += 1.0;
-    }
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    auto xd = toDoubleArray(x, scratch.allocator());
+    auto yd = toDoubleArray(y, scratch.allocator());
+    auto xe = toDoubleArray(xedgesV, scratch.allocator());
+    auto ye = toDoubleArray(yedgesV, scratch.allocator());
+    keel::histcounts2(xd.as_ref(), yd.as_ref(), xe.as_ref(), ye.as_ref(),
+                      keel::MutArrayRef<keel::f64>(out.doubleDataMut(), nx * ny));
     return out;
 }
 
 // ── griddatan ────────────────────────────────────────────────────────
-//
-// See header (toolboxes/builtin/include/numkit/builtin/math/geom/geom.hpp)
-// for the public C++ API + Doxygen. This source unit hosts the
-// implementation plus its adapter.
 
 Value griddatan(const Value &Xv, const Value &vv, const Value &xi,
                 keel::StringRef method, keel::Allocator *mr)
 {
-    // Shape: X is m×n, xi is k×n. Use rows/cols directly so a row
-    // vector `xi = [a b]` reads as 1×n (one query point in n-D), and
-    // a column vector `xi = [a; b]` reads as 2×1 (two queries in 1-D).
     const keel::usize m = Xv.dims().rows();
     const keel::usize n = Xv.dims().cols();
     if (vv.numel() != m)
@@ -764,31 +260,14 @@ Value griddatan(const Value &Xv, const Value &vv, const Value &xi,
         throw Error("griddatan: cols(xi) must equal cols(X)",
                      0, 0, "griddatan", "", "numkit:griddatan:queryDim");
     auto out = Value::matrix(k, 1, ValueType::DOUBLE, mr);
-    double *dst = out.doubleDataMut();
 
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
     if (method == "nearest") {
-        // Brute-force NN. Read X column-major as m × n.
-        keel::ArenaTemp scratch = keel::get_scratch(mr);
-        keel::Array<double> Xd(m * n, scratch.allocator());
-        for (keel::usize r = 0; r < m; ++r)
-            for (keel::usize c = 0; c < n; ++c)
-                Xd[c * m + r] = Xv.elemAsDouble(c * m + r);
-        keel::Array<double> Vd(m, scratch.allocator());
-        for (keel::usize i = 0; i < m; ++i) Vd[i] = vv.elemAsDouble(i);
-        for (keel::usize q = 0; q < k; ++q) {
-            double best = std::numeric_limits<double>::infinity();
-            keel::usize bestIdx = 0;
-            for (keel::usize i = 0; i < m; ++i) {
-                double d2 = 0.0;
-                for (keel::usize c = 0; c < n; ++c) {
-                    const double qc = xi.elemAsDouble(c * k + q);
-                    const double dc = qc - Xd[c * m + i];
-                    d2 += dc * dc;
-                }
-                if (d2 < best) { best = d2; bestIdx = i; }
-            }
-            dst[q] = Vd[bestIdx];
-        }
+        auto xd = toDoubleArray(Xv, scratch.allocator());
+        auto vd = toDoubleArray(vv, scratch.allocator());
+        auto xid = toDoubleArray(xi, scratch.allocator());
+        (void)keel::griddatan_nearest(xd.as_ref(), m, n, vd.as_ref(), xid.as_ref(), k,
+                                      keel::MutArrayRef<keel::f64>(out.doubleDataMut(), k));
         return out;
     }
 
@@ -799,73 +278,16 @@ Value griddatan(const Value &Xv, const Value &vv, const Value &xi,
                         "is a v1 KNOWN GAP)",
                          0, 0, "griddatan", "",
                          "numkit:griddatan:linearNDUnsupported");
-        // Delegate to griddata-style barycentric. Repack: X(:,1) = x,
-        // X(:,2) = y, then reuse the brute-force logic by constructing
-        // a temporary call.
-        // Quick inline implementation since the input shape differs.
-        keel::ArenaTemp scratch = keel::get_scratch(mr);
-        keel::Array<double> X(m, scratch.allocator()), Y(m, scratch.allocator()), V(m, scratch.allocator());
-        for (keel::usize i = 0; i < m; ++i) {
-            X[i] = Xv.elemAsDouble(0 * m + i);
-            Y[i] = Xv.elemAsDouble(1 * m + i);
-            V[i] = vv.elemAsDouble(i);
-        }
-        if (m < 3) {
-            for (keel::usize q = 0; q < k; ++q) dst[q] = std::nan("");
-            return out;
-        }
-        auto signedArea2 = [&](keel::usize a, keel::usize b, keel::usize c) {
-            return (X[b] - X[a]) * (Y[c] - Y[a]) - (Y[b] - Y[a]) * (X[c] - X[a]);
-        };
-        auto inCircle = [&](keel::usize a, keel::usize b, keel::usize c,
-                            keel::usize p) {
-            const double ax = X[a] - X[p], ay = Y[a] - Y[p];
-            const double bx = X[b] - X[p], by = Y[b] - Y[p];
-            const double cx = X[c] - X[p], cy = Y[c] - Y[p];
-            const double a2 = ax * ax + ay * ay;
-            const double b2 = bx * bx + by * by;
-            const double c2 = cx * cx + cy * cy;
-            return ax * (by * c2 - cy * b2)
-                 - ay * (bx * c2 - cx * b2)
-                 + a2 * (bx * cy - cx * by);
-        };
-        keel::Array<Tri> tris(scratch.allocator());
-        tris.reserve(2 * m);
-        for (keel::usize a = 0; a < m; ++a)
-            for (keel::usize b = a + 1; b < m; ++b)
-                for (keel::usize c = b + 1; c < m; ++c) {
-                    const double sa2 = signedArea2(a, b, c);
-                    if (keel::abs(sa2) < 1e-15) continue;
-                    keel::usize va = a, vb = b, vc = c;
-                    if (sa2 < 0) std::swap(vb, vc);
-                    bool ok = true;
-                    for (keel::usize p = 0; p < m; ++p) {
-                        if (p == va || p == vb || p == vc) continue;
-                        if (inCircle(va, vb, vc, p) > 1e-12) { ok = false; break; }
-                    }
-                    if (ok) tris.push_back({{ va, vb, vc }});
-                }
-        for (keel::usize q = 0; q < k; ++q) {
-            const double Xq = xi.elemAsDouble(0 * k + q);
-            const double Yq = xi.elemAsDouble(1 * k + q);
-            bool found = false;
-            for (const auto &t : tris) {
-                const double xa = X[t[0]], ya = Y[t[0]];
-                const double xb = X[t[1]], yb = Y[t[1]];
-                const double xc = X[t[2]], yc = Y[t[2]];
-                const double denom = (yb - yc) * (xa - xc) + (xc - xb) * (ya - yc);
-                if (keel::abs(denom) < 1e-15) continue;
-                const double l1 = ((yb - yc) * (Xq - xc) + (xc - xb) * (Yq - yc)) / denom;
-                const double l2 = ((yc - ya) * (Xq - xc) + (xa - xc) * (Yq - yc)) / denom;
-                const double l3 = 1.0 - l1 - l2;
-                if (l1 >= -1e-9 && l2 >= -1e-9 && l3 >= -1e-9) {
-                    dst[q] = l1 * V[t[0]] + l2 * V[t[1]] + l3 * V[t[2]];
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) dst[q] = std::nan("");
-        }
+        auto xd = toDoubleArray(Xv, scratch.allocator());
+        auto vd = toDoubleArray(vv, scratch.allocator());
+        auto xid = toDoubleArray(xi, scratch.allocator());
+        (void)keel::griddata(keel::ArrayRef<keel::f64>(xd.data(), m),
+                             keel::ArrayRef<keel::f64>(xd.data() + m, m),
+                             vd.as_ref(),
+                             keel::ArrayRef<keel::f64>(xid.data(), k),
+                             keel::ArrayRef<keel::f64>(xid.data() + k, k),
+                             keel::MutArrayRef<keel::f64>(out.doubleDataMut(), k),
+                             keel::ScatteredMethod::Linear, scratch.allocator());
         return out;
     }
 
@@ -878,32 +300,9 @@ Value griddatan(const Value &Xv, const Value &vv, const Value &xi, keel::Allocat
     return griddatan(Xv, vv, xi, "linear", mr);
 }
 
+// ── matchpairs ───────────────────────────────────────────────────────
 
-// ── matchpairs — linear assignment / bipartite matching ─────────────
-//
-// See header (toolboxes/builtin/include/numkit/builtin/math/geom/geom.hpp)
-// for the public C++ API + Doxygen.
-//
-// Algorithm: classical O(N²·M) Jonker-Volgenant Hungarian on the
-// augmented (rows + cols) × (rows + cols) cost matrix:
-//
-//   ┌──────────────────────┬─────────────────────┐
-//   │      Cost(rows×cols) │ diag(costUnmatched) │
-//   │                      │ + INF elsewhere     │   rows × cols  +  rows × rows
-//   ├──────────────────────┼─────────────────────┤
-//   │ diag(costUnmatched)  │   zero block        │
-//   │ + INF elsewhere      │  (dummy-dummy free) │   cols × cols  +  cols × rows
-//   └──────────────────────┴─────────────────────┘
-//
-// Each real match (i, j) costs Cost[i][j]; leaving row i unmatched
-// costs `costUnmatched` (matched to its private row-dummy col); same
-// for col j (matched to its private col-dummy row); free dummy-dummy
-// matches absorb the leftover capacity.
-//
-// 'max' mode negates both Cost AND costUnmatched (MATLAB convention —
-// costUnmatched becomes a REWARD for leaving unmatched).
-MatchpairsResult matchpairs(const Value &C, double cU,
-                            keel::StringRef mode,
+MatchpairsResult matchpairs(const Value &C, double cU, keel::StringRef mode,
                             keel::Allocator *mr)
 {
     if (C.type() == ValueType::COMPLEX)
@@ -917,137 +316,26 @@ MatchpairsResult matchpairs(const Value &C, double cU,
 
     const keel::usize rows = C.dims().rows();
     const keel::usize cols = C.dims().cols();
-
-    if (rows == 0 || cols == 0) {
-        MatchpairsResult r;
-        r.M = Value::matrix(0, 2, ValueType::DOUBLE, mr);
-        r.uR = Value::matrix(rows, 1, ValueType::DOUBLE, mr);
-        for (keel::usize i = 0; i < rows; ++i) r.uR.doubleDataMut()[i] = i + 1;
-        r.uC = Value::matrix(cols, 1, ValueType::DOUBLE, mr);
-        for (keel::usize j = 0; j < cols; ++j) r.uC.doubleDataMut()[j] = j + 1;
-        return r;
-    }
-
-    // Build augmented N×N matrix.
-    const keel::usize N = rows + cols;
-    constexpr double BIG = 1e15;
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Allocator *salloc = scratch.allocator();
-    keel::Array<double> A(N * N, BIG, salloc);
-    for (keel::usize i = 0; i < rows; ++i)
-        for (keel::usize j = 0; j < cols; ++j) {
-            double v = C.elemAsDouble(j * rows + i);
-            if (maximise) v = -v;
-            A[i * N + j] = v;
-        }
-    // Top-right block: diag(costUnmatched). Row i can opt-out via col cols+i.
-    // MATLAB convention: in 'max' mode the unmatched cost ALSO flips sign
-    // (it becomes a benefit/reward for leaving unmatched, so we want to
-    // maximise it → minimise -costUnmatched). Matches MATLAB R2025b's
-    // observed behaviour: max + high positive costUnmatched leaves
-    // everything unmatched, max + zero/negative costUnmatched matches.
-    const double cuSigned = maximise ? -cU : cU;
-    for (keel::usize i = 0; i < rows; ++i)
-        A[i * N + (cols + i)] = cuSigned;
-    // Bottom-left block: diag(costUnmatched). Dummy row rows+j absorbs col j.
-    for (keel::usize j = 0; j < cols; ++j)
-        A[(rows + j) * N + j] = cuSigned;
-    // Bottom-right block: zero (dummy-dummy free).
-    for (keel::usize j = 0; j < cols; ++j)
-        for (keel::usize i = 0; i < rows; ++i)
-            A[(rows + j) * N + (cols + i)] = 0.0;
+    auto cd = toDoubleArray(C, scratch.allocator());
+    keel::MatchpairsOutput mp =
+        keel::matchpairs(cd.as_ref(), rows, cols, cU, maximise, scratch.allocator());
 
-    // Jonker-Volgenant Hungarian. Indexing: 1..N internally, with row 0
-    // as a sentinel (so p[0] holds the row currently being augmented).
-    // Returns assignment[i] (0-based) giving column for row i.
-    keel::Array<double> u(N + 1, 0.0, salloc), v_d(N + 1, 0.0, salloc);
-    keel::Array<int> p(N + 1, 0, salloc), way(N + 1, 0, salloc);
-    keel::Array<double> minv(salloc);
-    keel::Array<keel::u8> used(salloc);
-    for (keel::usize i = 1; i <= N; ++i) {
-        p[0] = static_cast<int>(i);
-        int j0 = 0;
-        minv.assign(N + 1, std::numeric_limits<double>::infinity());
-        used.assign(N + 1, 0);
-        do {
-            used[j0] = 1;
-            int i0 = p[j0];
-            int j1 = -1;
-            double delta = std::numeric_limits<double>::infinity();
-            for (keel::usize j = 1; j <= N; ++j) {
-                if (used[j]) continue;
-                const double cur = A[static_cast<keel::usize>(i0 - 1) * N + (j - 1)] - u[i0] - v_d[j];
-                if (cur < minv[j]) {
-                    minv[j] = cur;
-                    way[j] = j0;
-                }
-                if (minv[j] < delta) {
-                    delta = minv[j];
-                    j1 = static_cast<int>(j);
-                }
-            }
-            for (keel::usize j = 0; j <= N; ++j) {
-                if (used[j]) {
-                    u[p[j]] += delta;
-                    v_d[j]  -= delta;
-                } else {
-                    minv[j] -= delta;
-                }
-            }
-            j0 = j1;
-        } while (p[j0] != 0);
-        do {
-            int j1 = way[j0];
-            p[j0] = p[j1];
-            j0 = j1;
-        } while (j0);
-    }
-
-    // Decode: for row i (1-based), assigned column = (1-based j where p[j] == i).
-    keel::Array<int> rowAssign(N, -1, salloc);
-    for (keel::usize j = 1; j <= N; ++j)
-        if (p[j] > 0)
-            rowAssign[p[j] - 1] = static_cast<int>(j) - 1;
-
-    // Walk real rows, build outputs.
-    keel::Array<std::pair<int, int>> matches(salloc);
-    keel::Array<int> unmatchedRows(salloc);
-    matches.reserve(std::min(rows, cols));
-    unmatchedRows.reserve(rows);
-    for (keel::usize i = 0; i < rows; ++i) {
-        const int j = rowAssign[i];
-        if (j >= 0 && static_cast<keel::usize>(j) < cols)
-            matches.push_back({ static_cast<int>(i) + 1, j + 1 });
-        else
-            unmatchedRows.push_back(static_cast<int>(i) + 1);
-    }
-    // Unmatched cols: those not appearing in matches.
-    keel::Array<keel::u8> colUsed(cols, 0, salloc);
-    for (const auto &pr : matches) colUsed[pr.second - 1] = 1;
-    keel::Array<int> unmatchedCols(salloc);
-    unmatchedCols.reserve(cols);
-    for (keel::usize j = 0; j < cols; ++j)
-        if (!colUsed[j])
-            unmatchedCols.push_back(static_cast<int>(j) + 1);
-
-    // Pack outputs (column-major).
     MatchpairsResult result;
-    result.M = Value::matrix(matches.size(), 2, ValueType::DOUBLE, mr);
-    {
-        double *Md = result.M.doubleDataMut();
-        for (keel::usize k = 0; k < matches.size(); ++k) {
-            Md[k] = matches[k].first;
-            Md[matches.size() + k] = matches[k].second;
-        }
+    const keel::usize nm = mp.matches.size();
+    result.M = Value::matrix(nm, 2, ValueType::DOUBLE, mr);
+    double *md = result.M.doubleDataMut();
+    for (keel::usize k = 0; k < nm; ++k) {
+        md[k] = static_cast<double>(mp.matches[k].row + 1);
+        md[nm + k] = static_cast<double>(mp.matches[k].col + 1);
     }
-    result.uR = Value::matrix(unmatchedRows.size(), 1, ValueType::DOUBLE, mr);
-    for (keel::usize k = 0; k < unmatchedRows.size(); ++k)
-        result.uR.doubleDataMut()[k] = unmatchedRows[k];
-    result.uC = Value::matrix(unmatchedCols.size(), 1, ValueType::DOUBLE, mr);
-    for (keel::usize k = 0; k < unmatchedCols.size(); ++k)
-        result.uC.doubleDataMut()[k] = unmatchedCols[k];
+    result.uR = Value::matrix(mp.unmatched_rows.size(), 1, ValueType::DOUBLE, mr);
+    for (keel::usize k = 0; k < mp.unmatched_rows.size(); ++k)
+        result.uR.doubleDataMut()[k] = static_cast<double>(mp.unmatched_rows[k] + 1);
+    result.uC = Value::matrix(mp.unmatched_cols.size(), 1, ValueType::DOUBLE, mr);
+    for (keel::usize k = 0; k < mp.unmatched_cols.size(); ++k)
+        result.uC.doubleDataMut()[k] = static_cast<double>(mp.unmatched_cols[k] + 1);
     return result;
 }
-
 
 } // namespace numkit::builtin

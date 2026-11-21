@@ -183,6 +183,44 @@ if(NOT TARGET keel::specfun)
     FetchContent_MakeAvailable(keel_specfun)
 endif()
 
+if(NOT TARGET keel::geom)
+    find_package(keel_geom QUIET CONFIG)
+    if(TARGET keel::keel_geom AND NOT TARGET keel::geom)
+        add_library(keel::geom ALIAS keel::keel_geom)
+    endif()
+endif()
+if(NOT TARGET keel::geom)
+    set(KEEL_GEOM_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../../../keelcpp/geom/CMakeLists.txt" AND NOT DEFINED FETCHCONTENT_SOURCE_DIR_KEEL_GEOM)
+        set(FETCHCONTENT_SOURCE_DIR_KEEL_GEOM "${CMAKE_CURRENT_SOURCE_DIR}/../../../keelcpp/geom" CACHE PATH "Local keel_geom checkout")
+    endif()
+    FetchContent_Declare(
+        keel_geom
+        GIT_REPOSITORY https://github.com/keelcpp/geom.git
+        GIT_TAG        0ac4f4b1a9fd8de6e4747749aea53f5c0f7fbec4
+    )
+    FetchContent_MakeAvailable(keel_geom)
+endif()
+
+if(NOT TARGET keel::interp)
+    find_package(keel_interp QUIET CONFIG)
+    if(TARGET keel::keel_interp AND NOT TARGET keel::interp)
+        add_library(keel::interp ALIAS keel::keel_interp)
+    endif()
+endif()
+if(NOT TARGET keel::interp)
+    set(KEEL_INTERP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../../../keelcpp/interp/CMakeLists.txt" AND NOT DEFINED FETCHCONTENT_SOURCE_DIR_KEEL_INTERP)
+        set(FETCHCONTENT_SOURCE_DIR_KEEL_INTERP "${CMAKE_CURRENT_SOURCE_DIR}/../../../keelcpp/interp" CACHE PATH "Local keel_interp checkout")
+    endif()
+    FetchContent_Declare(
+        keel_interp
+        GIT_REPOSITORY https://github.com/keelcpp/interp.git
+        GIT_TAG        4e5d4b78213fedce65e86b6cac22a1e447275aa8
+    )
+    FetchContent_MakeAvailable(keel_interp)
+endif()
+
 set(NUMKIT_OPS_SOURCES
     src/rng/matlab_mt19937.cpp
     src/rng/rng.cpp
@@ -260,7 +298,7 @@ target_include_directories(numkit_ops
 )
 
 target_link_libraries(numkit_ops
-    PUBLIC numkit_value keel::random keel::linalg keel::specfun
+    PUBLIC numkit_value keel::random keel::linalg keel::specfun keel::geom keel::interp
     PRIVATE hwy hwy_contrib keel::compress keel::image keel::fft
 )
 
