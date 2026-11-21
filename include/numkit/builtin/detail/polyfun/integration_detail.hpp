@@ -13,6 +13,7 @@
 #include <keel/memory.h>
 #include <keel/array.h>
 #include <keel/complex.h>
+#include <keel/quad.h>
 #include <numkit/value/value.hpp>
 
 #include <cstddef>
@@ -20,28 +21,11 @@
 namespace numkit::builtin::detail {
 
 // 15-point Gauss-Kronrod nodes (symmetric about 0) and weights, plus the
-// embedded 7-point Gauss weights. Source: Davis & Rabinowitz, "Methods of
-// Numerical Integration". Shared by the kernel (gaussKronrod15) and the
-// __gk15_nodes primitive that feeds the pausable .m integral wrapper.
-inline constexpr double kKronrodX[15] = {
-    -0.991455371120813, -0.949107912342759, -0.864864423359769,
-    -0.741531185599394, -0.586087235467691, -0.405845151377397,
-    -0.207784955007898,  0.0,                0.207784955007898,
-     0.405845151377397,  0.586087235467691,  0.741531185599394,
-     0.864864423359769,  0.949107912342759,  0.991455371120813,
-};
-inline constexpr double kKronrodW[15] = {
-    0.022935322010529, 0.063092092629979, 0.104790010322250,
-    0.140653259715525, 0.169004726639267, 0.190350578064785,
-    0.204432940075298, 0.209482141084728, 0.204432940075298,
-    0.190350578064785, 0.169004726639267, 0.140653259715525,
-    0.104790010322250, 0.063092092629979, 0.022935322010529,
-};
-inline constexpr double kGaussW[7] = {
-    0.129484966168870, 0.279705391489277, 0.381830050505119,
-    0.417959183673469, 0.381830050505119, 0.279705391489277,
-    0.129484966168870,
-};
+// embedded 7-point Gauss weights — re-exported from keel::quad so the
+// __gk15_nodes primitive shares the single source of truth.
+using ::keel::quad::kKronrodX;
+using ::keel::quad::kKronrodW;
+using ::keel::quad::kGaussW;
 
 // Copy any numeric/logical Value to a fresh DOUBLE Value (used by every
 // cumtrapz/trapz path that needs a real double buffer).

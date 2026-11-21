@@ -2,36 +2,33 @@
 //
 // Private (src-only) helpers shared by the explicit Runge-Kutta integrators
 // ode45 (Dormand-Prince 5(4)) and ode23 (Bogacki-Shampine 3(2)): the options
-// struct, its parser, and the FnHandle RHS bridge. These were verbatim-
-// duplicated in ode45.cpp and ode23.cpp; factored here (the filter_detail.hpp
-// pattern). ODE-domain + Value-coupled â€” they stay in the ode toolbox, NOT ops.
-//
-// The method-specific pieces (DOPRI5 / BS23 tableaux, dense-output / Hermite
-// interpolants, the stepping loops) stay in their own TUs.
+// struct, its parser, and the FnHandle <-> keel::ode adapter.
 #pragma once
 
 #include <keel/array.h>
 #include <keel/core.h>
 #include <keel/format.h>
+#include <keel/math.h>
 #include <keel/memory.h>
+#include <keel/ode.h>
 #include <keel/ref.h>
-#include <numkit/value/value.hpp>
+#include <keel/static_array.h>
 #include <numkit/value/error.hpp>
 #include <numkit/value/fn_handle.hpp>
+#include <numkit/value/value.hpp>
 
-#include <keel/static_array.h>
-#include <cstddef>
-#include <limits>
+#include <cstring>
+#include <tuple>
+#include <utility>
 
 namespace numkit::ode {
 
 // Solver options shared by ode45 / ode23. All defaults are common EXCEPT
-// `refine` (ode45 â†’ 4, ode23 â†’ 1 per MATLAB R2025b), which the caller supplies
-// to read_opts; the field initialiser here is only a placeholder.
+// `refine` (ode45 -> 4, ode23 -> 1), which the caller supplies to read_opts.
 struct OdeOpts {
     double              rel_tol      = 1e-3;
     keel::Array<double> abs_tol      = keel::Array<double>(1, 1e-6, nullptr);
-    double              max_step     = std::numeric_limits<double>::infinity();
+    double              max_step     = keel::Limits<double>::infinity();
     double              initial_step = 0.0;
     int                 refine       = 4;
     bool                norm_control = false;
@@ -39,7 +36,7 @@ struct OdeOpts {
 };
 
 // Parse the options struct. `refine_default` is the solver's default Refine
-// (ode45 â†’ 4, ode23 â†’ 1); an explicit opts.Refine field overrides it.
+// (ode45 -> 4, ode23 -> 1); an explicit opts.Refine field overrides it.
 inline OdeOpts read_opts(const Value &opts, int refine_default)
 {
     OdeOpts o;
@@ -53,7 +50,7 @@ inline OdeOpts read_opts(const Value &opts, int refine_default)
         return def;
     };
     o.rel_tol      = get_double("RelTol", 1e-3);
-    o.max_step     = get_double("MaxStep", std::numeric_limits<double>::infinity());
+    o.max_step     = get_double("MaxStep", keel::Limits<double>::infinity());
     o.initial_step = get_double("InitialStep", 0.0);
     if (opts.hasField("Refine")) {
         const Value &v = opts.field("Refine");
@@ -87,27 +84,94 @@ inline OdeOpts read_opts(const Value &opts, int refine_default)
     return o;
 }
 
-// Evaluate the RHS callback at (t, y) -> dy/dt (length d). Engine-free: the RHS
-// is a numkit::FnHandle (args = {t, y}, outs[0] = dy/dt). `solver` ("ode45" /
-// "ode23") names the caller in the size-mismatch error so each integrator keeps
-// its own message + identifier. The per-TU `eval_rhs` wrapper binds it.
-inline void callOdeRhs(FnHandle rhs, double t, keel::ArrayRef<double> y,
-                       keel::Array<double> &dydt, keel::Allocator *mr,
-                       const char *solver)
+using KeelOdeSolverFn = keel::ode::Solution (*)(keel::ode::RhsFn, keel::ArrayRef<keel::f64>,
+                                                keel::ArrayRef<keel::f64>, const keel::ode::Options &,
+                                                keel::Allocator *);
+
+inline std::tuple<Value, Value>
+runKeelOde(KeelOdeSolverFn solver_fn, const char *solver, int refine_default,
+           FnHandle rhs, const Value &tspan, const Value &y0,
+           const Value &opts, keel::Allocator *mr)
 {
-    const keel::usize d = y.size();
-    Value tv = Value::scalar(t, mr);
-    Value yv = Value::matrix(d, 1, ValueType::DOUBLE, mr);
-    for (keel::usize i = 0; i < d; ++i) yv.doubleDataMut()[i] = y[i];
-    keel::StaticArray<Value, 2> args_buf{tv, yv};
-    Value                out_buf;
-    rhs(keel::ArrayRef<Value>(args_buf.data(), 2), keel::MutArrayRef<Value>(&out_buf, 1), mr);
-    if (out_buf.numel() != d)
-        throw Error(keel::format("{}: RHS returned {} values but expected {}",
-                                 solver, out_buf.numel(), d),
-                    0, 0, solver, "", keel::format("numkit:{}:badRhsSize", solver));
-    dydt.resize(d);
-    for (keel::usize i = 0; i < d; ++i) dydt[i] = out_buf.elemAsDouble(i);
+    const keel::usize nspan = tspan.numel();
+    keel::Array<keel::f64> ts(nspan, mr);
+    for (keel::usize i = 0; i < nspan; ++i) ts[i] = tspan.elemAsDouble(i);
+
+    const keel::usize d = y0.numel();
+    keel::Array<keel::f64> y_init(d, mr);
+    for (keel::usize i = 0; i < d; ++i) y_init[i] = y0.elemAsDouble(i);
+
+    OdeOpts O = read_opts(opts, refine_default);
+    keel::ode::Options kopts;
+    kopts.rel_tol = O.rel_tol;
+    kopts.abs_tol = keel::ArrayRef<keel::f64>(O.abs_tol.data(), O.abs_tol.size());
+    kopts.max_step = O.max_step;
+    kopts.initial_step = O.initial_step;
+    kopts.refine = O.refine;
+    kopts.max_steps = 100000;
+    kopts.max_consecutive_failures = 10;
+
+    auto rhs_bridge = [&](keel::f64 t, keel::ArrayRef<keel::f64> y,
+                          keel::MutArrayRef<keel::f64> dydt) -> bool {
+        const keel::usize dim = y.size();
+        Value tv = Value::scalar(t, mr);
+        Value yv = Value::matrix(dim, 1, ValueType::DOUBLE, mr);
+        if (dim > 0) std::memcpy(yv.doubleDataMut(), y.data(), dim * sizeof(keel::f64));
+        keel::StaticArray<Value, 2> args_buf{tv, yv};
+        Value out_buf;
+        rhs(keel::ArrayRef<Value>(args_buf.data(), 2), keel::MutArrayRef<Value>(&out_buf, 1), mr);
+        if (out_buf.numel() != dim)
+            throw Error(keel::format("{}: RHS returned {} values but expected {}",
+                                     solver, out_buf.numel(), dim),
+                        0, 0, solver, "", keel::format("numkit:{}:badRhsSize", solver));
+        for (keel::usize i = 0; i < dim; ++i) dydt[i] = out_buf.elemAsDouble(i);
+        return true;
+    };
+
+    keel::ode::Solution sol = solver_fn(
+        rhs_bridge,
+        keel::ArrayRef<keel::f64>(ts.data(), ts.size()),
+        keel::ArrayRef<keel::f64>(y_init.data(), y_init.size()),
+        kopts, mr);
+
+    switch (sol.status) {
+    case keel::ode::Status::Ok:
+        break;
+    case keel::ode::Status::InvalidTspan:
+        throw Error(keel::format("{}: tspan must have at least 2 elements", solver),
+                    0, 0, solver, "", keel::format("numkit:{}:tspanShort", solver));
+    case keel::ode::Status::DegenerateTspan:
+        throw Error(keel::format("{}: tspan(end) must differ from tspan(1)", solver),
+                    0, 0, solver, "", keel::format("numkit:{}:tspanDegenerate", solver));
+    case keel::ode::Status::NonMonotonicTspan:
+        throw Error(keel::format("{}: tspan must be strictly monotonic", solver),
+                    0, 0, solver, "", keel::format("numkit:{}:tspanMono", solver));
+    case keel::ode::Status::InvalidAbsTol:
+        throw Error(keel::format("{}: AbsTol must be scalar or match length(y0)", solver),
+                    0, 0, solver, "", keel::format("numkit:{}:absTolSize", solver));
+    case keel::ode::Status::TooManyFailures:
+        throw Error(keel::format("{}: 10 consecutive step rejections; "
+                                 "tolerances may be too tight or RHS too stiff", solver),
+                    0, 0, solver, "", keel::format("numkit:{}:tooManyFailures", solver));
+    case keel::ode::Status::StepUnderflow:
+        throw Error(keel::format("{}: step size underflow", solver),
+                    0, 0, solver, "", keel::format("numkit:{}:stepUnderflow", solver));
+    case keel::ode::Status::TooManySteps:
+        throw Error(keel::format("{}: exceeded {} integration steps", solver, kopts.max_steps),
+                    0, 0, solver, "", keel::format("numkit:{}:tooManySteps", solver));
+    case keel::ode::Status::EmptyState:
+    case keel::ode::Status::InvalidRhs:
+    case keel::ode::Status::RhsError:
+        throw Error(keel::format("{}: integration failed", solver),
+                    0, 0, solver, "", keel::format("numkit:{}:failed", solver));
+    }
+
+    const keel::usize m = sol.num_points();
+    Value t_val = Value::matrix(m, 1, ValueType::DOUBLE, mr);
+    if (m > 0) std::memcpy(t_val.doubleDataMut(), sol.t.data(), m * sizeof(keel::f64));
+    Value y_val = Value::matrix(m, d, ValueType::DOUBLE, mr);
+    if (m * d > 0) std::memcpy(y_val.doubleDataMut(), sol.y_colmajor.data(), m * d * sizeof(keel::f64));
+    return {std::move(t_val), std::move(y_val)};
 }
 
 } // namespace numkit::ode

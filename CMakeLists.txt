@@ -221,6 +221,44 @@ if(NOT TARGET keel::interp)
     FetchContent_MakeAvailable(keel_interp)
 endif()
 
+if(NOT TARGET keel::ode)
+    find_package(keel_ode QUIET CONFIG)
+    if(TARGET keel::keel_ode AND NOT TARGET keel::ode)
+        add_library(keel::ode ALIAS keel::keel_ode)
+    endif()
+endif()
+if(NOT TARGET keel::ode)
+    set(KEEL_ODE_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../../../keelcpp/ode/CMakeLists.txt" AND NOT DEFINED FETCHCONTENT_SOURCE_DIR_KEEL_ODE)
+        set(FETCHCONTENT_SOURCE_DIR_KEEL_ODE "${CMAKE_CURRENT_SOURCE_DIR}/../../../keelcpp/ode" CACHE PATH "Local keel_ode checkout")
+    endif()
+    FetchContent_Declare(
+        keel_ode
+        GIT_REPOSITORY https://github.com/keelcpp/ode.git
+        GIT_TAG        9b88b39d265e2840bedfbf9486c80218da6e8266
+    )
+    FetchContent_MakeAvailable(keel_ode)
+endif()
+
+if(NOT TARGET keel::quad)
+    find_package(keel_quad QUIET CONFIG)
+    if(TARGET keel::keel_quad AND NOT TARGET keel::quad)
+        add_library(keel::quad ALIAS keel::keel_quad)
+    endif()
+endif()
+if(NOT TARGET keel::quad)
+    set(KEEL_QUAD_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../../../keelcpp/quad/CMakeLists.txt" AND NOT DEFINED FETCHCONTENT_SOURCE_DIR_KEEL_QUAD)
+        set(FETCHCONTENT_SOURCE_DIR_KEEL_QUAD "${CMAKE_CURRENT_SOURCE_DIR}/../../../keelcpp/quad" CACHE PATH "Local keel_quad checkout")
+    endif()
+    FetchContent_Declare(
+        keel_quad
+        GIT_REPOSITORY https://github.com/keelcpp/quad.git
+        GIT_TAG        0f92154bd11a481269fa9312bbf3e9e5af7914cc
+    )
+    FetchContent_MakeAvailable(keel_quad)
+endif()
+
 set(NUMKIT_OPS_SOURCES
     src/rng/matlab_mt19937.cpp
     src/rng/rng.cpp
@@ -298,7 +336,7 @@ target_include_directories(numkit_ops
 )
 
 target_link_libraries(numkit_ops
-    PUBLIC numkit_value keel::random keel::linalg keel::specfun keel::geom keel::interp
+    PUBLIC numkit_value keel::random keel::linalg keel::specfun keel::geom keel::interp keel::ode keel::quad
     PRIVATE hwy hwy_contrib keel::compress keel::image keel::fft
 )
 
