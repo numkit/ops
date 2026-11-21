@@ -4,6 +4,7 @@
 #include <keel/memory.h>
 #include <keel/arena.h>
 #include <keel/array.h>
+#include <keel/specfun.h>
 #include <numkit/builtin/specfun.hpp>
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
@@ -33,26 +34,12 @@ Value primes(double n, keel::Allocator *mr)
         return Value::matrix(1, 0, ValueType::DOUBLE, mr);
     const keel::u64 N = static_cast<keel::u64>(std::floor(n));
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    // Sieve mask — uint8_t rather than bool to avoid std::pmr::vector<bool>'s
-    // bit-packed proxy reference (MSVC's specialisation has caused subtle
-    // initialisation bugs here in the past). One byte per slot is also
-    // friendlier on the cache for the inner mark loop.
-    auto composite = keel::Array<keel::u8>(N + 1, scratch.allocator());
-    for (keel::u64 i = 2; i * i <= N; ++i)
-        if (!composite[i])
-            for (keel::u64 j = i * i; j <= N; j += i)
-                composite[j] = 1;
+    keel::Array<keel::u64> ps = keel::primes_up_to(N, scratch.allocator());
 
-    auto primesVec = keel::Array<double>(scratch.allocator());
-    primesVec.reserve(static_cast<keel::usize>(N / std::log(static_cast<double>(N) + 1.0)) + 1);
-    for (keel::u64 i = 2; i <= N; ++i)
-        if (!composite[i])
-            primesVec.push_back(static_cast<double>(i));
-
-    auto out = Value::matrix(1, primesVec.size(), ValueType::DOUBLE, mr);
-    if (!primesVec.empty())
-        std::memcpy(out.doubleDataMut(), primesVec.data(),
-                    primesVec.size() * sizeof(double));
+    auto out = Value::matrix(1, ps.size(), ValueType::DOUBLE, mr);
+    double *dst = out.doubleDataMut();
+    for (keel::usize i = 0; i < ps.size(); ++i)
+        dst[i] = static_cast<double>(ps[i]);
     return out;
 }
 
@@ -65,8 +52,8 @@ Value isprime(const Value &x, keel::Allocator *mr)
     keel::u8 *dst = out.logicalDataMut();
     const keel::usize N = x.numel();
     for (keel::usize i = 0; i < N; ++i) {
-        const double v = x.elemAsDouble(i);
-        dst[i] = isPrimeDouble(v) ? 1 : 0;
+        keel::u64 u = 0;
+        dst[i] = (isExactNonnegInt(x.elemAsDouble(i), u) && keel::is_prime_u64(u)) ? 1 : 0;
     }
     return out;
 }
@@ -77,28 +64,13 @@ Value factor(double n, keel::Allocator *mr)
     if (!isExactNonnegInt(n, u))
         throw Error("factor: argument must be a non-negative integer scalar",
                      0, 0, "factor", "", "numkit:factor:badArg");
-    if (u == 0 || u == 1) {
-        auto r = Value::matrix(1, 1, ValueType::DOUBLE, mr);
-        r.doubleDataMut()[0] = static_cast<double>(u);
-        return r;
-    }
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    auto factors = keel::Array<double>(scratch.allocator());
-    keel::u64 m = u;
-    while (m % 2 == 0) { factors.push_back(2.0); m /= 2; }
-    for (keel::u64 p = 3; p * p <= m; p += 2) {
-        while (m % p == 0) {
-            factors.push_back(static_cast<double>(p));
-            m /= p;
-        }
-    }
-    if (m > 1)
-        factors.push_back(static_cast<double>(m));
+    keel::Array<keel::u64> factors = keel::factor_u64(u, scratch.allocator());
 
     auto out = Value::matrix(1, factors.size(), ValueType::DOUBLE, mr);
-    if (!factors.empty())
-        std::memcpy(out.doubleDataMut(), factors.data(),
-                    factors.size() * sizeof(double));
+    double *dst = out.doubleDataMut();
+    for (keel::usize i = 0; i < factors.size(); ++i)
+        dst[i] = static_cast<double>(factors[i]);
     return out;
 }
 
@@ -171,16 +143,7 @@ Value nchoosek(double n, double k, keel::Allocator *mr)
         throw Error("nchoosek: k must satisfy 0 ≤ k ≤ n",
                      0, 0, "nchoosek", "", "numkit:nchoosek:kTooLarge");
 
-    double kk = (k > n - k) ? n - k : k;
-    if (kk == 0.0)
-        return Value::scalar(1.0, mr);
-
-    double r = 1.0;
-    const int kInt = static_cast<int>(kk);
-    for (int i = 0; i < kInt; ++i) {
-        r = r * (n - static_cast<double>(i)) / static_cast<double>(i + 1);
-    }
-    return Value::scalar(std::round(r), mr);
+    return Value::scalar(keel::nchoosek(static_cast<keel::u64>(n), static_cast<keel::u64>(k)), mr);
 }
 
 // nchoosek(v, k) where v is a vector: all k-combinations of the elements of v,

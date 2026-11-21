@@ -164,6 +164,25 @@ if(NOT TARGET keel::linalg)
     FetchContent_MakeAvailable(keel_linalg)
 endif()
 
+if(NOT TARGET keel::specfun)
+    find_package(keel_specfun QUIET CONFIG)
+    if(TARGET keel::keel_specfun AND NOT TARGET keel::specfun)
+        add_library(keel::specfun ALIAS keel::keel_specfun)
+    endif()
+endif()
+if(NOT TARGET keel::specfun)
+    set(KEEL_SPECFUN_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../../../keelcpp/specfun/CMakeLists.txt" AND NOT DEFINED FETCHCONTENT_SOURCE_DIR_KEEL_SPECFUN)
+        set(FETCHCONTENT_SOURCE_DIR_KEEL_SPECFUN "${CMAKE_CURRENT_SOURCE_DIR}/../../../keelcpp/specfun" CACHE PATH "Local keel_specfun checkout")
+    endif()
+    FetchContent_Declare(
+        keel_specfun
+        GIT_REPOSITORY https://github.com/keelcpp/specfun.git
+        GIT_TAG        09acd83628708407b4bc4649e611d35fd33b5703
+    )
+    FetchContent_MakeAvailable(keel_specfun)
+endif()
+
 set(NUMKIT_OPS_SOURCES
     src/rng/matlab_mt19937.cpp
     src/rng/rng.cpp
@@ -241,7 +260,7 @@ target_include_directories(numkit_ops
 )
 
 target_link_libraries(numkit_ops
-    PUBLIC numkit_value keel::random keel::linalg
+    PUBLIC numkit_value keel::random keel::linalg keel::specfun
     PRIVATE hwy hwy_contrib keel::compress keel::image keel::fft
 )
 
