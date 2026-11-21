@@ -101,38 +101,38 @@ uniqueWithIndices(const Value &x, bool stable, bool last,
             for (keel::usize i = 0; i < n; ++i) {
                 if (keel::is_nan(p[i])) {
                     uVals.push_back(keel::Limits<keel::f64>::quiet_nan());
-                    iaVec.push_back(static_cast<keel::f64>(i + 1));
-                    ic[i] = static_cast<keel::f64>(uVals.size());
+                    iaVec.push_back(keel::as<keel::f64>(i + 1));
+                    ic[i] = keel::as<keel::f64>(uVals.size());
                     continue;
                 }
                 if (const keel::usize *li = lastIdx.get(p[i]); li && *li == i) {
                     if (seen.insert(p[i])) {
                         posByVal.put(p[i], uVals.size());
                         uVals.push_back(p[i]);
-                        iaVec.push_back(static_cast<keel::f64>(i + 1));
+                        iaVec.push_back(keel::as<keel::f64>(i + 1));
                     }
                 }
             }
             for (keel::usize i = 0; i < n; ++i) {
                 if (keel::is_nan(p[i])) continue;
                 if (const keel::usize *pv = posByVal.get(p[i]))
-                    ic[i] = static_cast<keel::f64>(*pv + 1);
+                    ic[i] = keel::as<keel::f64>(*pv + 1);
             }
         } else {
             // 'stable' (default): first-occurrence order.
             for (keel::usize i = 0; i < n; ++i) {
                 if (keel::is_nan(p[i])) {
                     uVals.push_back(keel::Limits<keel::f64>::quiet_nan());
-                    iaVec.push_back(static_cast<keel::f64>(i + 1));
-                    ic[i] = static_cast<keel::f64>(uVals.size());
+                    iaVec.push_back(keel::as<keel::f64>(i + 1));
+                    ic[i] = keel::as<keel::f64>(uVals.size());
                 } else {
                     auto res = posByVal.try_insert(p[i], uVals.size());
                     if (res.inserted) {
                         uVals.push_back(p[i]);
-                        iaVec.push_back(static_cast<keel::f64>(i + 1));
-                        ic[i] = static_cast<keel::f64>(uVals.size());
+                        iaVec.push_back(keel::as<keel::f64>(i + 1));
+                        ic[i] = keel::as<keel::f64>(uVals.size());
                     } else {
-                        ic[i] = static_cast<keel::f64>(*res.value + 1);
+                        ic[i] = keel::as<keel::f64>(*res.value + 1);
                     }
                 }
             }
@@ -182,10 +182,10 @@ uniqueWithIndices(const Value &x, bool stable, bool last,
     keel::usize nanSeen = 0;
     for (keel::usize i = 0; i < n; ++i) {
         if (keel::is_nan(p[i])) {
-            ic[i] = static_cast<keel::f64>(nanRankBase + nanSeen + 1);
+            ic[i] = keel::as<keel::f64>(nanRankBase + nanSeen + 1);
             ++nanSeen;
         } else {
-            ic[i] = static_cast<keel::f64>(*rankByValue.get(p[i]) + 1);
+            ic[i] = keel::as<keel::f64>(*rankByValue.get(p[i]) + 1);
         }
     }
 
@@ -193,7 +193,7 @@ uniqueWithIndices(const Value &x, bool stable, bool last,
     auto iaRow = Value::matrix(1, sorted.size(), ValueType::DOUBLE, alloc);
     for (keel::usize i = 0; i < sorted.size(); ++i) {
         cOut.doubleDataMut()[i]  = sorted[i].v;
-        iaRow.doubleDataMut()[i] = static_cast<keel::f64>(sorted[i].origIdx + 1);
+        iaRow.doubleDataMut()[i] = keel::as<keel::f64>(sorted[i].origIdx + 1);
     }
     auto icRow = Value::matrix(1, n, ValueType::DOUBLE, alloc);
     std::copy(ic.begin(), ic.end(), icRow.doubleDataMut());
@@ -286,13 +286,13 @@ uniqueRowsWithIndices(const Value &x, bool stable, bool last,
             const keel::usize pos = rowHasNan(src, cols, rows, r)
                 ? *posByNanRow.get(r)
                 : *posByKey.get(extractRow(src, cols, rows, r, scratch.allocator()));
-            ic[r] = static_cast<keel::f64>(pos + 1);
+            ic[r] = keel::as<keel::f64>(pos + 1);
         }
 
         auto iaCol = Value::matrix(uniqRows.size(), 1, ValueType::DOUBLE, alloc);
         keel::f64 *ia = iaCol.doubleDataMut();
         for (keel::usize i = 0; i < uniqRows.size(); ++i)
-            ia[i] = static_cast<keel::f64>(uniqRows[i] + 1);
+            ia[i] = keel::as<keel::f64>(uniqRows[i] + 1);
 
         return std::make_tuple(
             numkit::ops::collectRowsByIndex(x, uniqRows.data(), uniqRows.size(), alloc),
@@ -332,17 +332,17 @@ uniqueRowsWithIndices(const Value &x, bool stable, bool last,
     keel::usize nanSeen = 0;
     for (keel::usize r = 0; r < rows; ++r) {
         if (rowHasNan(src, cols, rows, r)) {
-            ic[r] = static_cast<keel::f64>(nanRankBase + nanSeen + 1);
+            ic[r] = keel::as<keel::f64>(nanRankBase + nanSeen + 1);
             ++nanSeen;
         } else {
-            ic[r] = static_cast<keel::f64>(*rankByKey.get(extractRow(src, cols, rows, r, scratch.allocator())) + 1);
+            ic[r] = keel::as<keel::f64>(*rankByKey.get(extractRow(src, cols, rows, r, scratch.allocator())) + 1);
         }
     }
 
     auto iaCol = Value::matrix(uniqRows.size(), 1, ValueType::DOUBLE, alloc);
     keel::f64 *ia = iaCol.doubleDataMut();
     for (keel::usize i = 0; i < uniqRows.size(); ++i)
-        ia[i] = static_cast<keel::f64>(uniqRows[i] + 1);
+        ia[i] = keel::as<keel::f64>(uniqRows[i] + 1);
 
     return std::make_tuple(numkit::ops::collectRowsByIndex(x, uniqRows.data(), uniqRows.size(), alloc),
                            std::move(iaCol), std::move(icRow));
@@ -373,7 +373,7 @@ ismemberComplex(const Value &a, const Value &b, bool wantLoc, keel::Allocator *a
     for (keel::usize i = 0; i < nb; ++i) {
         const keel::c64 z = elemAsComplex(b, i);
         if (keel::is_nan(z.real()) || keel::is_nan(z.imag())) continue;
-        idxB.try_insert(z, static_cast<keel::f64>(i + 1)); // lowest index wins
+        idxB.try_insert(z, keel::as<keel::f64>(i + 1)); // lowest index wins
     }
     for (keel::usize i = 0; i < na; ++i) {
         const keel::c64 z = elemAsComplex(a, i);
@@ -569,7 +569,7 @@ Value histcounts(const Value &x, const Value &edges, keel::Allocator *mr)
                 if (v == eN) {
                     bin = nBins - 1;          // last bin is right-closed
                 } else {
-                    bin = static_cast<keel::usize>((v - e0) * invStep);
+                    bin = keel::as<keel::usize>((v - e0) * invStep);
                     if (bin >= nBins) bin = nBins - 1;  // FP rounding guard
                 }
                 dst[bin] += 1.0;
@@ -615,7 +615,7 @@ Value histcounts(const Value &x, const Value &edges, HistNorm norm, keel::Alloca
 
     const keel::usize nBins = counts.numel();
     double *c = counts.doubleDataMut();
-    const double N = static_cast<double>(x.numel());
+    const double N = keel::as<double>(x.numel());
     const double *e = edges.doubleData();
 
     switch (norm) {
@@ -670,17 +670,17 @@ void appendColon(keel::Array<double> &e, double lo, double step, double hi)
     const double span = (hi - lo) / step;
     const double tol  = 4.0 * std::numeric_limits<double>::epsilon()
                             * std::max(std::fabs(span), 1.0);
-    const long n = static_cast<long>(std::floor(span + tol));
-    for (long i = 0; i <= n; ++i) e.push_back(lo + static_cast<double>(i) * step);
+    const long n = keel::as<long>(std::floor(span + tol));
+    for (long i = 0; i <= n; ++i) e.push_back(lo + keel::as<double>(i) * step);
 }
 
 // linspace(a, b, nbins+1) — nbins uniform bins, exact endpoints.
 keel::Array<double> linspaceEdges(double a, double b, long nbins, keel::Allocator *alloc)
 {
     if (nbins < 1) nbins = 1;
-    keel::Array<double> e(static_cast<keel::usize>(nbins) + 1, alloc);
+    keel::Array<double> e(keel::as<keel::usize>(nbins) + 1, alloc);
     for (long i = 0; i <= nbins; ++i)
-        e[i] = a + (b - a) * (static_cast<double>(i) / static_cast<double>(nbins));
+        e[i] = a + (b - a) * (keel::as<double>(i) / keel::as<double>(nbins));
     e[0] = a; e[nbins] = b;
     return e;
 }
@@ -691,10 +691,10 @@ double sampleStd(keel::ArrayRef<double> x)
     if (n < 2) return 0.0;
     double mean = 0.0;
     for (double v : x) mean += v;
-    mean /= static_cast<double>(n);
+    mean /= keel::as<double>(n);
     double s = 0.0;
     for (double v : x) { const double d = v - mean; s += d * d; }
-    return std::sqrt(s / static_cast<double>(n - 1));
+    return std::sqrt(s / keel::as<double>(n - 1));
 }
 
 // MATLAB iqr = prctile(x,75) - prctile(x,25); prctile linearly interpolates the
@@ -707,11 +707,11 @@ double iqrMatlab(keel::ArrayRef<double> x_in, keel::Allocator *alloc)
     std::sort(x.begin(), x.end());
     auto prc = [&](double p) -> double {
         if (n == 1) return x[0];
-        const double pos = p / 100.0 * static_cast<double>(n) - 0.5;  // 0-based
+        const double pos = p / 100.0 * keel::as<double>(n) - 0.5;  // 0-based
         if (pos <= 0.0) return x[0];
-        if (pos >= static_cast<double>(n - 1)) return x[n - 1];
-        const keel::usize lo = static_cast<keel::usize>(std::floor(pos));
-        const double frac = pos - static_cast<double>(lo);
+        if (pos >= keel::as<double>(n - 1)) return x[n - 1];
+        const keel::usize lo = keel::as<keel::usize>(std::floor(pos));
+        const double frac = pos - keel::as<double>(lo);
         return x[lo] + frac * (x[lo + 1] - x[lo]);
     };
     return prc(75.0) - prc(25.0);
@@ -723,9 +723,9 @@ keel::Array<double> niceEdges(double leftEdge, double binWidth,
 {
     if (nbins < 1) nbins = 1;
     if (!std::isfinite(binWidth)) return linspaceEdges(leftEdge, rightEdge, nbins, alloc);
-    keel::Array<double> e(static_cast<keel::usize>(nbins) + 1, alloc);
+    keel::Array<double> e(keel::as<keel::usize>(nbins) + 1, alloc);
     e[0] = leftEdge;
-    for (long i = 1; i < nbins; ++i) e[i] = leftEdge + static_cast<double>(i) * binWidth;
+    for (long i = 1; i < nbins; ++i) e[i] = leftEdge + keel::as<double>(i) * binWidth;
     e[nbins] = rightEdge;
     return e;
 }
@@ -765,7 +765,7 @@ keel::Array<double> binpicker(double xmin, double xmax,
             nbinsActual = nbins;
             rightEdge   = std::min(std::max(leftEdge + nbinsActual * binWidth, xmax), dmax);
         }
-        return niceEdges(leftEdge, binWidth, rightEdge, static_cast<long>(nbinsActual), alloc);
+        return niceEdges(leftEdge, binWidth, rightEdge, keel::as<long>(nbinsActual), alloc);
     }
 
     // nearly-constant data
@@ -773,7 +773,7 @@ keel::Array<double> binpicker(double xmin, double xmax,
     const double binRange = std::max(1.0, std::ceil(nb * matlabEps(xscale)));
     const double leftEdge  = std::floor(2.0 * (xmin - binRange / 4.0)) / 2.0;
     const double rightEdge = std::ceil(2.0 * (xmax + binRange / 4.0)) / 2.0;
-    const long   nbi       = static_cast<long>(nb);
+    const long   nbi       = keel::as<long>(nb);
     return niceEdges(leftEdge, (rightEdge - leftEdge) / nb, rightEdge, nbi, alloc);
 }
 
@@ -787,7 +787,7 @@ keel::Array<double> binpickerbl(double dmin, double dmax,
     binwidth = std::max(binwidth, matlabEps(xscale));
     if (xrange > std::max(kSqrtEps * xscale, std::numeric_limits<double>::min())) {
         const long nbins = std::max(1L,
-            static_cast<long>(std::ceil((maxlimit - minlimit) / binwidth)));
+            keel::as<long>(std::ceil((maxlimit - minlimit) / binwidth)));
         return linspaceEdges(minlimit, maxlimit, nbins, alloc);
     }
     return keel::Array<double>({minlimit, maxlimit}, alloc);
@@ -830,7 +830,7 @@ keel::Array<double> applyMethod(HistBinMethod m, keel::ArrayRef<double> xc,
 {
     const double dataScale = std::max(std::fabs(dmin), std::fabs(dmax));
     const double maxbins   = 65536.0;
-    const double n         = static_cast<double>(xc.size());
+    const double n         = keel::as<double>(xc.size());
 
     HistBinMethod eff = m;
     if (m == HistBinMethod::Auto) {
@@ -861,18 +861,18 @@ keel::Array<double> applyMethod(HistBinMethod m, keel::ArrayRef<double> xc,
                     : binpicker(minx, maxx, false, 0.0, bw, alloc);
     }
     case HistBinMethod::Sturges: {
-        const long nb = std::max(1L, static_cast<long>(std::ceil(std::log2(n) + 1.0)));
+        const long nb = std::max(1L, keel::as<long>(std::ceil(std::log2(n) + 1.0)));
         if (hard) return linspaceEdges(minx, maxx, nb, alloc);
-        const double bw = (maxx - minx) / static_cast<double>(nb);
+        const double bw = (maxx - minx) / keel::as<double>(nb);
         return std::isfinite(bw) ? binpicker(minx, maxx, false, 0.0, bw, alloc)
-                                 : binpicker(minx, maxx, true, static_cast<double>(nb), bw, alloc);
+                                 : binpicker(minx, maxx, true, keel::as<double>(nb), bw, alloc);
     }
     case HistBinMethod::Sqrt: {
-        const long nb = std::max(1L, static_cast<long>(std::ceil(std::sqrt(n))));
+        const long nb = std::max(1L, keel::as<long>(std::ceil(std::sqrt(n))));
         if (hard) return linspaceEdges(minx, maxx, nb, alloc);
-        const double bw = (maxx - minx) / static_cast<double>(nb);
+        const double bw = (maxx - minx) / keel::as<double>(nb);
         return std::isfinite(bw) ? binpicker(minx, maxx, false, 0.0, bw, alloc)
-                                 : binpicker(minx, maxx, true, static_cast<double>(nb), bw, alloc);
+                                 : binpicker(minx, maxx, true, keel::as<double>(nb), bw, alloc);
     }
     default:
         return binpicker(minx, maxx, false, 0.0, 0.0, alloc);
@@ -906,10 +906,10 @@ Value histcountsAutoEdges(const Value &x, const HistBinSpec &spec,
     if (spec.hasBinLimits) {
         const double lo = spec.limLo, hi = spec.limHi;
         if (spec.hasNumBins) {
-            const long n = std::max(1L, static_cast<long>(spec.numBins));
-            edges.resize(static_cast<keel::usize>(n) + 1);
-            const double w = (hi - lo) / static_cast<double>(n);
-            for (long i = 0; i < n; ++i) edges[i] = lo + static_cast<double>(i) * w;
+            const long n = std::max(1L, keel::as<long>(spec.numBins));
+            edges.resize(keel::as<keel::usize>(n) + 1);
+            const double w = (hi - lo) / keel::as<double>(n);
+            for (long i = 0; i < n; ++i) edges[i] = lo + keel::as<double>(i) * w;
             edges[n] = hi;
         } else if (spec.hasBinWidth) {
             const double bw = std::max(spec.binWidth, (hi - lo) / 65536.0);
@@ -926,11 +926,11 @@ Value histcountsAutoEdges(const Value &x, const HistBinSpec &spec,
             edges = applyMethod(spec.method, xr, lo, hi, true, rmin, rmax, alloc);
         }
     } else if (spec.hasNumBins) {
-        const long n = std::max(1L, static_cast<long>(spec.numBins));
-        if (!any) { edges.resize(static_cast<keel::usize>(n) + 1);
-                    for (long i = 0; i <= n; ++i) edges[i] = static_cast<double>(i); }
-        else edges = binpicker(dmin, dmax, true, static_cast<double>(n),
-                               (dmax - dmin) / static_cast<double>(n), alloc);
+        const long n = std::max(1L, keel::as<long>(spec.numBins));
+        if (!any) { edges.resize(keel::as<keel::usize>(n) + 1);
+                    for (long i = 0; i <= n; ++i) edges[i] = keel::as<double>(i); }
+        else edges = binpicker(dmin, dmax, true, keel::as<double>(n),
+                               (dmax - dmin) / keel::as<double>(n), alloc);
     } else if (spec.hasBinWidth) {
         const double bw = spec.binWidth;
         if (!any) { edges = keel::Array<double>({0.0, bw}, alloc); }
@@ -938,10 +938,10 @@ Value histcountsAutoEdges(const Value &x, const HistBinSpec &spec,
             const double xrange = dmax - dmin;
             double binWidth = bw;
             double leftEdge = binWidth * std::floor(dmin / binWidth);
-            long nbins = std::max(1L, static_cast<long>(std::ceil((dmax - leftEdge) / binWidth)));
+            long nbins = std::max(1L, keel::as<long>(std::ceil((dmax - leftEdge) / binWidth)));
             const double maxbins = 65536.0;
-            if (static_cast<double>(nbins) > maxbins) {
-                nbins = static_cast<long>(maxbins);
+            if (keel::as<double>(nbins) > maxbins) {
+                nbins = keel::as<long>(maxbins);
                 binWidth = xrange / (maxbins - 1.0);
                 leftEdge = binWidth * std::floor(dmin / binWidth);
                 if (dmax <= leftEdge + (nbins - 1) * binWidth) {
@@ -949,8 +949,8 @@ Value histcountsAutoEdges(const Value &x, const HistBinSpec &spec,
                     leftEdge = dmin;
                 }
             }
-            edges.resize(static_cast<keel::usize>(nbins) + 1);
-            for (long i = 0; i <= nbins; ++i) edges[i] = leftEdge + static_cast<double>(i) * binWidth;
+            edges.resize(keel::as<keel::usize>(nbins) + 1);
+            for (long i = 0; i <= nbins; ++i) edges[i] = leftEdge + keel::as<double>(i) * binWidth;
             if (edges.back() < dmax) edges.back() = dmax;
         }
     } else {  // BinMethod (default Auto)
@@ -989,10 +989,10 @@ Value discretize(const Value &x, const Value &edges, keel::Allocator *mr)
                 if (v == eN) {
                     bin = nBins - 1;
                 } else {
-                    bin = static_cast<keel::usize>((v - e0) * invStep);
+                    bin = keel::as<keel::usize>((v - e0) * invStep);
                     if (bin >= nBins) bin = nBins - 1;
                 }
-                dst[i] = static_cast<double>(bin + 1); // 1-based
+                dst[i] = keel::as<double>(bin + 1); // 1-based
             } else {
                 dst[i] = std::nan("");
             }
@@ -1007,23 +1007,23 @@ Value discretize(const Value &x, const Value &edges, keel::Allocator *mr)
         for (keel::usize i = 0; i < n; ++i) {
             const double v = p[i];
             if (!(v >= e0 && v <= eN)) { dst[i] = std::nan(""); continue; }
-            if (v == eN) { dst[i] = static_cast<double>(nBins); continue; }
+            if (v == eN) { dst[i] = keel::as<double>(nBins); continue; }
             keel::usize k = 0;
             while (k + 1 < nBins && e[k + 1] <= v) ++k;
-            dst[i] = static_cast<double>(k + 1); // 1-based
+            dst[i] = keel::as<double>(k + 1); // 1-based
         }
     } else {
         for (keel::usize i = 0; i < n; ++i) {
             const double v = p[i];
             if (!(v >= e0 && v <= eN)) { dst[i] = std::nan(""); continue; }
-            if (v == eN) { dst[i] = static_cast<double>(nBins); continue; }
+            if (v == eN) { dst[i] = keel::as<double>(nBins); continue; }
             keel::usize lo = 0, hi = nE;
             while (lo < hi) {
                 const keel::usize mid = lo + (hi - lo) / 2;
                 if (e[mid] <= v) lo = mid + 1;
                 else hi = mid;
             }
-            dst[i] = static_cast<double>(lo); // (lo-1)+1
+            dst[i] = keel::as<double>(lo); // (lo-1)+1
         }
     }
     return r;
@@ -1041,7 +1041,7 @@ Value histc(const Value &x, const Value &edges, keel::Allocator *mr)
     const keel::usize nE = edges.numel();
     const double *e = edges.doubleData();
 
-    const keel::usize rows = static_cast<keel::usize>(x.dims().rows());
+    const keel::usize rows = keel::as<keel::usize>(x.dims().rows());
     const keel::usize cols = x.numel() == 0 ? 0 : x.numel() / std::max<keel::usize>(rows, 1);
     const double *p = x.doubleData();
 
@@ -1129,7 +1129,7 @@ Value numunique(const Value &x, keel::Allocator *alloc)
         if (keel::is_nan(p[i])) ++nanCount;
         else seen.insert(p[i]);
     }
-    return Value::scalar(static_cast<keel::f64>(seen.size() + nanCount), alloc);
+    return Value::scalar(keel::as<keel::f64>(seen.size() + nanCount), alloc);
 }
 
 

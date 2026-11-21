@@ -65,7 +65,7 @@ namespace hn = hwy::HWY_NAMESPACE;
             keel::u8 bits[8] = {};                                                       \
             hn::StoreMaskBits(d, m, bits);                                              \
             for (keel::usize k = 0; k < N; ++k)                                         \
-                out[i + k] = static_cast<keel::u8>((bits[0] >> k) & 1);                  \
+                out[i + k] = keel::as<keel::u8>((bits[0] >> k) & 1);                  \
         }                                                                               \
         for (; i < n; ++i)                                                              \
             out[i] = (a[i] SCALAR_OP b[i]) ? 1 : 0;                                     \
@@ -83,7 +83,7 @@ namespace hn = hwy::HWY_NAMESPACE;
             keel::u8 bits[8] = {};                                                       \
             hn::StoreMaskBits(d, m, bits);                                              \
             for (keel::usize k = 0; k < N; ++k)                                         \
-                out[i + k] = static_cast<keel::u8>((bits[0] >> k) & 1);                  \
+                out[i + k] = keel::as<keel::u8>((bits[0] >> k) & 1);                  \
         }                                                                               \
         for (; i < n; ++i)                                                              \
             out[i] = (a[i] SCALAR_OP s) ? 1 : 0;                                        \
@@ -101,7 +101,7 @@ namespace hn = hwy::HWY_NAMESPACE;
             keel::u8 bits[8] = {};                                                       \
             hn::StoreMaskBits(d, m, bits);                                              \
             for (keel::usize k = 0; k < N; ++k)                                         \
-                out[i + k] = static_cast<keel::u8>((bits[0] >> k) & 1);                  \
+                out[i + k] = keel::as<keel::u8>((bits[0] >> k) & 1);                  \
         }                                                                               \
         for (; i < n; ++i)                                                              \
             out[i] = (s SCALAR_OP b[i]) ? 1 : 0;                                        \

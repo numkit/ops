@@ -264,9 +264,9 @@ namespace {
 inline keel::usize wrap(keel::i64 k, keel::usize n)
 {
     if (n == 0) return 0;
-    keel::i64 m = k % static_cast<keel::i64>(n);
-    if (m < 0) m += static_cast<keel::i64>(n);
-    return static_cast<keel::usize>(m);
+    keel::i64 m = k % keel::as<keel::i64>(n);
+    if (m < 0) m += keel::as<keel::i64>(n);
+    return keel::as<keel::usize>(m);
 }
 
 [[maybe_unused]] void shift2D(const double *src, double *dst, keel::usize R, keel::usize C,
@@ -294,7 +294,7 @@ inline void trilPageBytes(const char *src, char *dst, keel::usize R, keel::usize
 {
     for (keel::usize c = 0; c < C; ++c)
         for (keel::usize rr = 0; rr < R; ++rr) {
-            const int diff = static_cast<int>(c) - static_cast<int>(rr);
+            const int diff = keel::as<int>(c) - keel::as<int>(rr);
             const keel::usize off = (c * R + rr) * es;
             if (diff <= k) std::memcpy(dst + off, src + off, es);
             else           std::memset(dst + off, 0, es);
@@ -306,7 +306,7 @@ inline void triuPageBytes(const char *src, char *dst, keel::usize R, keel::usize
 {
     for (keel::usize c = 0; c < C; ++c)
         for (keel::usize rr = 0; rr < R; ++rr) {
-            const int diff = static_cast<int>(c) - static_cast<int>(rr);
+            const int diff = keel::as<int>(c) - keel::as<int>(rr);
             const keel::usize off = (c * R + rr) * es;
             if (diff >= k) std::memcpy(dst + off, src + off, es);
             else           std::memset(dst + off, 0, es);
@@ -360,7 +360,7 @@ namespace {
         if (!(c >= 0.0) || std::floor(c) != c)
             throw Error("repelem: replication counts must be nonnegative integers",
                          0, 0, "repelem", "", "numkit:repelem:badCount");
-        return static_cast<keel::usize>(c);
+        return keel::as<keel::usize>(c);
     };
     if (counts.isScalar()) {
         const keel::usize rep = checkCount(counts.toScalar());

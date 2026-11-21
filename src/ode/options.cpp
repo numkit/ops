@@ -127,7 +127,7 @@ Value odeget(const Value &opts, const Value &name,
     const char *canon = nullptr;
     int matches = 0;
     if (raw.empty()) {
-        matches = static_cast<int>(kNumOptions);   // every name matches ""
+        matches = keel::as<int>(kNumOptions);   // every name matches ""
     } else {
         const keel::StringRef rawRef = raw.as_ref();
         for (keel::usize i = 0; i < kNumOptions; ++i) {

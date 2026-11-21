@@ -29,7 +29,7 @@ int fprintf(std::FILE *stream, keel::StringRef fmt, keel::ArrayRef<Value> args, 
     if (stream && !s.empty()) {
         std::fwrite(s.data(), 1, s.size(), stream);
     }
-    return static_cast<int>(s.size());
+    return keel::as<int>(s.size());
 }
 
 Value sscanf(keel::StringRef str, keel::StringRef fmt, keel::Allocator *mr) {

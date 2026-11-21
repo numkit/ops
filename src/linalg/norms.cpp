@@ -89,8 +89,8 @@ Value norm_value(const Value &x, double p, keel::Allocator *mr)
     if (x.dims().ndim() != 2)
         throw Error("norm: input must be vector or 2D matrix",
                     0, 0, "norm", "", "numkit:norm:badShape");
-    const keel::usize m = static_cast<keel::usize>(x.dims().dim(0));
-    const keel::usize n = static_cast<keel::usize>(x.dims().dim(1));
+    const keel::usize m = keel::as<keel::usize>(x.dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(x.dims().dim(1));
 
     if (p == 2.0) {
         auto sv = svd_values(x, mr);
@@ -128,8 +128,8 @@ Value norm_inf(const Value &x, keel::Allocator *mr)
     if (x.dims().ndim() != 2)
         throw Error("norm: input must be vector or 2D matrix",
                     0, 0, "norm", "", "numkit:norm:badShape");
-    const keel::usize m = static_cast<keel::usize>(x.dims().dim(0));
-    const keel::usize n = static_cast<keel::usize>(x.dims().dim(1));
+    const keel::usize m = keel::as<keel::usize>(x.dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(x.dims().dim(1));
     double mx = 0.0;
     for (keel::usize i = 0; i < m; ++i) {
         double s = 0.0;

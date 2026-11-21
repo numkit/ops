@@ -167,7 +167,7 @@ Value plus(const Value &a, const Value &b, keel::Allocator *mr)
         const char *cd = a.charData();
         double *dd = ca.doubleDataMut();
         for (keel::usize i = 0; i < a.numel(); ++i)
-            dd[i] = static_cast<double>(static_cast<unsigned char>(cd[i]));
+            dd[i] = keel::as<double>(keel::as<unsigned char>(cd[i]));
         return elementwiseDouble(ca, b, [](double x, double y) { return x + y; }, p);
     }
     if (a.type() == ValueType::DOUBLE && b.isChar()) {
@@ -175,7 +175,7 @@ Value plus(const Value &a, const Value &b, keel::Allocator *mr)
         const char *cd = b.charData();
         double *dd = cb.doubleDataMut();
         for (keel::usize i = 0; i < b.numel(); ++i)
-            dd[i] = static_cast<double>(static_cast<unsigned char>(cd[i]));
+            dd[i] = keel::as<double>(keel::as<unsigned char>(cd[i]));
         return elementwiseDouble(a, cb, [](double x, double y) { return x + y; }, p);
     }
     if (a.isString() && b.isString())
@@ -333,7 +333,7 @@ Value mtimes(const Value &a, const Value &b, keel::Allocator *mr)
         } else {
             adScratch.resize(M * K);
             const float *af = static_cast<const float *>(a.rawData());
-            for (keel::usize i = 0; i < M * K; ++i) adScratch[i] = static_cast<double>(af[i]);
+            for (keel::usize i = 0; i < M * K; ++i) adScratch[i] = keel::as<double>(af[i]);
             adPtr = adScratch.data();
         }
         const double *bdPtr = nullptr;
@@ -343,12 +343,12 @@ Value mtimes(const Value &a, const Value &b, keel::Allocator *mr)
         } else {
             bdScratch.resize(K * N);
             const float *bf = static_cast<const float *>(b.rawData());
-            for (keel::usize i = 0; i < K * N; ++i) bdScratch[i] = static_cast<double>(bf[i]);
+            for (keel::usize i = 0; i < K * N; ++i) bdScratch[i] = keel::as<double>(bf[i]);
             bdPtr = bdScratch.data();
         }
         ops::detail::matmulDoubleLoop(adPtr, bdPtr, cd.data(), M, N, K);
         for (keel::usize i = 0; i < M * N; ++i)
-            rd[i] = static_cast<float>(cd[i]);
+            rd[i] = keel::as<float>(cd[i]);
         return r;
     }
     if (a.type() == ValueType::DOUBLE && b.type() == ValueType::DOUBLE) {
@@ -529,7 +529,7 @@ Value power(const Value &a, const Value &b, keel::Allocator *mr)
                               && std::isfinite(bs) && std::floor(bs) == bs
                               && keel::abs(bs) <= 1e9;
         if (bRealInt) {
-            const keel::i64 n = static_cast<keel::i64>(bs);
+            const keel::i64 n = keel::as<keel::i64>(bs);
             auto makeEye = [&]() {
                 if (a.type() == ValueType::SINGLE && !a.isComplex()) {
                     auto I = Value::matrix(R, R, ValueType::SINGLE, p);
@@ -545,7 +545,7 @@ Value power(const Value &a, const Value &b, keel::Allocator *mr)
                 return I;
             };
             if (n == 0) return makeEye();
-            keel::u64 expAbs = static_cast<keel::u64>(n > 0 ? n : -n);
+            keel::u64 expAbs = keel::as<keel::u64>(n > 0 ? n : -n);
             Value base = a;
             Value acc;
             bool haveAcc = false;
@@ -662,12 +662,12 @@ Value elementPower(const Value &a, const Value &b, keel::Allocator *mr)
     }
     {
         auto r = dispatchIntegerBinaryOp(a, b, [](auto x, auto y) -> decltype(x) {
-            double r = std::pow(static_cast<double>(x), static_cast<double>(y));
+            double r = std::pow(keel::as<double>(x), keel::as<double>(y));
             if constexpr (std::is_integral_v<decltype(x)>) {
                 r = std::round(r);
-                if (r > static_cast<double>(std::numeric_limits<decltype(x)>::max()))
+                if (r > keel::as<double>(std::numeric_limits<decltype(x)>::max()))
                     return std::numeric_limits<decltype(x)>::max();
-                if (r < static_cast<double>(std::numeric_limits<decltype(x)>::min()))
+                if (r < keel::as<double>(std::numeric_limits<decltype(x)>::min()))
                     return std::numeric_limits<decltype(x)>::min();
                 return static_cast<decltype(x)>(r);
             } else {

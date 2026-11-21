@@ -32,8 +32,8 @@ static Value narrowKronToInteger(const Value &d, ValueType vt,
     const double *src = d.doubleData();
     auto fill = [&](auto *dst) {
         using T = std::remove_pointer_t<std::decay_t<decltype(dst)>>;
-        const double lo = static_cast<double>(std::numeric_limits<T>::min());
-        const double hi = static_cast<double>(std::numeric_limits<T>::max());
+        const double lo = keel::as<double>(std::numeric_limits<T>::min());
+        const double hi = keel::as<double>(std::numeric_limits<T>::max());
         for (keel::usize i = 0; i < n; ++i) {
             double v = std::round(src[i]);
             if (v < lo) v = lo; else if (v > hi) v = hi;
@@ -79,11 +79,11 @@ static void intTypeRange(ValueType vt, double &lo, double &hi)
     case ValueType::INT8:   lo = std::numeric_limits<keel::i8>::min();   hi = std::numeric_limits<keel::i8>::max();   break;
     case ValueType::INT16:  lo = std::numeric_limits<keel::i16>::min();  hi = std::numeric_limits<keel::i16>::max();  break;
     case ValueType::INT32:  lo = std::numeric_limits<keel::i32>::min();  hi = std::numeric_limits<keel::i32>::max();  break;
-    case ValueType::INT64:  lo = static_cast<double>(std::numeric_limits<keel::i64>::min());  hi = static_cast<double>(std::numeric_limits<keel::i64>::max());  break;
+    case ValueType::INT64:  lo = keel::as<double>(std::numeric_limits<keel::i64>::min());  hi = keel::as<double>(std::numeric_limits<keel::i64>::max());  break;
     case ValueType::UINT8:  lo = 0; hi = std::numeric_limits<keel::u8>::max();  break;
     case ValueType::UINT16: lo = 0; hi = std::numeric_limits<keel::u16>::max(); break;
     case ValueType::UINT32: lo = 0; hi = std::numeric_limits<keel::u32>::max(); break;
-    case ValueType::UINT64: lo = 0; hi = static_cast<double>(std::numeric_limits<keel::u64>::max()); break;
+    case ValueType::UINT64: lo = 0; hi = keel::as<double>(std::numeric_limits<keel::u64>::max()); break;
     default:                lo = 0; hi = 0; break;
     }
 }
@@ -502,7 +502,7 @@ Value kron(const Value &a, const Value &b, keel::Allocator *mr)
         const double *od = out.doubleData();
         float *sd = s.singleDataMut();
         for (keel::usize i = 0; i < out.numel(); ++i)
-            sd[i] = static_cast<float>(od[i]);
+            sd[i] = keel::as<float>(od[i]);
         return s;
     }
     return out;

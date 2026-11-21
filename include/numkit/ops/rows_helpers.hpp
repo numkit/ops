@@ -49,7 +49,7 @@ inline int rowLexCmpByCols(const keel::f64 *p, keel::usize totalCols,
     for (keel::usize k = 0; k < nCols; ++k) {
         const int rawCol = cols1based[k];
         const bool desc = rawCol < 0;
-        const keel::usize cIdx = static_cast<keel::usize>(desc ? -rawCol : rawCol) - 1;
+        const keel::usize cIdx = keel::as<keel::usize>(desc ? -rawCol : rawCol) - 1;
         (void) totalCols;  // caller validated rawCol in range
         const keel::f64 av = p[cIdx * rows + a];
         const keel::f64 bv = p[cIdx * rows + b];

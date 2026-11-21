@@ -43,7 +43,7 @@ void applyStringSpec(keel::StringRef spec, keel::StringRef sv, keel::String &out
     }
     keel::usize width = 0;
     for (; k < spec.size() && keel::is_ascii_digit(spec[k]); ++k)
-        width = width * 10 + static_cast<keel::usize>(spec[k] - '0');
+        width = width * 10 + keel::as<keel::usize>(spec[k] - '0');
     long precision = -1;
     if (k < spec.size() && spec[k] == '.') {
         ++k;
@@ -52,8 +52,8 @@ void applyStringSpec(keel::StringRef spec, keel::StringRef sv, keel::String &out
             precision = precision * 10 + (spec[k] - '0');
     }
 
-    if (precision >= 0 && static_cast<keel::usize>(precision) < sv.size())
-        sv = sv.substr(0, static_cast<keel::usize>(precision));
+    if (precision >= 0 && keel::as<keel::usize>(precision) < sv.size())
+        sv = sv.substr(0, keel::as<keel::usize>(precision));
     if (width > sv.size()) {
         const keel::usize pad = width - sv.size();
         if (!leftAlign) appendRepeat(out, pad, ' ');
@@ -94,7 +94,7 @@ void formatNonFinite(keel::StringRef spec, double v, keel::String &out)
     }
     keel::usize width = 0;
     for (; k < spec.size() && keel::is_ascii_digit(spec[k]); ++k)
-        width = width * 10 + static_cast<keel::usize>(spec[k] - '0');
+        width = width * 10 + keel::as<keel::usize>(spec[k] - '0');
 
     if (word == "Inf") {
         if (plus) word = "+Inf";
@@ -134,20 +134,20 @@ void formatIntegerConv(keel::StringRef spec, char type, double v, keel::String &
         if (type == 'u') {
             fmtStr.append("llu");
             std::snprintf(buf, sizeof(buf), fmtStr.c_str(),
-                          static_cast<unsigned long long>(static_cast<long long>(v)));
+                          keel::as<unsigned long long>(keel::as<long long>(v)));
         } else if (type == 'x' || type == 'X') {
             fmtStr.append("ll");
             fmtStr.push_back(type);
             std::snprintf(buf, sizeof(buf), fmtStr.c_str(),
-                          static_cast<unsigned long long>(static_cast<long long>(v)));
+                          keel::as<unsigned long long>(keel::as<long long>(v)));
         } else if (type == 'o') {
             fmtStr.append("llo");
             std::snprintf(buf, sizeof(buf), fmtStr.c_str(),
-                          static_cast<unsigned long long>(static_cast<long long>(v)));
+                          keel::as<unsigned long long>(keel::as<long long>(v)));
         } else { // d, i
             fmtStr.append("lld");
             std::snprintf(buf, sizeof(buf), fmtStr.c_str(),
-                          static_cast<long long>(v));
+                          keel::as<long long>(v));
         }
         out.append(buf);
         return;
@@ -234,7 +234,7 @@ keel::String formatOnce(keel::StringRef fmt, keel::ArrayRef<Value> args, keel::u
             for (keel::usize k = 0; k < literalSpec.size(); ++k) {
                 if (literalSpec[k] == '*') {
                     long w = (ai < args.size())
-                                 ? static_cast<long>(args[ai].toScalar())
+                                 ? keel::as<long>(args[ai].toScalar())
                                  : 0;
                     if (ai < args.size()) ++ai;
                     char wbuf[32];
@@ -260,7 +260,7 @@ keel::String formatOnce(keel::StringRef fmt, keel::ArrayRef<Value> args, keel::u
                         auto s = args[ai].toString();
                         out.push_back(s.empty() ? ' ' : s[0]);
                     } else {
-                        out.push_back(static_cast<char>(static_cast<int>(args[ai].toScalar())));
+                        out.push_back(keel::as<char>(keel::as<int>(args[ai].toScalar())));
                     }
                 } else if (literalWhenShort) {
                     out.append(literalSpec);

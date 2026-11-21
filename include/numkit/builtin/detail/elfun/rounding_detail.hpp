@@ -69,7 +69,7 @@ inline double roundNScalar(double v, int n, bool significant)
     int digits = n;
     if (significant) {
         if (v == 0.0) return 0.0;
-        digits = n - static_cast<int>(std::floor(std::log10(std::fabs(v)))) - 1;
+        digits = n - keel::as<int>(std::floor(std::log10(std::fabs(v)))) - 1;
     }
     const double f = std::pow(10.0, digits);
     return std::round(v * f) / f;

@@ -56,7 +56,7 @@ inline OdeOpts read_opts(const Value &opts, int refine_default)
         const Value &v = opts.field("Refine");
         if (!v.isEmpty()) {
             const double r = v.toScalar();
-            o.refine = (r >= 1.0) ? static_cast<int>(r) : 1;
+            o.refine = (r >= 1.0) ? keel::as<int>(r) : 1;
         }
     }
     if (opts.hasField("NormControl")) {

@@ -21,12 +21,12 @@ void MatlabMT19937::getState(keel::u32 out[STATE_SIZE], int &outIndex) const
 {
     keel::usize idx = 0;
     mt_.get_state(keel::MutArrayRef<keel::u32>(out, STATE_SIZE), idx);
-    outIndex = static_cast<int>(idx);
+    outIndex = keel::as<int>(idx);
 }
 
 void MatlabMT19937::setState(const keel::u32 in[STATE_SIZE], int inIndex)
 {
-    const keel::usize idx = (inIndex < 0) ? STATE_SIZE : static_cast<keel::usize>(inIndex);
+    const keel::usize idx = (inIndex < 0) ? STATE_SIZE : keel::as<keel::usize>(inIndex);
     mt_.set_state(keel::ArrayRef<keel::u32>(in, STATE_SIZE), idx);
 }
 

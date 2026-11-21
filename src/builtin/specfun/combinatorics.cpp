@@ -32,14 +32,14 @@ Value primes(double n, keel::Allocator *mr)
 {
     if (!std::isfinite(n) || n < 2)
         return Value::matrix(1, 0, ValueType::DOUBLE, mr);
-    const keel::u64 N = static_cast<keel::u64>(std::floor(n));
+    const keel::u64 N = keel::as<keel::u64>(std::floor(n));
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     keel::Array<keel::u64> ps = keel::specfun::primes_up_to(N, scratch.allocator());
 
     auto out = Value::matrix(1, ps.size(), ValueType::DOUBLE, mr);
     double *dst = out.doubleDataMut();
     for (keel::usize i = 0; i < ps.size(); ++i)
-        dst[i] = static_cast<double>(ps[i]);
+        dst[i] = keel::as<double>(ps[i]);
     return out;
 }
 
@@ -70,7 +70,7 @@ Value factor(double n, keel::Allocator *mr)
     auto out = Value::matrix(1, factors.size(), ValueType::DOUBLE, mr);
     double *dst = out.doubleDataMut();
     for (keel::usize i = 0; i < factors.size(); ++i)
-        dst[i] = static_cast<double>(factors[i]);
+        dst[i] = keel::as<double>(factors[i]);
     return out;
 }
 
@@ -92,7 +92,7 @@ Value perms(const Value &v, keel::Allocator *mr)
                      0, 0, "perms", "", "numkit:perms:notVector");
 
     const keel::usize n = v.numel();
-    if (n > static_cast<keel::usize>(kPermMaxN))
+    if (n > keel::as<keel::usize>(kPermMaxN))
         throw Error("perms: numel(v) > 11 is not supported (n! is too large)",
                      0, 0, "perms", "", "numkit:perms:tooLarge");
 
@@ -104,7 +104,7 @@ Value perms(const Value &v, keel::Allocator *mr)
     keel::Array<double> cur(vals, scratch.allocator());
     std::sort(cur.begin(), cur.end(), [](double a, double b) { return a > b; });
 
-    const keel::usize totalRows = static_cast<keel::usize>(permFactorial(static_cast<int>(n)));
+    const keel::usize totalRows = keel::as<keel::usize>(permFactorial(keel::as<int>(n)));
     auto out = Value::matrix(totalRows, n, ValueType::DOUBLE, mr);
     double *dst = out.doubleDataMut();
 
@@ -143,7 +143,7 @@ Value nchoosek(double n, double k, keel::Allocator *mr)
         throw Error("nchoosek: k must satisfy 0 ≤ k ≤ n",
                      0, 0, "nchoosek", "", "numkit:nchoosek:kTooLarge");
 
-    return Value::scalar(keel::specfun::nchoosek(static_cast<keel::u64>(n), static_cast<keel::u64>(k)), mr);
+    return Value::scalar(keel::specfun::nchoosek(keel::as<keel::u64>(n), keel::as<keel::u64>(k)), mr);
 }
 
 // nchoosek(v, k) where v is a vector: all k-combinations of the elements of v,
@@ -156,7 +156,7 @@ Value nchoosekCombinations(const Value &v, double kd, keel::Allocator *mr)
     if (!std::isfinite(kd) || kd < 0 || kd != std::floor(kd))
         throw Error("nchoosek: K must be a non-negative integer",
                      0, 0, "nchoosek", "", "numkit:nchoosek:badArg");
-    const keel::usize k = static_cast<keel::usize>(kd);
+    const keel::usize k = keel::as<keel::usize>(kd);
     if (k > n)
         throw Error("nchoosek: K must satisfy 0 <= K <= numel(V)",
                      0, 0, "nchoosek", "", "numkit:nchoosek:kTooLarge");
@@ -171,8 +171,8 @@ Value nchoosekCombinations(const Value &v, double kd, keel::Allocator *mr)
     const keel::usize kk = (k > n - k) ? n - k : k;
     double rd = 1.0;
     for (keel::usize i = 0; i < kk; ++i)
-        rd = rd * static_cast<double>(n - i) / static_cast<double>(i + 1);
-    const keel::usize R = static_cast<keel::usize>(std::round(rd));
+        rd = rd * keel::as<double>(n - i) / keel::as<double>(i + 1);
+    const keel::usize R = keel::as<keel::usize>(std::round(rd));
 
     auto out = Value::matrix(R, k, ValueType::DOUBLE, mr);
     double *od = out.doubleDataMut();
@@ -237,7 +237,7 @@ Value colperm(const Value &s, keel::Allocator *mr)
     auto out = Value::matrix(1, cols, ValueType::DOUBLE, mr);
     double *p = out.doubleDataMut();
     for (keel::usize i = 0; i < cols; ++i)
-        p[i] = static_cast<double>(counts[i].colIndex);
+        p[i] = keel::as<double>(counts[i].colIndex);
     return out;
 }
 
@@ -323,7 +323,7 @@ Value symrcm(const Value &s, keel::Allocator *mr)
     auto out = Value::matrix(1, n, ValueType::DOUBLE, mr);
     double *p = out.doubleDataMut();
     for (keel::usize i = 0; i < n; ++i)
-        p[i] = static_cast<double>(order[i] + 1);
+        p[i] = keel::as<double>(order[i] + 1);
     return out;
 }
 

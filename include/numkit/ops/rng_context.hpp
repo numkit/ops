@@ -61,7 +61,7 @@ public:
         legacyV4Rand_ = false;
         legacyV5Rand_ = false;
         legacyV4Randn_ = false;
-        gen_.seed(static_cast<keel::u32>(seed));
+        gen_.seed(keel::as<keel::u32>(seed));
     }
     /// `rng('shuffle')` — seed from a nondeterministic source.
     void shuffle();
@@ -114,7 +114,7 @@ public:
         legacyMode_ = true;
         legacyV4Rand_ = false;
         legacyV5Rand_ = false;
-        gen_.seed(static_cast<keel::u32>(seed));
+        gen_.seed(keel::as<keel::u32>(seed));
     }
     void setLegacyTwisterRandState(const keel::u32 state[MatlabMT19937::STATE_SIZE], int idx)
     {
@@ -131,7 +131,7 @@ public:
         if (!wasLegacy) setLegacyV5Randn(0);
         legacyV4Rand_ = false;
         legacyV5Rand_ = true;
-        keel::u32 j = static_cast<keel::u32>(seed);
+        keel::u32 j = keel::as<keel::u32>(seed);
         if (j == 0u) j = 0x80000000u;
         v5SwbJ_ = j;
         for (keel::usize i = 0; i < 32; ++i) {
@@ -170,7 +170,7 @@ public:
         if (!wasLegacy) setLegacyV5Rand(0);
         legacyV4Randn_ = false;
         v5Icng_ = 362436069u;
-        const keel::u32 s32 = static_cast<keel::u32>(seed);
+        const keel::u32 s32 = keel::as<keel::u32>(seed);
         v5Jsr_ = (s32 == 0u) ? 521288629u : s32;
     }
     void setLegacyV5RandnState(keel::u32 icng, keel::u32 jsr)
@@ -192,7 +192,7 @@ public:
     keel::f64 v4Uniform()
     {
         v4RandState_ = 16807ull * v4RandState_ % 2147483647ull;
-        return static_cast<keel::f64>(v4RandState_) / 2147483647.0;
+        return keel::as<keel::f64>(v4RandState_) / 2147483647.0;
     }
     keel::f64 v5Uniform()
     {
@@ -214,8 +214,8 @@ public:
         v5SwbJ_ = j;
         keel::u64 xb = 0;
         std::memcpy(&xb, &x, sizeof(xb));
-        const keel::u64 mask = (static_cast<keel::u64>(j & 0xFFFFFu) << 32)
-                                 | static_cast<keel::u64>(jPrev);
+        const keel::u64 mask = (keel::as<keel::u64>(j & 0xFFFFFu) << 32)
+                                 | keel::as<keel::u64>(jPrev);
         xb ^= mask;
         keel::f64 r = 0.0;
         std::memcpy(&r, &xb, sizeof(r));
@@ -228,7 +228,7 @@ public:
     keel::f64 v4RandnUniform()
     {
         v4RandnState_ = 16807ull * v4RandnState_ % 2147483647ull;
-        return static_cast<keel::f64>(v4RandnState_) / 2147483647.0;
+        return keel::as<keel::f64>(v4RandnState_) / 2147483647.0;
     }
     keel::f64 v4Normal()
     {

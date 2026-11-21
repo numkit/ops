@@ -35,9 +35,9 @@ inline void fillFftTwiddles(keel::c64 *W, keel::usize N, int dir)
 {
     const keel::usize half = N / 2;
     if (half == 0) return;
-    const double base = dir * 2.0 * M_PI / static_cast<double>(N);
+    const double base = dir * 2.0 * M_PI / keel::as<double>(N);
     for (keel::usize k = 0; k < half; ++k) {
-        const double a = base * static_cast<double>(k);
+        const double a = base * keel::as<double>(k);
         W[k] = keel::c64(std::cos(a), std::sin(a));
     }
 }
@@ -156,7 +156,7 @@ inline keel::Array<double> convFFT(keel::Allocator *mr,
 
     fftRadix2(fa.data(), fftLen, W_inv.data());
 
-    double invN = 1.0 / static_cast<double>(fftLen);
+    double invN = 1.0 / keel::as<double>(fftLen);
     keel::Array<double> c(nc, mr);
     for (keel::usize i = 0; i < nc; ++i)
         c[i] = fa[i].real() * invN;

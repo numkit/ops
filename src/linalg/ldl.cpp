@@ -85,7 +85,7 @@ ldl(const Value &A, bool upper_form, bool p_as_vector, keel::Allocator *mr)
         if (p_as_vector) {
             P = Value::matrix(1, n, ValueType::DOUBLE, mr);
             double *pd = P.doubleDataMut();
-            for (keel::usize k = 0; k < n; ++k) pd[k] = static_cast<double>(k + 1);
+            for (keel::usize k = 0; k < n; ++k) pd[k] = keel::as<double>(k + 1);
         } else {
             P = Value::matrix(n, n, ValueType::DOUBLE, mr);
             double *pd = P.doubleDataMut();
@@ -122,7 +122,7 @@ ldl(const Value &A, bool upper_form, bool p_as_vector, keel::Allocator *mr)
     if (p_as_vector) {
         P = Value::matrix(1, n, ValueType::DOUBLE, mr);
         double *pd = P.doubleDataMut();
-        for (keel::usize k = 0; k < n; ++k) pd[k] = static_cast<double>(k + 1);
+        for (keel::usize k = 0; k < n; ++k) pd[k] = keel::as<double>(k + 1);
     } else {
         P = Value::matrix(n, n, ValueType::DOUBLE, mr);
         double *pd = P.doubleDataMut();

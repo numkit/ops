@@ -104,7 +104,7 @@ GroupcountsResult groupcounts(const Value &g, keel::Allocator *mr)
         R.P  = Value::matrix(0, 1, ValueType::DOUBLE, mr);
         return R;
     }
-    keel::Array<keel::usize> counts(nGroups, static_cast<keel::usize>(0), scratch.allocator());
+    keel::Array<keel::usize> counts(nGroups, keel::as<keel::usize>(0), scratch.allocator());
     for (auto gg : groups) {
         if (gg == 0) counts[uniqueVals.size()]++;  // trailing NaN bucket
         else         counts[gg - 1]++;

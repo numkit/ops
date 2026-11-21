@@ -22,9 +22,9 @@ namespace {
 // Multiply two real matrices C = A * B
 Value matMulReal(const Value &A, const Value &B, keel::Allocator *mr)
 {
-    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
-    const keel::usize k = static_cast<keel::usize>(A.dims().dim(1));
-    const keel::usize n = static_cast<keel::usize>(B.dims().dim(1));
+    const keel::usize m = keel::as<keel::usize>(A.dims().dim(0));
+    const keel::usize k = keel::as<keel::usize>(A.dims().dim(1));
+    const keel::usize n = keel::as<keel::usize>(B.dims().dim(1));
 
     auto C = Value::matrix(m, n, ValueType::DOUBLE, mr);
     double *cd = C.doubleDataMut();
@@ -48,8 +48,8 @@ Value matMulReal(const Value &A, const Value &B, keel::Allocator *mr)
 // Transpose of a real matrix
 Value matTranspose(const Value &A, keel::Allocator *mr)
 {
-    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
-    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
+    const keel::usize m = keel::as<keel::usize>(A.dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(A.dims().dim(1));
     auto At = Value::matrix(n, m, ValueType::DOUBLE, mr);
     double *atd = At.doubleDataMut();
     const double *ad = A.doubleData();
@@ -68,8 +68,8 @@ std::tuple<Value, Value, Value> svdsketch(const Value &A, double tol, keel::Allo
     if (A.dims().ndim() != 2)
         throw Error("svdsketch: input A must be a 2D matrix", 0, 0, "svdsketch", "", "numkit:svdsketch:notMatrix");
 
-    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
-    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
+    const keel::usize m = keel::as<keel::usize>(A.dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(A.dims().dim(1));
     const keel::usize min_mn = std::min(m, n);
 
     const bool wantSingle = A.type() == ValueType::SINGLE;
@@ -83,7 +83,7 @@ std::tuple<Value, Value, Value> svdsketch(const Value &A, double tol, keel::Allo
     Value Aw = detail::widenSingleToDouble(A, mr);
 
     // Step 1: Draw Gaussian random test matrix Omega (n x l)
-    keel::usize l = std::min(min_mn, static_cast<keel::usize>(15));
+    keel::usize l = std::min(min_mn, keel::as<keel::usize>(15));
     auto Omega = Value::matrix(n, l, ValueType::DOUBLE, mr);
     double *od = Omega.doubleDataMut();
 
@@ -157,12 +157,12 @@ std::tuple<Value, Value, Value> svdappend(const Value &U, const Value &S, const 
     if (U.dims().ndim() != 2 || S.dims().ndim() != 2 || V.dims().ndim() != 2 || A_new.dims().ndim() != 2)
         throw Error("svdappend: inputs must be 2D matrices", 0, 0, "svdappend", "", "numkit:svdappend:notMatrix");
 
-    const keel::usize m = static_cast<keel::usize>(U.dims().dim(0));
-    const keel::usize k = static_cast<keel::usize>(U.dims().dim(1));
-    const keel::usize n = static_cast<keel::usize>(V.dims().dim(0));
-    const keel::usize p = static_cast<keel::usize>(A_new.dims().dim(1));
+    const keel::usize m = keel::as<keel::usize>(U.dims().dim(0));
+    const keel::usize k = keel::as<keel::usize>(U.dims().dim(1));
+    const keel::usize n = keel::as<keel::usize>(V.dims().dim(0));
+    const keel::usize p = keel::as<keel::usize>(A_new.dims().dim(1));
 
-    if (static_cast<keel::usize>(A_new.dims().dim(0)) != m)
+    if (keel::as<keel::usize>(A_new.dims().dim(0)) != m)
         throw Error("svdappend: A_new must have the same number of rows as U", 0, 0, "svdappend", "", "numkit:svdappend:badDims");
 
     const bool wantSingle = U.type() == ValueType::SINGLE || S.type() == ValueType::SINGLE

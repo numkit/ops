@@ -30,7 +30,7 @@ Value abs(const Value &x, Value *hint, keel::Allocator *mr)
             auto r = createLike(x, ValueType::SINGLE, mr);
             float *dst = r.singleDataMut();
             for (keel::usize i = 0; i < x.numel(); ++i)
-                dst[i] = static_cast<float>(keel::abs(x.complexData()[i]));
+                dst[i] = keel::as<float>(keel::abs(x.complexData()[i]));
             return r;
         }
         if (x.isScalar())
@@ -60,8 +60,8 @@ Value abs(const Value &x, Value *hint, keel::Allocator *mr)
         } else {
             const auto *in = x.charData();
             for (keel::usize i = 0; i < x.numel(); ++i)
-                out[i] = static_cast<double>(
-                    static_cast<unsigned char>(in[i]));
+                out[i] = keel::as<double>(
+                    keel::as<unsigned char>(in[i]));
         }
         return r;
     }

@@ -38,10 +38,10 @@ std::tuple<Value, Value> ordschur(const Value &U, const Value &T,
     }
     if (U.dims().ndim() != 2 || T.dims().ndim() != 2)
         throw Error("ordschur: U and T must be 2D matrices", 0, 0, "ordschur", "", "numkit:ordschur:notMatrix");
-    const keel::usize n = static_cast<keel::usize>(T.dims().dim(0));
-    if (n != static_cast<keel::usize>(T.dims().dim(1)) ||
-        static_cast<keel::usize>(U.dims().dim(0)) != n ||
-        static_cast<keel::usize>(U.dims().dim(1)) != n)
+    const keel::usize n = keel::as<keel::usize>(T.dims().dim(0));
+    if (n != keel::as<keel::usize>(T.dims().dim(1)) ||
+        keel::as<keel::usize>(U.dims().dim(0)) != n ||
+        keel::as<keel::usize>(U.dims().dim(1)) != n)
         throw Error("ordschur: U and T must be n x n square matrices", 0, 0, "ordschur", "", "numkit:ordschur:badDims");
 
     if (select.numel() != n)
@@ -91,7 +91,7 @@ std::tuple<Value, Value> ordschur(const Value &U, const Value &T,
 {
     detail::requireDoubleInput(U, "ordschur", "U", 1);
     detail::requireDoubleInput(T, "ordschur", "T", 2);
-    const keel::usize n = static_cast<keel::usize>(T.dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(T.dims().dim(0));
     Value select = Value::matrix(1, n, ValueType::LOGICAL, mr);
     keel::u8 *sd = select.logicalDataMut();
 

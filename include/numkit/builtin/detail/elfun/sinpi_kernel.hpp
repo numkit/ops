@@ -48,9 +48,9 @@ inline double sinpi_poly(bool o, double s)
 // Nearest even integer to u, via SLEEF's (trunc(u) + (u>=0)) & ~1.
 inline keel::i64 sinpi_octant(double u)
 {
-    keel::i64 q = static_cast<keel::i64>(u); // truncate toward zero
+    keel::i64 q = keel::as<keel::i64>(u); // truncate toward zero
     q += (q < 0) ? 0 : 1;
-    return q & ~static_cast<keel::i64>(1);
+    return q & ~keel::as<keel::i64>(1);
 }
 
 inline double sinpi_kernel(double d)
@@ -62,7 +62,7 @@ inline double sinpi_kernel(double d)
     const double        u = d * 4.0;
     const keel::i64  q = sinpi_octant(u);
     const bool          o = (q & 2) != 0;
-    const double        t = u - static_cast<double>(q);
+    const double        t = u - keel::as<double>(q);
     const double        s = t * t;
 
     double x = sinpi_poly(o, s) * (o ? s : t);
@@ -82,7 +82,7 @@ inline double cospi_kernel(double d)
     const double        u = d * 4.0;
     const keel::i64  q = sinpi_octant(u);
     const bool          o = (q & 2) == 0;
-    const double        t = u - static_cast<double>(q);
+    const double        t = u - keel::as<double>(q);
     const double        s = t * t;
 
     double x = sinpi_poly(o, s) * (o ? s : t);

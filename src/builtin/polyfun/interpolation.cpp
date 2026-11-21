@@ -48,8 +48,8 @@ Value interp2(const Value &V, const Value &Xq, const Value &Yq, keel::StringRef 
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     auto xGrid = keel::Array<double>(C, scratch.allocator());
     auto yGrid = keel::Array<double>(R, scratch.allocator());
-    for (keel::usize i = 0; i < C; ++i) xGrid[i] = static_cast<double>(i + 1);
-    for (keel::usize i = 0; i < R; ++i) yGrid[i] = static_cast<double>(i + 1);
+    for (keel::usize i = 0; i < C; ++i) xGrid[i] = keel::as<double>(i + 1);
+    for (keel::usize i = 0; i < R; ++i) yGrid[i] = keel::as<double>(i + 1);
     return interp2Impl(V, xGrid.data(), xGrid.size(), yGrid.data(), yGrid.size(), Xq, Yq, method, mr);
 }
 
@@ -76,9 +76,9 @@ Value interp3(const Value &V, const Value &Xq, const Value &Yq, const Value &Zq,
     auto xGrid = keel::Array<double>(C, scratch.allocator());
     auto yGrid = keel::Array<double>(R, scratch.allocator());
     auto zGrid = keel::Array<double>(P, scratch.allocator());
-    for (keel::usize i = 0; i < C; ++i) xGrid[i] = static_cast<double>(i + 1);
-    for (keel::usize i = 0; i < R; ++i) yGrid[i] = static_cast<double>(i + 1);
-    for (keel::usize i = 0; i < P; ++i) zGrid[i] = static_cast<double>(i + 1);
+    for (keel::usize i = 0; i < C; ++i) xGrid[i] = keel::as<double>(i + 1);
+    for (keel::usize i = 0; i < R; ++i) yGrid[i] = keel::as<double>(i + 1);
+    for (keel::usize i = 0; i < P; ++i) zGrid[i] = keel::as<double>(i + 1);
     return interp3Impl(V, xGrid.data(), xGrid.size(), yGrid.data(), yGrid.size(), zGrid.data(), zGrid.size(), Xq, Yq, Zq, method, mr);
 }
 
@@ -170,8 +170,8 @@ Value mkpp(const Value &breaks, const Value &coefs, keel::Allocator *mr)
     pp.field("form")   = Value::fromString("pp", mr);
     pp.field("breaks") = breaks;
     pp.field("coefs")  = coefs;
-    pp.field("pieces") = Value::scalar(static_cast<double>(L), mr);
-    pp.field("order")  = Value::scalar(static_cast<double>(order), mr);
+    pp.field("pieces") = Value::scalar(keel::as<double>(L), mr);
+    pp.field("order")  = Value::scalar(keel::as<double>(order), mr);
     pp.field("dim")    = Value::scalar(1.0, mr);
     return pp;
 }

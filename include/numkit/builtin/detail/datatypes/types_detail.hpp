@@ -57,8 +57,8 @@ T saturateCast(double v)
 {
     if (std::isnan(v)) return 0;
     v = std::round(v);
-    constexpr double lo = static_cast<double>(std::numeric_limits<T>::min());
-    constexpr double hi = static_cast<double>(std::numeric_limits<T>::max());
+    constexpr double lo = keel::as<double>(std::numeric_limits<T>::min());
+    constexpr double hi = keel::as<double>(std::numeric_limits<T>::max());
     if (v < lo) return std::numeric_limits<T>::min();
     if (v > hi) return std::numeric_limits<T>::max();
     return static_cast<T>(v);
@@ -77,8 +77,8 @@ Value numericConstructor(ValueType targetType, const Value &x, keel::Allocator *
             const keel::c64 *src = x.complexData();
             keel::c64 *dstC = r.complexDataMut();
             for (keel::usize i = 0; i < n; ++i) {
-                dstC[i] = keel::c64(static_cast<double>(static_cast<float>(src[i].real())),
-                                  static_cast<double>(static_cast<float>(src[i].imag())));
+                dstC[i] = keel::c64(keel::as<double>(keel::as<float>(src[i].real())),
+                                  keel::as<double>(keel::as<float>(src[i].imag())));
             }
             return r;
         }
@@ -297,7 +297,7 @@ T swapBytesScalar(T v)
         return v;
     } else if constexpr (sizeof(T) == 2) {
         keel::u16 u; std::memcpy(&u, &v, 2);
-        u = static_cast<keel::u16>((u << 8) | (u >> 8));
+        u = keel::as<keel::u16>((u << 8) | (u >> 8));
         T r; std::memcpy(&r, &u, 2); return r;
     } else if constexpr (sizeof(T) == 4) {
         keel::u32 u; std::memcpy(&u, &v, 4);

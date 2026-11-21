@@ -45,7 +45,7 @@ void validatePerm(const int *perm, keel::usize N, const char *fn)
     for (keel::usize i = 0; i < N; ++i) sorted[i] = perm[i];
     std::sort(sorted, sorted + N);
     for (keel::usize i = 0; i < N; ++i) {
-        if (sorted[i] != static_cast<int>(i + 1))
+        if (sorted[i] != keel::as<int>(i + 1))
             throw Error(keel::format("{}: perm must be a permutation of 1..N", fn),
                          0, 0, fn, "", keel::format("numkit:{}:badPerm", fn));
     }
@@ -105,7 +105,7 @@ Value permute(const Value &x, keel::ArrayRef<int> perm, keel::Allocator *mr)
     validatePerm(perm.data(), n, "permute");
 
     const auto &dd = x.dims();
-    const int inNd = std::max<int>(dd.ndim(), static_cast<int>(n));
+    const int inNd = std::max<int>(dd.ndim(), keel::as<int>(n));
     if (inNd > Dims::kMaxRank)
         throw Error("permute: rank exceeds 32",
                      0, 0, "permute", "", "numkit:permute:tooManyDims");
@@ -117,7 +117,7 @@ Value permute(const Value &x, keel::ArrayRef<int> perm, keel::Allocator *mr)
     keel::usize inDims[Dims::kMaxRank];
     keel::usize outDimsArr[Dims::kMaxRank];
     for (int i = 0; i < inNd; ++i)
-        p[i] = (i < static_cast<int>(n)) ? perm[i] : (i + 1);
+        p[i] = (i < keel::as<int>(n)) ? perm[i] : (i + 1);
     for (int i = 0; i < inNd; ++i) inDims[i] = dd.dim(i);
     for (int k = 0; k < inNd; ++k) outDimsArr[k] = inDims[p[k] - 1];
 
@@ -266,7 +266,7 @@ Value ipermute(const Value &x, keel::ArrayRef<int> perm, keel::Allocator *mr)
     // Stack-mounted: perm length is bounded by Dims::kMaxRank.
     int inv[Dims::kMaxRank];
     for (keel::usize i = 0; i < n; ++i)
-        inv[perm[i] - 1] = static_cast<int>(i + 1);
+        inv[perm[i] - 1] = keel::as<int>(i + 1);
     return permute(x, keel::ArrayRef<int>(inv, n), mr);
 }
 
@@ -588,7 +588,7 @@ Value shiftdim(const Value &x, int n, keel::Allocator *mr)
         int perm[kMaxNd];
         for (int i = 0; i < N; ++i)
             perm[i] = ((i + eff) % N) + 1;  // 1-based
-        return permute(x, keel::ArrayRef<int>(perm, static_cast<keel::usize>(N)), mr);
+        return permute(x, keel::ArrayRef<int>(perm, keel::as<keel::usize>(N)), mr);
     }
 
     // n < 0: prepend |n| singleton dims via reshape.
@@ -601,7 +601,7 @@ Value shiftdim(const Value &x, int n, keel::Allocator *mr)
     keel::usize newDims[kMaxNd];
     for (int i = 0; i < k; ++i) newDims[i] = 1;
     for (int i = 0; i < N; ++i) newDims[k + i] = d.dim(i);
-    return reshape(x, keel::ArrayRef<keel::usize>(newDims, static_cast<keel::usize>(newN)), mr);
+    return reshape(x, keel::ArrayRef<keel::usize>(newDims, keel::as<keel::usize>(newN)), mr);
 }
 
 ShiftDimAuto shiftdimAuto(const Value &x, keel::Allocator *mr)
@@ -629,7 +629,7 @@ ShiftDimAuto shiftdimAuto(const Value &x, keel::Allocator *mr)
         constexpr int kMaxNd = Dims::kMaxRank;
         keel::usize trimmed[kMaxNd];
         for (int i = 0; i < newN; ++i) trimmed[i] = yd.dim(i);
-        y = reshape(y, keel::ArrayRef<keel::usize>(trimmed, static_cast<keel::usize>(newN)), mr);
+        y = reshape(y, keel::ArrayRef<keel::usize>(trimmed, keel::as<keel::usize>(newN)), mr);
     }
     return { std::move(y), k };
 }

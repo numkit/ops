@@ -45,7 +45,7 @@ void magicOdd(double *p, keel::usize N)
     keel::usize r = 0;
     keel::usize c = N / 2;
     for (keel::usize k = 1; k <= N * N; ++k) {
-        p[r * N + c] = static_cast<double>(k);
+        p[r * N + c] = keel::as<double>(k);
         const keel::usize nr = (r == 0) ? (N - 1) : (r - 1);
         const keel::usize nc = (c + 1) % N;
         if (p[nr * N + nc] != 0.0) {
@@ -69,7 +69,7 @@ void magicOdd(double *p, keel::usize N)
             const keel::usize mi = i % 4;
             const keel::usize mj = j % 4;
             const bool diag = (mi == mj) || (mi + mj == 3);
-            p[i * N + j] = static_cast<double>(diag ? (total + 1 - k) : k);
+            p[i * N + j] = keel::as<double>(diag ? (total + 1 - k) : k);
         }
 }
 
@@ -484,12 +484,12 @@ sortRowsComplex(const Value &x, const int *cols, keel::usize nCols,
     keel::Array<int> sortKeys(scratch.allocator());
     if (nCols == 0) {
         sortKeys.reserve(C);
-        for (keel::usize c = 1; c <= C; ++c) sortKeys.push_back(static_cast<int>(c));
+        for (keel::usize c = 1; c <= C; ++c) sortKeys.push_back(keel::as<int>(c));
     } else {
         sortKeys.assign(keel::ArrayRef<int>(cols, nCols));
         for (int rawCol : sortKeys) {
             const int absC = (rawCol < 0) ? -rawCol : rawCol;
-            if (rawCol == 0 || static_cast<keel::usize>(absC) > C)
+            if (rawCol == 0 || keel::as<keel::usize>(absC) > C)
                 throw Error("sortrows: column index out of range",
                              0, 0, "sortrows", "", "numkit:sortrows:badCol");
         }
@@ -502,7 +502,7 @@ sortRowsComplex(const Value &x, const int *cols, keel::usize nCols,
         [&](keel::usize a, keel::usize b) {
             for (int key : sortKeys) {
                 const bool desc = key < 0;
-                const keel::usize c = static_cast<keel::usize>((desc ? -key : key) - 1);
+                const keel::usize c = keel::as<keel::usize>((desc ? -key : key) - 1);
                 const keel::c64 va = src[c * R + a], vb = src[c * R + b];
                 if (cxRowLess(va, vb)) return !desc;
                 if (cxRowLess(vb, va)) return desc;
@@ -518,7 +518,7 @@ sortRowsComplex(const Value &x, const int *cols, keel::usize nCols,
     auto idx = Value::matrix(R, 1, ValueType::DOUBLE, mr);
     double *idxP = idx.doubleDataMut();
     for (keel::usize i = 0; i < R; ++i)
-        idxP[i] = static_cast<double>(perm[i] + 1);
+        idxP[i] = keel::as<double>(perm[i] + 1);
     return std::make_tuple(std::move(out), std::move(idx));
 }
 
@@ -544,12 +544,12 @@ sortRowsImpl(const Value &x, const int *cols, keel::usize nCols, keel::Allocator
     if (nCols == 0) {
         sortKeys.reserve(C);
         for (keel::usize c = 1; c <= C; ++c)
-            sortKeys.push_back(static_cast<int>(c));
+            sortKeys.push_back(keel::as<int>(c));
     } else {
         sortKeys.assign(keel::ArrayRef<int>(cols, nCols));
         for (int rawCol : sortKeys) {
             const int absC = (rawCol < 0) ? -rawCol : rawCol;
-            if (rawCol == 0 || static_cast<keel::usize>(absC) > C)
+            if (rawCol == 0 || keel::as<keel::usize>(absC) > C)
                 throw Error("sortrows: column index out of range",
                              0, 0, "sortrows", "", "numkit:sortrows:badCol");
         }
@@ -569,7 +569,7 @@ sortRowsImpl(const Value &x, const int *cols, keel::usize nCols, keel::Allocator
     auto idx = Value::matrix(R, 1, ValueType::DOUBLE, mr);
     double *idxP = idx.doubleDataMut();
     for (keel::usize i = 0; i < R; ++i)
-        idxP[i] = static_cast<double>(perm[i] + 1);
+        idxP[i] = keel::as<double>(perm[i] + 1);
     return std::make_tuple(std::move(sorted), std::move(idx));
 }
 
@@ -707,15 +707,15 @@ template <typename T>
 void cumIntegerScanInto(const Value &x, T *dst, keel::usize strideD, keel::usize lenD,
                         bool isProd)
 {
-    const double lo = static_cast<double>(std::numeric_limits<T>::min());
-    const double hi = static_cast<double>(std::numeric_limits<T>::max());
+    const double lo = keel::as<double>(std::numeric_limits<T>::min());
+    const double hi = keel::as<double>(std::numeric_limits<T>::max());
     const keel::usize n = x.numel();
     for (keel::usize i = 0; i < n; ++i) {
         const keel::usize coord = (i / strideD) % lenD;
         const double cur = x.elemAsDouble(i);
         double v = cur;
         if (coord != 0) {
-            const double prev = static_cast<double>(dst[i - strideD]);
+            const double prev = keel::as<double>(dst[i - strideD]);
             v = isProd ? prev * cur : prev + cur;
         }
         if (v < lo) v = lo;
@@ -1048,7 +1048,7 @@ Value logicalizeCumResult(const Value &d, keel::Allocator *mr)
     const double *src = d.doubleData();
     const keel::usize n = d.numel();
     for (keel::usize i = 0; i < n; ++i)
-        dst[i] = static_cast<char>(static_cast<int>(src[i]));
+        dst[i] = keel::as<char>(keel::as<int>(src[i]));
     return r;
 }
 } // namespace
@@ -1181,10 +1181,10 @@ void diffOnceIntegerT(const T *src, T *dst, const Dims &srcDims, int d)
     keel::usize outerCount = 1;
     for (int i = d; i < nd; ++i) outerCount *= srcDims.dim(i);
     const keel::usize outSliceLen = sliceLen - 1;
-    const double lo = static_cast<double>(std::numeric_limits<T>::min());
-    const double hi = static_cast<double>(std::numeric_limits<T>::max());
+    const double lo = keel::as<double>(std::numeric_limits<T>::min());
+    const double hi = keel::as<double>(std::numeric_limits<T>::max());
     auto sub = [&](T a, T b) -> T {
-        double v = static_cast<double>(a) - static_cast<double>(b);
+        double v = keel::as<double>(a) - keel::as<double>(b);
         if (v < lo) v = lo;
         else if (v > hi) v = hi;
         return static_cast<T>(v);

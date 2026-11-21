@@ -57,7 +57,7 @@ Value pageView(const Value &A, keel::usize p, keel::usize m, keel::usize n,
         const float *src = A.singleData() + p * m * n;
         double *dst = out.doubleDataMut();
         for (keel::usize i = 0; i < m * n; ++i)
-            dst[i] = static_cast<double>(src[i]);
+            dst[i] = keel::as<double>(src[i]);
         return out;
     }
     const double *src = A.doubleData() + p * m * n;
@@ -72,9 +72,9 @@ pageShape(const Value &A, const char *who)
     if (nd < 2 || nd > 3)
         throw Error(keel::format("{}: input must be 2-D or 3-D", who),
                     0, 0, who, "", keel::format("numkit:{}:badDim", who));
-    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
-    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
-    const keel::usize p = (nd == 2) ? 1 : static_cast<keel::usize>(A.dims().dim(2));
+    const keel::usize m = keel::as<keel::usize>(A.dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(A.dims().dim(1));
+    const keel::usize p = (nd == 2) ? 1 : keel::as<keel::usize>(A.dims().dim(2));
     return {m, n, p};
 }
 
@@ -303,8 +303,8 @@ void checkPagePair(const Value &A, const Value &B, const char *who,
     if (nda < 2 || nda > 3 || ndb < 2 || ndb > 3)
         throw Error(keel::format("{}: inputs must be 2-D or 3-D", who),
                     0, 0, who, "", keel::format("numkit:{}:badDim", who));
-    const keel::usize pa = (nda == 2) ? 1 : static_cast<keel::usize>(A.dims().dim(2));
-    const keel::usize pb = (ndb == 2) ? 1 : static_cast<keel::usize>(B.dims().dim(2));
+    const keel::usize pa = (nda == 2) ? 1 : keel::as<keel::usize>(A.dims().dim(2));
+    const keel::usize pb = (ndb == 2) ? 1 : keel::as<keel::usize>(B.dims().dim(2));
     if (pa == pb)            pages = pa;
     else if (pa == 1)        pages = pb;
     else if (pb == 1)        pages = pa;
@@ -329,10 +329,10 @@ Value pagemldivide(const Value &A, const Value &B, keel::Allocator *mr)
     detail::requireDoubleInput(B, "pagemldivide", "B", 2);
     keel::usize pages = 0;
     checkPagePair(A, B, "pagemldivide", pages);
-    const keel::usize mA = static_cast<keel::usize>(A.dims().dim(0));
-    const keel::usize nA = static_cast<keel::usize>(A.dims().dim(1));
-    const keel::usize mB = static_cast<keel::usize>(B.dims().dim(0));
-    const keel::usize nB = static_cast<keel::usize>(B.dims().dim(1));
+    const keel::usize mA = keel::as<keel::usize>(A.dims().dim(0));
+    const keel::usize nA = keel::as<keel::usize>(A.dims().dim(1));
+    const keel::usize mB = keel::as<keel::usize>(B.dims().dim(0));
+    const keel::usize nB = keel::as<keel::usize>(B.dims().dim(1));
     if (mA != mB)
         throw Error("pagemldivide: row counts of A and B must match",
                     0, 0, "pagemldivide", "", "numkit:pagemldivide:badRows");
@@ -374,10 +374,10 @@ Value pagemrdivide(const Value &A, const Value &B, keel::Allocator *mr)
     detail::requireDoubleInput(B, "pagemrdivide", "B", 2);
     keel::usize pages = 0;
     checkPagePair(A, B, "pagemrdivide", pages);
-    const keel::usize mA = static_cast<keel::usize>(A.dims().dim(0));
-    const keel::usize nA = static_cast<keel::usize>(A.dims().dim(1));
-    const keel::usize mB = static_cast<keel::usize>(B.dims().dim(0));
-    const keel::usize nB = static_cast<keel::usize>(B.dims().dim(1));
+    const keel::usize mA = keel::as<keel::usize>(A.dims().dim(0));
+    const keel::usize nA = keel::as<keel::usize>(A.dims().dim(1));
+    const keel::usize mB = keel::as<keel::usize>(B.dims().dim(0));
+    const keel::usize nB = keel::as<keel::usize>(B.dims().dim(1));
     if (nA != nB)
         throw Error("pagemrdivide: column counts of A and B must match",
                     0, 0, "pagemrdivide", "", "numkit:pagemrdivide:badCols");
@@ -449,10 +449,10 @@ Value pagelsqminnorm(const Value &A, const Value &B, bool have_tol, double tol_u
     detail::requireDoubleInput(B, "pagelsqminnorm", "B", 2);
     keel::usize pages = 0;
     checkPagePair(A, B, "pagelsqminnorm", pages);
-    const keel::usize mA = static_cast<keel::usize>(A.dims().dim(0));
-    const keel::usize nA = static_cast<keel::usize>(A.dims().dim(1));
-    const keel::usize mB = static_cast<keel::usize>(B.dims().dim(0));
-    const keel::usize nB = static_cast<keel::usize>(B.dims().dim(1));
+    const keel::usize mA = keel::as<keel::usize>(A.dims().dim(0));
+    const keel::usize nA = keel::as<keel::usize>(A.dims().dim(1));
+    const keel::usize mB = keel::as<keel::usize>(B.dims().dim(0));
+    const keel::usize nB = keel::as<keel::usize>(B.dims().dim(1));
     if (mA != mB)
         throw Error("pagelsqminnorm: row counts of A and B must match",
                     0, 0, "pagelsqminnorm", "", "numkit:pagelsqminnorm:badRows");

@@ -154,8 +154,8 @@ Value eigs_values(const Value &A, keel::usize k, const Value &sigma, keel::Alloc
     detail::requireDoubleInput(A, "eigs");
     if (A.dims().ndim() != 2)
         throw Error("eigs: input must be a 2D matrix", 0, 0, "eigs", "", "numkit:eigs:notMatrix");
-    const keel::usize n = static_cast<keel::usize>(A.dims().dim(0));
-    if (n != static_cast<keel::usize>(A.dims().dim(1)))
+    const keel::usize n = keel::as<keel::usize>(A.dims().dim(0));
+    if (n != keel::as<keel::usize>(A.dims().dim(1)))
         throw Error("eigs: matrix must be square", 0, 0, "eigs", "", "numkit:eigs:notSquare");
 
     const bool wantSingle = A.type() == ValueType::SINGLE;
@@ -196,8 +196,8 @@ std::tuple<Value, Value> eigs(const Value &A, keel::usize k, const Value &sigma,
     detail::requireDoubleInput(A, "eigs");
     if (A.dims().ndim() != 2)
         throw Error("eigs: input must be a 2D matrix", 0, 0, "eigs", "", "numkit:eigs:notMatrix");
-    const keel::usize n = static_cast<keel::usize>(A.dims().dim(0));
-    if (n != static_cast<keel::usize>(A.dims().dim(1)))
+    const keel::usize n = keel::as<keel::usize>(A.dims().dim(0));
+    if (n != keel::as<keel::usize>(A.dims().dim(1)))
         throw Error("eigs: matrix must be square", 0, 0, "eigs", "", "numkit:eigs:notSquare");
 
     const bool wantSingle = A.type() == ValueType::SINGLE;
@@ -225,10 +225,10 @@ std::tuple<Value, Value> eigs_generalized(const Value &A, const Value &B, keel::
     detail::requireDoubleInput(B, "eigs", "B");
     if (A.dims().ndim() != 2 || B.dims().ndim() != 2)
         throw Error("eigs: inputs must be 2D matrices", 0, 0, "eigs", "", "numkit:eigs:notMatrix");
-    const keel::usize n = static_cast<keel::usize>(A.dims().dim(0));
-    if (n != static_cast<keel::usize>(A.dims().dim(1)) ||
-        n != static_cast<keel::usize>(B.dims().dim(0)) ||
-        n != static_cast<keel::usize>(B.dims().dim(1)))
+    const keel::usize n = keel::as<keel::usize>(A.dims().dim(0));
+    if (n != keel::as<keel::usize>(A.dims().dim(1)) ||
+        n != keel::as<keel::usize>(B.dims().dim(0)) ||
+        n != keel::as<keel::usize>(B.dims().dim(1)))
         throw Error("eigs: A and B must be square matrices of the same size",
                     0, 0, "eigs", "", "numkit:eigs:notSquare");
 
@@ -260,7 +260,7 @@ Value eigs_generalized_values(const Value &A, const Value &B, keel::usize k,
 {
     auto [V, D] = eigs_generalized(A, B, k, sigma, mr);
     (void)V;
-    const keel::usize m = static_cast<keel::usize>(D.dims().dim(0));
+    const keel::usize m = keel::as<keel::usize>(D.dims().dim(0));
     if (D.isComplex()) {
         auto out = Value::complexMatrix(m, 1, mr);
         const keel::c64 *dd = D.complexData();
@@ -280,8 +280,8 @@ Value svds_values(const Value &A, keel::usize k, keel::Allocator *mr)
     detail::requireDoubleInput(A, "svds");
     if (A.dims().ndim() != 2)
         throw Error("svds: input must be a 2D matrix", 0, 0, "svds", "", "numkit:svds:notMatrix");
-    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
-    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
+    const keel::usize m = keel::as<keel::usize>(A.dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(A.dims().dim(1));
     const keel::usize min_mn = std::min(m, n);
 
     const bool wantSingle = A.type() == ValueType::SINGLE;
@@ -302,8 +302,8 @@ std::tuple<Value, Value, Value> svds(const Value &A, keel::usize k, keel::Alloca
     detail::requireDoubleInput(A, "svds");
     if (A.dims().ndim() != 2)
         throw Error("svds: input must be a 2D matrix", 0, 0, "svds", "", "numkit:svds:notMatrix");
-    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
-    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
+    const keel::usize m = keel::as<keel::usize>(A.dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(A.dims().dim(1));
     const keel::usize min_mn = std::min(m, n);
 
     const bool wantSingle = A.type() == ValueType::SINGLE;

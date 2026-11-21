@@ -95,7 +95,7 @@ Value logicalReduceImpl(const Value &x, int dim, keel::Allocator *mr)
         keel::ArenaTemp scratch = keel::get_scratch(mr);
         auto shape = numkit::ops::outShapeForDimND(x, d, scratch.allocator());
         Value out = Value::matrixND(shape.data(),
-                                      static_cast<int>(shape.size()),
+                                      keel::as<int>(shape.size()),
                                       ValueType::LOGICAL, mr);
         keel::u8 *dst = out.logicalDataMut();
         const keel::usize sliceLen = dd.dim(d - 1);

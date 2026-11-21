@@ -294,7 +294,7 @@ NanSumCount nanSumCountScan(const double *p, keel::usize n)
     if (n == 0) return {0.0, 0};
     double sum = 0.0, cnt = 0.0;
     HWY_DYNAMIC_DISPATCH(NanSumCountScanLoop)(p, n, &sum, &cnt);
-    return {sum, static_cast<keel::usize>(cnt)};
+    return {sum, keel::as<keel::usize>(cnt)};
 }
 
 double nanMaxScan(const double *p, keel::usize n)
@@ -321,10 +321,10 @@ double nanVarianceTwoPass(const double *p, keel::usize n, int normFlag)
     // MATLAB: variance over a single non-NaN value is 0 for BOTH the N-1
     // (default) and N normalizations — e.g. nanvar([NaN 5 NaN]) == 0, not NaN.
     if (sc.count == 1) return 0.0;
-    const double mean  = sc.sum / static_cast<double>(sc.count);
+    const double mean  = sc.sum / keel::as<double>(sc.count);
     const double ss    = HWY_DYNAMIC_DISPATCH(NanSumSqDevScanLoop)(p, n, mean);
-    const double denom = (normFlag == 1) ? static_cast<double>(sc.count)
-                                         : static_cast<double>(sc.count - 1);
+    const double denom = (normFlag == 1) ? keel::as<double>(sc.count)
+                                         : keel::as<double>(sc.count - 1);
     return ss / denom;
 }
 

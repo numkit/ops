@@ -25,9 +25,9 @@ namespace numkit::builtin {
 static inline double civilToSerial(double yd, double md, double dd, double hd, double mind, double sd) {
     double dInt;
     const double dFrac = std::modf(dd, &dInt);
-    keel::i64 y = static_cast<keel::i64>(std::floor(yd));
-    keel::i64 m = static_cast<keel::i64>(std::floor(md));
-    keel::i64 d = static_cast<keel::i64>(dInt);
+    keel::i64 y = keel::as<keel::i64>(std::floor(yd));
+    keel::i64 m = keel::as<keel::i64>(std::floor(md));
+    keel::i64 d = keel::as<keel::i64>(dInt);
     if (m <= 2) y -= 1;
     const keel::i64 era = (y < 0 ? y - 399 : y) / 400;
     const keel::i64 yoe = y - era * 400;
@@ -35,7 +35,7 @@ static inline double civilToSerial(double yd, double md, double dd, double hd, d
     const keel::i64 doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
     const keel::i64 days = era * 146097 + doe - 719468;
     const double frac = (hd * 3600.0 + mind * 60.0 + sd) / 86400.0 + dFrac;
-    return static_cast<double>(days) + 719529.0 + frac;
+    return keel::as<double>(days) + 719529.0 + frac;
 }
 
 static inline void civilFromDays(keel::i64 z, keel::i64 &Y, int &M, int &D) {
@@ -46,17 +46,17 @@ static inline void civilFromDays(keel::i64 z, keel::i64 &Y, int &M, int &D) {
     const keel::i64 y = yoe + era * 400;
     const keel::i64 doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
     const keel::i64 mp = (5 * doy + 2) / 153;
-    D = static_cast<int>(doy - (153 * mp + 2) / 5 + 1);
-    M = static_cast<int>(mp < 10 ? mp + 3 : mp - 9);
+    D = keel::as<int>(doy - (153 * mp + 2) / 5 + 1);
+    M = keel::as<int>(mp < 10 ? mp + 3 : mp - 9);
     Y = y + (M <= 2 ? 1 : 0);
 }
 
 static inline void extractTime(double frac, int &H, int &MI, double &S) {
     const double total_ms = std::round(frac * 86400.0 * 1.0e3);
-    keel::i64 ms = static_cast<keel::i64>(total_ms);
-    H  = static_cast<int>(ms / 3600000LL); ms %= 3600000LL;
-    MI = static_cast<int>(ms / 60000LL);   ms %= 60000LL;
-    S  = static_cast<double>(ms) / 1.0e3;
+    keel::i64 ms = keel::as<keel::i64>(total_ms);
+    H  = keel::as<int>(ms / 3600000LL); ms %= 3600000LL;
+    MI = keel::as<int>(ms / 60000LL);   ms %= 60000LL;
+    S  = keel::as<double>(ms) / 1.0e3;
 }
 
 static inline void serialToCivil(double serial, double &yd, double &md, double &dd, double &hd, double &mind, double &sd) {
@@ -65,7 +65,7 @@ static inline void serialToCivil(double serial, double &yd, double &md, double &
         return;
     }
     const double floored = std::floor(serial);
-    const keel::i64 days = static_cast<keel::i64>(floored);
+    const keel::i64 days = keel::as<keel::i64>(floored);
     const double frac = serial - floored;
     const keel::i64 z = days - 719529;
     keel::i64 Y; int M, D, H, MI; double S;
@@ -74,11 +74,11 @@ static inline void serialToCivil(double serial, double &yd, double &md, double &
     if (S >= 60.0) { S -= 60.0; ++MI; }
     if (MI >= 60)  { MI -= 60;  ++H;  }
     if (H  >= 24)  { H  -= 24; civilFromDays(z + 1, Y, M, D); }
-    yd = static_cast<double>(Y);
-    md = static_cast<double>(M);
-    dd = static_cast<double>(D);
-    hd = static_cast<double>(H);
-    mind = static_cast<double>(MI);
+    yd = keel::as<double>(Y);
+    md = keel::as<double>(M);
+    dd = keel::as<double>(D);
+    hd = keel::as<double>(H);
+    mind = keel::as<double>(MI);
     sd = S;
 }
 
@@ -120,7 +120,7 @@ Value weeknum(keel::ArrayRef<Value> args, keel::Allocator *mr) {
 
     int weekStart = 1;
     if (args.size() >= 2 && !args[1].isEmpty())
-        weekStart = static_cast<int>(args[1].toScalar());
+        weekStart = keel::as<int>(args[1].toScalar());
     if (weekStart < 1 || weekStart > 7)
         throw std::runtime_error("weeknum: WeekStart must be an integer in 1..7 (1=Sunday)");
     bool european = false;
@@ -136,7 +136,7 @@ Value weeknum(keel::ArrayRef<Value> args, keel::Allocator *mr) {
         return era * 146097 + doe - 719468 + 719529;
     };
     auto yearOf = [](double serial) {
-        keel::i64 z = static_cast<keel::i64>(std::floor(serial)) - 719529 + 719468;
+        keel::i64 z = keel::as<keel::i64>(std::floor(serial)) - 719529 + 719468;
         const keel::i64 era = (z >= 0 ? z : z - 146096) / 146097;
         const keel::i64 doe = z - era * 146097;
         const keel::i64 yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
@@ -145,7 +145,7 @@ Value weeknum(keel::ArrayRef<Value> args, keel::Allocator *mr) {
         const keel::i64 mp = (5 * dy + 2) / 153;
         const keel::i64 m = mp < 10 ? mp + 3 : mp - 9;
         if (m <= 2) y += 1;
-        return static_cast<int>(y);
+        return keel::as<int>(y);
     };
     auto isLeap = [](int y) {
         return (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
@@ -185,8 +185,8 @@ Value weeknum(keel::ArrayRef<Value> args, keel::Allocator *mr) {
     for (keel::usize i = 0; i < n; ++i) {
         const double serial = D.elemAsDouble(i);
         const int y = yearOf(serial);
-        const int doy = static_cast<int>(std::floor(serial) - civilToSerialSimple(y, 1, 1)) + 1;
-        o[i] = static_cast<double>(weekOf(y, doy));
+        const int doy = keel::as<int>(std::floor(serial) - civilToSerialSimple(y, 1, 1)) + 1;
+        o[i] = keel::as<double>(weekOf(y, doy));
     }
     return out;
 }
@@ -211,7 +211,7 @@ Value addtodate(const Value &d, double quantity, keel::StringRef unit, keel::All
     else if (unit.equals_ignore_ascii_case("month") || unit.equals_ignore_ascii_case("year")) {
         const double dayF = std::floor(serial);
         const double frac = serial - dayF;
-        const keel::i64 days = static_cast<keel::i64>(dayF) - 719529;
+        const keel::i64 days = keel::as<keel::i64>(dayF) - 719529;
         keel::i64 z = days + 719468;
         const keel::i64 era = (z >= 0 ? z : z - 146096) / 146097;
         const keel::i64 doe = z - era * 146097;
@@ -225,13 +225,13 @@ Value addtodate(const Value &d, double quantity, keel::StringRef unit, keel::All
 
         keel::i64 nY = Y, nM = M;
         if (unit.equals_ignore_ascii_case("month")) {
-            keel::i64 tm = (M - 1) + static_cast<keel::i64>(std::llround(q));
+            keel::i64 tm = (M - 1) + keel::as<keel::i64>(std::llround(q));
             keel::i64 qd = tm / 12, rd = tm % 12;
             if (rd < 0) { qd -= 1; rd += 12; }
             nY = Y + qd;
             nM = rd + 1;
         } else {
-            nY = Y + static_cast<keel::i64>(std::llround(q));
+            nY = Y + keel::as<keel::i64>(std::llround(q));
         }
         auto leap = [](keel::i64 y) {
             return (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
@@ -247,7 +247,7 @@ Value addtodate(const Value &d, double quantity, keel::StringRef unit, keel::All
         const keel::i64 doy2 = (153 * (nM + (nM > 2 ? -3 : 9)) + 2) / 5 + nD - 1;
         const keel::i64 doe2 = yoe2 * 365 + yoe2 / 4 - yoe2 / 100 + doy2;
         const keel::i64 newDays = era2 * 146097 + doe2 - 719468 + 719529;
-        result = static_cast<double>(newDays) + frac;
+        result = keel::as<double>(newDays) + frac;
     } else {
         throw std::runtime_error("addtodate: units must be one of 'year','month','day','hour','minute','second','millisecond'");
     }
@@ -298,7 +298,7 @@ Value datenum(keel::ArrayRef<Value> args, keel::Allocator *mr) {
                 } else if (fAt("yy")) {
                     long v = readNum(2); if (v < 0) return false;
                     const keel::CalendarTime nowCal = keel::local_time();
-                    long curCent = (static_cast<long>(nowCal.year) / 100) * 100;
+                    long curCent = (keel::as<long>(nowCal.year) / 100) * 100;
                     Y = curCent + v; fi += 2;
                 } else if (fAt("mmmm") || fAt("mmm")) {
                     keel::usize mlen = fAt("mmmm") ? 4 : 3;
@@ -417,19 +417,19 @@ Value datenum(keel::ArrayRef<Value> args, keel::Allocator *mr) {
 
 Value weekday(const Value &d, keel::Allocator *mr) {
     auto dayIndex = [](double val) -> int {
-        keel::i64 f = static_cast<keel::i64>(std::floor(val)) - 2;
+        keel::i64 f = keel::as<keel::i64>(std::floor(val)) - 2;
         keel::i64 r = f % 7;
         if (r < 0) r += 7;
-        return static_cast<int>(r) + 1;
+        return keel::as<int>(r) + 1;
     };
     const keel::usize N = d.numel();
     if (N == 1) {
-        return Value::scalar(static_cast<double>(dayIndex(d.toScalar())), mr);
+        return Value::scalar(keel::as<double>(dayIndex(d.toScalar())), mr);
     }
     auto out = Value::matrix(d.dims().rows(), d.dims().cols(), ValueType::DOUBLE, mr);
     double *o = out.doubleDataMut();
     for (keel::usize i = 0; i < N; ++i)
-        o[i] = static_cast<double>(dayIndex(d.elemAsDouble(i)));
+        o[i] = keel::as<double>(dayIndex(d.elemAsDouble(i)));
     return out;
 }
 
@@ -485,11 +485,11 @@ Value eomday(const Value &y, const Value &m, keel::Allocator *mr) {
     };
     static const int dim[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
     auto eomOne = [&](double yr, double mo) -> double {
-        keel::i64 yi = static_cast<keel::i64>(yr);
-        keel::i64 mi = static_cast<keel::i64>(mo);
+        keel::i64 yi = keel::as<keel::i64>(yr);
+        keel::i64 mi = keel::as<keel::i64>(mo);
         if (mi < 1 || mi > 12)
             throw std::runtime_error("eomday: month must be in 1..12");
-        return (mi == 2 && isLeap(yi)) ? 29.0 : static_cast<double>(dim[mi]);
+        return (mi == 2 && isLeap(yi)) ? 29.0 : keel::as<double>(dim[mi]);
     };
     const keel::usize ny = y.numel(), nm = m.numel();
     if (ny == 1 && nm == 1)
@@ -513,8 +513,8 @@ Value calendar(keel::ArrayRef<Value> args, keel::Allocator *mr) {
     double yr = 0, mo = 0;
     if (args.empty()) {
         const keel::CalendarTime nowCal = keel::local_time();
-        yr = static_cast<double>(nowCal.year);
-        mo = static_cast<double>(nowCal.month);
+        yr = keel::as<double>(nowCal.year);
+        mo = keel::as<double>(nowCal.month);
     } else if (args.size() == 1) {
         double d, h, mi, s;
         serialToCivil(args[0].toScalar(), yr, mo, d, h, mi, s);
@@ -522,8 +522,8 @@ Value calendar(keel::ArrayRef<Value> args, keel::Allocator *mr) {
         yr = args[0].toScalar();
         mo = args[1].toScalar();
     }
-    keel::i64 yi = static_cast<keel::i64>(yr);
-    keel::i64 mi = static_cast<keel::i64>(mo);
+    keel::i64 yi = keel::as<keel::i64>(yr);
+    keel::i64 mi = keel::as<keel::i64>(mo);
     if (mi < 1 || mi > 12)
         throw std::runtime_error("calendar: month must be in 1..12");
     auto isLeap = [](keel::i64 y) {
@@ -531,10 +531,10 @@ Value calendar(keel::ArrayRef<Value> args, keel::Allocator *mr) {
     };
     static const int dim[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
     int daysInMonth = (mi == 2 && isLeap(yi)) ? 29 : dim[mi];
-    double s1 = civilToSerial(static_cast<double>(yi), static_cast<double>(mi), 1.0, 0, 0, 0);
-    keel::i64 f = static_cast<keel::i64>(std::floor(s1)) - 2;
+    double s1 = civilToSerial(keel::as<double>(yi), keel::as<double>(mi), 1.0, 0, 0, 0);
+    keel::i64 f = keel::as<keel::i64>(std::floor(s1)) - 2;
     keel::i64 r = f % 7; if (r < 0) r += 7;
-    int startCol = static_cast<int>(r);
+    int startCol = keel::as<int>(r);
 
     auto out = Value::matrix(6, 7, ValueType::DOUBLE, mr);
     double *o = out.doubleDataMut();
@@ -562,18 +562,18 @@ Value datestr(keel::ArrayRef<Value> args, keel::Allocator *mr) {
     struct Comp { int y, mo, d, h, mi, s; };
     auto serialToComp = [&](double dval) -> Comp {
         const double floored = std::floor(dval);
-        const keel::i64 z = static_cast<keel::i64>(floored) - 719529;
+        const keel::i64 z = keel::as<keel::i64>(floored) - 719529;
         const double frac = dval - floored;
         keel::i64 Y; int M, D;
         civilFromDays(z, Y, M, D);
-        keel::i64 ms = static_cast<keel::i64>(std::round(frac * 86400.0 * 1.0e3));
-        int H  = static_cast<int>(ms / 3600000LL); ms %= 3600000LL;
-        int MI = static_cast<int>(ms / 60000LL);   ms %= 60000LL;
-        double S = static_cast<double>(ms) / 1.0e3;
+        keel::i64 ms = keel::as<keel::i64>(std::round(frac * 86400.0 * 1.0e3));
+        int H  = keel::as<int>(ms / 3600000LL); ms %= 3600000LL;
+        int MI = keel::as<int>(ms / 60000LL);   ms %= 60000LL;
+        double S = keel::as<double>(ms) / 1.0e3;
         if (S >= 60.0) { S -= 60.0; ++MI; }
         if (MI >= 60)  { MI -= 60;  ++H;  }
         if (H  >= 24)  { H  -= 24; civilFromDays(z + 1, Y, M, D); }
-        return Comp{ static_cast<int>(Y), M, D, H, MI, static_cast<int>(std::round(S)) };
+        return Comp{ keel::as<int>(Y), M, D, H, MI, keel::as<int>(std::round(S)) };
     };
 
     keel::ArenaTemp scratch = keel::get_scratch(mr);
@@ -634,12 +634,12 @@ Value datestr(keel::ArrayRef<Value> args, keel::Allocator *mr) {
             dates.reserve(Rr);
             for (keel::usize r = 0; r < Rr; ++r)
                 dates.push_back(Comp{
-                    static_cast<int>(din.elemAsDouble(0 * Rr + r)),
-                    static_cast<int>(din.elemAsDouble(1 * Rr + r)),
-                    static_cast<int>(din.elemAsDouble(2 * Rr + r)),
-                    static_cast<int>(din.elemAsDouble(3 * Rr + r)),
-                    static_cast<int>(din.elemAsDouble(4 * Rr + r)),
-                    static_cast<int>(std::round(din.elemAsDouble(5 * Rr + r)))});
+                    keel::as<int>(din.elemAsDouble(0 * Rr + r)),
+                    keel::as<int>(din.elemAsDouble(1 * Rr + r)),
+                    keel::as<int>(din.elemAsDouble(2 * Rr + r)),
+                    keel::as<int>(din.elemAsDouble(3 * Rr + r)),
+                    keel::as<int>(din.elemAsDouble(4 * Rr + r)),
+                    keel::as<int>(std::round(din.elemAsDouble(5 * Rr + r)))});
         } else {
             const keel::usize n = din.numel();
             dates.reserve(n);
@@ -695,7 +695,7 @@ Value datestr(keel::ArrayRef<Value> args, keel::Allocator *mr) {
                 "yyyymmddTHHMMSS",      // 30
                 "yyyy-mm-dd HH:MM:SS",  // 31
             };
-            const int code = static_cast<int>(std::round(f.elemAsDouble(0)));
+            const int code = keel::as<int>(std::round(f.elemAsDouble(0)));
             if (code < 0 || code > 31)
                 throw std::runtime_error("datestr: unsupported numeric format code (expected 0-31)");
             fmt = DATEFORM[code];
@@ -743,7 +743,7 @@ Value datestr(keel::ArrayRef<Value> args, keel::Allocator *mr) {
             else if (at("mmm", 3)) { out.append(MON3[(moi-1+12)%12]); i+=3; }
             else if (at("mm", 2)) { std::snprintf(buf,sizeof buf,"%02d",moi); out.append(buf); i+=2; }
             else if (at("m", 1)) { out.push_back(MON3[(moi-1+12)%12][0]); i+=1; }
-            else if (at("QQ", 2)) { out.push_back('Q'); out.push_back(static_cast<char>('0' + ((moi - 1) / 3 + 1))); i+=2; }
+            else if (at("QQ", 2)) { out.push_back('Q'); out.push_back(keel::as<char>('0' + ((moi - 1) / 3 + 1))); i+=2; }
             else if (at("dddd", 4)) { out.append(DOWF[dow]); i+=4; }
             else if (at("ddd", 3)) { out.append(DOW3[dow]); i+=3; }
             else if (at("dd", 2)) { std::snprintf(buf,sizeof buf,"%02d",di); out.append(buf); i+=2; }
@@ -810,7 +810,7 @@ Value datevec(keel::ArrayRef<Value> args, keel::Allocator *mr) {
             };
             while (fi < fmt.size()) {
                 if (fAt("yyyy")) {
-                    long v = readNum(4); if (v < 0) return false; Y = static_cast<double>(v); fi += 4;
+                    long v = readNum(4); if (v < 0) return false; Y = keel::as<double>(v); fi += 4;
                 } else if (fAt("mmmm") || fAt("mmm")) {
                     bool full = fAt("mmmm");
                     if (si + 3 > s.size()) return false;
@@ -818,21 +818,21 @@ Value datevec(keel::ArrayRef<Value> args, keel::Allocator *mr) {
                     int mi = -1;
                     for (int k = 0; k < 12; ++k) if (mon.equals_ignore_ascii_case(MON3s[k])) { mi = k + 1; break; }
                     if (mi < 0) return false;
-                    Mo = static_cast<double>(mi); si += 3;
+                    Mo = keel::as<double>(mi); si += 3;
                     if (full) {
                         while (si < s.size() && keel::is_ascii_alpha(s[si])) ++si;
                         fi += 4;
                     } else { fi += 3; }
                 } else if (fAt("mm")) {
-                    long v = readNum(2); if (v < 0) return false; Mo = static_cast<double>(v); fi += 2;
+                    long v = readNum(2); if (v < 0) return false; Mo = keel::as<double>(v); fi += 2;
                 } else if (fAt("dd")) {
-                    long v = readNum(2); if (v < 0) return false; D = static_cast<double>(v); fi += 2;
+                    long v = readNum(2); if (v < 0) return false; D = keel::as<double>(v); fi += 2;
                 } else if (fAt("HH")) {
-                    long v = readNum(2); if (v < 0) return false; H = static_cast<double>(v); fi += 2;
+                    long v = readNum(2); if (v < 0) return false; H = keel::as<double>(v); fi += 2;
                 } else if (fAt("MM")) {
-                    long v = readNum(2); if (v < 0) return false; MI = static_cast<double>(v); fi += 2;
+                    long v = readNum(2); if (v < 0) return false; MI = keel::as<double>(v); fi += 2;
                 } else if (fAt("SS")) {
-                    long v = readNum(2); if (v < 0) return false; S = static_cast<double>(v); fi += 2;
+                    long v = readNum(2); if (v < 0) return false; S = keel::as<double>(v); fi += 2;
                 } else {
                     if (si < s.size() && s[si] == fmt[fi]) { ++si; ++fi; }
                     else return false;
@@ -882,11 +882,11 @@ Value yyyymmdd(keel::ArrayRef<Value> args, keel::Allocator *mr) {
 
     auto packOne = [&](double dval) {
         if (dval == 0.0) return 0.0;
-        const keel::i64 days = static_cast<keel::i64>(std::floor(dval));
+        const keel::i64 days = keel::as<keel::i64>(std::floor(dval));
         const keel::i64 z = days - 719529;
         keel::i64 Y; int M, D;
         civilFromDays(z, Y, M, D);
-        return static_cast<double>(Y * 10000 + M * 100 + D);
+        return keel::as<double>(Y * 10000 + M * 100 + D);
     };
 
     const Value &Din = args[0];

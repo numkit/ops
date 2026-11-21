@@ -53,7 +53,7 @@ keel::String num2strComplexScalar(keel::c64 z, int precOverride,
         const double M = std::max(std::fabs(re), std::fabs(im));
         prec = 5;
         if (M != 0.0) {
-            const int e = static_cast<int>(std::floor(std::log10(M)));
+            const int e = keel::as<int>(std::floor(std::log10(M)));
             prec = (e > 0 ? e : 0) + 5;
         }
     }
@@ -117,7 +117,7 @@ inline keel::String num2strComplexArray(const Value &x, int precOverride,
             cells.push_back(std::move(s));
         }
         const keel::usize W = allInt ? wmax + 2
-                                     : (static_cast<keel::usize>(std::max(0, static_cast<int>(std::floor(std::log10(maxAbs > 0 ? maxAbs : 1.0))))) + 5 + 7);
+                                     : (keel::as<keel::usize>(std::max(0, keel::as<int>(std::floor(std::log10(maxAbs > 0 ? maxAbs : 1.0))))) + 5 + 7);
         keel::String out(salloc);
         for (keel::usize r = 0; r < rows; ++r) {
             if (r) out.push_back('\n');
@@ -228,7 +228,7 @@ inline keel::String num2strComplexArray(const Value &x, int precOverride,
     }
     int p = 5;
     if (maxabs != 0.0) {
-        const int e = static_cast<int>(std::floor(std::log10(maxabs)));
+        const int e = keel::as<int>(std::floor(std::log10(maxabs)));
         p = (e > 0 ? e : 0) + 5;
     }
     if (p > 99) p = 99;
@@ -270,8 +270,8 @@ Value strCmpElementwise(const Value &a, const Value &b, Pred cmp,
     const keel::usize nb = bc ? b.numel() : 1;
     keel::usize n = 1, rr = 1, cc = 1;
     auto shapeOf = [](const Value &v, keel::usize &r, keel::usize &c) {
-        r = static_cast<keel::usize>(v.dims().rows());
-        c = static_cast<keel::usize>(v.dims().cols());
+        r = keel::as<keel::usize>(v.dims().rows());
+        c = keel::as<keel::usize>(v.dims().cols());
     };
     if (ac && bc) {
         if (na == nb)      { n = na; shapeOf(a, rr, cc); }
@@ -414,7 +414,7 @@ namespace {
         return Value::matrix(0, 0, ValueType::DOUBLE, mr);
     auto r = Value::matrix(1, hits.size(), ValueType::DOUBLE, mr);
     for (keel::usize i = 0; i < hits.size(); ++i)
-        r.doubleDataMut()[i] = static_cast<double>(hits[i]);
+        r.doubleDataMut()[i] = keel::as<double>(hits[i]);
     return r;
 }
 } // anonymous
@@ -508,10 +508,10 @@ PosRange resolvePos(keel::StringRef s, const Value &p)
         return {pos, pos + pat.size(), true};
     }
     // Numeric scalar (1-based).
-    const auto p1 = static_cast<long long>(p.toScalar());
-    if (p1 < 1 || static_cast<keel::usize>(p1) > s.size())
+    const auto p1 = keel::as<long long>(p.toScalar());
+    if (p1 < 1 || keel::as<keel::usize>(p1) > s.size())
         return {0, 0, false};
-    return {static_cast<keel::usize>(p1 - 1), static_cast<keel::usize>(p1), true};
+    return {keel::as<keel::usize>(p1 - 1), keel::as<keel::usize>(p1), true};
 }
 
 inline Value strLikeOf(const Value &s, keel::StringRef out, keel::Allocator *mr)
@@ -587,11 +587,11 @@ keel::String toBaseString(keel::u64 v, int base, int minWidth,
         return out;
     }
     while (v > 0) {
-        const int d = static_cast<int>(v % static_cast<keel::u64>(base));
+        const int d = keel::as<int>(v % keel::as<keel::u64>(base));
         out.push_back(d < 10 ? char('0' + d) : char('A' + d - 10));
-        v /= static_cast<keel::u64>(base);
+        v /= keel::as<keel::u64>(base);
     }
-    while (static_cast<int>(out.size()) < minWidth) out.push_back('0');
+    while (keel::as<int>(out.size()) < minWidth) out.push_back('0');
     std::reverse(out.begin(), out.end());
     return out;
 }
@@ -610,7 +610,7 @@ keel::String toBaseString(keel::u64 v, int base, int minWidth,
         if (d >= base)
             throw Error(keel::format("digit '{}' out of range for base {}", c, base),
                           0, 0, "base", "", "numkit:base:badDigit");
-        v = v * static_cast<keel::u64>(base) + static_cast<keel::u64>(d);
+        v = v * keel::as<keel::u64>(base) + keel::as<keel::u64>(d);
     }
     return v;
 }
@@ -627,7 +627,7 @@ keel::String toBaseString(keel::u64 v, int base, int minWidth,
         if (v < 0) throw Error("dec2*: value must be non-negative",
                                 0, 0, "dec2", "", "numkit:dec2:negative");
         return Value::fromString(
-            toBaseString(static_cast<keel::u64>(v), base, minWidth), mr);
+            toBaseString(keel::as<keel::u64>(v), base, minWidth), mr);
     }
     // Compute max width.
     keel::ArenaTemp scratch = keel::get_scratch(mr);
@@ -639,18 +639,18 @@ keel::String toBaseString(keel::u64 v, int base, int minWidth,
         const double v = d.elemAsDouble(i);
         if (v < 0) throw Error("dec2*: value must be non-negative",
                                 0, 0, "dec2", "", "numkit:dec2:negative");
-        rows.push_back(toBaseString(static_cast<keel::u64>(v), base, 0, salloc));
-        maxW = std::max<int>(maxW, static_cast<int>(rows.back().size()));
+        rows.push_back(toBaseString(keel::as<keel::u64>(v), base, 0, salloc));
+        maxW = std::max<int>(maxW, keel::as<int>(rows.back().size()));
     }
     // Build a CHAR matrix n × maxW, column-major, left-padded with leading zeros.
     auto m = Value::matrix(n, maxW, ValueType::CHAR, mr);
     char *dst = static_cast<char *>(m.rawDataMut());
     for (keel::usize r = 0; r < n; ++r) {
-        const int pad = maxW - static_cast<int>(rows[r].size());
+        const int pad = maxW - keel::as<int>(rows[r].size());
         for (int c = 0; c < pad; ++c)
             dst[c * n + r] = '0';
         for (int c = pad; c < maxW; ++c)
-            dst[c * n + r] = rows[r][static_cast<keel::usize>(c - pad)];
+            dst[c * n + r] = rows[r][keel::as<keel::usize>(c - pad)];
     }
     return m;
 }
@@ -677,7 +677,7 @@ namespace {
         else if (c >= 'A' && c <= 'F') d = 10 + (c - 'A');
         else throw Error(keel::format("hex2num: invalid hex digit '{}'", c),
                           0, 0, "hex2num", "", "numkit:hex2num:badDigit");
-        bits = (bits << 4) | static_cast<keel::u64>(d);
+        bits = (bits << 4) | keel::as<keel::u64>(d);
     }
     double out;
     std::memcpy(&out, &bits, sizeof(out));
@@ -701,7 +701,7 @@ namespace {
         if (d >= base)
             throw Error(keel::format("base2dec: digit '{}' out of range for base {}", c, base),
                           0, 0, "base2dec", "", "numkit:base2dec:badDigit");
-        v = v * static_cast<keel::u64>(base) + static_cast<keel::u64>(d);
+        v = v * keel::as<keel::u64>(base) + keel::as<keel::u64>(d);
     }
     return v;
 }
@@ -738,7 +738,7 @@ RatExpansion ratExpansion(double x, double tol)
     long long prev_q = 1, curr_q = 0;
 
     for (int i = 0; i < 64; ++i) {
-        const long long a = static_cast<long long>(std::round(rem));
+        const long long a = keel::as<long long>(std::round(rem));
         const long long new_p = a * curr_p + prev_p;
         const long long new_q = a * curr_q + prev_q;
         r.coeffs[r.n_coeffs++] = a;
@@ -746,11 +746,11 @@ RatExpansion ratExpansion(double x, double tol)
         prev_q = curr_q; curr_q = new_q;
 
         if (curr_q != 0) {
-            const double approx = static_cast<double>(curr_p)
-                                / static_cast<double>(curr_q);
+            const double approx = keel::as<double>(curr_p)
+                                / keel::as<double>(curr_q);
             if (std::fabs(approx - x) <= tol) break;
         }
-        const double frac = rem - static_cast<double>(a);
+        const double frac = rem - keel::as<double>(a);
         if (frac == 0.0) break;
         rem = 1.0 / frac;
         if (std::fabs(rem) > 1e15) break;
@@ -848,8 +848,8 @@ bool strMatchAny(keel::StringRef srcRef, keel::ArrayRef<keel::String> pats,
     collectMatchPatterns(pat, pats);
 
     if (s.isCell() || (s.isString() && s.numel() != 1)) {
-        const keel::usize r = static_cast<keel::usize>(s.dims().rows());
-        const keel::usize c = static_cast<keel::usize>(s.dims().cols());
+        const keel::usize r = keel::as<keel::usize>(s.dims().rows());
+        const keel::usize c = keel::as<keel::usize>(s.dims().cols());
         Value out = Value::matrix(r, c, ValueType::LOGICAL, mr);
         keel::u8 *od = out.logicalDataMut();
         const keel::usize n = s.numel();

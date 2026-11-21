@@ -30,9 +30,9 @@ namespace {
 double defaultRankTol(keel::usize m, keel::usize n, double sigma_max, bool isSingle = false)
 {
     const double eps = isSingle
-        ? static_cast<double>(std::numeric_limits<float>::epsilon())
+        ? keel::as<double>(std::numeric_limits<float>::epsilon())
         : std::numeric_limits<double>::epsilon();
-    return static_cast<double>(std::max(m, n)) * sigma_max * eps;
+    return keel::as<double>(std::max(m, n)) * sigma_max * eps;
 }
 
 } // anonymous namespace
@@ -44,8 +44,8 @@ Value pinv(const Value &A, double tol, keel::Allocator *mr)
     const bool wantSingle = (A.type() == ValueType::SINGLE);
     const Value Aw = detail::widenSingleToDouble(A, mr);
     auto [U, S, V] = svd_decompose(Aw, mr);
-    const keel::usize m = static_cast<keel::usize>(Aw.dims().dim(0));
-    const keel::usize n = static_cast<keel::usize>(Aw.dims().dim(1));
+    const keel::usize m = keel::as<keel::usize>(Aw.dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(Aw.dims().dim(1));
     const keel::usize k = std::min(m, n);
 
     if (Aw.isComplex() || U.isComplex() || V.isComplex()) {
@@ -54,7 +54,7 @@ Value pinv(const Value &A, double tol, keel::Allocator *mr)
         double sigma_max = 0.0;
         const keel::c64 *sd = S.isComplex() ? S.complexData() : nullptr;
         const double *sdd = S.isComplex() ? nullptr : S.doubleData();
-        const keel::usize Srows = static_cast<keel::usize>(S.dims().dim(0));
+        const keel::usize Srows = keel::as<keel::usize>(S.dims().dim(0));
 
         for (keel::usize i = 0; i < k; ++i) {
             double sig = sd ? keel::abs(sd[i + i * Srows]) : sdd[i + i * Srows];
@@ -75,8 +75,8 @@ Value pinv(const Value &A, double tol, keel::Allocator *mr)
         const double *Vdd = V.isComplex() ? nullptr : V.doubleData();
         const keel::c64 *Ud = U.isComplex() ? U.complexData() : nullptr;
         const double *Udd = U.isComplex() ? nullptr : U.doubleData();
-        const keel::usize Vrows = static_cast<keel::usize>(V.dims().dim(0));
-        const keel::usize Urows = static_cast<keel::usize>(U.dims().dim(0));
+        const keel::usize Vrows = keel::as<keel::usize>(V.dims().dim(0));
+        const keel::usize Urows = keel::as<keel::usize>(U.dims().dim(0));
 
         for (keel::usize i = 0; i < n; ++i) {
             for (keel::usize j = 0; j < m; ++j) {
@@ -94,7 +94,7 @@ Value pinv(const Value &A, double tol, keel::Allocator *mr)
     }
 
     const double *S_data = S.doubleData();
-    const keel::usize Srows = static_cast<keel::usize>(S.dims().dim(0));
+    const keel::usize Srows = keel::as<keel::usize>(S.dims().dim(0));
 
     double sigma_max = 0.0;
     for (keel::usize i = 0; i < k; ++i)
@@ -116,8 +116,8 @@ Value pinv(const Value &A, double tol, keel::Allocator *mr)
 
     const double *Vdata = V.doubleData();
     const double *Udata = U.doubleData();
-    const keel::usize Vrows = static_cast<keel::usize>(V.dims().dim(0));
-    const keel::usize Urows = static_cast<keel::usize>(U.dims().dim(0));
+    const keel::usize Vrows = keel::as<keel::usize>(V.dims().dim(0));
+    const keel::usize Urows = keel::as<keel::usize>(U.dims().dim(0));
 
     for (keel::usize i = 0; i < n; ++i) {
         for (keel::usize j = 0; j < m; ++j) {
@@ -140,12 +140,12 @@ Value orth(const Value &A, double tol, keel::Allocator *mr)
     const bool wantSingle = (A.type() == ValueType::SINGLE);
     const Value Aw = detail::widenSingleToDouble(A, mr);
     auto [U, S, V] = svd_decompose(Aw, mr);
-    const keel::usize m = static_cast<keel::usize>(Aw.dims().dim(0));
-    const keel::usize n = static_cast<keel::usize>(Aw.dims().dim(1));
+    const keel::usize m = keel::as<keel::usize>(Aw.dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(Aw.dims().dim(1));
     const keel::usize k = std::min(m, n);
 
     const double *S_data = S.doubleData();
-    const keel::usize Srows = static_cast<keel::usize>(S.dims().dim(0));
+    const keel::usize Srows = keel::as<keel::usize>(S.dims().dim(0));
     const double sigma_max = (k > 0) ? S_data[0] : 0.0;
     const double cutoff = (tol < 0.0) ? defaultRankTol(m, n, sigma_max, wantSingle) : tol;
 
@@ -153,12 +153,12 @@ Value orth(const Value &A, double tol, keel::Allocator *mr)
     for (keel::usize i = 0; i < k; ++i)
         if (S_data[i + i * Srows] > cutoff) ++r;
 
-    auto out = Value::matrix(m, static_cast<keel::usize>(r), ValueType::DOUBLE, mr);
+    auto out = Value::matrix(m, keel::as<keel::usize>(r), ValueType::DOUBLE, mr);
     if (r == 0) return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
     double *Q = out.doubleDataMut();
     const double *Udata = U.doubleData();
-    const keel::usize Urows = static_cast<keel::usize>(U.dims().dim(0));
-    for (keel::usize j = 0; j < static_cast<keel::usize>(r); ++j)
+    const keel::usize Urows = keel::as<keel::usize>(U.dims().dim(0));
+    for (keel::usize j = 0; j < keel::as<keel::usize>(r); ++j)
         for (keel::usize i = 0; i < m; ++i)
             Q[i + j * m] = Udata[i + j * Urows];
     return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
@@ -171,12 +171,12 @@ Value null_basis(const Value &A, double tol, keel::Allocator *mr)
     const bool wantSingle = (A.type() == ValueType::SINGLE);
     const Value Aw = detail::widenSingleToDouble(A, mr);
     auto [U, S, V] = svd_decompose(Aw, mr);
-    const keel::usize m = static_cast<keel::usize>(Aw.dims().dim(0));
-    const keel::usize n = static_cast<keel::usize>(Aw.dims().dim(1));
+    const keel::usize m = keel::as<keel::usize>(Aw.dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(Aw.dims().dim(1));
     const keel::usize k = std::min(m, n);
 
     const double *S_data = S.doubleData();
-    const keel::usize Srows = static_cast<keel::usize>(S.dims().dim(0));
+    const keel::usize Srows = keel::as<keel::usize>(S.dims().dim(0));
     const double sigma_max = (k > 0) ? S_data[0] : 0.0;
     const double cutoff = (tol < 0.0) ? defaultRankTol(m, n, sigma_max, wantSingle) : tol;
 
@@ -184,14 +184,14 @@ Value null_basis(const Value &A, double tol, keel::Allocator *mr)
     for (keel::usize i = 0; i < k; ++i)
         if (S_data[i + i * Srows] > cutoff) ++r;
 
-    const keel::usize null_dim = n - static_cast<keel::usize>(r);
+    const keel::usize null_dim = n - keel::as<keel::usize>(r);
     auto out = Value::matrix(n, null_dim, ValueType::DOUBLE, mr);
     if (null_dim == 0) return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
     double *N = out.doubleDataMut();
     const double *Vdata = V.doubleData();
-    const keel::usize Vrows = static_cast<keel::usize>(V.dims().dim(0));
+    const keel::usize Vrows = keel::as<keel::usize>(V.dims().dim(0));
     for (keel::usize j = 0; j < null_dim; ++j) {
-        const keel::usize src = static_cast<keel::usize>(r) + j;
+        const keel::usize src = keel::as<keel::usize>(r) + j;
         for (keel::usize i = 0; i < n; ++i)
             N[i + j * n] = Vdata[i + src * Vrows];
     }
@@ -205,8 +205,8 @@ Value subspace(const Value &A, const Value &B, keel::Allocator *mr)
     if (A.dims().ndim() != 2 || B.dims().ndim() != 2)
         throw Error("subspace: inputs must be 2D matrices",
                     0, 0, "subspace", "", "numkit:subspace:notMatrix");
-    const keel::usize mA = static_cast<keel::usize>(A.dims().dim(0));
-    const keel::usize mB = static_cast<keel::usize>(B.dims().dim(0));
+    const keel::usize mA = keel::as<keel::usize>(A.dims().dim(0));
+    const keel::usize mB = keel::as<keel::usize>(B.dims().dim(0));
     if (mA != mB)
         throw Error("subspace: inputs must have the same number of rows",
                     0, 0, "subspace", "", "numkit:subspace:dimMismatch");
@@ -214,8 +214,8 @@ Value subspace(const Value &A, const Value &B, keel::Allocator *mr)
     const bool wantSingle = (A.type() == ValueType::SINGLE || B.type() == ValueType::SINGLE);
     auto Qa = detail::widenSingleToDouble(orth(A, -1.0, mr), mr);
     auto Qb = detail::widenSingleToDouble(orth(B, -1.0, mr), mr);
-    const keel::usize na = static_cast<keel::usize>(Qa.dims().dim(1));
-    const keel::usize nb = static_cast<keel::usize>(Qb.dims().dim(1));
+    const keel::usize na = keel::as<keel::usize>(Qa.dims().dim(1));
+    const keel::usize nb = keel::as<keel::usize>(Qb.dims().dim(1));
     if (na == 0 || nb == 0) return detail::narrowDoubleToSingleIf(Value::scalar(0.0, mr), wantSingle, mr);
 
     // M = Qa' * Qb (na × nb).

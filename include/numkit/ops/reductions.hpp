@@ -271,7 +271,7 @@ Value applyAlongDim(const Value &x, int dim, F &&f, keel::Allocator *mr = nullpt
     if (x.dims().ndim() >= 4 && dim >= 1 && dim <= x.dims().ndim()) {
         auto shape = outShapeForDimND(x, dim, scratch.allocator());
         Value out = Value::matrixND(shape.data(),
-                                      static_cast<int>(shape.size()),
+                                      keel::as<int>(shape.size()),
                                       ValueType::DOUBLE, mr);
         keel::f64 *dst = out.doubleDataMut();
         forEachSliceND(x, dim, dst, std::forward<F>(f), scratch.allocator());
@@ -308,16 +308,16 @@ applyAlongDimWithIndex(const Value &x, int dim, F &&f, keel::Allocator *mr = nul
         keel::usize idx = 0;
         f(buf.data(), x.numel(), v, idx);
         return {Value::scalar(v, mr),
-                Value::scalar(static_cast<keel::f64>(idx + 1), mr)};
+                Value::scalar(keel::as<keel::f64>(idx + 1), mr)};
     }
     // ND fallback (rank ≥ 4)
     if (x.dims().ndim() >= 4 && dim >= 1 && dim <= x.dims().ndim()) {
         auto shape = outShapeForDimND(x, dim, scratch.allocator());
         Value out    = Value::matrixND(shape.data(),
-                                         static_cast<int>(shape.size()),
+                                         keel::as<int>(shape.size()),
                                          ValueType::DOUBLE, mr);
         Value outIdx = Value::matrixND(shape.data(),
-                                         static_cast<int>(shape.size()),
+                                         keel::as<int>(shape.size()),
                                          ValueType::DOUBLE, mr);
         keel::f64 *dst  = out.doubleDataMut();
         keel::f64 *dstI = outIdx.doubleDataMut();
@@ -325,7 +325,7 @@ applyAlongDimWithIndex(const Value &x, int dim, F &&f, keel::Allocator *mr = nul
             [&](keel::usize outOff, keel::f64 *slice, keel::usize n) {
                 keel::f64 v = 0; keel::usize idx = 0;
                 f(slice, n, v, idx);
-                dstI[outOff] = static_cast<keel::f64>(idx + 1);
+                dstI[outOff] = keel::as<keel::f64>(idx + 1);
                 return v;
             }, scratch.allocator());
         return {std::move(out), std::move(outIdx)};
@@ -340,7 +340,7 @@ applyAlongDimWithIndex(const Value &x, int dim, F &&f, keel::Allocator *mr = nul
         keel::usize idx = 0;
         f(slice, n, v, idx);
         dst[outOff] = v;
-        dstI[outOff] = static_cast<keel::f64>(idx + 1);
+        dstI[outOff] = keel::as<keel::f64>(idx + 1);
     }, scratch.allocator());
     return {std::move(out), std::move(outIdx)};
 }

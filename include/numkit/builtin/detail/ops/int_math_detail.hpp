@@ -29,7 +29,7 @@ namespace {
 inline keel::i64 toInt64(double v)
 {
     if (std::isnan(v) || std::isinf(v)) return 0;
-    return static_cast<keel::i64>(v);
+    return keel::as<keel::i64>(v);
 }
 
 inline keel::i64 gcdInt(keel::i64 a, keel::i64 b)

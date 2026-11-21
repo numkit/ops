@@ -62,7 +62,7 @@ keel::String dispFormat(const Value &a)
                     if (c > 0) out.push_back(' ');
                     double v = a(0, c);
                     if (v == std::floor(v) && std::isfinite(v))
-                        appendLL(static_cast<long long>(v));
+                        appendLL(keel::as<long long>(v));
                     else
                         appendDouble(v);
                 }
@@ -73,7 +73,7 @@ keel::String dispFormat(const Value &a)
                     double v = a(r, 0);
                     out.append("   ");
                     if (v == std::floor(v) && std::isfinite(v))
-                        appendLL(static_cast<long long>(v));
+                        appendLL(keel::as<long long>(v));
                     else
                         appendDouble(v);
                 }
@@ -98,7 +98,7 @@ keel::String dispFormat(const Value &a)
                             double v = page[c * R + r];
                             out.push_back(' ');
                             if (v == std::floor(v) && std::isfinite(v))
-                                appendLL(static_cast<long long>(v));
+                                appendLL(keel::as<long long>(v));
                             else
                                 appendDouble(v);
                         }

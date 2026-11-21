@@ -26,7 +26,7 @@ namespace {
 inline keel::StringRef subMatchRef(const std::cmatch &m, keel::usize g)
 {
     if (g >= m.size() || !m[g].matched) return keel::StringRef("", 0);
-    return keel::StringRef(m[g].first, static_cast<keel::usize>(m[g].length()));
+    return keel::StringRef(m[g].first, keel::as<keel::usize>(m[g].length()));
 }
 
 struct KeelStringInserter {
@@ -102,9 +102,9 @@ Value regexpFind(const Value &s, const Value &pat, keel::StringRef option, bool 
         keel::usize prev = 0;
         for (auto it = begin; it != end; ++it) {
             const auto &m = *it;
-            const keel::usize mpos = static_cast<keel::usize>(m.position());
+            const keel::usize mpos = keel::as<keel::usize>(m.position());
             parts.push_back(text.substr(prev, mpos - prev));
-            prev = mpos + static_cast<keel::usize>(m.length());
+            prev = mpos + keel::as<keel::usize>(m.length());
         }
         parts.push_back(text.substr(prev));
         return rowCellOfStrings(parts.data(), parts.size(), mr);
@@ -139,7 +139,7 @@ Value regexpFind(const Value &s, const Value &pat, keel::StringRef option, bool 
         keel::Array<double> idx(salloc);
         for (auto it = std::cregex_iterator(tbeg, tend, re),
                   e = std::cregex_iterator(); it != e; ++it)
-            idx.push_back(static_cast<double>(it->position() + it->length()));
+            idx.push_back(keel::as<double>(it->position() + it->length()));
         return rowFromIndices(idx.data(), idx.size(), mr);
     }
 
@@ -162,8 +162,8 @@ Value regexpFind(const Value &s, const Value &pat, keel::StringRef option, bool 
             for (keel::usize g = 0; g < ng2; ++g) {
                 const auto &sub = (m.size() > 1) ? m[g + 1] : m[0];
                 const keel::isize st = sub.first - tbeg;
-                td[0 * ng2 + g] = static_cast<double>(st + 1);
-                td[1 * ng2 + g] = static_cast<double>(st + sub.length());
+                td[0 * ng2 + g] = keel::as<double>(st + 1);
+                td[1 * ng2 + g] = keel::as<double>(st + sub.length());
             }
             out.cellAt(i) = te;
         }
@@ -179,7 +179,7 @@ Value regexpFind(const Value &s, const Value &pat, keel::StringRef option, bool 
     keel::Array<double> idx(salloc);
     for (auto it = std::cregex_iterator(tbeg, tend, re),
               end = std::cregex_iterator(); it != end; ++it)
-        idx.push_back(static_cast<double>(it->position() + 1));
+        idx.push_back(keel::as<double>(it->position() + 1));
     return rowFromIndices(idx.data(), idx.size(), mr);
 }
 
@@ -231,9 +231,9 @@ Value regexpFindOnce(const Value &s, const Value &pat, keel::StringRef option,
             parts.push_back(text);
         } else {
             const auto &m = *it;
-            const keel::usize mpos = static_cast<keel::usize>(m.position());
+            const keel::usize mpos = keel::as<keel::usize>(m.position());
             parts.push_back(text.substr(0, mpos));
-            parts.push_back(text.substr(mpos + static_cast<keel::usize>(m.length())));
+            parts.push_back(text.substr(mpos + keel::as<keel::usize>(m.length())));
         }
         return rowCellOfStrings(parts.data(), parts.size(), mr);
     }
@@ -260,15 +260,15 @@ Value regexpFindOnce(const Value &s, const Value &pat, keel::StringRef option,
         for (keel::usize g = 0; g < ng2; ++g) {
             const auto &sub = (m.size() > 1) ? m[g + 1] : m[0];
             const keel::isize st = sub.first - tbeg;
-            td[0 * ng2 + g] = static_cast<double>(st + 1);
-            td[1 * ng2 + g] = static_cast<double>(st + sub.length());
+            td[0 * ng2 + g] = keel::as<double>(st + 1);
+            td[1 * ng2 + g] = keel::as<double>(st + sub.length());
         }
         return te;
     }
 
     if (option.equals_ignore_ascii_case("end")) {
         if (!has) return Value::matrix(0, 0, ValueType::DOUBLE, mr);
-        return Value::scalar(static_cast<double>(it->position() + it->length()), mr);
+        return Value::scalar(keel::as<double>(it->position() + it->length()), mr);
     }
 
     if (!option.empty() && !option.equals_ignore_ascii_case("start"))
@@ -278,7 +278,7 @@ Value regexpFindOnce(const Value &s, const Value &pat, keel::StringRef option,
 
     // 'start' (default): scalar 1-based index of the first match.
     if (!has) return Value::matrix(0, 0, ValueType::DOUBLE, mr);
-    return Value::scalar(static_cast<double>(it->position() + 1), mr);
+    return Value::scalar(keel::as<double>(it->position() + 1), mr);
 }
 
 // Apply ONE pattern/replacement to a single string. With `once`, only the
@@ -350,8 +350,8 @@ Value regexprep(const Value &s, const Value &pat, const Value &rep, bool ignoreC
     // same shape; a char/string scalar processes to a single char row (the
     // pre-existing scalar return type is preserved exactly).
     if (s.isCell()) {
-        const keel::usize r = static_cast<keel::usize>(s.dims().rows());
-        const keel::usize c = static_cast<keel::usize>(s.dims().cols());
+        const keel::usize r = keel::as<keel::usize>(s.dims().rows());
+        const keel::usize c = keel::as<keel::usize>(s.dims().cols());
         auto out = Value::cell(r, c, mr);
         const keel::usize n = s.numel();
         for (keel::usize i = 0; i < n; ++i)

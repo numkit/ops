@@ -50,7 +50,7 @@ inline numkit::Value coerceLogicalToDouble(const numkit::Value &v,
     double *dst = out.doubleDataMut();
     const keel::usize n = v.numel();
     for (keel::usize i = 0; i < n; ++i)
-        dst[i] = static_cast<double>(src[i]);
+        dst[i] = keel::as<double>(src[i]);
     return out;
 }
 
@@ -63,7 +63,7 @@ inline numkit::Value coerceCharToDouble(const numkit::Value &v,
     double *dst = out.doubleDataMut();
     const keel::usize n = v.numel();
     for (keel::usize i = 0; i < n; ++i)
-        dst[i] = static_cast<double>(static_cast<unsigned char>(src[i]));
+        dst[i] = keel::as<double>(keel::as<unsigned char>(src[i]));
     return out;
 }
 
@@ -346,7 +346,7 @@ inline bool applyCmp(Cmp c, double x, double y)
             if (v.isComplex())
                 return v.complexData()[i];
             return keel::c64(v.type() == ValueType::LOGICAL
-                                ? static_cast<double>(v.logicalData()[i])
+                                ? keel::as<double>(v.logicalData()[i])
                                 : v.doubleData()[i],
                            0.0);
         };
@@ -394,7 +394,7 @@ inline bool applyCmp(Cmp c, double x, double y)
 
     auto getD = [](const Value &v, keel::usize r, keel::usize col) -> double {
         keel::usize idx = col * v.dims().rows() + r;
-        if (v.isLogical()) return static_cast<double>(v.logicalData()[idx]);
+        if (v.isLogical()) return keel::as<double>(v.logicalData()[idx]);
         if (v.type() == ValueType::DOUBLE) return v.doubleData()[idx];
         return v.elemAsDouble(idx);
     };

@@ -49,16 +49,16 @@ inline void requireMatrix(const Value &A, const char *who)
 
 bool isbandedImpl(const Value &A, long lower, long upper)
 {
-    const long R = static_cast<long>(A.dims().rows());
-    const long C = static_cast<long>(A.dims().cols());
+    const long R = keel::as<long>(A.dims().rows());
+    const long C = keel::as<long>(A.dims().cols());
     if (R == 0 || C == 0) return true;
 
-    const keel::usize Rs = static_cast<keel::usize>(R);
+    const keel::usize Rs = keel::as<keel::usize>(R);
     if (A.isComplex()) {
         for (long j = 0; j < C; ++j)
             for (long i = 0; i < R; ++i) {
                 if (j - i > upper || i - j > lower) {
-                    keel::c64 z = A.complexElem(static_cast<keel::usize>(i), static_cast<keel::usize>(j));
+                    keel::c64 z = A.complexElem(keel::as<keel::usize>(i), keel::as<keel::usize>(j));
                     if (z.real() != 0.0 || z.imag() != 0.0) return false;
                 }
             }
@@ -67,8 +67,8 @@ bool isbandedImpl(const Value &A, long lower, long upper)
     for (long j = 0; j < C; ++j)
         for (long i = 0; i < R; ++i) {
             if (j - i > upper || i - j > lower) {
-                if (A.elemAsDouble(lin(static_cast<keel::usize>(i),
-                                      static_cast<keel::usize>(j), Rs)) != 0.0)
+                if (A.elemAsDouble(lin(keel::as<keel::usize>(i),
+                                      keel::as<keel::usize>(j), Rs)) != 0.0)
                     return false;
             }
         }
@@ -121,16 +121,16 @@ bool ishermitianImpl(const Value &A, bool skew)
 
 std::pair<long, long> bandwidthImpl(const Value &A)
 {
-    const long R = static_cast<long>(A.dims().rows());
-    const long C = static_cast<long>(A.dims().cols());
+    const long R = keel::as<long>(A.dims().rows());
+    const long C = keel::as<long>(A.dims().cols());
     long lower = 0, upper = 0;
     if (R == 0 || C == 0) return {0, 0};
 
-    const keel::usize Rs = static_cast<keel::usize>(R);
+    const keel::usize Rs = keel::as<keel::usize>(R);
     if (A.isComplex()) {
         for (long j = 0; j < C; ++j)
             for (long i = 0; i < R; ++i) {
-                keel::c64 z = A.complexElem(static_cast<keel::usize>(i), static_cast<keel::usize>(j));
+                keel::c64 z = A.complexElem(keel::as<keel::usize>(i), keel::as<keel::usize>(j));
                 if (z.real() == 0.0 && z.imag() == 0.0) continue;
                 long d = i - j;
                 if (d > 0) lower = std::max(lower, d);
@@ -139,8 +139,8 @@ std::pair<long, long> bandwidthImpl(const Value &A)
     } else {
         for (long j = 0; j < C; ++j)
             for (long i = 0; i < R; ++i) {
-                if (A.elemAsDouble(lin(static_cast<keel::usize>(i),
-                                       static_cast<keel::usize>(j), Rs)) == 0.0)
+                if (A.elemAsDouble(lin(keel::as<keel::usize>(i),
+                                       keel::as<keel::usize>(j), Rs)) == 0.0)
                     continue;
                 long d = i - j;
                 if (d > 0) lower = std::max(lower, d);
@@ -176,7 +176,7 @@ Value istril(const Value &A, keel::Allocator *mr)
     detail::requireFloatOrLogicalInput(A, "istril");
     if (A.dims().ndim() > 2)
         return Value::logicalScalar(false, mr);
-    const long R = static_cast<long>(A.dims().rows());
+    const long R = keel::as<long>(A.dims().rows());
     return Value::logicalScalar(isbandedImpl(A, R, 0), mr);
 }
 
@@ -185,7 +185,7 @@ Value istriu(const Value &A, keel::Allocator *mr)
     detail::requireFloatOrLogicalInput(A, "istriu");
     if (A.dims().ndim() > 2)
         return Value::logicalScalar(false, mr);
-    const long C = static_cast<long>(A.dims().cols());
+    const long C = keel::as<long>(A.dims().cols());
     return Value::logicalScalar(isbandedImpl(A, 0, C), mr);
 }
 
@@ -211,8 +211,8 @@ bandwidth(const Value &A, keel::Allocator *mr)
     detail::requireFloatOrLogicalInput(A, "bandwidth");
     requireMatrix(A, "bandwidth");
     auto [lo, up] = bandwidthImpl(A);
-    return {Value::scalar(static_cast<double>(lo), mr),
-            Value::scalar(static_cast<double>(up), mr)};
+    return {Value::scalar(keel::as<double>(lo), mr),
+            Value::scalar(keel::as<double>(up), mr)};
 }
 
 Value bandwidthOpt(const Value &A, keel::StringRef which, keel::Allocator *mr)
@@ -220,8 +220,8 @@ Value bandwidthOpt(const Value &A, keel::StringRef which, keel::Allocator *mr)
     detail::requireFloatOrLogicalInput(A, "bandwidth");
     requireMatrix(A, "bandwidth");
     auto [lo, up] = bandwidthImpl(A);
-    if (which == "lower") return Value::scalar(static_cast<double>(lo), mr);
-    if (which == "upper") return Value::scalar(static_cast<double>(up), mr);
+    if (which == "lower") return Value::scalar(keel::as<double>(lo), mr);
+    if (which == "upper") return Value::scalar(keel::as<double>(up), mr);
     throw Error("bandwidth: option must be 'lower' or 'upper'",
                 0, 0, "bandwidth", "", "numkit:bandwidth:BadOpt");
 }

@@ -28,19 +28,19 @@ namespace {
 
 inline keel::i8 saturateNeg(keel::i8 v) {
     if (v == std::numeric_limits<keel::i8>::min()) return std::numeric_limits<keel::i8>::max();
-    return static_cast<keel::i8>(-v);
+    return keel::as<keel::i8>(-v);
 }
 inline keel::i16 saturateNeg(keel::i16 v) {
     if (v == std::numeric_limits<keel::i16>::min()) return std::numeric_limits<keel::i16>::max();
-    return static_cast<keel::i16>(-v);
+    return keel::as<keel::i16>(-v);
 }
 inline keel::i32 saturateNeg(keel::i32 v) {
     if (v == std::numeric_limits<keel::i32>::min()) return std::numeric_limits<keel::i32>::max();
-    return static_cast<keel::i32>(-v);
+    return keel::as<keel::i32>(-v);
 }
 inline keel::i64 saturateNeg(keel::i64 v) {
     if (v == std::numeric_limits<keel::i64>::min()) return std::numeric_limits<keel::i64>::max();
-    return static_cast<keel::i64>(-v);
+    return keel::as<keel::i64>(-v);
 }
 
 inline Value transpose2D(const Value &x, bool conjugate, const char *fnName,

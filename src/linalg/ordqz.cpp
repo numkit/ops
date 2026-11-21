@@ -29,11 +29,11 @@ std::tuple<Value, Value, Value, Value> ordqz(const Value &AA, const Value &BB,
     if (AA.dims().ndim() != 2 || BB.dims().ndim() != 2 || Q.dims().ndim() != 2 || Z.dims().ndim() != 2)
         throw Error("ordqz: inputs must be 2D matrices", 0, 0, "ordqz", "", "numkit:ordqz:notMatrix");
 
-    const keel::usize n = static_cast<keel::usize>(AA.dims().dim(0));
-    if (n != static_cast<keel::usize>(AA.dims().dim(1)) ||
-        static_cast<keel::usize>(BB.dims().dim(0)) != n || static_cast<keel::usize>(BB.dims().dim(1)) != n ||
-        static_cast<keel::usize>(Q.dims().dim(0)) != n || static_cast<keel::usize>(Q.dims().dim(1)) != n ||
-        static_cast<keel::usize>(Z.dims().dim(0)) != n || static_cast<keel::usize>(Z.dims().dim(1)) != n)
+    const keel::usize n = keel::as<keel::usize>(AA.dims().dim(0));
+    if (n != keel::as<keel::usize>(AA.dims().dim(1)) ||
+        keel::as<keel::usize>(BB.dims().dim(0)) != n || keel::as<keel::usize>(BB.dims().dim(1)) != n ||
+        keel::as<keel::usize>(Q.dims().dim(0)) != n || keel::as<keel::usize>(Q.dims().dim(1)) != n ||
+        keel::as<keel::usize>(Z.dims().dim(0)) != n || keel::as<keel::usize>(Z.dims().dim(1)) != n)
         throw Error("ordqz: AA, BB, Q, Z must be n x n square matrices", 0, 0, "ordqz", "", "numkit:ordqz:badDims");
 
     if (select.numel() != n)
@@ -87,7 +87,7 @@ std::tuple<Value, Value, Value, Value> ordqz(const Value &AA, const Value &BB,
                                               keel::StringRef domain,
                                               keel::Allocator *mr)
 {
-    const keel::usize n = static_cast<keel::usize>(AA.dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(AA.dims().dim(0));
     auto select = Value::matrix(1, n, ValueType::LOGICAL, mr);
     keel::u8 *sd = select.logicalDataMut();
 

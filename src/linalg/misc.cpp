@@ -35,12 +35,12 @@ double single_rref_default_tol(const T *A, keel::usize M, keel::usize N)
         for (keel::usize j = 0; j < N; ++j) s += keel::abs(A[i + j * M]);
         if (s > anorm) anorm = s;
     }
-    const float anorm_f = static_cast<float>(anorm);
+    const float anorm_f = keel::as<float>(anorm);
     const float eps_f = std::numeric_limits<float>::epsilon();
     const double eps_anorm = (anorm_f == 0.0f)
-        ? static_cast<double>(eps_f)
-        : static_cast<double>(std::nextafter(anorm_f, std::numeric_limits<float>::infinity()) - anorm_f);
-    return static_cast<double>(std::max(M, N)) * eps_anorm;
+        ? keel::as<double>(eps_f)
+        : keel::as<double>(std::nextafter(anorm_f, std::numeric_limits<float>::infinity()) - anorm_f);
+    return keel::as<double>(std::max(M, N)) * eps_anorm;
 }
 
 } // namespace
@@ -77,7 +77,7 @@ rref(const Value &A, bool have_tol, double tol_user, keel::Allocator *mr)
 
         Value jb = Value::matrix(rank == 0 ? 0 : 1, rank, ValueType::DOUBLE, mr);
         double *jbd = jb.doubleDataMut();
-        for (keel::usize k = 0; k < rank; ++k) jbd[k] = static_cast<double>(piv_cols[k] + 1);
+        for (keel::usize k = 0; k < rank; ++k) jbd[k] = keel::as<double>(piv_cols[k] + 1);
         return {detail::narrowDoubleToSingleIf(R, wantSingle, mr), jb};
     }
 
@@ -89,7 +89,7 @@ rref(const Value &A, bool have_tol, double tol_user, keel::Allocator *mr)
 
     Value jb = Value::matrix(rank == 0 ? 0 : 1, rank, ValueType::DOUBLE, mr);
     double *jbd = jb.doubleDataMut();
-    for (keel::usize k = 0; k < rank; ++k) jbd[k] = static_cast<double>(piv_cols[k] + 1);
+    for (keel::usize k = 0; k < rank; ++k) jbd[k] = keel::as<double>(piv_cols[k] + 1);
     return {detail::narrowDoubleToSingleIf(R, wantSingle, mr), jb};
 }
 

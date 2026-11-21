@@ -60,7 +60,7 @@ balance_impl(const Value &A, bool noperm, keel::Allocator *mr)
     double *pd = R.perm_col.doubleDataMut();
     double *dd = R.d_col.doubleDataMut();
     for (keel::usize i = 0; i < n; ++i) {
-        pd[i] = static_cast<double>(perm[i] + 1);
+        pd[i] = keel::as<double>(perm[i] + 1);
         dd[i] = d[i];
     }
 

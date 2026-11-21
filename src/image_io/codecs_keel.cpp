@@ -180,9 +180,9 @@ Value paletteToValue(const keel::imagefile::Image &img, keel::Allocator *mr,
     double *cd = cmap.doubleDataMut();
     const double scale = (img.palette_bits == 16) ? (1.0 / 65535.0) : (1.0 / 255.0);
     for (keel::usize k = 0; k < K; ++k) {
-        cd[0 * K + k] = static_cast<double>(img.palette[3 * k + 0]) * scale;
-        cd[1 * K + k] = static_cast<double>(img.palette[3 * k + 1]) * scale;
-        cd[2 * K + k] = static_cast<double>(img.palette[3 * k + 2]) * scale;
+        cd[0 * K + k] = keel::as<double>(img.palette[3 * k + 0]) * scale;
+        cd[1 * K + k] = keel::as<double>(img.palette[3 * k + 1]) * scale;
+        cd[2 * K + k] = keel::as<double>(img.palette[3 * k + 2]) * scale;
     }
     return cmap;
 }
@@ -224,9 +224,9 @@ PackedImageBuffer packStandardImage(const Value &A, bool allowU16, bool allow4Ch
     }
 
     PackedImageBuffer out;
-    out.width = static_cast<keel::u32>(W);
-    out.height = static_cast<keel::u32>(H);
-    out.channels = static_cast<keel::u16>(C);
+    out.width = keel::as<keel::u32>(W);
+    out.height = keel::as<keel::u32>(H);
+    out.channels = keel::as<keel::u16>(C);
 
     const keel::usize plane = H * W;
     const bool is16Bit = allowU16 && (A.type() == ValueType::UINT16);
@@ -265,7 +265,7 @@ PackedImageBuffer packStandardImage(const Value &A, bool allowU16, bool allow4Ch
                         double dv = A.elemAsDouble(idx);
                         if (dv < 0.0) dv = 0.0;
                         else if (dv > 255.0) dv = 255.0;
-                        dst[(r * W + c) * C + ch] = static_cast<keel::u8>(static_cast<int>(dv));
+                        dst[(r * W + c) * C + ch] = keel::as<keel::u8>(keel::as<int>(dv));
                     }
                 }
             }
@@ -307,9 +307,9 @@ PackedImageBuffer packTiffImage(const Value &A) {
     }
 
     PackedImageBuffer out;
-    out.width = static_cast<keel::u32>(W);
-    out.height = static_cast<keel::u32>(H);
-    out.channels = static_cast<keel::u16>(C);
+    out.width = keel::as<keel::u32>(W);
+    out.height = keel::as<keel::u32>(H);
+    out.channels = keel::as<keel::u16>(C);
 
     switch (A.type()) {
         case ValueType::UINT16:
@@ -358,7 +358,7 @@ PackedImageBuffer packTiffImage(const Value &A) {
                         double dv = A.elemAsDouble(idx);
                         if (dv < 0.0) dv = 0.0;
                         else if (dv > 255.0) dv = 255.0;
-                        out.bytes[(r * W + c) * C + ch] = static_cast<keel::u8>(static_cast<int>(dv));
+                        out.bytes[(r * W + c) * C + ch] = keel::as<keel::u8>(keel::as<int>(dv));
                     }
                 }
             }

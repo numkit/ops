@@ -51,9 +51,9 @@ namespace {
 double defaultRankTol(keel::usize m, keel::usize n, double sigma_max, bool isSingle = false)
 {
     const double eps = isSingle
-        ? static_cast<double>(std::numeric_limits<float>::epsilon())
+        ? keel::as<double>(std::numeric_limits<float>::epsilon())
         : std::numeric_limits<double>::epsilon();
-    return static_cast<double>(std::max(m, n)) * sigma_max * eps;
+    return keel::as<double>(std::max(m, n)) * sigma_max * eps;
 }
 
 // 1-norm of a column-major M×N matrix: max column sum of |a_ij|.
@@ -88,8 +88,8 @@ Value inv(const Value &A, keel::Allocator *mr)
     if (A.dims().ndim() != 2)
         throw Error("inv: input must be a 2D matrix",
                     0, 0, "inv", "", "numkit:inv:notMatrix");
-    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
-    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
+    const keel::usize m = keel::as<keel::usize>(A.dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(A.dims().dim(1));
     if (m != n)
         throw Error("inv: matrix must be square",
                     0, 0, "inv", "", "numkit:inv:notSquare");
@@ -135,8 +135,8 @@ Value trace(const Value &A, keel::Allocator *mr)
     if (A.dims().ndim() != 2)
         throw Error("trace: input must be a 2D matrix",
                     0, 0, "trace", "", "numkit:trace:notMatrix");
-    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
-    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
+    const keel::usize m = keel::as<keel::usize>(A.dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(A.dims().dim(1));
     const keel::usize k = std::min(m, n);
     if (A.isComplex()) {
         keel::c64 s{0.0, 0.0};
@@ -163,8 +163,8 @@ Value det(const Value &A, keel::Allocator *mr)
     if (A.dims().ndim() != 2)
         throw Error("det: input must be a 2D matrix",
                     0, 0, "det", "", "numkit:det:notMatrix");
-    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
-    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
+    const keel::usize m = keel::as<keel::usize>(A.dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(A.dims().dim(1));
     if (m != n)
         throw Error("det: matrix must be square",
                     0, 0, "det", "", "numkit:det:notSquare");
@@ -182,11 +182,11 @@ Value det(const Value &A, keel::Allocator *mr)
 
         int sign = 1;
         for (keel::usize k = 0; k < n; ++k) {
-            if (piv[k] != static_cast<keel::i32>(k)) {
+            if (piv[k] != keel::as<keel::i32>(k)) {
                 sign = -sign;
             }
         }
-        keel::c64 prod = static_cast<double>(sign);
+        keel::c64 prod = keel::as<double>(sign);
         for (keel::usize i = 0; i < n; ++i)
             prod *= A_buf[i + i * n];
 
@@ -202,15 +202,15 @@ Value det(const Value &A, keel::Allocator *mr)
 
     int sign = 1;
     for (keel::usize k = 0; k < n; ++k) {
-        if (piv[k] != static_cast<keel::i32>(k)) {
+        if (piv[k] != keel::as<keel::i32>(k)) {
             sign = -sign;
         }
     }
 
-    long double prod = static_cast<long double>(sign);
+    long double prod = keel::as<long double>(sign);
     for (keel::usize i = 0; i < n; ++i)
-        prod *= static_cast<long double>(A_buf[i + i * n]);
-    return detail::narrowDoubleToSingleIf(Value::scalar(static_cast<double>(prod), mr), wantSingle, mr);
+        prod *= keel::as<long double>(A_buf[i + i * n]);
+    return detail::narrowDoubleToSingleIf(Value::scalar(keel::as<double>(prod), mr), wantSingle, mr);
 }
 
 Value rank_of(const Value &A, double tol, keel::Allocator *mr)
@@ -224,13 +224,13 @@ Value rank_of(const Value &A, double tol, keel::Allocator *mr)
     const double *s = sv.doubleData();
     if (k == 0) return Value::scalar(0.0, mr);
     const double sigma_max = s[0];
-    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
-    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
+    const keel::usize m = keel::as<keel::usize>(A.dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(A.dims().dim(1));
     const double cutoff = (tol < 0.0) ? defaultRankTol(m, n, sigma_max, isSingle) : tol;
     int r = 0;
     for (keel::usize i = 0; i < k; ++i)
         if (s[i] > cutoff) ++r;
-    return Value::scalar(static_cast<double>(r), mr);
+    return Value::scalar(keel::as<double>(r), mr);
 }
 
 Value cond_2norm(const Value &A, keel::Allocator *mr)
@@ -258,8 +258,8 @@ Value cond_pnorm(const Value &A, int p_kind, keel::Allocator *mr)
     if (A.dims().ndim() != 2)
         throw Error("cond: input must be a 2D matrix",
                     0, 0, "cond", "", "numkit:cond:notMatrix");
-    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
-    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
+    const keel::usize m = keel::as<keel::usize>(A.dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(A.dims().dim(1));
     if (m != n)
         throw Error("cond: matrix must be square for non-2-norm forms",
                     0, 0, "cond", "", "numkit:cond:notSquare");
@@ -379,8 +379,8 @@ Value condeig(const Value &A, keel::Allocator *mr)
     if (A.dims().ndim() != 2)
         throw Error("condeig: input must be a 2D matrix",
                     0, 0, "condeig", "", "numkit:condeig:notMatrix");
-    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
-    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
+    const keel::usize m = keel::as<keel::usize>(A.dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(A.dims().dim(1));
     if (m != n)
         throw Error("condeig: matrix must be square",
                     0, 0, "condeig", "", "numkit:condeig:notSquare");

@@ -41,10 +41,10 @@ double varianceTwoPass(const double *p, keel::usize n, int normFlag)
     // MATLAB: variance of a single observation is 0 for BOTH the N-1
     // (default) and N normalizations — not NaN from the 0/0 of N-1.
     if (n == 1) return 0.0;
-    const double mean  = sumScan(p, n) / static_cast<double>(n);
+    const double mean  = sumScan(p, n) / keel::as<double>(n);
     const double ss    = sumSquaredDeviationsScan(p, n, mean);
-    const double denom = (normFlag == 1) ? static_cast<double>(n)
-                                         : static_cast<double>(n - 1);
+    const double denom = (normFlag == 1) ? keel::as<double>(n)
+                                         : keel::as<double>(n - 1);
     return ss / denom;
 }
 

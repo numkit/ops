@@ -40,14 +40,14 @@ inline SizeSpec parseReadSize(const Value &sz, const char *fn)
             return SizeSpec{SizeSpec::Kind::Flat, SIZE_MAX, 0, 0};
         if (s < 0 || !std::isfinite(s))
             throw Error(keel::format("{}: size must be Inf or a non-negative integer", fn));
-        return SizeSpec{SizeSpec::Kind::Flat, static_cast<keel::usize>(s), 0, 0};
+        return SizeSpec{SizeSpec::Kind::Flat, keel::as<keel::usize>(s), 0, 0};
     }
     if (sz.numel() == 2) {
         keel::f64 r = sz(0);
         keel::f64 c = sz(1);
         if (r < 0 || !std::isfinite(r) || std::isinf(r))
             throw Error(keel::format("{}: rows in [m n] must be finite non-negative", fn));
-        keel::usize rows = static_cast<keel::usize>(r);
+        keel::usize rows = keel::as<keel::usize>(r);
         keel::usize cols;
         keel::usize limit;
         if (std::isinf(c)) {
@@ -56,7 +56,7 @@ inline SizeSpec parseReadSize(const Value &sz, const char *fn)
         } else {
             if (c < 0 || !std::isfinite(c))
                 throw Error(keel::format("{}: cols in [m n] must be finite non-negative or Inf", fn));
-            cols = static_cast<keel::usize>(c);
+            cols = keel::as<keel::usize>(c);
             limit = rows * cols;
         }
         return SizeSpec{SizeSpec::Kind::Matrix, limit, rows, cols};

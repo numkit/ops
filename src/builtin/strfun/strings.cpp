@@ -104,7 +104,7 @@ Value num2str(const Value &x, keel::Allocator *mr)
     if (std::isinf(v)) return Value::fromString(v < 0 ? "-Inf" : "Inf", mr);
     int prec = 5;
     if (v != 0.0) {
-        const int e = static_cast<int>(std::floor(std::log10(std::fabs(v))));
+        const int e = keel::as<int>(std::floor(std::log10(std::fabs(v))));
         prec = (e > 0 ? e : 0) + 5;
     }
     char buf[512];
@@ -318,7 +318,7 @@ Value int2str(const Value &x, keel::Allocator *mr)
         }
         int ndigits = 1;
         if (maxabs >= 1.0)
-            ndigits = static_cast<int>(std::floor(std::log10(maxabs))) + 1;
+            ndigits = keel::as<int>(std::floor(std::log10(maxabs))) + 1;
         char fmt[16];
         std::snprintf(fmt, sizeof(fmt), "%%%d.0f", ndigits + 2);
         return num2str(rounded, keel::StringRef(fmt), mr);
@@ -497,8 +497,8 @@ Value str2double(const Value &s, keel::Allocator *mr)
     // COMPLEX iff ANY element parses as a complex literal (real elements then
     // carry a zero imaginary part); otherwise it stays DOUBLE (zero regression).
     if (s.isCell() || (s.isString() && s.numel() != 1)) {
-        const keel::usize r = static_cast<keel::usize>(s.dims().rows());
-        const keel::usize c = static_cast<keel::usize>(s.dims().cols());
+        const keel::usize r = keel::as<keel::usize>(s.dims().rows());
+        const keel::usize c = keel::as<keel::usize>(s.dims().cols());
         const keel::usize n = s.numel();
         keel::ArenaTemp scratch = keel::get_scratch(mr);
         keel::Array<Str2DoubleResult> res(n, scratch.allocator());
@@ -636,12 +636,12 @@ Value toChar(const Value &x, keel::Allocator *mr)
     if (x.isNumeric()) {
         keel::String s;
         if (x.isScalar()) {
-            s.push_back(static_cast<char>(static_cast<int>(x.toScalar())));
+            s.push_back(keel::as<char>(keel::as<int>(x.toScalar())));
         } else {
             const double *d = x.doubleData();
             s.reserve(x.numel());
             for (keel::usize i = 0; i < x.numel(); ++i)
-                s.push_back(static_cast<char>(static_cast<int>(d[i])));
+                s.push_back(keel::as<char>(keel::as<int>(d[i])));
         }
         return Value::fromString(s, p);
     }
@@ -692,8 +692,8 @@ Value strncmpi(const Value &a, const Value &b, keel::usize n, keel::Allocator *m
 template <class Op>
 static Value mapStringCell(const Value &s, Op op, keel::Allocator *mr)
 {
-    const keel::usize r = static_cast<keel::usize>(s.dims().rows());
-    const keel::usize c = static_cast<keel::usize>(s.dims().cols());
+    const keel::usize r = keel::as<keel::usize>(s.dims().rows());
+    const keel::usize c = keel::as<keel::usize>(s.dims().cols());
     auto out = Value::cell(r, c, mr);
     const keel::usize n = s.numel();
     for (keel::usize i = 0; i < n; ++i) {
@@ -714,8 +714,8 @@ static Value mapStringPreserveClass(const Value &s, Op op, keel::Allocator *mr)
 {
     if (s.isCell()) return mapStringCell(s, op, mr);
     if (s.isString()) {
-        const keel::usize r = static_cast<keel::usize>(s.dims().rows());
-        const keel::usize c = static_cast<keel::usize>(s.dims().cols());
+        const keel::usize r = keel::as<keel::usize>(s.dims().rows());
+        const keel::usize c = keel::as<keel::usize>(s.dims().cols());
         Value out = Value::stringArray(r, c, mr);
         const keel::usize n = s.numel();
         for (keel::usize i = 0; i < n; ++i)
@@ -883,14 +883,14 @@ Value strlength(const Value &s, keel::Allocator *mr)
     keel::Allocator *p = mr;
     if (s.isString()) {
         if (s.isScalar())
-            return Value::scalar(static_cast<double>(s.asStringRef().size()), p);
+            return Value::scalar(keel::as<double>(s.asStringRef().size()), p);
         auto result = createLike(s, ValueType::DOUBLE, p);
         for (keel::usize i = 0; i < s.numel(); ++i)
-            result.doubleDataMut()[i] = static_cast<double>(s.stringElemRef(i).size());
+            result.doubleDataMut()[i] = keel::as<double>(s.stringElemRef(i).size());
         return result;
     }
     if (s.isChar())
-        return Value::scalar(static_cast<double>(s.numel()), p);
+        return Value::scalar(keel::as<double>(s.numel()), p);
     throw Error("Input must be a string or char array", 0, 0, "strlength", "",
                  "numkit:strlength:unsupportedType");
 }
@@ -904,8 +904,8 @@ Value strfind(const Value &s, const Value &pat, keel::Allocator *mr)
     // A cell / non-scalar string array source -> same-shape CELL of index
     // vectors (MATLAB); a scalar char / string -> a 1×k DOUBLE row vector.
     if (s.isCell() || (s.isString() && !s.isScalar())) {
-        const keel::usize r = static_cast<keel::usize>(s.dims().rows());
-        const keel::usize c = static_cast<keel::usize>(s.dims().cols());
+        const keel::usize r = keel::as<keel::usize>(s.dims().rows());
+        const keel::usize c = keel::as<keel::usize>(s.dims().cols());
         Value out = Value::cell(r, c, mr);
         const keel::usize n = s.numel();
         for (keel::usize i = 0; i < n; ++i) {
@@ -1017,7 +1017,7 @@ Value mat2str(const Value &x, int precision, keel::Allocator *mr)
             return Value::fromString(s, mr);
         }
         keel::String out;
-        out.reserve(n * static_cast<keel::usize>(prec + 8) + R + 4);
+        out.reserve(n * keel::as<keel::usize>(prec + 8) + R + 4);
         out.push_back('[');
         for (keel::usize r = 0; r < R; ++r) {
             if (r > 0) out.push_back(';');
@@ -1040,7 +1040,7 @@ Value mat2str(const Value &x, int precision, keel::Allocator *mr)
     }
 
     keel::String out;
-    out.reserve(R * C * static_cast<keel::usize>(prec + 4) + R + 4);
+    out.reserve(R * C * keel::as<keel::usize>(prec + 4) + R + 4);
     out.push_back('[');
     for (keel::usize r = 0; r < R; ++r) {
         if (r > 0) out.push_back(';');
@@ -1127,11 +1127,11 @@ Value count(const Value &s, const Value &pat, keel::Allocator *mr)
                 pos += rel + pp.size();   // non-overlapping (matches MATLAB)
             }
         }
-        return static_cast<double>(n);
+        return keel::as<double>(n);
     };
     if (s.isCell()) {
-        const keel::usize r = static_cast<keel::usize>(s.dims().rows());
-        const keel::usize c = static_cast<keel::usize>(s.dims().cols());
+        const keel::usize r = keel::as<keel::usize>(s.dims().rows());
+        const keel::usize c = keel::as<keel::usize>(s.dims().cols());
         auto out = Value::matrix(r, c, ValueType::DOUBLE, mr);
         double *od = out.doubleDataMut();
         const keel::usize nn = s.numel();
@@ -1142,8 +1142,8 @@ Value count(const Value &s, const Value &pat, keel::Allocator *mr)
     }
     // A string ARRAY is processed element-wise -> DOUBLE array, same shape.
     if (s.isString() && !s.isScalar()) {
-        const keel::usize r = static_cast<keel::usize>(s.dims().rows());
-        const keel::usize c = static_cast<keel::usize>(s.dims().cols());
+        const keel::usize r = keel::as<keel::usize>(s.dims().rows());
+        const keel::usize c = keel::as<keel::usize>(s.dims().cols());
         auto out = Value::matrix(r, c, ValueType::DOUBLE, mr);
         double *od = out.doubleDataMut();
         const keel::usize nn = s.numel();
@@ -1349,8 +1349,8 @@ Value matches(const Value &s, const Value &pat, keel::Allocator *mr)
     };
     // A string ARRAY / cell source -> same-shape LOGICAL array (element-wise).
     if (s.isCell() || (s.isString() && !s.isScalar())) {
-        const keel::usize r = static_cast<keel::usize>(s.dims().rows());
-        const keel::usize c = static_cast<keel::usize>(s.dims().cols());
+        const keel::usize r = keel::as<keel::usize>(s.dims().rows());
+        const keel::usize c = keel::as<keel::usize>(s.dims().cols());
         Value out = Value::matrix(r, c, ValueType::LOGICAL, mr);
         keel::u8 *od = out.logicalDataMut();
         const keel::usize nn = s.numel();
@@ -1633,7 +1633,7 @@ Value dec2hex(const Value &d, int minWidth, keel::Allocator *mr)
 namespace {
 Value base2decFixed(const Value &s, int base, keel::Allocator *mr)
 {
-    const keel::usize rows = static_cast<keel::usize>(s.dims().rows());
+    const keel::usize rows = keel::as<keel::usize>(s.dims().rows());
     if (s.type() == ValueType::CHAR && rows > 1) {
         const keel::usize cols = s.numel() / rows;
         const char *src = static_cast<const char *>(s.rawData());
@@ -1645,7 +1645,7 @@ Value base2decFixed(const Value &s, int base, keel::Allocator *mr)
         for (keel::usize r = 0; r < rows; ++r) {
             row.clear();
             for (keel::usize c = 0; c < cols; ++c) row.push_back(src[c * rows + r]);
-            od[r] = static_cast<double>(parseBase(row.as_ref(), base));
+            od[r] = keel::as<double>(parseBase(row.as_ref(), base));
         }
         return out;
     }
@@ -1656,14 +1656,14 @@ Value base2decFixed(const Value &s, int base, keel::Allocator *mr)
         double *od = out.doubleDataMut();
         for (keel::usize i = 0; i < n; ++i) {
             if (s.isCell()) {
-                od[i] = static_cast<double>(parseBase(s.cellAt(i).asStringRef(), base));
+                od[i] = keel::as<double>(parseBase(s.cellAt(i).asStringRef(), base));
             } else {
-                od[i] = static_cast<double>(parseBase(s.stringElemRef(i), base));
+                od[i] = keel::as<double>(parseBase(s.stringElemRef(i), base));
             }
         }
         return out;
     }
-    return Value::scalar(static_cast<double>(parseBase(s.asStringRef(), base)), mr);
+    return Value::scalar(keel::as<double>(parseBase(s.asStringRef(), base)), mr);
 }
 } // namespace
 
@@ -1681,7 +1681,7 @@ Value hex2dec(const Value &s, keel::Allocator *mr)
 Value hex2num(const Value &s, keel::Allocator *mr)
 {
     // A char MATRIX (>1 row) parses each row as one number -> N×1 column.
-    const keel::usize rows = static_cast<keel::usize>(s.dims().rows());
+    const keel::usize rows = keel::as<keel::usize>(s.dims().rows());
     if (s.type() == ValueType::CHAR && rows > 1) {
         const keel::usize cols = s.numel() / rows;
         const char *src = static_cast<const char *>(s.rawData());
@@ -1727,27 +1727,27 @@ Value num2hex(const Value &x, keel::Allocator *mr)
 
     const keel::usize n = x.numel();
     const int W = single ? 8 : 16;
-    if (n == 0) return Value::matrix(0, static_cast<keel::usize>(W), ValueType::CHAR, mr);
+    if (n == 0) return Value::matrix(0, keel::as<keel::usize>(W), ValueType::CHAR, mr);
 
     // numel × W CHAR matrix, one row per element (column-major order).
-    Value m = Value::matrix(n, static_cast<keel::usize>(W), ValueType::CHAR, mr);
+    Value m = Value::matrix(n, keel::as<keel::usize>(W), ValueType::CHAR, mr);
     char *dst = static_cast<char *>(m.rawDataMut());
     char buf[24];
     for (keel::usize i = 0; i < n; ++i) {
         const double v = x.elemAsDouble(i);
         if (single) {
-            const float f = static_cast<float>(v);
+            const float f = keel::as<float>(v);
             keel::u32 bits;
             std::memcpy(&bits, &f, sizeof(bits));
-            std::snprintf(buf, sizeof(buf), "%08x", static_cast<unsigned int>(bits));
+            std::snprintf(buf, sizeof(buf), "%08x", keel::as<unsigned int>(bits));
         } else {
             keel::u64 bits;
             std::memcpy(&bits, &v, sizeof(bits));
             std::snprintf(buf, sizeof(buf), "%016llx",
-                          static_cast<unsigned long long>(bits));
+                          keel::as<unsigned long long>(bits));
         }
         for (int c = 0; c < W; ++c)
-            dst[static_cast<keel::usize>(c) * n + i] = buf[c];
+            dst[keel::as<keel::usize>(c) * n + i] = buf[c];
     }
     return m;
 }
@@ -1766,7 +1766,7 @@ Value base2dec(const Value &s, int base, keel::Allocator *mr)
     if (base < 2 || base > 36)
         throw Error("base2dec: base must be in 2..36",
                      0, 0, "base2dec", "", "numkit:base2dec:badBase");
-    const keel::usize rows = static_cast<keel::usize>(s.dims().rows());
+    const keel::usize rows = keel::as<keel::usize>(s.dims().rows());
     // A char MATRIX (multiple rows) parses each row -> column vector.
     if (rows > 1 && s.type() == ValueType::CHAR) {
         const keel::usize cols = s.numel() / rows;
@@ -1779,11 +1779,11 @@ Value base2dec(const Value &s, int base, keel::Allocator *mr)
         for (keel::usize r = 0; r < rows; ++r) {
             row.clear();
             for (keel::usize c = 0; c < cols; ++c) row.push_back(src[c * rows + r]);
-            od[r] = static_cast<double>(parseBaseN(row.as_ref(), base));
+            od[r] = keel::as<double>(parseBaseN(row.as_ref(), base));
         }
         return out;
     }
-    return Value::scalar(static_cast<double>(parseBaseN(s.asStringRef(), base)), mr);
+    return Value::scalar(keel::as<double>(parseBaseN(s.asStringRef(), base)), mr);
 }
 
 
@@ -1824,7 +1824,7 @@ Value rats(const Value &x, int len, keel::Allocator *mr)
     auto appendOne = [&](keel::String &dst, double v) {
         if (!std::isfinite(v)) {
             const keel::StringRef s = std::isnan(v) ? "NaN" : (v > 0 ? "Inf" : "-Inf");
-            const int slack = std::max(0, field_width - static_cast<int>(s.size()));
+            const int slack = std::max(0, field_width - keel::as<int>(s.size()));
             for (int k = 0; k < slack; ++k) dst.push_back(' ');
             dst.append(s);
             return;
@@ -1860,7 +1860,7 @@ Value rats(const Value &x, int len, keel::Allocator *mr)
 
     // Vector: concatenate per-element fields end-to-end (one row).
     keel::String out;
-    out.reserve(n * static_cast<keel::usize>(field_width));
+    out.reserve(n * keel::as<keel::usize>(field_width));
     for (keel::usize i = 0; i < n; ++i)
         appendOne(out, x.elemAsDouble(i));
     return Value::fromString(out, mr);
@@ -1921,8 +1921,8 @@ Value strrep(const Value &s, const Value &oldPat, const Value &newPat, keel::All
     }
     keel::usize rr = 1, cc = 1;
     auto setShape = [&](const Value &v) {
-        rr = static_cast<keel::usize>(v.dims().rows());
-        cc = static_cast<keel::usize>(v.dims().cols());
+        rr = keel::as<keel::usize>(v.dims().rows());
+        cc = keel::as<keel::usize>(v.dims().cols());
     };
     // Shape comes from the non-scalar cell operand if any, else the (1x1)
     // cell operand that triggered the cell path.

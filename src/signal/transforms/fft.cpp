@@ -113,7 +113,7 @@ static Value fftAlongDim(const Value &x_in, keel::usize N_req, int dim, int dir,
     const keel::usize dims[3] = {R, C, P};
     const auto layout = keel::fft::FftBatchLayout::from_col_major(
         keel::ArrayRef<keel::usize>(dims, 3),
-        static_cast<keel::usize>(dim - 1),
+        keel::as<keel::usize>(dim - 1),
         outAxisLen,
         outAxisLen);
 
@@ -140,7 +140,7 @@ static Value fftAlongDim(const Value &x_in, keel::usize N_req, int dim, int dir,
             dstRef,
             layout,
             keel::fft::FftNormalization::None);
-        const double invN = 1.0 / static_cast<double>(outAxisLen);
+        const double invN = 1.0 / keel::as<double>(outAxisLen);
         keel::c64 *out = result.complexDataMut();
         const keel::usize total = result.numel();
         for (keel::usize i = 0; i < total; ++i) {
@@ -187,7 +187,7 @@ Value fft(const Value &x, int n, int dim, keel::Allocator *mr)
                      0, 0, "fft", "", "numkit:fft:invalidDim");
     if (dim == 0) dim = resolveDefaultDim(x);
 
-    const keel::usize N = (n < 0) ? 0u : static_cast<keel::usize>(n);
+    const keel::usize N = (n < 0) ? 0u : keel::as<keel::usize>(n);
     return fftAlongDim(x, N, dim, /*dir=*/1, mr);
 }
 
@@ -198,7 +198,7 @@ Value ifft(const Value &X, int n, int dim, keel::Allocator *mr)
                      0, 0, "ifft", "", "numkit:ifft:invalidDim");
     if (dim == 0) dim = resolveDefaultDim(X);
 
-    const keel::usize N = (n < 0) ? 0u : static_cast<keel::usize>(n);
+    const keel::usize N = (n < 0) ? 0u : keel::as<keel::usize>(n);
     return fftAlongDim(X, N, dim, /*dir=*/-1, mr);
 }
 
@@ -216,7 +216,7 @@ Value ifftSymmetric(const Value &X, int n, int dim, keel::Allocator *mr)
 
     const keel::usize R = d.rows(), C = d.cols();
     const keel::usize origLen = (useDim == 1) ? R : C;
-    const keel::usize L       = (n > 0) ? static_cast<keel::usize>(n) : origLen;
+    const keel::usize L       = (n > 0) ? keel::as<keel::usize>(n) : origLen;
 
     auto getC = [&](keel::usize idx) -> keel::c64 {
         return X.isComplex() ? X.complexData()[idx]
@@ -226,7 +226,7 @@ Value ifftSymmetric(const Value &X, int n, int dim, keel::Allocator *mr)
     const keel::usize outR = (useDim == 1) ? L : R;
     const keel::usize outC = (useDim == 1) ? C : L;
     Value Xh = Value::matrix(outR, outC, ValueType::COMPLEX, mr);
-    if (Xh.numel() == 0) return ifft(Xh, static_cast<int>(L), useDim, mr);
+    if (Xh.numel() == 0) return ifft(Xh, keel::as<int>(L), useDim, mr);
     keel::c64 *h = Xh.complexDataMut();
     for (keel::usize i = 0; i < Xh.numel(); ++i) h[i] = keel::c64(0.0, 0.0);
 
@@ -243,7 +243,7 @@ Value ifftSymmetric(const Value &X, int n, int dim, keel::Allocator *mr)
             h[outIdx(L / 2)] = keel::c64(h[outIdx(L / 2)].real(), 0.0);
     }
 
-    Value Y = ifft(Xh, static_cast<int>(L), useDim, mr);
+    Value Y = ifft(Xh, keel::as<int>(L), useDim, mr);
     if (!Y.isComplex()) return Y;
     Value re = Value::matrix(Y.dims().rows(), Y.dims().cols(), ValueType::DOUBLE, mr);
     const keel::c64 *yc = Y.complexData();
@@ -298,14 +298,14 @@ Value fftnImpl(const Value &X, keel::ArrayRef<keel::usize> sz,
 {
     if (X.isEmpty()) return X;
     const int ndim = effectiveNdim(X);
-    if (sz.size() > static_cast<keel::usize>(ndim))
+    if (sz.size() > keel::as<keel::usize>(ndim))
         throw Error("fftn: size vector length exceeds ndims(X)",
                      0, 0, "fftn", "", "numkit:fftn:badSize");
     Value Y = X;
     for (int d = 1; d <= ndim; ++d) {
         int n = -1;
-        if (static_cast<keel::usize>(d) <= sz.size())
-            n = static_cast<int>(sz[d - 1]);
+        if (keel::as<keel::usize>(d) <= sz.size())
+            n = keel::as<int>(sz[d - 1]);
         Y = op(Y, n, d, mr);
     }
     return Y;
@@ -328,7 +328,7 @@ Value ifftn(const Value &X, keel::ArrayRef<keel::usize> sz,
 static Value cztVector(const keel::c64 *xData, keel::usize N, int m, keel::c64 w, keel::c64 a, keel::Allocator *mr)
 {
 if (m <= 0) return Value::complexMatrix(0, 0, mr);
-    const keel::usize M = static_cast<keel::usize>(m);
+    const keel::usize M = keel::as<keel::usize>(m);
     if (N == 0) {
         return Value::complexMatrix(0, 0, mr);
     }
@@ -339,8 +339,8 @@ if (m <= 0) return Value::complexMatrix(0, 0, mr);
     Value g = Value::complexMatrix(L, 1, mr);
     keel::c64 *gd = g.complexDataMut();
     for (keel::usize n = 0; n < N; ++n) {
-        const double n2_half = 0.5 * static_cast<double>(n) * static_cast<double>(n);
-        const keel::c64 a_negn = keel::pow(a, -static_cast<double>(n));
+        const double n2_half = 0.5 * keel::as<double>(n) * keel::as<double>(n);
+        const keel::c64 a_negn = keel::pow(a, -keel::as<double>(n));
         const keel::c64 w_n2   = keel::pow(w,  n2_half);
         gd[n] = xData[n] * a_negn * w_n2;
     }
@@ -349,36 +349,36 @@ if (m <= 0) return Value::complexMatrix(0, 0, mr);
     Value h = Value::complexMatrix(L, 1, mr);
     keel::c64 *hd = h.complexDataMut();
     for (keel::usize k = 0; k < M; ++k) {
-        const double k2_half = 0.5 * static_cast<double>(k) * static_cast<double>(k);
+        const double k2_half = 0.5 * keel::as<double>(k) * keel::as<double>(k);
         hd[k] = keel::pow(w, -k2_half);
     }
     for (keel::usize n = M; n < L; ++n) hd[n] = keel::c64(0, 0);
     for (keel::usize n = 1; n < N; ++n) {
-        const double n2_half = 0.5 * static_cast<double>(n) * static_cast<double>(n);
+        const double n2_half = 0.5 * keel::as<double>(n) * keel::as<double>(n);
         hd[L - n] = keel::pow(w, -n2_half);
     }
 
-    Value G = fft(g, static_cast<int>(L), 1, mr);
-    Value H = fft(h, static_cast<int>(L), 1, mr);
+    Value G = fft(g, keel::as<int>(L), 1, mr);
+    Value H = fft(h, keel::as<int>(L), 1, mr);
     const keel::c64 *Gd = G.complexData();
     const keel::c64 *Hd = H.complexData();
     Value P = Value::complexMatrix(L, 1, mr);
     keel::c64 *Pd = P.complexDataMut();
     for (keel::usize i = 0; i < L; ++i) Pd[i] = Gd[i] * Hd[i];
-    Value yL = ifft(P, static_cast<int>(L), 1, mr);
+    Value yL = ifft(P, keel::as<int>(L), 1, mr);
 
     Value Y = Value::complexMatrix(1, M, mr);
     keel::c64 *Yd = Y.complexDataMut();
     if (yL.isComplex()) {
         const keel::c64 *yd = yL.complexData();
         for (keel::usize k = 0; k < M; ++k) {
-            const double k2_half = 0.5 * static_cast<double>(k) * static_cast<double>(k);
+            const double k2_half = 0.5 * keel::as<double>(k) * keel::as<double>(k);
             Yd[k] = yd[k] * keel::pow(w, k2_half);
         }
     } else {
         const double *yd = yL.doubleData();
         for (keel::usize k = 0; k < M; ++k) {
-            const double k2_half = 0.5 * static_cast<double>(k) * static_cast<double>(k);
+            const double k2_half = 0.5 * keel::as<double>(k) * keel::as<double>(k);
             Yd[k] = keel::c64(yd[k], 0.0) * keel::pow(w, k2_half);
         }
     }
@@ -407,7 +407,7 @@ detail::requireFloatInput(x, "czt");
         }
         Value y = cztVector(buf.data(), N, m, w, a, mr);
         if (R == 1) return y;
-        Value yCol = Value::complexMatrix(static_cast<keel::usize>(m), 1, mr);
+        Value yCol = Value::complexMatrix(keel::as<keel::usize>(m), 1, mr);
         keel::c64 *col = yCol.complexDataMut();
         const keel::c64 *row = y.complexData();
         for (int k = 0; k < m; ++k) col[k] = row[k];
@@ -416,11 +416,11 @@ detail::requireFloatInput(x, "czt");
 
     const int nd = d.ndim();
     keel::Array<keel::usize> outDims(nd, mr);
-    outDims[0] = static_cast<keel::usize>(m);
+    outDims[0] = keel::as<keel::usize>(m);
     for (int i = 1; i < nd; ++i)
-        outDims[static_cast<keel::usize>(i)] = d.dim(i);
+        outDims[keel::as<keel::usize>(i)] = d.dim(i);
     Value out = (nd <= 2)
-        ? Value::complexMatrix(static_cast<keel::usize>(m), C, mr)
+        ? Value::complexMatrix(keel::as<keel::usize>(m), C, mr)
         : Value::matrixND(outDims.data(), nd, ValueType::COMPLEX, mr);
     keel::c64 *od = out.complexDataMut();
     const keel::usize nCols = (R > 0) ? (x.numel() / R) : 0;
@@ -465,12 +465,12 @@ Value interpft(const Value &x, int n, int dim, keel::Allocator *mr)
     else if (useDim == 3) mLen = d.pages();
     if (mLen == 0)
         return x;
-    if (static_cast<keel::usize>(n) == mLen)
+    if (keel::as<keel::usize>(n) == mLen)
         return x;
 
     Value X = fft(x, /*n=*/-1, useDim, mr);
 
-    const keel::usize nOut = static_cast<keel::usize>(n);
+    const keel::usize nOut = keel::as<keel::usize>(n);
     const keel::usize half = mLen / 2;
 
     auto pickN = [&](keel::usize r, keel::usize c) -> Value {
@@ -481,7 +481,7 @@ Value interpft(const Value &x, int n, int dim, keel::Allocator *mr)
     };
 
     auto scaleVal = [&](Value v) -> Value {
-        const double s = static_cast<double>(nOut) / static_cast<double>(mLen);
+        const double s = keel::as<double>(nOut) / keel::as<double>(mLen);
         const keel::usize total = v.numel();
         if (v.type() == ValueType::COMPLEX) {
             auto *p = v.complexDataMut();

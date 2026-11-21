@@ -25,10 +25,10 @@ std::tuple<Value, Value, Value, Value> qz(const Value &A, const Value &B,
     detail::requireDoubleInput(B, "qz", "B", 2);
     if (A.dims().ndim() != 2 || B.dims().ndim() != 2)
         throw Error("qz: A and B must be 2D matrices", 0, 0, "qz", "", "numkit:qz:notMatrix");
-    const keel::usize n = static_cast<keel::usize>(A.dims().dim(0));
-    if (n != static_cast<keel::usize>(A.dims().dim(1)) ||
-        static_cast<keel::usize>(B.dims().dim(0)) != n ||
-        static_cast<keel::usize>(B.dims().dim(1)) != n)
+    const keel::usize n = keel::as<keel::usize>(A.dims().dim(0));
+    if (n != keel::as<keel::usize>(A.dims().dim(1)) ||
+        keel::as<keel::usize>(B.dims().dim(0)) != n ||
+        keel::as<keel::usize>(B.dims().dim(1)) != n)
         throw Error("qz: A and B must be square matrices of the same size", 0, 0, "qz", "", "numkit:qz:badDims");
 
     const bool wantSingle = A.type() == ValueType::SINGLE || B.type() == ValueType::SINGLE;

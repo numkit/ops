@@ -340,7 +340,7 @@ Value standardizeMissing(const Value &x, const Value &indicator,
             const float v = src[i];
             bool hit = false;
             for (double ind : ind_vals) {
-                if (v == static_cast<float>(ind)) { hit = true; break; }
+                if (v == keel::as<float>(ind)) { hit = true; break; }
             }
             dst[i] = hit ? nan : v;
         }
@@ -481,7 +481,7 @@ Value flintmax(const Value &t, keel::Allocator *mr)
 {
     auto name = readTypeName(t, "double");
     if (name == "single")
-        return typedScalar<float>(ValueType::SINGLE, static_cast<float>(1u << 24), mr);
+        return typedScalar<float>(ValueType::SINGLE, keel::as<float>(1u << 24), mr);
     if (name == "double")
         return Value::scalar(9007199254740992.0, mr);  // 2^53 exactly
     throw std::runtime_error("flintmax: type must be 'double' or 'single'");
@@ -508,10 +508,10 @@ Value intmin(const Value &t, keel::Allocator *mr)
     if (name == "int16")  return typedScalar<keel::i16>(ValueType::INT16, std::numeric_limits<keel::i16>::min(), mr);
     if (name == "int32")  return typedScalar<keel::i32>(ValueType::INT32, std::numeric_limits<keel::i32>::min(), mr);
     if (name == "int64")  return typedScalar<keel::i64>(ValueType::INT64, std::numeric_limits<keel::i64>::min(), mr);
-    if (name == "uint8")  return typedScalar<keel::u8>(ValueType::UINT8, static_cast<keel::u8>(0), mr);
-    if (name == "uint16") return typedScalar<keel::u16>(ValueType::UINT16, static_cast<keel::u16>(0), mr);
-    if (name == "uint32") return typedScalar<keel::u32>(ValueType::UINT32, static_cast<keel::u32>(0), mr);
-    if (name == "uint64") return typedScalar<keel::u64>(ValueType::UINT64, static_cast<keel::u64>(0), mr);
+    if (name == "uint8")  return typedScalar<keel::u8>(ValueType::UINT8, keel::as<keel::u8>(0), mr);
+    if (name == "uint16") return typedScalar<keel::u16>(ValueType::UINT16, keel::as<keel::u16>(0), mr);
+    if (name == "uint32") return typedScalar<keel::u32>(ValueType::UINT32, keel::as<keel::u32>(0), mr);
+    if (name == "uint64") return typedScalar<keel::u64>(ValueType::UINT64, keel::as<keel::u64>(0), mr);
     throw std::runtime_error("intmin: unsupported integer class");
 }
 

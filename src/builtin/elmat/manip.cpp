@@ -99,7 +99,7 @@ Value repmatND(const Value &x, keel::ArrayRef<keel::usize> tiles, keel::Allocato
 
     const auto &inDims = x.dims();
     constexpr int kMaxNd = Dims::kMaxRank;
-    const int ntiles = static_cast<int>(tiles.size());
+    const int ntiles = keel::as<int>(tiles.size());
     int outNdim = std::max(inDims.ndim(), ntiles);
     if (outNdim > kMaxNd)
         throw Error("repmat: rank exceeds 32",
@@ -118,7 +118,7 @@ Value repmatND(const Value &x, keel::ArrayRef<keel::usize> tiles, keel::Allocato
         Dims outDims(outD, outNdim);
         const keel::usize total = outDims.numel();
         keel::ArenaTemp scratch = keel::get_scratch(mr);
-        keel::Array<keel::usize> srcMap(total, static_cast<keel::usize>(0), scratch.allocator());
+        keel::Array<keel::usize> srcMap(total, keel::as<keel::usize>(0), scratch.allocator());
         if (x.numel() > 0 && total > 0) {
             keel::usize outStrides[kMaxNd], srcStrides[kMaxNd];
             computeStridesColMajor(outDims, outStrides);
@@ -555,7 +555,7 @@ Value circshiftND(const Value &x, keel::ArrayRef<keel::i64> shifts, keel::Alloca
                      : Value::matrixND(outDims, nd, t, mr);
     if (x.numel() == 0) return r;
 
-    const int nshifts = static_cast<int>(shifts.size());
+    const int nshifts = keel::as<int>(shifts.size());
     keel::usize shiftMod[kMaxNd] = {0};
     for (int i = 0; i < nd; ++i) {
         const keel::i64 s = (i < nshifts) ? shifts[i] : 0;
@@ -828,7 +828,7 @@ Value repelem(const Value &x, keel::usize m, keel::usize n, keel::Allocator *mr)
 Value repelem(const Value &x, const Value &counts, keel::Allocator *mr)
 {
     if (counts.isScalar())   // fast path / preserves scalar-form semantics
-        return repelem(x, static_cast<keel::usize>(counts.toScalar()), mr);
+        return repelem(x, keel::as<keel::usize>(counts.toScalar()), mr);
 
     const auto &d = x.dims();
     if (d.ndim() > 2 || (d.rows() != 1 && d.cols() != 1 && !x.isScalar()))
@@ -857,8 +857,8 @@ Value repelem(const Value &x, const Value &rCounts, const Value &cCounts,
               keel::Allocator *mr)
 {
     if (rCounts.isScalar() && cCounts.isScalar())   // fast path
-        return repelem(x, static_cast<keel::usize>(rCounts.toScalar()),
-                          static_cast<keel::usize>(cCounts.toScalar()), mr);
+        return repelem(x, keel::as<keel::usize>(rCounts.toScalar()),
+                          keel::as<keel::usize>(cCounts.toScalar()), mr);
 
     const auto &d = x.dims();
     if (d.ndim() > 2)
@@ -1122,7 +1122,7 @@ Value sub2ind(const Value &siz, keel::ArrayRef<Value> subs,
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     auto dims = keel::Array<keel::usize>(nDims, scratch.allocator());
     for (keel::usize i = 0; i < nDims; ++i)
-        dims[i] = static_cast<keel::usize>(siz.doubleData()[i]);
+        dims[i] = keel::as<keel::usize>(siz.doubleData()[i]);
 
     const keel::usize nSubs = subs.size();
     if (nSubs > nDims)
@@ -1153,10 +1153,10 @@ Value sub2ind(const Value &siz, keel::ArrayRef<Value> subs,
         for (keel::usize d = 0; d < nSubs; ++d) {
             const double sd = subs[d].isScalar() ? subs[d].toScalar()
                                                  : subs[d].doubleData()[k];
-            const keel::usize idx = static_cast<keel::usize>(sd) - 1;  // 1-based → 0-based
+            const keel::usize idx = keel::as<keel::usize>(sd) - 1;  // 1-based → 0-based
             lin += idx * strideOfDim(d);
         }
-        dst[k] = static_cast<double>(lin + 1);  // back to 1-based
+        dst[k] = keel::as<double>(lin + 1);  // back to 1-based
     }
     return r;
 }
@@ -1172,7 +1172,7 @@ keel::Array<Value> ind2sub(const Value &siz, const Value &ind, keel::usize nout,
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     auto dims = keel::Array<keel::usize>(nDims, scratch.allocator());
     for (keel::usize i = 0; i < nDims; ++i)
-        dims[i] = static_cast<keel::usize>(siz.doubleData()[i]);
+        dims[i] = keel::as<keel::usize>(siz.doubleData()[i]);
 
     const keel::usize outDims = (nout == 0) ? nDims : nout;
     const keel::usize outN = ind.numel();
@@ -1206,12 +1206,12 @@ keel::Array<Value> ind2sub(const Value &siz, const Value &ind, keel::usize nout,
 
     for (keel::usize k = 0; k < outN; ++k) {
         const double iv = ind.isScalar() ? ind.toScalar() : ind.doubleData()[k];
-        keel::usize lin = static_cast<keel::usize>(iv) - 1;
+        keel::usize lin = keel::as<keel::usize>(iv) - 1;
         for (keel::usize d = 0; d < outDims; ++d) {
             const keel::usize v = (d + 1 < outDims)
                                  ? (lin / stride[d]) % effDim(d)
                                  : (lin / stride[d]);
-            rs[d].doubleDataMut()[k] = static_cast<double>(v + 1);
+            rs[d].doubleDataMut()[k] = keel::as<double>(v + 1);
         }
     }
     return rs;

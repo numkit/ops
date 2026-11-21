@@ -41,8 +41,8 @@ inline T saturate_cast_scalar(double v)
 {
     if (std::isnan(v)) return 0;
     v = std::round(v);
-    constexpr double lo = static_cast<double>(std::numeric_limits<T>::min());
-    constexpr double hi = static_cast<double>(std::numeric_limits<T>::max());
+    constexpr double lo = keel::as<double>(std::numeric_limits<T>::min());
+    constexpr double hi = keel::as<double>(std::numeric_limits<T>::max());
     if (v < lo) return std::numeric_limits<T>::min();
     if (v > hi) return std::numeric_limits<T>::max();
     return static_cast<T>(v);
@@ -66,8 +66,8 @@ void DoubleToInt32Loop(const double *HWY_RESTRICT in, keel::i32 *HWY_RESTRICT ou
     const hn::ScalableTag<double>  d;
     const hn::Rebind<keel::i32, decltype(d)> di_rebind;
     const auto zero = hn::Zero(d);
-    const auto lo   = hn::Set(d, static_cast<double>(std::numeric_limits<keel::i32>::min()));
-    const auto hi   = hn::Set(d, static_cast<double>(std::numeric_limits<keel::i32>::max()));
+    const auto lo   = hn::Set(d, keel::as<double>(std::numeric_limits<keel::i32>::min()));
+    const auto hi   = hn::Set(d, keel::as<double>(std::numeric_limits<keel::i32>::max()));
     const keel::usize N = hn::Lanes(d);
     keel::usize i = 0;
     for (; i + N <= n; i += N) {
@@ -87,7 +87,7 @@ void DoubleToUInt32Loop(const double *HWY_RESTRICT in, keel::u32 *HWY_RESTRICT o
     const hn::Rebind<keel::u32, decltype(d)> du_rebind;
     const auto zero = hn::Zero(d);
     const auto lo   = hn::Set(d, 0.0);
-    const auto hi   = hn::Set(d, static_cast<double>(std::numeric_limits<keel::u32>::max()));
+    const auto hi   = hn::Set(d, keel::as<double>(std::numeric_limits<keel::u32>::max()));
     const keel::usize N = hn::Lanes(d);
     keel::usize i = 0;
     for (; i + N <= n; i += N) {
@@ -110,8 +110,8 @@ void DoubleToInt64Loop(const double *HWY_RESTRICT in, keel::i64 *HWY_RESTRICT ou
     // int64 range exceeds double-exact precision; saturation bounds
     // are still meaningful for clamping but inputs above 2^53 lose
     // representability â€” same as MATLAB.
-    const auto lo   = hn::Set(d, static_cast<double>(std::numeric_limits<keel::i64>::min()));
-    const auto hi   = hn::Set(d, static_cast<double>(std::numeric_limits<keel::i64>::max()));
+    const auto lo   = hn::Set(d, keel::as<double>(std::numeric_limits<keel::i64>::min()));
+    const auto hi   = hn::Set(d, keel::as<double>(std::numeric_limits<keel::i64>::max()));
     const keel::usize N = hn::Lanes(d);
     keel::usize i = 0;
     for (; i + N <= n; i += N) {

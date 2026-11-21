@@ -23,10 +23,10 @@ double sliceQuantile(double *s, keel::usize n, double p)
     // bit-for-bit unchanged — only the cost drops (a two-call iqr over ~10^7
     // elements goes from ~1.7 s of sorting to well under 0.1 s). Shared by
     // iqr / mad / median-of-slice.
-    const double q = p * static_cast<double>(n) + 0.5;
+    const double q = p * keel::as<double>(n) + 0.5;
     if (q <= 1.0) return *std::min_element(s, s + n);
-    if (q >= static_cast<double>(n)) return *std::max_element(s, s + n);
-    const keel::usize lo   = static_cast<keel::usize>(std::floor(q)) - 1;
+    if (q >= keel::as<double>(n)) return *std::max_element(s, s + n);
+    const keel::usize lo   = keel::as<keel::usize>(std::floor(q)) - 1;
     const double      frac = q - std::floor(q);
     // Place the lo-th smallest at s[lo]; everything in (lo, n) is then >= it,
     // so the (lo+1)-th smallest is the minimum of that right partition.

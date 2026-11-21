@@ -34,7 +34,7 @@ keel::usize toSubIndex(double v, keel::usize maxAllowed, const char *fn)
     if (keel::abs(v - rounded) > 1e-9)
         throw Error(keel::format("{}: subscripts must be integer-valued", fn),
                      0, 0, fn, "", keel::format("numkit:{}:subInt", fn));
-    const keel::usize idx = static_cast<keel::usize>(rounded);
+    const keel::usize idx = keel::as<keel::usize>(rounded);
     if (maxAllowed > 0 && idx > maxAllowed)
         throw Error(keel::format("{}: subscript exceeds output dimension", fn),
                      0, 0, fn, "", keel::format("numkit:{}:subOOB", fn));
@@ -125,7 +125,7 @@ Value allocOutput(const keel::usize *shape, keel::usize nShape, keel::Allocator 
         return Value::matrix(shape[0], 1, ValueType::DOUBLE, mr);
     if (nShape == 2)
         return Value::matrix(shape[0], shape[1], ValueType::DOUBLE, mr);
-    return Value::matrixND(shape, static_cast<int>(nShape),
+    return Value::matrixND(shape, keel::as<int>(nShape),
                             ValueType::DOUBLE, mr);
 }
 
@@ -194,7 +194,7 @@ Value accumarray(const Value &subs, const Value &vals, keel::ArrayRef<keel::usiz
     if (needCount) {
         for (keel::usize i = 0; i < total; ++i) {
             if (!touched[i])       dst[i] = fillVal;
-            else if (count[i] > 0) dst[i] /= static_cast<double>(count[i]);
+            else if (count[i] > 0) dst[i] /= keel::as<double>(count[i]);
         }
     } else if (fillVal != 0.0 ||
                op == AccumReducer::Prod || op == AccumReducer::Max ||

@@ -215,7 +215,7 @@ Value polyvalm(const Value &p, const Value &A, keel::Allocator *mr)
         Value s = Value::matrix(n, n, ValueType::SINGLE, mr);
         float *sd = s.singleDataMut();
         for (keel::usize i = 0; i < n * n; ++i)
-            sd[i] = static_cast<float>(result[i].real());
+            sd[i] = keel::as<float>(result[i].real());
         return s;
     }
     auto out = Value::matrix(n, n, ValueType::DOUBLE, mr);
@@ -280,7 +280,7 @@ PadeCoef padecoef(double T, int N, keel::Allocator *mr)
                      0, 0, "padecoef", "", "numkit:padecoef:badN");
 
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    auto res = keel::poly::pade_delay(T, static_cast<keel::i32>(N), scratch.allocator());
+    auto res = keel::poly::pade_delay(T, keel::as<keel::i32>(N), scratch.allocator());
     return { rowFromVec(res.num.data(), res.num.size(), mr),
              rowFromVec(res.den.data(), res.den.size(), mr) };
 }
@@ -373,7 +373,7 @@ Value polyfit(const Value &x, const Value &y, int deg, keel::Allocator *mr)
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     auto res = keel::poly::polyfit(keel::ArrayRef<keel::f64>(x.doubleData(), m),
                                    keel::ArrayRef<keel::f64>(y.doubleData(), y.numel()),
-                                   static_cast<keel::i32>(deg), scratch.allocator());
+                                   keel::as<keel::i32>(deg), scratch.allocator());
     return rowFromVec(res.coeffs.data(), res.coeffs.size(), mr);
 }
 

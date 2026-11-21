@@ -91,7 +91,7 @@ inline void parallel_for(keel::usize n, keel::usize threshold, F &&fn,
     (void)threshold;
     (void)max_workers;
     if (n > 0)
-        fn(static_cast<keel::usize>(0), n);
+        fn(keel::as<keel::usize>(0), n);
 #endif
 }
 

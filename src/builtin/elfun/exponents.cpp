@@ -21,7 +21,7 @@ Value pow2(const Value &f, const Value &e, keel::Allocator *mr)
 {
     return elementwiseDouble(f, e,
         [](double ff, double ee) {
-            return std::ldexp(ff, static_cast<int>(std::floor(ee)));
+            return std::ldexp(ff, keel::as<int>(std::floor(ee)));
         }, mr);
 }
 
@@ -33,8 +33,8 @@ Value nextpow2(const Value &n, keel::Allocator *mr)
         if (a <= 1.0) return 0.0;
         int exp_val;
         double frac = std::frexp(a, &exp_val);
-        if (frac == 0.5) return static_cast<double>(exp_val - 1);
-        return static_cast<double>(exp_val);
+        if (frac == 0.5) return keel::as<double>(exp_val - 1);
+        return keel::as<double>(exp_val);
     };
     return unaryDouble(n, nextPow2Scalar, mr);
 }
@@ -53,7 +53,7 @@ Value nthroot(const Value &x, const Value &n, keel::Allocator *mr)
         if (xv >= 0.0) return std::pow(xv, 1.0 / nv);
         const double rounded = std::round(nv);
         if (rounded != nv) return std::nan("");
-        const long long ni = static_cast<long long>(rounded);
+        const long long ni = keel::as<long long>(rounded);
         if (ni % 2 == 0) return std::nan("");
         return -std::pow(-xv, 1.0 / nv);
     }, mr);

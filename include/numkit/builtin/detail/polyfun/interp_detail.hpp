@@ -141,8 +141,8 @@ Value interp1Dispatch(const Value &x, const Value &y, const Value &xq,
         throw Error("interp1: N-D Y arrays are not supported in this "
                     "revision (vector or 2-D matrix only)",
                      0, 0, "interp1", "", "numkit:interp1:ndY");
-    const keel::usize yr = static_cast<keel::usize>(y.dims().dim(0));
-    const keel::usize yc = static_cast<keel::usize>(y.dims().dim(1));
+    const keel::usize yr = keel::as<keel::usize>(y.dims().dim(0));
+    const keel::usize yc = keel::as<keel::usize>(y.dims().dim(1));
     if (yr != n)
         throw Error("interp1: for a matrix Y, size(Y,1) must equal length(X)",
                      0, 0, "interp1", "", "numkit:interp1:lengthMismatch");

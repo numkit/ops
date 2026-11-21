@@ -109,11 +109,11 @@ Value legendre(int n, const Value &x, keel::Allocator *mr)
         throw Error("legendre: n must be >= 0", 0, 0, "legendre", "", "numkit:legendre:badN");
     }
     const keel::usize L = x.numel();
-    const keel::usize rows = static_cast<keel::usize>(n + 1);
+    const keel::usize rows = keel::as<keel::usize>(n + 1);
     auto r = Value::matrix(rows, L, ValueType::DOUBLE, mr);
     double *dst = r.doubleDataMut();
     for (keel::usize k = 0; k < L; ++k) {
-        keel::specfun::legendre(static_cast<keel::i32>(n), x.elemAsDouble(k),
+        keel::specfun::legendre(keel::as<keel::i32>(n), x.elemAsDouble(k),
                        keel::MutArrayRef<keel::f64>(dst + k * rows, rows));
     }
     return r;
@@ -146,7 +146,7 @@ Value besselh(const Value &nu, int k, const Value &x, keel::Allocator *mr)
     }
     if (nu.isScalar() && x.isScalar()) {
         return Value::complexScalar(
-            keel::specfun::besselh(nu.toScalar(), static_cast<keel::i32>(k), x.toScalar()), mr);
+            keel::specfun::besselh(nu.toScalar(), keel::as<keel::i32>(k), x.toScalar()), mr);
     }
     const Value &shape = !nu.isScalar() ? nu : x;
     auto r = createLike(shape, ValueType::COMPLEX, mr);
@@ -155,7 +155,7 @@ Value besselh(const Value &nu, int k, const Value &x, keel::Allocator *mr)
     for (keel::usize i = 0; i < N; ++i) {
         const double n = nu.isScalar() ? nu.toScalar() : nu.doubleData()[i];
         const double xx = x.isScalar() ? x.toScalar() : x.doubleData()[i];
-        dst[i] = keel::specfun::besselh(n, static_cast<keel::i32>(k), xx);
+        dst[i] = keel::specfun::besselh(n, keel::as<keel::i32>(k), xx);
     }
     return r;
 }
@@ -183,7 +183,7 @@ Value airy(int k, const Value &x, keel::Allocator *mr)
         throw Error(keel::format("airy: kind k must be 0..3 (got {})", k),
                     0, 0, "airy", "", "numkit:airy:badK");
     }
-    return unaryDouble(x, [k](double v) { return keel::specfun::airy(static_cast<keel::i32>(k), v); }, mr);
+    return unaryDouble(x, [k](double v) { return keel::specfun::airy(keel::as<keel::i32>(k), v); }, mr);
 }
 
 Value gammaincinv(const Value &P, const Value &a, keel::Allocator *mr)
@@ -248,7 +248,7 @@ Value marcumq(const Value &a_v, const Value &b_v, int m, keel::Allocator *mr)
     for (keel::usize i = 0; i < N; ++i) {
         const double a = a_v.elemAsDouble(Na > 1 ? i : 0);
         const double b = b_v.elemAsDouble(Nb > 1 ? i : 0);
-        od[i] = keel::specfun::marcumq(a, b, static_cast<keel::i32>(m));
+        od[i] = keel::specfun::marcumq(a, b, keel::as<keel::i32>(m));
     }
     return out;
 }

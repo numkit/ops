@@ -86,14 +86,14 @@ inline Value widenSingleToDouble(const Value &v, keel::Allocator *mr)
         out = Value::matrix3d(d.rows(), d.cols(), d.pages(), ValueType::DOUBLE, mr);
     } else {
         keel::Array<keel::usize> od(d.ndim(), mr);
-        for (int k = 0; k < d.ndim(); ++k) od[static_cast<keel::usize>(k)] = d.dim(k);
+        for (int k = 0; k < d.ndim(); ++k) od[keel::as<keel::usize>(k)] = d.dim(k);
         out = Value::matrixND(od.data(), d.ndim(), ValueType::DOUBLE, mr);
     }
     const float *src = v.singleData();
     double *dst = out.doubleDataMut();
     const keel::usize n = v.numel();
     for (keel::usize i = 0; i < n; ++i)
-        dst[i] = static_cast<double>(src[i]);
+        dst[i] = keel::as<double>(src[i]);
     return out;
 }
 
@@ -108,14 +108,14 @@ inline Value narrowDoubleToSingle(const Value &v, keel::Allocator *mr)
         out = Value::matrix3d(d.rows(), d.cols(), d.pages(), ValueType::SINGLE, mr);
     } else {
         keel::Array<keel::usize> od(d.ndim(), mr);
-        for (int k = 0; k < d.ndim(); ++k) od[static_cast<keel::usize>(k)] = d.dim(k);
+        for (int k = 0; k < d.ndim(); ++k) od[keel::as<keel::usize>(k)] = d.dim(k);
         out = Value::matrixND(od.data(), d.ndim(), ValueType::SINGLE, mr);
     }
     const double *src = v.doubleData();
     float *dst = out.singleDataMut();
     const keel::usize n = v.numel();
     for (keel::usize i = 0; i < n; ++i)
-        dst[i] = static_cast<float>(src[i]);
+        dst[i] = keel::as<float>(src[i]);
     return out;
 }
 

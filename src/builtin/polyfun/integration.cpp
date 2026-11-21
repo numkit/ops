@@ -268,7 +268,7 @@ keel::Array<Value> gradientND(const Value &f, const double *hs, keel::usize nh,
     keel::Array<Value> outs(mr);
     outs.reserve(nout);
     for (keel::usize o = 0; o < nout; ++o) {
-        const int dim = (o == 0) ? 1 : (o == 1) ? 0 : static_cast<int>(o);
+        const int dim = (o == 0) ? 1 : (o == 1) ? 0 : keel::as<int>(o);
         if (dim >= R)
             throw Error("gradient: too many output arguments for the input "
                         "dimensionality",

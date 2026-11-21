@@ -27,8 +27,8 @@ inline T saturate_cast(double v)
 {
     if (std::isnan(v)) return 0;
     v = std::round(v);
-    constexpr double lo = static_cast<double>(std::numeric_limits<T>::min());
-    constexpr double hi = static_cast<double>(std::numeric_limits<T>::max());
+    constexpr double lo = keel::as<double>(std::numeric_limits<T>::min());
+    constexpr double hi = keel::as<double>(std::numeric_limits<T>::max());
     if (v < lo) return std::numeric_limits<T>::min();
     if (v > hi) return std::numeric_limits<T>::max();
     return static_cast<T>(v);

@@ -78,7 +78,7 @@ keel::Array<keel::u8> zlibDecompress(const keel::u8 *src, keel::usize len,
 
     const keel::u8 cmf = src[0];
     const keel::u8 flg = src[1];
-    if (((static_cast<keel::u32>(cmf) << 8) + flg) % 31 != 0) {
+    if (((keel::as<keel::u32>(cmf) << 8) + flg) % 31 != 0) {
         throw Error("zlib: invalid header checksum",
                     0, 0, "zlibDecompress", "", "numkit:zlib:badHeader");
     }
@@ -103,10 +103,10 @@ keel::Array<keel::u8> zlibDecompress(const keel::u8 *src, keel::usize len,
 
     auto &payload = inflated.value();
     const keel::u32 expectedAdler =
-        (static_cast<keel::u32>(src[len - 4]) << 24) |
-        (static_cast<keel::u32>(src[len - 3]) << 16) |
-        (static_cast<keel::u32>(src[len - 2]) << 8)  |
-        static_cast<keel::u32>(src[len - 1]);
+        (keel::as<keel::u32>(src[len - 4]) << 24) |
+        (keel::as<keel::u32>(src[len - 3]) << 16) |
+        (keel::as<keel::u32>(src[len - 2]) << 8)  |
+        keel::as<keel::u32>(src[len - 1]);
     const keel::u32 actualAdler = keel::compress::adler32(payload.as_ref());
     if (expectedAdler != actualAdler) {
         throw Error("zlib: Adler-32 checksum mismatch",

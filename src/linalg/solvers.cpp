@@ -35,10 +35,10 @@ Value linsolve(const Value &A, const Value &B, keel::Allocator *mr)
     if (A.dims().ndim() != 2 || B.dims().ndim() != 2)
         throw Error("linsolve: A and B must be 2D matrices",
                     0, 0, "linsolve", "", "numkit:linsolve:notMatrix");
-    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
-    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
-    const keel::usize mb = static_cast<keel::usize>(B.dims().dim(0));
-    const keel::usize nrhs = static_cast<keel::usize>(B.dims().dim(1));
+    const keel::usize m = keel::as<keel::usize>(A.dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(A.dims().dim(1));
+    const keel::usize mb = keel::as<keel::usize>(B.dims().dim(0));
+    const keel::usize nrhs = keel::as<keel::usize>(B.dims().dim(1));
     if (m != mb)
         throw Error("linsolve: A and B must have the same number of rows",
                     0, 0, "linsolve", "", "numkit:linsolve:badDims");
@@ -138,7 +138,7 @@ lsqnonneg_impl(const Value &C, const Value &d, keel::Allocator *mr)
     const keel::linalg::NnlsStats st = keel::linalg::lsqnonneg(Cw.doubleData(), M, N, db.data(),
                                                R.x.doubleDataMut(), R.residual.doubleDataMut(), mr);
     R.resnorm = st.resnorm;
-    R.iterations = static_cast<int>(st.iterations);
+    R.iterations = keel::as<int>(st.iterations);
     R.x = detail::narrowDoubleToSingleIf(R.x, wantSingle, mr);
     R.residual = detail::narrowDoubleToSingleIf(R.residual, wantSingle, mr);
     return R;

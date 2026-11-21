@@ -37,8 +37,8 @@ Value chol(const Value &A, keel::Allocator *mr)
     if (A.dims().ndim() != 2)
         throw Error("chol: input must be a 2D matrix",
                     0, 0, "chol", "", "numkit:chol:notMatrix");
-    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
-    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
+    const keel::usize m = keel::as<keel::usize>(A.dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(A.dims().dim(1));
     if (m != n)
         throw Error("chol: matrix must be square",
                     0, 0, "chol", "", "numkit:chol:notSquare");
@@ -82,8 +82,8 @@ template <typename T>
 std::tuple<Value, Value, Value>
 lu_decompose_impl(const Value &A, keel::Allocator *mr)
 {
-    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
-    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
+    const keel::usize m = keel::as<keel::usize>(A.dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(A.dims().dim(1));
     const keel::usize k = std::min(m, n);
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     keel::Array<T> LU(m * n, scratch.allocator());
@@ -132,8 +132,8 @@ lu_decompose_impl(const Value &A, keel::Allocator *mr)
 template <typename T>
 Value lu_combined_impl(const Value &A, keel::Allocator *mr)
 {
-    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
-    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
+    const keel::usize m = keel::as<keel::usize>(A.dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(A.dims().dim(1));
     const keel::usize k = std::min(m, n);
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     keel::Array<keel::i32> piv(std::max<keel::usize>(k, 1), scratch.allocator());
@@ -203,8 +203,8 @@ qr_decompose(const Value &A, keel::Allocator *mr)
     if (A.dims().ndim() != 2)
         throw Error("qr: input must be a 2D matrix",
                     0, 0, "qr", "", "numkit:qr:notMatrix");
-    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
-    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
+    const keel::usize m = keel::as<keel::usize>(A.dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(A.dims().dim(1));
     if (m < n)
         throw Error("qr: number of rows must be >= number of columns "
                     "(wide matrices via row-pivoted QR are deferred)",
@@ -233,8 +233,8 @@ Value qr_R_only(const Value &A, keel::Allocator *mr)
     if (A.dims().ndim() != 2)
         throw Error("qr: input must be a 2D matrix",
                     0, 0, "qr", "", "numkit:qr:notMatrix");
-    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
-    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
+    const keel::usize m = keel::as<keel::usize>(A.dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(A.dims().dim(1));
     if (m < n)
         throw Error("qr: number of rows must be >= number of columns",
                     0, 0, "qr", "", "numkit:qr:wide");
@@ -258,8 +258,8 @@ qr_pivoted(const Value &A, keel::Array<keel::usize> &perm,
     if (A.dims().ndim() != 2)
         throw Error("qr: input must be a 2D matrix",
                     0, 0, "qr", "", "numkit:qr:notMatrix");
-    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
-    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
+    const keel::usize m = keel::as<keel::usize>(A.dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(A.dims().dim(1));
     if (m < n)
         throw Error("qr: number of rows must be >= number of columns "
                     "(wide matrices via row-pivoted QR are deferred)",
@@ -296,8 +296,8 @@ svd_decompose(const Value &A, keel::Allocator *mr)
     if (A.dims().ndim() != 2)
         throw Error("svd: input must be a 2D matrix",
                     0, 0, "svd", "", "numkit:svd:notMatrix");
-    const keel::usize m_in = static_cast<keel::usize>(A.dims().dim(0));
-    const keel::usize n_in = static_cast<keel::usize>(A.dims().dim(1));
+    const keel::usize m_in = keel::as<keel::usize>(A.dims().dim(0));
+    const keel::usize n_in = keel::as<keel::usize>(A.dims().dim(1));
     const bool wantSingle = (A.type() == ValueType::SINGLE);
 
     if (m_in == 0 || n_in == 0) {
@@ -344,8 +344,8 @@ Value svd_values(const Value &A, keel::Allocator *mr)
     detail::requireDoubleInput(A, "svd");
     const bool wantSingle = (A.type() == ValueType::SINGLE);
     auto [U, S, V] = svd_decompose(detail::widenSingleToDouble(A, mr), mr);
-    const keel::usize m = static_cast<keel::usize>(S.dims().dim(0));
-    const keel::usize n = static_cast<keel::usize>(S.dims().dim(1));
+    const keel::usize m = keel::as<keel::usize>(S.dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(S.dims().dim(1));
     const keel::usize k = std::min(m, n);
     auto sv = Value::matrix(k, 1, ValueType::DOUBLE, mr);
     const double *S_data = S.doubleData();
@@ -366,10 +366,10 @@ qrupdate(const Value &Q, const Value &R, const Value &u, const Value &v,
     if (Q.dims().ndim() != 2 || R.dims().ndim() != 2)
         throw Error("qrupdate: Q and R must be 2D matrices",
                     0, 0, "qrupdate", "", "numkit:qrupdate:notMatrix");
-    const keel::usize m = static_cast<keel::usize>(Q.dims().dim(0));
-    const keel::usize mq = static_cast<keel::usize>(Q.dims().dim(1));
-    const keel::usize mr2 = static_cast<keel::usize>(R.dims().dim(0));
-    const keel::usize n  = static_cast<keel::usize>(R.dims().dim(1));
+    const keel::usize m = keel::as<keel::usize>(Q.dims().dim(0));
+    const keel::usize mq = keel::as<keel::usize>(Q.dims().dim(1));
+    const keel::usize mr2 = keel::as<keel::usize>(R.dims().dim(0));
+    const keel::usize n  = keel::as<keel::usize>(R.dims().dim(1));
     if (mq != m || mr2 != m)
         throw Error("qrupdate: Q must be m×m and R must be m×n",
                     0, 0, "qrupdate", "", "numkit:qrupdate:badShape");
@@ -406,10 +406,10 @@ qrinsert(const Value &Q, const Value &R, keel::usize k_1based, const Value &x,
     if (Q.dims().ndim() != 2 || R.dims().ndim() != 2)
         throw Error("qrinsert: Q and R must be 2D matrices",
                     0, 0, "qrinsert", "", "numkit:qrinsert:notMatrix");
-    const keel::usize m = static_cast<keel::usize>(Q.dims().dim(0));
-    const keel::usize n = static_cast<keel::usize>(R.dims().dim(1));
-    if (static_cast<keel::usize>(Q.dims().dim(1)) != m
-        || static_cast<keel::usize>(R.dims().dim(0)) != m)
+    const keel::usize m = keel::as<keel::usize>(Q.dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(R.dims().dim(1));
+    if (keel::as<keel::usize>(Q.dims().dim(1)) != m
+        || keel::as<keel::usize>(R.dims().dim(0)) != m)
         throw Error("qrinsert: Q must be m×m and R must be m×n",
                     0, 0, "qrinsert", "", "numkit:qrinsert:badShape");
     if (x.numel() != m)
@@ -444,10 +444,10 @@ qrdelete(const Value &Q, const Value &R, keel::usize k_1based,
     if (Q.dims().ndim() != 2 || R.dims().ndim() != 2)
         throw Error("qrdelete: Q and R must be 2D matrices",
                     0, 0, "qrdelete", "", "numkit:qrdelete:notMatrix");
-    const keel::usize m = static_cast<keel::usize>(Q.dims().dim(0));
-    const keel::usize n = static_cast<keel::usize>(R.dims().dim(1));
-    if (static_cast<keel::usize>(Q.dims().dim(1)) != m
-        || static_cast<keel::usize>(R.dims().dim(0)) != m)
+    const keel::usize m = keel::as<keel::usize>(Q.dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(R.dims().dim(1));
+    if (keel::as<keel::usize>(Q.dims().dim(1)) != m
+        || keel::as<keel::usize>(R.dims().dim(0)) != m)
         throw Error("qrdelete: Q must be m×m and R must be m×n",
                     0, 0, "qrdelete", "", "numkit:qrdelete:badShape");
     if (n == 0)
@@ -477,10 +477,10 @@ qrinsert_row(const Value &Q, const Value &R, keel::usize k_1based, const Value &
     if (Q.dims().ndim() != 2 || R.dims().ndim() != 2)
         throw Error("qrinsert: Q and R must be 2D matrices",
                     0, 0, "qrinsert", "", "numkit:qrinsert:notMatrix");
-    const keel::usize m = static_cast<keel::usize>(Q.dims().dim(0));
-    const keel::usize n = static_cast<keel::usize>(R.dims().dim(1));
-    if (static_cast<keel::usize>(Q.dims().dim(1)) != m
-        || static_cast<keel::usize>(R.dims().dim(0)) != m)
+    const keel::usize m = keel::as<keel::usize>(Q.dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(R.dims().dim(1));
+    if (keel::as<keel::usize>(Q.dims().dim(1)) != m
+        || keel::as<keel::usize>(R.dims().dim(0)) != m)
         throw Error("qrinsert: Q must be m by m and R must be m by n",
                     0, 0, "qrinsert", "", "numkit:qrinsert:badShape");
     if (x.numel() != n)
@@ -515,10 +515,10 @@ qrdelete_row(const Value &Q, const Value &R, keel::usize k_1based,
     if (Q.dims().ndim() != 2 || R.dims().ndim() != 2)
         throw Error("qrdelete: Q and R must be 2D matrices",
                     0, 0, "qrdelete", "", "numkit:qrdelete:notMatrix");
-    const keel::usize m = static_cast<keel::usize>(Q.dims().dim(0));
-    const keel::usize n = static_cast<keel::usize>(R.dims().dim(1));
-    if (static_cast<keel::usize>(Q.dims().dim(1)) != m
-        || static_cast<keel::usize>(R.dims().dim(0)) != m)
+    const keel::usize m = keel::as<keel::usize>(Q.dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(R.dims().dim(1));
+    if (keel::as<keel::usize>(Q.dims().dim(1)) != m
+        || keel::as<keel::usize>(R.dims().dim(0)) != m)
         throw Error("qrdelete: Q must be m by m and R must be m by n",
                     0, 0, "qrdelete", "", "numkit:qrdelete:badShape");
     if (m == 0)
@@ -553,8 +553,8 @@ Value cholupdate(const Value &R, const Value &x, int sign,
     if (R.dims().ndim() != 2)
         throw Error("cholupdate: R must be a 2D matrix",
                     0, 0, "cholupdate", "", "numkit:cholupdate:notMatrix");
-    const keel::usize n = static_cast<keel::usize>(R.dims().dim(0));
-    if (n != static_cast<keel::usize>(R.dims().dim(1)))
+    const keel::usize n = keel::as<keel::usize>(R.dims().dim(0));
+    if (n != keel::as<keel::usize>(R.dims().dim(1)))
         throw Error("cholupdate: R must be square",
                     0, 0, "cholupdate", "", "numkit:cholupdate:notSquare");
     if (x.numel() != n)

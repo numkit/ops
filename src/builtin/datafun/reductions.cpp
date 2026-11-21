@@ -107,7 +107,7 @@ Value mean(const Value &x, int dim, keel::Allocator *mr)
         [](keel::usize, double *slice, keel::usize n) {
             double acc = 0.0;
             for (keel::usize i = 0; i < n; ++i) acc += slice[i];
-            return acc / static_cast<double>(n);
+            return acc / keel::as<double>(n);
         }, mr);
 }
 
@@ -264,18 +264,18 @@ Value linspace(double a, double b, keel::usize n, keel::Allocator *mr)
         out[0] = b;
         return r;
     }
-    const double n1 = static_cast<double>(n - 1);
+    const double n1 = keel::as<double>(n - 1);
     if (a == -b) {
         const double step = b / n1;
         for (keel::usize i = 0; i < n; ++i)
-            out[i] = (2.0 * static_cast<double>(i) - n1) * step;
+            out[i] = (2.0 * keel::as<double>(i) - n1) * step;
         out[0] = a;
         out[n - 1] = b;
         if (n % 2 == 1) out[n / 2] = 0.0;
         return r;
     }
     for (keel::usize i = 0; i < n; ++i)
-        out[i] = a + (b - a) * static_cast<double>(i) / n1;
+        out[i] = a + (b - a) * keel::as<double>(i) / n1;
     out[0] = a;
     out[n - 1] = b;
     return r;
@@ -291,7 +291,7 @@ Value logspace(double a, double b, keel::usize n, keel::Allocator *mr)
         return r;
     }
     for (keel::usize i = 0; i < n; ++i) {
-        const double exponent = a + (b - a) * static_cast<double>(i) / static_cast<double>(n - 1);
+        const double exponent = a + (b - a) * keel::as<double>(i) / keel::as<double>(n - 1);
         r.doubleDataMut()[i] = std::pow(10.0, exponent);
     }
     return r;

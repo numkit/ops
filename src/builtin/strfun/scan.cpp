@@ -115,14 +115,14 @@ ScanfOut scanfCycle(const keel::String &input, keel::StringRef fmt, keel::usize 
                     char c = fmt[fmtPos];
                     if (fmtPos + 2 < fmt.size() && fmt[fmtPos + 1] == '-'
                         && fmt[fmtPos + 2] != ']') {
-                        unsigned lo = static_cast<unsigned char>(c);
-                        unsigned hi = static_cast<unsigned char>(fmt[fmtPos + 2]);
+                        unsigned lo = keel::as<unsigned char>(c);
+                        unsigned hi = keel::as<unsigned char>(fmt[fmtPos + 2]);
                         if (lo > hi) std::swap(lo, hi);
                         for (unsigned ch = lo; ch <= hi; ++ch)
                             member[ch] = true;
                         fmtPos += 3;
                     } else {
-                        member[static_cast<unsigned char>(c)] = true;
+                        member[keel::as<unsigned char>(c)] = true;
                         ++fmtPos;
                     }
                 }
@@ -134,18 +134,18 @@ ScanfOut scanfCycle(const keel::String &input, keel::StringRef fmt, keel::usize 
                 keel::usize tokenStart = inPos;
                 keel::usize maxEnd = (width < 0)
                                     ? input.size()
-                                    : std::min(inPos + static_cast<keel::usize>(width),
+                                    : std::min(inPos + keel::as<keel::usize>(width),
                                                input.size());
                 while (inPos < maxEnd) {
-                    bool m = member[static_cast<unsigned char>(input[inPos])];
+                    bool m = member[keel::as<unsigned char>(input[inPos])];
                     if (negate ? m : !m) break;
                     ++inPos;
                 }
                 if (inPos == tokenStart) { ok = false; break; }
                 if (!suppress) {
                     for (keel::usize p = tokenStart; p < inPos && count < limit; ++p) {
-                        out.push_back(static_cast<double>(
-                            static_cast<unsigned char>(input[p])));
+                        out.push_back(keel::as<double>(
+                            keel::as<unsigned char>(input[p])));
                         ++count;
                     }
                 }
@@ -167,7 +167,7 @@ ScanfOut scanfCycle(const keel::String &input, keel::StringRef fmt, keel::usize 
                 keel::usize tokenStart = inPos;
                 keel::usize maxEnd = (width < 0)
                                     ? input.size()
-                                    : std::min(inPos + static_cast<keel::usize>(width),
+                                    : std::min(inPos + keel::as<keel::usize>(width),
                                                input.size());
                 while (inPos < maxEnd &&
                        !keel::is_ascii_space(input[inPos]))
@@ -175,8 +175,8 @@ ScanfOut scanfCycle(const keel::String &input, keel::StringRef fmt, keel::usize 
                 if (inPos == tokenStart) { ok = false; break; }
                 if (!suppress) {
                     for (keel::usize p = tokenStart; p < inPos && count < limit; ++p) {
-                        out.push_back(static_cast<double>(
-                            static_cast<unsigned char>(input[p])));
+                        out.push_back(keel::as<double>(
+                            keel::as<unsigned char>(input[p])));
                         ++count;
                     }
                 }
@@ -184,12 +184,12 @@ ScanfOut scanfCycle(const keel::String &input, keel::StringRef fmt, keel::usize 
             }
 
             if (spec == 'c') {
-                keel::usize n = (width < 0) ? 1u : static_cast<keel::usize>(width);
+                keel::usize n = (width < 0) ? 1u : keel::as<keel::usize>(width);
                 if (inPos + n > input.size()) { ok = false; break; }
                 if (!suppress) {
                     for (keel::usize p = 0; p < n && count < limit; ++p) {
-                        out.push_back(static_cast<double>(
-                            static_cast<unsigned char>(input[inPos + p])));
+                        out.push_back(keel::as<double>(
+                            keel::as<unsigned char>(input[inPos + p])));
                         ++count;
                     }
                 }
@@ -205,13 +205,13 @@ ScanfOut scanfCycle(const keel::String &input, keel::StringRef fmt, keel::usize 
             case 'd': case 'i': {
                 long long iv = std::strtoll(start, &endp, 10);
                 if (endp == start) { ok = false; break; }
-                v = static_cast<double>(iv);
+                v = keel::as<double>(iv);
                 break;
             }
             case 'u': {
                 unsigned long long uv = std::strtoull(start, &endp, 10);
                 if (endp == start) { ok = false; break; }
-                v = static_cast<double>(uv);
+                v = keel::as<double>(uv);
                 break;
             }
             case 'f': case 'e': case 'g': case 'E': case 'G': {
@@ -222,13 +222,13 @@ ScanfOut scanfCycle(const keel::String &input, keel::StringRef fmt, keel::usize 
             case 'x': case 'X': {
                 unsigned long long uv = std::strtoull(start, &endp, 16);
                 if (endp == start) { ok = false; break; }
-                v = static_cast<double>(uv);
+                v = keel::as<double>(uv);
                 break;
             }
             case 'o': {
                 unsigned long long uv = std::strtoull(start, &endp, 8);
                 if (endp == start) { ok = false; break; }
-                v = static_cast<double>(uv);
+                v = keel::as<double>(uv);
                 break;
             }
             default:
@@ -236,7 +236,7 @@ ScanfOut scanfCycle(const keel::String &input, keel::StringRef fmt, keel::usize 
             }
             if (!ok) break;
 
-            inPos += static_cast<keel::usize>(endp - start);
+            inPos += keel::as<keel::usize>(endp - start);
             if (!suppress) {
                 out.push_back(v);
                 if (++count >= limit) break;
@@ -269,7 +269,7 @@ Value makeCharRow(const double *vals, keel::usize n, keel::Allocator *mr)
     keel::String s(scratch.allocator());
     s.reserve(n);
     for (keel::usize i = 0; i < n; ++i)
-        s.push_back(static_cast<char>(static_cast<int>(vals[i])));
+        s.push_back(keel::as<char>(keel::as<int>(vals[i])));
     return Value::fromString(s, mr);
 }
 
@@ -286,7 +286,7 @@ Value makeCharMatrix(const double *vals, keel::usize n,
     Value M = Value::matrix(sz.rows, cols_out, ValueType::CHAR, mr);
     char *data = M.charDataMut();
     for (keel::usize i = 0; i < n; ++i)
-        data[i] = static_cast<char>(static_cast<int>(vals[i]));
+        data[i] = keel::as<char>(keel::as<int>(vals[i]));
     return M;
 }
 
@@ -332,7 +332,7 @@ void scanfEmit(keel::StringRef input, keel::StringRef fmt,
     else
         outs[0] = shapeScanfOutput(values.data(), values.size(), hasNum, mr);
     if (nargout > 1)
-        outs[1] = Value::scalar(static_cast<double>(r.count), mr);
+        outs[1] = Value::scalar(keel::as<double>(r.count), mr);
 }
 
 } // namespace detail
@@ -378,7 +378,7 @@ void sscanf(keel::ArrayRef<Value> args, keel::usize nargout, keel::MutArrayRef<V
     if (nargout > 2)
         outs[2] = Value::fromString("", mr); // errmsg — always empty for now
     if (nargout > 3)
-        outs[3] = Value::scalar(static_cast<double>(r.bytesConsumed + 1), mr);
+        outs[3] = Value::scalar(keel::as<double>(r.bytesConsumed + 1), mr);
 }
 
 

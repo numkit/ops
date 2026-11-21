@@ -28,10 +28,10 @@ Value gsvd_values(const Value &A, const Value &B, keel::Allocator *mr)
     detail::requireDoubleInput(Bc, "gsvd", "B", 2);
     if (Ac.dims().ndim() != 2 || Bc.dims().ndim() != 2)
         throw Error("gsvd: A and B must be 2D matrices", 0, 0, "gsvd", "", "numkit:gsvd:notMatrix");
-    const keel::usize m = static_cast<keel::usize>(Ac.dims().dim(0));
-    const keel::usize n = static_cast<keel::usize>(Ac.dims().dim(1));
-    const keel::usize p = static_cast<keel::usize>(Bc.dims().dim(0));
-    if (static_cast<keel::usize>(Bc.dims().dim(1)) != n)
+    const keel::usize m = keel::as<keel::usize>(Ac.dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(Ac.dims().dim(1));
+    const keel::usize p = keel::as<keel::usize>(Bc.dims().dim(0));
+    if (keel::as<keel::usize>(Bc.dims().dim(1)) != n)
         throw Error("gsvd: A and B must have the same number of columns", 0, 0, "gsvd", "", "numkit:gsvd:badDims");
 
     const bool wantSingle = Ac.type() == ValueType::SINGLE || Bc.type() == ValueType::SINGLE;
@@ -71,10 +71,10 @@ std::tuple<Value, Value, Value, Value, Value> gsvd(const Value &A, const Value &
     detail::requireDoubleInput(Bc, "gsvd", "B", 2);
     if (Ac.dims().ndim() != 2 || Bc.dims().ndim() != 2)
         throw Error("gsvd: A and B must be 2D matrices", 0, 0, "gsvd", "", "numkit:gsvd:notMatrix");
-    const keel::usize m = static_cast<keel::usize>(Ac.dims().dim(0));
-    const keel::usize n = static_cast<keel::usize>(Ac.dims().dim(1));
-    const keel::usize p = static_cast<keel::usize>(Bc.dims().dim(0));
-    if (static_cast<keel::usize>(Bc.dims().dim(1)) != n)
+    const keel::usize m = keel::as<keel::usize>(Ac.dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(Ac.dims().dim(1));
+    const keel::usize p = keel::as<keel::usize>(Bc.dims().dim(0));
+    if (keel::as<keel::usize>(Bc.dims().dim(1)) != n)
         throw Error("gsvd: A and B must have the same number of columns", 0, 0, "gsvd", "", "numkit:gsvd:badDims");
 
     const bool wantSingle = Ac.type() == ValueType::SINGLE || Bc.type() == ValueType::SINGLE;

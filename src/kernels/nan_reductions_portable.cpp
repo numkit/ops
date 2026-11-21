@@ -69,7 +69,7 @@ double nanVarianceTwoPass(const double *p, keel::usize n, int normFlag)
     // MATLAB: variance over a single non-NaN value is 0 for BOTH the N-1
     // (default) and N normalizations — e.g. nanvar([NaN 5 NaN]) == 0, not NaN.
     if (sc.count == 1) return 0.0;
-    const double mean = sc.sum / static_cast<double>(sc.count);
+    const double mean = sc.sum / keel::as<double>(sc.count);
     double ss = 0.0;
     for (keel::usize i = 0; i < n; ++i) {
         if (!std::isnan(p[i])) {
@@ -77,8 +77,8 @@ double nanVarianceTwoPass(const double *p, keel::usize n, int normFlag)
             ss += d * d;
         }
     }
-    const double denom = (normFlag == 1) ? static_cast<double>(sc.count)
-                                         : static_cast<double>(sc.count - 1);
+    const double denom = (normFlag == 1) ? keel::as<double>(sc.count)
+                                         : keel::as<double>(sc.count - 1);
     return ss / denom;
 }
 

@@ -99,11 +99,11 @@ uniqueComplexFull(const Value &x, keel::Allocator *alloc, bool stable,
     for (keel::usize i = 0; i < n; ++i) {
         const keel::c64 z = p[i];
         const bool nanComp = keel::is_nan(z.real()) || keel::is_nan(z.imag());
-        keel::usize found = static_cast<keel::usize>(-1);
+        keel::usize found = keel::as<keel::usize>(-1);
         if (!nanComp)
             for (keel::usize k = 0; k < uniq.size(); ++k)
                 if (cxUniqEqual(uniq[k].v, z)) { found = k; break; }
-        if (found == static_cast<keel::usize>(-1)) { ic0[i] = uniq.size(); uniq.push_back({z, i}); }
+        if (found == keel::as<keel::usize>(-1)) { ic0[i] = uniq.size(); uniq.push_back({z, i}); }
         else { ic0[i] = found; if (last) uniq[found].firstIdx = i; }  // 'last': keep last occurrence
     }
 
@@ -124,10 +124,10 @@ uniqueComplexFull(const Value &x, keel::Allocator *alloc, bool stable,
     keel::f64 *ici = icRow.doubleDataMut();
     for (keel::usize k = 0; k < u; ++k) {
         cd[k] = uniq[perm[k]].v;
-        ia[k] = static_cast<keel::f64>(uniq[perm[k]].firstIdx + 1);
+        ia[k] = keel::as<keel::f64>(uniq[perm[k]].firstIdx + 1);
     }
     for (keel::usize i = 0; i < n; ++i)
-        ici[i] = static_cast<keel::f64>(newRank[ic0[i]] + 1);
+        ici[i] = keel::as<keel::f64>(newRank[ic0[i]] + 1);
     return std::make_tuple(std::move(cOut), std::move(iaRow), std::move(icRow));
 }
 
@@ -265,9 +265,9 @@ bool isExactNonnegInt(double v, keel::u64 &outU)
 {
     if (!std::isfinite(v) || v < 0) return false;
     if (v != std::floor(v))         return false;
-    if (v > static_cast<double>(std::numeric_limits<keel::u64>::max()))
+    if (v > keel::as<double>(std::numeric_limits<keel::u64>::max()))
         return false;
-    outU = static_cast<keel::u64>(v);
+    outU = keel::as<keel::u64>(v);
     return true;
 }
 
@@ -302,7 +302,7 @@ constexpr int kPermMaxN = 11;
 keel::u64 permFactorial(int n)
 {
     keel::u64 f = 1;
-    for (int i = 2; i <= n; ++i) f *= static_cast<keel::u64>(i);
+    for (int i = 2; i <= n; ++i) f *= keel::as<keel::u64>(i);
     return f;
 }
 
@@ -314,8 +314,8 @@ double factorialDouble(double v, const char *fn)
     if (v > 170.0)
         return std::numeric_limits<double>::infinity();
     double r = 1.0;
-    const int n = static_cast<int>(v);
-    for (int i = 2; i <= n; ++i) r *= static_cast<double>(i);
+    const int n = keel::as<int>(v);
+    for (int i = 2; i <= n; ++i) r *= keel::as<double>(i);
     return r;
 }
 

@@ -57,7 +57,7 @@ Value reduce(const Value &x, Op op, double init, keel::Allocator *mr, bool meanM
         for (keel::usize i = 0; i < x.numel(); ++i)
             acc = op(acc, readD(i));
         if (meanMode)
-            acc /= static_cast<double>(x.numel());
+            acc /= keel::as<double>(x.numel());
         return Value::scalar(acc, mr);
     }
 
@@ -82,7 +82,7 @@ Value reduce(const Value &x, Op op, double init, keel::Allocator *mr, bool meanM
                         acc = op(acc, readD(pIdx * R * C + cIdx * R + rIdx));
                     }
                     if (meanMode)
-                        acc /= static_cast<double>(N);
+                        acc /= keel::as<double>(N);
                     r.doubleDataMut()[pp * outR * outC + c * outR + rr] = acc;
                 }
         return r;
@@ -94,7 +94,7 @@ Value reduce(const Value &x, Op op, double init, keel::Allocator *mr, bool meanM
         for (keel::usize rr = 0; rr < R; ++rr)
             acc = op(acc, readD(c * R + rr));
         if (meanMode)
-            acc /= static_cast<double>(R);
+            acc /= keel::as<double>(R);
         r.doubleDataMut()[c] = acc;
     }
     return r;
@@ -117,8 +117,8 @@ inline T readSrcAsT(const Value &x, keel::usize i, bool typeMatch)
     } else {
         const double d = x.elemAsDouble(i);
         return static_cast<T>(std::clamp(std::round(d),
-            static_cast<double>(std::numeric_limits<T>::lowest()),
-            static_cast<double>(std::numeric_limits<T>::max())));
+            keel::as<double>(std::numeric_limits<T>::lowest()),
+            keel::as<double>(std::numeric_limits<T>::max())));
     }
 }
 
@@ -126,7 +126,7 @@ template <typename T>
 inline Value makeScalarT(T v, ValueType outType, keel::Allocator *mr)
 {
     if (outType == ValueType::DOUBLE)
-        return Value::scalar(static_cast<double>(v), mr);
+        return Value::scalar(keel::as<double>(v), mr);
     if (outType == ValueType::LOGICAL)
         return Value::logicalScalar(v != 0, mr);
     auto r = Value::matrix(1, 1, outType, mr);
@@ -160,7 +160,7 @@ void minMaxAlongDim(const Value &x, int redDim, T *dst, double *dstI, Cmp cmp, b
         for (keel::usize k = 1; k < sliceLen; ++k)
             if (cmp(scratch[k], best)) { best = scratch[k]; bi = k; }
         dst[outIdx] = best;
-        dstI[outIdx] = static_cast<double>(bi + 1);
+        dstI[outIdx] = keel::as<double>(bi + 1);
     };
 
     if (B == 1) {
@@ -239,7 +239,7 @@ reduceMinMaxAllT(const Value &x, Cmp cmp, ValueType outType, keel::Allocator *mr
             if (cmp(v, best)) { best = v; bi = i; }
         }
         return std::make_tuple(makeScalarT<T>(best, outType, mr),
-                               Value::scalar(static_cast<double>(bi + 1), mr));
+                               Value::scalar(keel::as<double>(bi + 1), mr));
     }
     // Multi-dim: reduce along first non-singleton dim (MATLAB rule).
     const int redDim = numkit::ops::firstNonSingletonDim(x);
@@ -374,7 +374,7 @@ reduceMinMaxComplexAll(const Value &x, keel::Allocator *mr, const char *fn)
         for (keel::usize i = 1; i < x.numel(); ++i)
             if (complexBetter<IsMax>(data[i], best, allReal)) { best = data[i]; bi = i; }
         return std::make_tuple(Value::complexScalar(best, mr),
-                               Value::scalar(static_cast<double>(bi + 1), mr));
+                               Value::scalar(keel::as<double>(bi + 1), mr));
     }
     const int redDim = numkit::ops::firstNonSingletonDim(x);
     auto [out, outIdx] = allocComplexMinMaxOutputs(x, redDim, mr);
@@ -397,7 +397,7 @@ reduceMinMaxComplexAll(const Value &x, keel::Allocator *mr, const char *fn)
             if (complexBetter<IsMax>(v, best, allReal)) { best = v; bi = k; }
         }
         dst[outOff] = best;
-        dstI[outOff] = static_cast<double>(bi + 1);
+        dstI[outOff] = keel::as<double>(bi + 1);
     };
     if (B == 1) {
         for (keel::usize o = 0; o < O; ++o) runSlice(o, o * sliceLen, 1);
@@ -456,7 +456,7 @@ reduceMinMaxComplexAlongDim(const Value &x, int dim, keel::Allocator *mr, const 
             if (complexBetter<IsMax>(v, best, allReal)) { best = v; bi = k; }
         }
         dst[outOff] = best;
-        dstI[outOff] = static_cast<double>(bi + 1);
+        dstI[outOff] = keel::as<double>(bi + 1);
     };
     if (B == 1) {
         for (keel::usize o = 0; o < O; ++o) runSlice(o, o * sliceLen, 1);
@@ -532,7 +532,7 @@ void minMaxNanAlongDim(const Value &x, int redDim, T *dst, double *dstI,
             dstI[outIdx] = 1.0;
         } else {
             dst[outIdx] = best;
-            dstI[outIdx] = static_cast<double>(firstValid + 1);
+            dstI[outIdx] = keel::as<double>(firstValid + 1);
         }
     };
     if (B == 1) {
@@ -569,7 +569,7 @@ reduceMinMaxNanAllT(const Value &x, Cmp cmp, ValueType outType, keel::Allocator 
                                        Value::scalar(1.0, mr));
         }
         return std::make_tuple(makeScalarT<T>(best, outType, mr),
-                               Value::scalar(static_cast<double>(firstValid + 1), mr));
+                               Value::scalar(keel::as<double>(firstValid + 1), mr));
     }
     const int redDim = numkit::ops::firstNonSingletonDim(x);
     auto [out, outIdx] = allocMinMaxOutputs(x, redDim, outType, mr);
@@ -637,7 +637,7 @@ reduceMinMaxComplexNanAll(const Value &x, keel::Allocator *mr, const char *fn)
             return std::make_tuple(Value::complexScalar(keel::c64(std::nan(""), 0.0), mr),
                                    Value::scalar(1.0, mr));
         return std::make_tuple(Value::complexScalar(best, mr),
-                               Value::scalar(static_cast<double>(bi + 1), mr));
+                               Value::scalar(keel::as<double>(bi + 1), mr));
     }
     const int redDim = numkit::ops::firstNonSingletonDim(x);
     auto [out, outIdx] = allocComplexMinMaxOutputs(x, redDim, mr);
@@ -660,7 +660,7 @@ reduceMinMaxComplexNanAll(const Value &x, keel::Allocator *mr, const char *fn)
             dstI[outOff] = 1.0;
         } else {
             dst[outOff] = best;
-            dstI[outOff] = static_cast<double>(bi + 1);
+            dstI[outOff] = keel::as<double>(bi + 1);
         }
     };
     if (B == 1) {
@@ -716,7 +716,7 @@ reduceMinMaxComplexNanAlongDim(const Value &x, int dim, keel::Allocator *mr, con
             dstI[outOff] = 1.0;
         } else {
             dst[outOff] = best;
-            dstI[outOff] = static_cast<double>(bi + 1);
+            dstI[outOff] = keel::as<double>(bi + 1);
         }
     };
     if (B == 1) {

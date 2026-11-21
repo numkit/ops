@@ -69,7 +69,7 @@ keel::Array<double> readPolyAsDouble(const Value &p, const char *fn, keel::Alloc
     const keel::usize n = pn - 1;  // degree
     keel::Array<double> r(n, mr);
     for (keel::usize i = 0; i < n; ++i) {
-        const double exponent = static_cast<double>(n - i);
+        const double exponent = keel::as<double>(n - i);
         r[i] = p[i] * exponent;
     }
     return r;

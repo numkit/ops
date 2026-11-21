@@ -42,8 +42,8 @@ Value poly_of_matrix(const Value &A, keel::Allocator *mr)
     if (A.dims().ndim() != 2)
         throw Error("poly: input must be a 2D matrix",
                     0, 0, "poly", "", "numkit:poly:notMatrix");
-    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
-    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
+    const keel::usize m = keel::as<keel::usize>(A.dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(A.dims().dim(1));
     if (m != n)
         throw Error("poly: matrix must be square (use poly(roots) for vector input)",
                     0, 0, "poly", "", "numkit:poly:notSquare");
@@ -86,8 +86,8 @@ Value poly_of_matrix(const Value &A, keel::Allocator *mr)
 static bool isHermitianComplexApprox(const Value &A, double tol = 1e-10)
 {
     if (A.dims().ndim() != 2 || !A.isComplex()) return false;
-    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
-    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
+    const keel::usize m = keel::as<keel::usize>(A.dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(A.dims().dim(1));
     if (m != n) return false;
     const keel::c64 *ad = A.complexData();
     double aMax = 1.0;
@@ -165,8 +165,8 @@ Value eig_general_values(const Value &A, keel::Allocator *mr)
     if (A.dims().ndim() != 2)
         throw Error("eig: input must be a 2D matrix",
                     0, 0, "eig", "", "numkit:eig:notMatrix");
-    const keel::usize n = static_cast<keel::usize>(A.dims().dim(0));
-    if (n != static_cast<keel::usize>(A.dims().dim(1)))
+    const keel::usize n = keel::as<keel::usize>(A.dims().dim(0));
+    if (n != keel::as<keel::usize>(A.dims().dim(1)))
         throw Error("eig: matrix must be square",
                     0, 0, "eig", "", "numkit:eig:notSquare");
     if (n == 0) return Value::matrix(0, 1, A.type(), mr);
@@ -229,8 +229,8 @@ eig_general_VD(const Value &A, keel::Allocator *mr)
     if (A.dims().ndim() != 2)
         throw Error("eig: input must be a 2D matrix",
                     0, 0, "eig", "", "numkit:eig:notMatrix");
-    const keel::usize n = static_cast<keel::usize>(A.dims().dim(0));
-    if (n != static_cast<keel::usize>(A.dims().dim(1)))
+    const keel::usize n = keel::as<keel::usize>(A.dims().dim(0));
+    if (n != keel::as<keel::usize>(A.dims().dim(1)))
         throw Error("eig: matrix must be square",
                     0, 0, "eig", "", "numkit:eig:notSquare");
     if (n == 0) {
@@ -294,7 +294,7 @@ eig_general_VD(const Value &A, keel::Allocator *mr)
         double aMax = 0.0;
         for (keel::usize i = 0; i < n * n; ++i)
             aMax = std::max(aMax, keel::abs(Ac[i].real()));
-        const double tol = 64.0 * static_cast<double>(n) *
+        const double tol = 64.0 * keel::as<double>(n) *
                            std::numeric_limits<double>::epsilon() * (1.0 + aMax);
         if (cleanRealSpectrum(Vd, Dd, n, tol, false)) {
             auto Vr = Value::matrix(n, n, ValueType::DOUBLE, mr);
@@ -323,8 +323,8 @@ bool isSymmetricApprox(const Value &A, double tol)
     if (A.dims().ndim() != 2) return false;
     if (A.isComplex()) return false;
     if (!A.isNumeric() && !A.isLogical() && !A.isChar()) return false;
-    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
-    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
+    const keel::usize m = keel::as<keel::usize>(A.dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(A.dims().dim(1));
     if (m != n) return false;
     double aMax = 1.0;
     for (keel::usize idx = 0; idx < n * n; ++idx) {
@@ -349,8 +349,8 @@ eig_symmetric(const Value &A, keel::Allocator *mr)
     if (A.dims().ndim() != 2)
         throw Error("eig: input must be a 2D matrix",
                     0, 0, "eig", "", "numkit:eig:notMatrix");
-    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
-    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
+    const keel::usize m = keel::as<keel::usize>(A.dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(A.dims().dim(1));
     if (m != n)
         throw Error("eig: matrix must be square",
                     0, 0, "eig", "", "numkit:eig:notSquare");
@@ -388,7 +388,7 @@ Value eig_values(const Value &A, keel::Allocator *mr)
     const bool wantSingle = (A.type() == ValueType::SINGLE);
     Value Aw = detail::widenSingleToDouble(A, mr);
     auto [V, D] = eig_symmetric(Aw, mr);
-    const keel::usize n = static_cast<keel::usize>(D.dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(D.dims().dim(0));
     auto out = Value::matrix(n, 1, ValueType::DOUBLE, mr);
     const double *Ddata = D.doubleData();
     double *o = out.doubleDataMut();
@@ -407,10 +407,10 @@ eig_generalized_VD(const Value &A, const Value &B, keel::Allocator *mr)
     detail::requireDoubleInput(B, "eig", "B");
     if (A.dims().ndim() != 2 || B.dims().ndim() != 2)
         throw Error("eig: inputs must be 2D matrices", 0, 0, "eig", "", "numkit:eig:notMatrix");
-    const keel::usize n = static_cast<keel::usize>(A.dims().dim(0));
-    if (n != static_cast<keel::usize>(A.dims().dim(1)) ||
-        n != static_cast<keel::usize>(B.dims().dim(0)) ||
-        n != static_cast<keel::usize>(B.dims().dim(1)))
+    const keel::usize n = keel::as<keel::usize>(A.dims().dim(0));
+    if (n != keel::as<keel::usize>(A.dims().dim(1)) ||
+        n != keel::as<keel::usize>(B.dims().dim(0)) ||
+        n != keel::as<keel::usize>(B.dims().dim(1)))
         throw Error("eig: A and B must be square matrices of the same size",
                     0, 0, "eig", "", "numkit:eig:notSquare");
 
@@ -479,7 +479,7 @@ eig_generalized_VD(const Value &A, const Value &B, keel::Allocator *mr)
             bMax = std::max(bMax, keel::abs(BBc[i]));
         }
         const double abScale = std::max(1.0, std::max(aMax, bMax));
-        const double imagTol = 64.0 * static_cast<double>(n) *
+        const double imagTol = 64.0 * keel::as<double>(n) *
                                std::numeric_limits<double>::epsilon() * (1.0 + abScale);
         if (cleanRealSpectrum(Vd, Dd, n, imagTol, true)) {
             auto Vr = Value::matrix(n, n, ValueType::DOUBLE, mr);
@@ -503,7 +503,7 @@ Value eig_generalized_values(const Value &A, const Value &B, keel::Allocator *mr
 {
     auto [V, D] = eig_generalized_VD(A, B, mr);
     (void)V;
-    const keel::usize n = static_cast<keel::usize>(D.dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(D.dims().dim(0));
     if (D.isComplex()) {
         auto out = Value::complexMatrix(n, 1, mr);
         const keel::c64 *dd = D.complexData();
@@ -524,12 +524,12 @@ bool try_eigs_generalized_smallestabs(const Value &A, const Value &B, keel::usiz
 {
     if (A.isComplex() || B.isComplex() || A.dims().ndim() != 2 || B.dims().ndim() != 2)
         return false;
-    const keel::usize n = static_cast<keel::usize>(A.dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(A.dims().dim(0));
     if (n == 0 || k == 0 || k > n)
         return false;
-    if (n != static_cast<keel::usize>(A.dims().dim(1)) ||
-        n != static_cast<keel::usize>(B.dims().dim(0)) ||
-        n != static_cast<keel::usize>(B.dims().dim(1)))
+    if (n != keel::as<keel::usize>(A.dims().dim(1)) ||
+        n != keel::as<keel::usize>(B.dims().dim(0)) ||
+        n != keel::as<keel::usize>(B.dims().dim(1)))
         return false;
 
     const bool wantSingle = (A.type() == ValueType::SINGLE || B.type() == ValueType::SINGLE);
@@ -567,8 +567,8 @@ hess(const Value &A, keel::Allocator *mr)
     if (A.dims().ndim() != 2)
         throw Error("hess: input must be a 2D matrix",
                     0, 0, "hess", "", "numkit:hess:notMatrix");
-    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
-    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
+    const keel::usize m = keel::as<keel::usize>(A.dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(A.dims().dim(1));
     if (m != n)
         throw Error("hess: matrix must be square",
                     0, 0, "hess", "", "numkit:hess:notSquare");
@@ -613,8 +613,8 @@ schur_sym(const Value &A, keel::Allocator *mr)
     if (A.dims().ndim() != 2)
         throw Error("schur: input must be a 2D matrix",
                     0, 0, "schur", "", "numkit:schur:notMatrix");
-    const keel::usize n = static_cast<keel::usize>(A.dims().dim(0));
-    if (n != static_cast<keel::usize>(A.dims().dim(1)))
+    const keel::usize n = keel::as<keel::usize>(A.dims().dim(0));
+    if (n != keel::as<keel::usize>(A.dims().dim(1)))
         throw Error("schur: matrix must be square",
                     0, 0, "schur", "", "numkit:schur:notSquare");
     return eig_symmetric(A, mr);
@@ -627,8 +627,8 @@ schur_general(const Value &A, keel::Allocator *mr)
     if (A.dims().ndim() != 2)
         throw Error("schur: input must be a 2D matrix",
                     0, 0, "schur", "", "numkit:schur:notMatrix");
-    const keel::usize n = static_cast<keel::usize>(A.dims().dim(0));
-    if (n != static_cast<keel::usize>(A.dims().dim(1)))
+    const keel::usize n = keel::as<keel::usize>(A.dims().dim(0));
+    if (n != keel::as<keel::usize>(A.dims().dim(1)))
         throw Error("schur: matrix must be square",
                     0, 0, "schur", "", "numkit:schur:notSquare");
     if (A.isComplex()) {
@@ -663,8 +663,8 @@ Value sylvester_sym(const Value &A, const Value &B, const Value &C,
     if (A.dims().ndim() != 2 || B.dims().ndim() != 2 || C.dims().ndim() != 2)
         throw Error("sylvester: A, B, C must be 2D matrices",
                     0, 0, "sylvester", "", "numkit:sylvester:notMatrix");
-    const keel::usize n = static_cast<keel::usize>(A.dims().dim(0));
-    const keel::usize m = static_cast<keel::usize>(B.dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(A.dims().dim(0));
+    const keel::usize m = keel::as<keel::usize>(B.dims().dim(0));
     if (A.dims().dim(0) != A.dims().dim(1))
         throw Error("sylvester: A must be square",
                     0, 0, "sylvester", "", "numkit:sylvester:badA");
@@ -730,7 +730,7 @@ namespace {
 Value buildCompanion(keel::ArrayRef<Value> coeffs, keel::Allocator *mr)
 {
     const keel::usize k = coeffs.size() - 1;
-    const keel::usize n = static_cast<keel::usize>(coeffs[0].dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(coeffs[0].dims().dim(0));
     const keel::usize N = k * n;
 
     Value Ak_w = detail::widenSingleToDouble(coeffs[k], mr);
@@ -768,14 +768,14 @@ void validatePolyeigCoeffs(keel::ArrayRef<Value> coeffs)
     if (coeffs.size() < 2)
         throw Error("polyeig: requires at least 2 coefficient matrices (A0, A1, ...)",
                     0, 0, "polyeig", "", "numkit:polyeig:nargin");
-    const keel::usize n = static_cast<keel::usize>(coeffs[0].dims().dim(0));
-    if (n != static_cast<keel::usize>(coeffs[0].dims().dim(1)))
+    const keel::usize n = keel::as<keel::usize>(coeffs[0].dims().dim(0));
+    if (n != keel::as<keel::usize>(coeffs[0].dims().dim(1)))
         throw Error("polyeig: coefficient matrices must be square",
                     0, 0, "polyeig", "", "numkit:polyeig:notSquare");
     for (keel::usize i = 1; i < coeffs.size(); ++i) {
         if (coeffs[i].dims().ndim() != 2
-            || static_cast<keel::usize>(coeffs[i].dims().dim(0)) != n
-            || static_cast<keel::usize>(coeffs[i].dims().dim(1)) != n)
+            || keel::as<keel::usize>(coeffs[i].dims().dim(0)) != n
+            || keel::as<keel::usize>(coeffs[i].dims().dim(1)) != n)
             throw Error("polyeig: all coefficient matrices must be n x n with matching n",
                         0, 0, "polyeig", "", "numkit:polyeig:shapeMismatch");
     }
@@ -795,7 +795,7 @@ polyeig_VE(keel::ArrayRef<Value> coeffs, keel::Allocator *mr)
 {
     validatePolyeigCoeffs(coeffs);
     const keel::usize k = coeffs.size() - 1;
-    const keel::usize n = static_cast<keel::usize>(coeffs[0].dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(coeffs[0].dims().dim(0));
     const keel::usize N = k * n;
 
     Value L = buildCompanion(coeffs, mr);
@@ -829,8 +829,8 @@ Value ordeig(const Value &T, keel::Allocator *mr)
     if (T.dims().ndim() != 2)
         throw Error("ordeig: T must be a 2D matrix",
                     0, 0, "ordeig", "", "numkit:ordeig:notMatrix");
-    const keel::usize n = static_cast<keel::usize>(T.dims().dim(0));
-    if (n != static_cast<keel::usize>(T.dims().dim(1)))
+    const keel::usize n = keel::as<keel::usize>(T.dims().dim(0));
+    if (n != keel::as<keel::usize>(T.dims().dim(1)))
         throw Error("ordeig: T must be square",
                     0, 0, "ordeig", "", "numkit:ordeig:notSquare");
     if (n == 0)

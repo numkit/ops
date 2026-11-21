@@ -79,13 +79,13 @@ inline DecimatedSeries decimateM4(const keel::f64 *x, const keel::f64 *y, keel::
     const int cols = width < 1 ? 1 : width;
     const keel::f64 span = (x1 - x0) != 0.0 ? (x1 - x0) : 1.0;
     auto bucketOf = [&](keel::f64 xv) -> int {
-        int b = static_cast<int>(std::floor(((xv - x0) / span) * cols));
+        int b = keel::as<int>(std::floor(((xv - x0) / span) * cols));
         if (b < 0) b = 0; else if (b >= cols) b = cols - 1;
         return b;
     };
 
-    out.x.reserve(static_cast<keel::usize>(cols) * 4);
-    out.y.reserve(static_cast<keel::usize>(cols) * 4);
+    out.x.reserve(keel::as<keel::usize>(cols) * 4);
+    out.y.reserve(keel::as<keel::usize>(cols) * 4);
     int curBucket = -1;
     keel::usize bFirst = i0, bLast = i0, bMinI = i0, bMaxI = i0;
     keel::f64 bMinY = 0.0, bMaxY = 0.0;
@@ -95,10 +95,10 @@ inline DecimatedSeries decimateM4(const keel::f64 *x, const keel::f64 *y, keel::
         std::sort(idxs, idxs + 4);
         long long prev = -1;
         for (keel::usize ii : idxs) {
-            if (static_cast<long long>(ii) != prev) {
+            if (keel::as<long long>(ii) != prev) {
                 out.x.push_back(x[ii]);
                 out.y.push_back(y[ii]);
-                prev = static_cast<long long>(ii);
+                prev = keel::as<long long>(ii);
             }
         }
     };
@@ -135,12 +135,12 @@ inline DecimatedSeries decimateM2(const keel::f64 *x, const keel::f64 *y, keel::
     const int cols = width < 1 ? 1 : width;
     const keel::f64 span = (x1 - x0) != 0.0 ? (x1 - x0) : 1.0;
     auto bucketOf = [&](keel::f64 xv) -> int {
-        int b = static_cast<int>(std::floor(((xv - x0) / span) * cols));
+        int b = keel::as<int>(std::floor(((xv - x0) / span) * cols));
         if (b < 0) b = 0; else if (b >= cols) b = cols - 1;
         return b;
     };
-    out.x.reserve(static_cast<keel::usize>(cols) * 2);
-    out.y.reserve(static_cast<keel::usize>(cols) * 2);
+    out.x.reserve(keel::as<keel::usize>(cols) * 2);
+    out.y.reserve(keel::as<keel::usize>(cols) * 2);
     int curBucket = -1;
     keel::usize bMinI = i0, bMaxI = i0;
     keel::f64 bMinY = 0.0, bMaxY = 0.0;
@@ -175,25 +175,25 @@ inline DecimatedSeries decimateLTTB(const keel::f64 *x, const keel::f64 *y, keel
     decimVisibleRange(x, n, x0, x1, i0, i1);
     const keel::usize cnt = i1 - i0;
     if (cnt == 0) return out;
-    if (threshold < 3 || static_cast<keel::usize>(threshold) >= cnt) {
+    if (threshold < 3 || keel::as<keel::usize>(threshold) >= cnt) {
         for (keel::usize i = i0; i < i1; ++i) { out.x.push_back(x[i]); out.y.push_back(y[i]); }
         return out;
     }
     out.x.reserve(threshold);
     out.y.reserve(threshold);
-    const keel::f64 bucketSize = static_cast<keel::f64>(cnt - 2) / (threshold - 2);
+    const keel::f64 bucketSize = keel::as<keel::f64>(cnt - 2) / (threshold - 2);
     keel::usize a = i0;                       // first point is always kept
     out.x.push_back(x[i0]); out.y.push_back(y[i0]);
     for (int i = 0; i < threshold - 2; ++i) {
-        keel::usize avgStart = i0 + static_cast<keel::usize>(std::floor((i + 1) * bucketSize)) + 1;
-        keel::usize avgEnd   = i0 + static_cast<keel::usize>(std::floor((i + 2) * bucketSize)) + 1;
+        keel::usize avgStart = i0 + keel::as<keel::usize>(std::floor((i + 1) * bucketSize)) + 1;
+        keel::usize avgEnd   = i0 + keel::as<keel::usize>(std::floor((i + 2) * bucketSize)) + 1;
         if (avgEnd > i1) avgEnd = i1;
         keel::f64 avgX = 0.0, avgY = 0.0;
         const keel::usize avgN = avgEnd > avgStart ? (avgEnd - avgStart) : 1;
         for (keel::usize j = avgStart; j < avgEnd; ++j) { avgX += x[j]; avgY += y[j]; }
         avgX /= avgN; avgY /= avgN;
-        const keel::usize rangeStart = i0 + static_cast<keel::usize>(std::floor(i * bucketSize)) + 1;
-        const keel::usize rangeEnd   = i0 + static_cast<keel::usize>(std::floor((i + 1) * bucketSize)) + 1;
+        const keel::usize rangeStart = i0 + keel::as<keel::usize>(std::floor(i * bucketSize)) + 1;
+        const keel::usize rangeEnd   = i0 + keel::as<keel::usize>(std::floor((i + 1) * bucketSize)) + 1;
         const keel::f64 ax = x[a], ay = y[a];
         keel::f64 maxArea = -1.0;
         keel::usize maxIdx = rangeStart;
@@ -218,7 +218,7 @@ inline DecimatedSeries decimateSeries(const keel::f64 *x, const keel::f64 *y, ke
     keel::usize i0, i1;
     decimVisibleRange(x, n, x0, x1, i0, i1);
     const keel::usize cnt = i1 - i0;
-    if (algo == DecimAlgo::None || cnt <= static_cast<keel::usize>(w) * 2) {
+    if (algo == DecimAlgo::None || cnt <= keel::as<keel::usize>(w) * 2) {
         DecimatedSeries out;
         for (keel::usize i = i0; i < i1; ++i) { out.x.push_back(x[i]); out.y.push_back(y[i]); }
         return out;
@@ -240,7 +240,7 @@ inline keel::Array<DecimatedSeries> buildPyramid(const keel::f64 *x, const keel:
     const keel::f64 *cy = y;
     keel::usize s = n;
     while (s > baseTarget) {
-        const int cols = static_cast<int>(std::max<keel::usize>(1, (s + 7) / 8));
+        const int cols = keel::as<int>(std::max<keel::usize>(1, (s + 7) / 8));
         DecimatedSeries d = decimateM4(cx, cy, s, cx[0], cx[s - 1], cols);
         if (d.x.size() >= s) break;            // no progress
         levels.push_back(std::move(d));
@@ -261,16 +261,16 @@ inline DecimatedSeries decimateLOD(const keel::f64 *rawX, const keel::f64 *rawY,
     const keel::f64 *bx = rawX;
     const keel::f64 *by = rawY;
     keel::usize bn = rawN;
-    for (int i = static_cast<int>(pyramid.size()) - 1; i >= -1; --i) {
+    for (int i = keel::as<int>(pyramid.size()) - 1; i >= -1; --i) {
         const keel::f64 *lx; const keel::f64 *ly; keel::usize ln;
         if (i >= 0) {
-            const DecimatedSeries &lvl = pyramid[static_cast<keel::usize>(i)];
+            const DecimatedSeries &lvl = pyramid[keel::as<keel::usize>(i)];
             lx = lvl.x.data(); ly = lvl.y.data(); ln = lvl.x.size();
         }
         else        { lx = rawX; ly = rawY; ln = rawN; }
         keel::usize a, b;
         decimVisibleRange(lx, ln, x0, x1, a, b);
-        if (b - a >= static_cast<keel::usize>(w) * 2 || i == -1) { bx = lx; by = ly; bn = ln; break; }
+        if (b - a >= keel::as<keel::usize>(w) * 2 || i == -1) { bx = lx; by = ly; bn = ln; break; }
     }
     return decimateSeries(bx, by, bn, x0, x1, w, algo);
 }

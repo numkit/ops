@@ -27,7 +27,7 @@ Value real(const Value &x, keel::Allocator *mr)
         auto r = createLike(x, ValueType::SINGLE, p);
         float *dst = r.singleDataMut();
         for (keel::usize i = 0; i < x.numel(); ++i)
-            dst[i] = static_cast<float>(x.complexData()[i].real());
+            dst[i] = keel::as<float>(x.complexData()[i].real());
         return r;
     }
     if (x.isScalar())
@@ -52,7 +52,7 @@ Value imag(const Value &x, keel::Allocator *mr)
         auto r = createLike(x, ValueType::SINGLE, p);
         float *dst = r.singleDataMut();
         for (keel::usize i = 0; i < x.numel(); ++i)
-            dst[i] = static_cast<float>(x.complexData()[i].imag());
+            dst[i] = keel::as<float>(x.complexData()[i].imag());
         return r;
     }
     if (x.isScalar())
@@ -84,7 +84,7 @@ Value complex(const Value &re, keel::Allocator *mr)
     keel::c64 *dst = r.complexDataMut();
     for (keel::usize i = 0; i < re.numel(); ++i) {
         double v = re.elemAsDouble(i);
-        if (outSingle) v = static_cast<double>(static_cast<float>(v));
+        if (outSingle) v = keel::as<double>(keel::as<float>(v));
         dst[i] = keel::c64(v, 0.0);
     }
     return r;
@@ -111,8 +111,8 @@ Value complex(const Value &re, const Value &im, keel::Allocator *mr)
         double r0 = re.isScalar() ? reScalar : re.elemAsDouble(i);
         double i0 = im.isScalar() ? imScalar : im.elemAsDouble(i);
         if (outSingle) {
-            r0 = static_cast<double>(static_cast<float>(r0));
-            i0 = static_cast<double>(static_cast<float>(i0));
+            r0 = keel::as<double>(keel::as<float>(r0));
+            i0 = keel::as<double>(keel::as<float>(i0));
         }
         dst[i] = keel::c64(r0, i0);
     }
@@ -127,7 +127,7 @@ Value angle(const Value &x, keel::Allocator *mr)
             auto r = createLike(x, ValueType::SINGLE, p);
             float *dst = r.singleDataMut();
             for (keel::usize i = 0; i < x.numel(); ++i)
-                dst[i] = static_cast<float>(keel::arg(x.complexData()[i]));
+                dst[i] = keel::as<float>(keel::arg(x.complexData()[i]));
             return r;
         }
         if (x.isScalar())

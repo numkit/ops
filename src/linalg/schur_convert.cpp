@@ -25,12 +25,12 @@ cdf2rdf(const Value &V, const Value &D, keel::Allocator *mr)
     if (V.dims().ndim() != 2 || D.dims().ndim() != 2)
         throw Error("cdf2rdf: V and D must be 2-D matrices",
                     0, 0, "cdf2rdf", "", "numkit:cdf2rdf:notMatrix");
-    const keel::usize n = static_cast<keel::usize>(D.dims().dim(0));
-    if (n != static_cast<keel::usize>(D.dims().dim(1)))
+    const keel::usize n = keel::as<keel::usize>(D.dims().dim(0));
+    if (n != keel::as<keel::usize>(D.dims().dim(1)))
         throw Error("cdf2rdf: D must be square",
                     0, 0, "cdf2rdf", "", "numkit:cdf2rdf:notSquare");
-    if (static_cast<keel::usize>(V.dims().dim(0)) != n
-        || static_cast<keel::usize>(V.dims().dim(1)) != n)
+    if (keel::as<keel::usize>(V.dims().dim(0)) != n
+        || keel::as<keel::usize>(V.dims().dim(1)) != n)
         throw Error("cdf2rdf: V and D shape mismatch",
                     0, 0, "cdf2rdf", "", "numkit:cdf2rdf:shapeMismatch");
     if (n == 0)
@@ -61,12 +61,12 @@ rsf2csf(const Value &UR, const Value &TR, keel::Allocator *mr)
     if (UR.dims().ndim() != 2 || TR.dims().ndim() != 2)
         throw Error("rsf2csf: UR and TR must be 2-D matrices",
                     0, 0, "rsf2csf", "", "numkit:rsf2csf:notMatrix");
-    const keel::usize n = static_cast<keel::usize>(TR.dims().dim(0));
-    if (n != static_cast<keel::usize>(TR.dims().dim(1)))
+    const keel::usize n = keel::as<keel::usize>(TR.dims().dim(0));
+    if (n != keel::as<keel::usize>(TR.dims().dim(1)))
         throw Error("rsf2csf: TR must be square",
                     0, 0, "rsf2csf", "", "numkit:rsf2csf:notSquare");
-    if (static_cast<keel::usize>(UR.dims().dim(0)) != n
-        || static_cast<keel::usize>(UR.dims().dim(1)) != n)
+    if (keel::as<keel::usize>(UR.dims().dim(0)) != n
+        || keel::as<keel::usize>(UR.dims().dim(1)) != n)
         throw Error("rsf2csf: UR and TR shape mismatch",
                     0, 0, "rsf2csf", "", "numkit:rsf2csf:shapeMismatch");
     if (n == 0)

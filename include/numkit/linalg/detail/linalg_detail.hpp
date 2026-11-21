@@ -73,7 +73,7 @@ inline Value widenSingleToDouble(const Value &v, keel::Allocator *mr = nullptr)
     double *dd = out.doubleDataMut();
     const keel::usize n = v.numel();
     for (keel::usize i = 0; i < n; ++i)
-        dd[i] = static_cast<double>(sd[i]);
+        dd[i] = keel::as<double>(sd[i]);
     return out;
 }
 
@@ -88,7 +88,7 @@ inline Value narrowDoubleToSingle(const Value &v, keel::Allocator *mr = nullptr)
     float *sd = out.singleDataMut();
     const keel::usize n = v.numel();
     for (keel::usize i = 0; i < n; ++i)
-        sd[i] = static_cast<float>(dd[i]);
+        sd[i] = keel::as<float>(dd[i]);
     return out;
 }
 

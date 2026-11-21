@@ -47,7 +47,7 @@ Value applyScalarFnSym(const Value &A, double (*f)(double),
     const bool wantSingle = A.type() == ValueType::SINGLE;
     Value Aw = detail::widenSingleToDouble(A, mr);
     auto [V, D] = eig_symmetric(Aw, mr);
-    const keel::usize n = static_cast<keel::usize>(D.dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(D.dims().dim(0));
     if (n == 0) return Value::matrix(0, 0, wantSingle ? ValueType::SINGLE : ValueType::DOUBLE, mr);
 
     const double *Vdata = V.doubleData();
@@ -78,8 +78,8 @@ Value expm(const Value &A, keel::Allocator *mr)
     if (A.dims().ndim() != 2)
         throw Error("expm: input must be a 2D matrix",
                     0, 0, "expm", "", "numkit:expm:notMatrix");
-    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
-    const keel::usize n = static_cast<keel::usize>(A.dims().dim(1));
+    const keel::usize m = keel::as<keel::usize>(A.dims().dim(0));
+    const keel::usize n = keel::as<keel::usize>(A.dims().dim(1));
     if (m != n)
         throw Error("expm: matrix must be square",
                     0, 0, "expm", "", "numkit:expm:notSquare");
@@ -120,8 +120,8 @@ Value sqrtm(const Value &A, keel::Allocator *mr)
     detail::requireDoubleInput(A, "sqrtm");
     if (A.dims().ndim() != 2)
         throw Error("sqrtm: input must be a 2D matrix", 0, 0, "sqrtm", "", "numkit:sqrtm:notMatrix");
-    const keel::usize n = static_cast<keel::usize>(A.dims().dim(0));
-    if (n != static_cast<keel::usize>(A.dims().dim(1)))
+    const keel::usize n = keel::as<keel::usize>(A.dims().dim(0));
+    if (n != keel::as<keel::usize>(A.dims().dim(1)))
         throw Error("sqrtm: matrix must be square", 0, 0, "sqrtm", "", "numkit:sqrtm:notSquare");
     const bool wantSingle = A.type() == ValueType::SINGLE;
     if (n == 0) return Value::matrix(0, 0, wantSingle ? ValueType::SINGLE : ValueType::DOUBLE, mr);
@@ -166,17 +166,17 @@ Value sylvester(const Value &A, const Value &B, const Value &C, keel::Allocator 
     }
     if (A.dims().ndim() != 2 || B.dims().ndim() != 2 || C.dims().ndim() != 2)
         throw Error("sylvester: inputs must be 2D matrices", 0, 0, "sylvester", "", "numkit:sylvester:notMatrix");
-    const keel::usize m = static_cast<keel::usize>(A.dims().dim(0));
-    if (m != static_cast<keel::usize>(A.dims().dim(1)))
+    const keel::usize m = keel::as<keel::usize>(A.dims().dim(0));
+    if (m != keel::as<keel::usize>(A.dims().dim(1)))
         throw Error(keel::format("sylvester: first and second inputs must be square (A is {}x{}).",
                                  A.dims().dim(0), A.dims().dim(1)),
                     0, 0, "sylvester", "", "numkit:sylvester:inputMustBeSquare");
-    const keel::usize n = static_cast<keel::usize>(B.dims().dim(0));
-    if (n != static_cast<keel::usize>(B.dims().dim(1)))
+    const keel::usize n = keel::as<keel::usize>(B.dims().dim(0));
+    if (n != keel::as<keel::usize>(B.dims().dim(1)))
         throw Error(keel::format("sylvester: first and second inputs must be square (B is {}x{}).",
                                  B.dims().dim(0), B.dims().dim(1)),
                     0, 0, "sylvester", "", "numkit:sylvester:inputMustBeSquare");
-    if (static_cast<keel::usize>(C.dims().dim(0)) != m || static_cast<keel::usize>(C.dims().dim(1)) != n)
+    if (keel::as<keel::usize>(C.dims().dim(0)) != m || keel::as<keel::usize>(C.dims().dim(1)) != n)
         throw Error(keel::format("sylvester: inputs must have compatible size (C must be {}x{} to match A and B).",
                                  m, n),
                     0, 0, "sylvester", "", "numkit:sylvester:inputMustBeCompatibleSize");
@@ -223,8 +223,8 @@ Value logm(const Value &A, keel::Allocator *mr)
     detail::requireDoubleInput(A, "logm");
     if (A.dims().ndim() != 2)
         throw Error("logm: input must be a 2D matrix", 0, 0, "logm", "", "numkit:logm:notMatrix");
-    const keel::usize n = static_cast<keel::usize>(A.dims().dim(0));
-    if (n != static_cast<keel::usize>(A.dims().dim(1)))
+    const keel::usize n = keel::as<keel::usize>(A.dims().dim(0));
+    if (n != keel::as<keel::usize>(A.dims().dim(1)))
         throw Error("logm: matrix must be square", 0, 0, "logm", "", "numkit:logm:notSquare");
     const bool wantSingle = A.type() == ValueType::SINGLE;
     if (n == 0) return Value::matrix(0, 0, wantSingle ? ValueType::SINGLE : ValueType::DOUBLE, mr);
@@ -257,8 +257,8 @@ Value expmv(double t, const Value &A, const Value &v, keel::Allocator *mr)
     if (A.dims().ndim() != 2)
         throw Error("expmv: A must be a 2D matrix",
                     0, 0, "expmv", "", "numkit:expmv:notMatrix");
-    const keel::usize n = static_cast<keel::usize>(A.dims().dim(0));
-    if (static_cast<keel::usize>(A.dims().dim(1)) != n)
+    const keel::usize n = keel::as<keel::usize>(A.dims().dim(0));
+    if (keel::as<keel::usize>(A.dims().dim(1)) != n)
         throw Error("expmv: A must be square",
                     0, 0, "expmv", "", "numkit:expmv:notSquare");
     if (v.numel() != n)
@@ -285,8 +285,8 @@ static Value funm_eval(const Value &A, keel::FunctionRef<keel::c64(keel::c64)> f
     detail::requireDoubleInput(A, "funm");
     if (A.dims().ndim() != 2)
         throw Error("funm: input must be a 2D matrix", 0, 0, "funm", "", "numkit:funm:notMatrix");
-    const keel::usize n = static_cast<keel::usize>(A.dims().dim(0));
-    if (n != static_cast<keel::usize>(A.dims().dim(1)))
+    const keel::usize n = keel::as<keel::usize>(A.dims().dim(0));
+    if (n != keel::as<keel::usize>(A.dims().dim(1)))
         throw Error("funm: matrix must be square", 0, 0, "funm", "", "numkit:funm:notSquare");
     const bool wantSingle = A.type() == ValueType::SINGLE;
     if (n == 0) return Value::matrix(0, 0, wantSingle ? ValueType::SINGLE : ValueType::DOUBLE, mr);
