@@ -131,15 +131,129 @@ Value numericConstructor(ValueType targetType, const Value &x, keel::Allocator *
     return r;
 }
 
+inline bool isNumericComparable(ValueType t)
+{
+    return t == ValueType::DOUBLE || t == ValueType::SINGLE || t == ValueType::COMPLEX
+        || t == ValueType::LOGICAL || t == ValueType::CHAR || isIntegerType(t);
+}
+
+inline keel::f64 elemComparableDouble(const Value &v, keel::usize i)
+{
+    if (v.type() == ValueType::CHAR)
+        return keel::as<keel::f64>(keel::as<keel::u8>(v.charData()[i]));
+    return v.elemAsDouble(i);
+}
+
+inline bool int64EqualScalar(const Value &a, keel::usize ia, const Value &b, keel::usize ib, bool nanEqual)
+{
+    // Exact comparison when at least one side is INT64 or UINT64 (avoids double
+    // precision loss above 2^53).
+    auto cmpU64WithF64 = [](keel::u64 u, keel::f64 d) -> bool {
+        if (!std::isfinite(d) || d < 0.0 || d >= 18446744073709551616.0) return false;
+        if (std::floor(d) != d) return false;
+        return static_cast<keel::u64>(d) == u;
+    };
+    auto cmpI64WithF64 = [](keel::i64 s, keel::f64 d) -> bool {
+        if (!std::isfinite(d) || d < -9223372036854775808.0 || d >= 9223372036854775808.0) return false;
+        if (std::floor(d) != d) return false;
+        return static_cast<keel::i64>(d) == s;
+    };
+    const ValueType ta = a.type(), tb = b.type();
+    if (ta == ValueType::INT64 && tb == ValueType::UINT64) {
+        const keel::i64 sa = a.int64Data()[ia];
+        const keel::u64 ub = b.uint64Data()[ib];
+        return sa >= 0 && static_cast<keel::u64>(sa) == ub;
+    }
+    if (ta == ValueType::UINT64 && tb == ValueType::INT64) {
+        const keel::u64 ua = a.uint64Data()[ia];
+        const keel::i64 sb = b.int64Data()[ib];
+        return sb >= 0 && ua == static_cast<keel::u64>(sb);
+    }
+    if (ta == ValueType::INT64) {
+        const keel::i64 sa = a.int64Data()[ia];
+        if (tb == ValueType::COMPLEX) {
+            const keel::c64 cb = b.complexData()[ib];
+            return cb.imag() == 0.0 && cmpI64WithF64(sa, cb.real());
+        }
+        return cmpI64WithF64(sa, elemComparableDouble(b, ib));
+    }
+    if (ta == ValueType::UINT64) {
+        const keel::u64 ua = a.uint64Data()[ia];
+        if (tb == ValueType::COMPLEX) {
+            const keel::c64 cb = b.complexData()[ib];
+            return cb.imag() == 0.0 && cmpU64WithF64(ua, cb.real());
+        }
+        return cmpU64WithF64(ua, elemComparableDouble(b, ib));
+    }
+    if (tb == ValueType::INT64) {
+        const keel::i64 sb = b.int64Data()[ib];
+        if (ta == ValueType::COMPLEX) {
+            const keel::c64 ca = a.complexData()[ia];
+            return ca.imag() == 0.0 && cmpI64WithF64(sb, ca.real());
+        }
+        return cmpI64WithF64(sb, elemComparableDouble(a, ia));
+    }
+    if (tb == ValueType::UINT64) {
+        const keel::u64 ub = b.uint64Data()[ib];
+        if (ta == ValueType::COMPLEX) {
+            const keel::c64 ca = a.complexData()[ia];
+            return ca.imag() == 0.0 && cmpU64WithF64(ub, ca.real());
+        }
+        return cmpU64WithF64(ub, elemComparableDouble(a, ia));
+    }
+    (void)nanEqual;
+    return false;
+}
+
 bool valuesEqual(const Value &a, const Value &b, bool nanEqual)
 {
-    if (a.type() != b.type()) return false;
-    if (a.dims().rows() != b.dims().rows() || a.dims().cols() != b.dims().cols()) return false;
-    if (a.dims().is3D() != b.dims().is3D()) return false;
-    if (a.dims().is3D() && a.dims().pages() != b.dims().pages()) return false;
+    const keel::i32 ndA = a.dims().ndims();
+    const keel::i32 ndB = b.dims().ndims();
+    const keel::i32 ndMax = (ndA > ndB) ? ndA : ndB;
+    for (keel::i32 d = 0; d < ndMax; ++d) {
+        const keel::usize da = (d < ndA) ? a.dims().dim(d) : 1u;
+        const keel::usize db = (d < ndB) ? b.dims().dim(d) : 1u;
+        if (da != db) return false;
+    }
 
-    ValueType t = a.type();
-    keel::usize n = a.numel();
+    const ValueType ta = a.type(), tb = b.type();
+    const keel::usize n = a.numel();
+
+    if (ta != tb) {
+        if (!isNumericComparable(ta) || !isNumericComparable(tb))
+            return false;
+        if (n == 0) return true;
+        const bool has64 = (ta == ValueType::INT64 || ta == ValueType::UINT64
+                         || tb == ValueType::INT64 || tb == ValueType::UINT64);
+        if (has64) {
+            for (keel::usize i = 0; i < n; ++i) {
+                if (!int64EqualScalar(a, i, b, i, nanEqual)) return false;
+            }
+            return true;
+        }
+        if (ta == ValueType::COMPLEX || tb == ValueType::COMPLEX) {
+            for (keel::usize i = 0; i < n; ++i) {
+                const keel::f64 ra = (ta == ValueType::COMPLEX) ? a.complexData()[i].real() : elemComparableDouble(a, i);
+                const keel::f64 ia = (ta == ValueType::COMPLEX) ? a.complexData()[i].imag() : 0.0;
+                const keel::f64 rb = (tb == ValueType::COMPLEX) ? b.complexData()[i].real() : elemComparableDouble(b, i);
+                const keel::f64 ib = (tb == ValueType::COMPLEX) ? b.complexData()[i].imag() : 0.0;
+                const bool rEq = (ra == rb) || (nanEqual && std::isnan(ra) && std::isnan(rb));
+                const bool iEq = (ia == ib) || (nanEqual && std::isnan(ia) && std::isnan(ib));
+                if (!rEq || !iEq) return false;
+            }
+            return true;
+        }
+        for (keel::usize i = 0; i < n; ++i) {
+            const keel::f64 da = elemComparableDouble(a, i);
+            const keel::f64 db = elemComparableDouble(b, i);
+            if (da == db) continue;
+            if (nanEqual && std::isnan(da) && std::isnan(db)) continue;
+            return false;
+        }
+        return true;
+    }
+
+    ValueType t = ta;
 
     if (t == ValueType::DOUBLE) {
         const keel::f64 *da = a.doubleData(), *db = b.doubleData();
