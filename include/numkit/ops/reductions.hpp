@@ -257,7 +257,7 @@ Value applyAlongDim(const Value &x, keel::i32 dim, F &&f, keel::Allocator *mr = 
         return Value::matrix(0, 0, ValueType::DOUBLE, mr);
     }
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    if (x.dims().isVector() || x.isScalar()) {
+    if (x.isScalar() || (x.dims().isVector() && (dim <= 0 || dim == firstNonSingletonDim(x)))) {
         auto buf = keel::Array<keel::f64>(x.numel(), scratch.allocator());
         if (x.type() == ValueType::DOUBLE)
             std::copy(x.doubleData(), x.doubleData() + x.numel(), buf.data());
@@ -266,8 +266,29 @@ Value applyAlongDim(const Value &x, keel::i32 dim, F &&f, keel::Allocator *mr = 
                 buf[i] = x.elemAsDouble(i);
         return Value::scalar(f(0, buf.data(), x.numel()), mr);
     }
-    // ND fallback for rank ≥ 4. dim out-of-range was already mapped by
-    // validateDim → ndim+1 sentinel, but we may receive dim ∈ [1, ndim].
+    // Trailing-singleton dim (> ndim): every element is its own length-1 slice,
+    // output preserves the input shape.
+    if (dim > x.dims().ndim()) {
+        Value out;
+        if (x.dims().ndim() >= 4) {
+            const auto &d = x.dims();
+            keel::Array<keel::usize> shape(d.ndim(), scratch.allocator());
+            for (keel::i32 i = 0; i < d.ndim(); ++i) shape[i] = d.dim(i);
+            out = Value::matrixND(shape.data(), d.ndim(), ValueType::DOUBLE, mr);
+        } else {
+            const auto &d = x.dims();
+            out = createMatrix({d.rows(), d.cols(), d.is3D() ? d.pages() : 0},
+                               ValueType::DOUBLE, mr);
+        }
+        keel::f64 *dst = out.doubleDataMut();
+        const keel::usize n = x.numel();
+        for (keel::usize i = 0; i < n; ++i) {
+            keel::f64 v = x.elemAsDouble(i);
+            dst[i] = f(i, &v, 1);
+        }
+        return out;
+    }
+    // ND fallback for rank ≥ 4. dim out-of-range was already handled above.
     if (x.dims().ndim() >= 4 && dim >= 1 && dim <= x.dims().ndim()) {
         auto shape = outShapeForDimND(x, dim, scratch.allocator());
         Value out = Value::matrixND(shape.data(),
@@ -297,7 +318,7 @@ applyAlongDimWithIndex(const Value &x, keel::i32 dim, F &&f, keel::Allocator *mr
                 Value::matrix(0, 0, ValueType::DOUBLE, mr)};
     }
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    if (x.dims().isVector() || x.isScalar()) {
+    if (x.isScalar() || (x.dims().isVector() && (dim <= 0 || dim == firstNonSingletonDim(x)))) {
         auto buf = keel::Array<keel::f64>(x.numel(), scratch.allocator());
         if (x.type() == ValueType::DOUBLE)
             std::copy(x.doubleData(), x.doubleData() + x.numel(), buf.data());
@@ -309,6 +330,33 @@ applyAlongDimWithIndex(const Value &x, keel::i32 dim, F &&f, keel::Allocator *mr
         f(buf.data(), x.numel(), v, idx);
         return {Value::scalar(v, mr),
                 Value::scalar(keel::as<keel::f64>(idx + 1), mr)};
+    }
+    // Trailing-singleton dim (> ndim): every element is its own length-1 slice.
+    if (dim > x.dims().ndim()) {
+        Value out, outIdx;
+        if (x.dims().ndim() >= 4) {
+            const auto &d = x.dims();
+            keel::Array<keel::usize> shape(d.ndim(), scratch.allocator());
+            for (keel::i32 i = 0; i < d.ndim(); ++i) shape[i] = d.dim(i);
+            out    = Value::matrixND(shape.data(), d.ndim(), ValueType::DOUBLE, mr);
+            outIdx = Value::matrixND(shape.data(), d.ndim(), ValueType::DOUBLE, mr);
+        } else {
+            const auto &d = x.dims();
+            DimsArg sh{d.rows(), d.cols(), d.is3D() ? d.pages() : 0};
+            out    = createMatrix(sh, ValueType::DOUBLE, mr);
+            outIdx = createMatrix(sh, ValueType::DOUBLE, mr);
+        }
+        keel::f64 *dst  = out.doubleDataMut();
+        keel::f64 *dstI = outIdx.doubleDataMut();
+        const keel::usize n = x.numel();
+        for (keel::usize i = 0; i < n; ++i) {
+            keel::f64 v = x.elemAsDouble(i), rv = 0;
+            keel::usize ridx = 0;
+            f(&v, 1, rv, ridx);
+            dst[i]  = rv;
+            dstI[i] = keel::as<keel::f64>(ridx + 1);
+        }
+        return {std::move(out), std::move(outIdx)};
     }
     // ND fallback (rank ≥ 4)
     if (x.dims().ndim() >= 4 && dim >= 1 && dim <= x.dims().ndim()) {
