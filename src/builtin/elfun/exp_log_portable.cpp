@@ -16,7 +16,6 @@
 
 #include <numkit/ops/helpers.hpp>
 
-#include <stdexcept>
 
 namespace numkit::builtin {
 
@@ -150,7 +149,7 @@ Value reallog(const Value &x, keel::Allocator *mr)
 {
     return unaryDouble(x, [](keel::f64 v) {
         if (v < 0.0)
-            throw std::runtime_error("reallog produced complex result — use log(...) instead");
+            throw numkit::Error("reallog produced complex result — use log(...) instead");
         return keel::log(v);
     }, mr);
 }
@@ -180,7 +179,7 @@ Value realsqrt(const Value &x, keel::Allocator *mr)
 {
     return unaryDouble(x, [](keel::f64 v) {
         if (v < 0.0)
-            throw std::runtime_error("realsqrt produced complex result — use sqrt(...) instead");
+            throw numkit::Error("realsqrt produced complex result — use sqrt(...) instead");
         return keel::sqrt(v);
     }, mr);
 }

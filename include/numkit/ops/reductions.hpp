@@ -32,7 +32,6 @@
 
 #include <algorithm>
 #include <cstddef>
-#include <stdexcept>
 
 namespace numkit::ops {
 

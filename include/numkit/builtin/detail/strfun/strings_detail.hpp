@@ -24,7 +24,6 @@
 #include <cstdio>
 #include <cstring>
 #include <numeric>
-#include <stdexcept>
 #include <tuple>
 #include <utility>
 
@@ -443,7 +442,7 @@ inline keel::String readSide(const Value &side, const char *def)
 {
     if (side.isEmpty()) return keel::String::from(def);
     if (!side.isChar() && !side.isString())
-        throw std::runtime_error("string-side argument must be a string");
+        throw numkit::Error("string-side argument must be a string");
     keel::String s = side.toString();
     s.to_ascii_lower_in_place();
     return s;

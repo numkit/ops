@@ -13,12 +13,12 @@
 #include <keel/time.h>
 #include <keel/utf8.h>
 #include <numkit/builtin/timefun.hpp>
+#include <numkit/value/error.hpp>
 #include <numkit/value/value.hpp>
 
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
-#include <stdexcept>
 
 namespace numkit::builtin {
 
@@ -89,9 +89,9 @@ Value etime(const Value &t2, const Value &t1, keel::Allocator *mr) {
     const keel::usize r2 = t2.dims().rows(), c2 = t2.dims().cols();
     const keel::usize r1 = t1.dims().rows(), c1 = t1.dims().cols();
     if (c2 != 6 || c1 != 6)
-        throw std::runtime_error("etime: date vectors must have 6 columns [Y M D H MI S]");
+        throw numkit::Error("etime: date vectors must have 6 columns [Y M D H MI S]");
     if (r1 != r2 && r1 != 1 && r2 != 1)
-        throw std::runtime_error("etime: t2 and t1 must have the same number of rows (or one a single row)");
+        throw numkit::Error("etime: t2 and t1 must have the same number of rows (or one a single row)");
     const keel::usize N = std::max(r1, r2);
 
     auto comp = [&](const Value &v, keel::usize nr, keel::usize row, keel::usize col) {
@@ -116,13 +116,13 @@ Value etime(const Value &t2, const Value &t1, keel::Allocator *mr) {
 
 Value weeknum(keel::ArrayRef<Value> args, keel::Allocator *mr) {
     if (args.empty())
-        throw std::runtime_error("weeknum: requires a date argument");
+        throw numkit::Error("weeknum: requires a date argument");
 
     keel::i32 weekStart = 1;
     if (args.size() >= 2 && !args[1].isEmpty())
         weekStart = keel::as<keel::i32>(args[1].toScalar());
     if (weekStart < 1 || weekStart > 7)
-        throw std::runtime_error("weeknum: WeekStart must be an integer in 1..7 (1=Sunday)");
+        throw numkit::Error("weeknum: WeekStart must be an integer in 1..7 (1=Sunday)");
     bool european = false;
     if (args.size() >= 3 && !args[2].isEmpty())
         european = args[2].toScalar() != 0.0;
@@ -193,7 +193,7 @@ Value weeknum(keel::ArrayRef<Value> args, keel::Allocator *mr) {
 
 Value addtodate(const Value &d, keel::f64 quantity, keel::StringRef unit, keel::Allocator *mr) {
     if (d.numel() != 1)
-        throw std::runtime_error("addtodate: date number must be a real numeric scalar");
+        throw numkit::Error("addtodate: date number must be a real numeric scalar");
     const keel::f64 serial = d.toScalar();
     const keel::f64 q = quantity;
 
@@ -249,14 +249,14 @@ Value addtodate(const Value &d, keel::f64 quantity, keel::StringRef unit, keel::
         const keel::i64 newDays = era2 * 146097 + doe2 - 719468 + 719529;
         result = keel::as<keel::f64>(newDays) + frac;
     } else {
-        throw std::runtime_error("addtodate: units must be one of 'year','month','day','hour','minute','second','millisecond'");
+        throw numkit::Error("addtodate: units must be one of 'year','month','day','hour','minute','second','millisecond'");
     }
     return Value::scalar(result, mr);
 }
 
 Value datenum(keel::ArrayRef<Value> args, keel::Allocator *mr) {
     if (args.empty())
-        throw std::runtime_error("datenum requires at least one argument");
+        throw numkit::Error("datenum requires at least one argument");
 
     if (args[0].isCell() || (args[0].isString() && args[0].numel() > 1)) {
         const keel::usize n = args[0].numel();
@@ -341,7 +341,7 @@ Value datenum(keel::ArrayRef<Value> args, keel::Allocator *mr) {
             const keel::StringRef fmt = fmtOwned.as_ref();
             if (tryFmt(fmt, Y, Mo, D, H, MI, S))
                 return Value::scalar(civilToSerial(Y, Mo, D, H, MI, S), mr);
-            throw std::runtime_error(keel::format("datenum: date string does not match format '{}'", fmt).c_str());
+            throw numkit::Error(keel::format("datenum: date string does not match format '{}'", fmt).c_str());
         }
         static const char *kAutoFmts[] = {
             "yyyy-mm-dd HH:MM:SS", "yyyy-mm-ddTHH:MM:SS", "yyyy-mm-dd",
@@ -352,7 +352,7 @@ Value datenum(keel::ArrayRef<Value> args, keel::Allocator *mr) {
             if (tryFmt(kAutoFmts[i], Y, Mo, D, H, MI, S))
                 return Value::scalar(civilToSerial(Y, Mo, D, H, MI, S), mr);
         }
-        throw std::runtime_error(keel::format("datenum: could not auto-detect format of date string '{}'", s).c_str());
+        throw numkit::Error(keel::format("datenum: could not auto-detect format of date string '{}'", s).c_str());
     }
 
     if (args.size() == 1) {
@@ -379,13 +379,13 @@ Value datenum(keel::ArrayRef<Value> args, keel::Allocator *mr) {
     }
 
     if (args.size() != 3 && args.size() != 6)
-        throw std::runtime_error("datenum: expected 1, 3, or 6 arguments");
+        throw numkit::Error("datenum: expected 1, 3, or 6 arguments");
 
     keel::usize N = 1;
     for (const auto &a : args) {
         if (a.numel() > 1) {
             if (N > 1 && a.numel() != N)
-                throw std::runtime_error("datenum: input vector lengths must match");
+                throw numkit::Error("datenum: input vector lengths must match");
             N = a.numel();
         }
     }
@@ -435,7 +435,7 @@ Value weekday(const Value &d, keel::Allocator *mr) {
 
 Value juliandate(keel::ArrayRef<Value> args, keel::Allocator *mr) {
     if (args.empty())
-        throw std::runtime_error("juliandate requires at least one argument");
+        throw numkit::Error("juliandate requires at least one argument");
     if (args.size() == 1) {
         const Value &A = args[0];
         if (A.dims().cols() == 6 || A.dims().cols() == 3) {
@@ -458,7 +458,7 @@ Value juliandate(keel::ArrayRef<Value> args, keel::Allocator *mr) {
 
 Value mjuliandate(keel::ArrayRef<Value> args, keel::Allocator *mr) {
     if (args.empty())
-        throw std::runtime_error("mjuliandate requires at least one argument");
+        throw numkit::Error("mjuliandate requires at least one argument");
     if (args.size() == 1) {
         const Value &A = args[0];
         if (A.dims().cols() == 6 || A.dims().cols() == 3) {
@@ -488,14 +488,14 @@ Value eomday(const Value &y, const Value &m, keel::Allocator *mr) {
         keel::i64 yi = keel::as<keel::i64>(yr);
         keel::i64 mi = keel::as<keel::i64>(mo);
         if (mi < 1 || mi > 12)
-            throw std::runtime_error("eomday: month must be in 1..12");
+            throw numkit::Error("eomday: month must be in 1..12");
         return (mi == 2 && isLeap(yi)) ? 29.0 : keel::as<keel::f64>(dim[mi]);
     };
     const keel::usize ny = y.numel(), nm = m.numel();
     if (ny == 1 && nm == 1)
         return Value::scalar(eomOne(y.toScalar(), m.toScalar()), mr);
     if (ny != nm && ny != 1 && nm != 1)
-        throw std::runtime_error("eomday: input dimensions must agree");
+        throw numkit::Error("eomday: input dimensions must agree");
     const keel::usize N = std::max(ny, nm);
     const keel::usize rows = ny > 1 ? y.dims().rows() : m.dims().rows();
     const keel::usize cols = ny > 1 ? y.dims().cols() : m.dims().cols();
@@ -525,7 +525,7 @@ Value calendar(keel::ArrayRef<Value> args, keel::Allocator *mr) {
     keel::i64 yi = keel::as<keel::i64>(yr);
     keel::i64 mi = keel::as<keel::i64>(mo);
     if (mi < 1 || mi > 12)
-        throw std::runtime_error("calendar: month must be in 1..12");
+        throw numkit::Error("calendar: month must be in 1..12");
     auto isLeap = [](keel::i64 y) {
         return (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
     };
@@ -624,7 +624,7 @@ Value datestr(keel::ArrayRef<Value> args, keel::Allocator *mr) {
         Comp c{}; bool ok = false;
         for (const char *f : cands) if (tryFmt(f, c)) { ok = true; break; }
         if (!ok)
-            throw std::runtime_error(
+            throw numkit::Error(
                 "datestr: could not parse date string (supported: ISO yyyy-mm-dd and dd-mmm-yyyy forms)");
         dates.push_back(c);
     } else {
@@ -648,7 +648,7 @@ Value datestr(keel::ArrayRef<Value> args, keel::Allocator *mr) {
         }
     }
     if (dates.empty())
-        throw std::runtime_error("datestr: empty date input");
+        throw numkit::Error("datestr: empty date input");
     bool anyTime = false;
     for (const auto &c : dates)
         if (c.h != 0 || c.mi != 0 || c.s != 0) { anyTime = true; break; }
@@ -697,7 +697,7 @@ Value datestr(keel::ArrayRef<Value> args, keel::Allocator *mr) {
             };
             const keel::i32 code = keel::as<keel::i32>(keel::round(f.elemAsDouble(0)));
             if (code < 0 || code > 31)
-                throw std::runtime_error("datestr: unsupported numeric format code (expected 0-31)");
+                throw numkit::Error("datestr: unsupported numeric format code (expected 0-31)");
             fmt = DATEFORM[code];
         }
     } else {
@@ -788,7 +788,7 @@ Value datestr(keel::ArrayRef<Value> args, keel::Allocator *mr) {
 
 Value datevec(keel::ArrayRef<Value> args, keel::Allocator *mr) {
     if (args.empty())
-        throw std::runtime_error("datevec requires at least one argument");
+        throw numkit::Error("datevec requires at least one argument");
     if (args[0].isChar() || args[0].isString()) {
         const keel::String sOwned = args[0].toString();
         const keel::StringRef s = sOwned.as_ref();
@@ -852,7 +852,7 @@ Value datevec(keel::ArrayRef<Value> args, keel::Allocator *mr) {
                 if (tryFmt(c, Y, Mo, D, H, MI, S)) { ok = true; break; }
         }
         if (!ok)
-            throw std::runtime_error(
+            throw numkit::Error(
                 "datevec: could not parse date string (supported: explicit format string, or ISO yyyy-mm-dd and dd-mmm-yyyy forms)");
         const keel::f64 vals[6] = {Y, Mo, D, H, MI, S};
         auto out = Value::matrix(1, 6, ValueType::DOUBLE, mr);
@@ -876,9 +876,9 @@ Value datevec(keel::ArrayRef<Value> args, keel::Allocator *mr) {
 
 Value yyyymmdd(keel::ArrayRef<Value> args, keel::Allocator *mr) {
     if (args.empty())
-        throw std::runtime_error("yyyymmdd requires one argument");
+        throw numkit::Error("yyyymmdd requires one argument");
     if (args[0].isChar() || args[0].isString())
-        throw std::runtime_error("yyyymmdd: string parsing not supported");
+        throw numkit::Error("yyyymmdd: string parsing not supported");
 
     auto packOne = [&](keel::f64 dval) {
         if (dval == 0.0) return 0.0;

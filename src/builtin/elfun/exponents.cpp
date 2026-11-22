@@ -68,7 +68,7 @@ Value realpow(const Value &x, const Value &y, keel::Allocator *mr)
 {
     auto checkPair = [](keel::f64 xx, keel::f64 yy) {
         if (xx < 0.0 && yy != keel::floor(yy)) {
-            throw std::runtime_error(
+            throw numkit::Error(
                 "realpow produced complex result — use power(.^) instead");
         }
         return keel::pow(xx, yy);

@@ -224,7 +224,7 @@ reduceMinMaxAllT(const Value &x, Cmp cmp, ValueType outType, keel::Allocator *mr
 {
     const bool typeMatch = (x.type() == outType);
     if (x.numel() == 0)
-        throw std::runtime_error("min/max of empty array is not supported");
+        throw numkit::Error("min/max of empty array is not supported");
     if (x.isScalar() || x.dims().isVector()) {
         T best = readSrcAsT<T>(x, 0, typeMatch);
         keel::usize bi = 0;
@@ -543,7 +543,7 @@ std::tuple<Value, Value>
 reduceMinMaxNanAllT(const Value &x, Cmp cmp, ValueType outType, keel::Allocator *mr)
 {
     if (x.numel() == 0)
-        throw std::runtime_error("min/max of empty array is not supported");
+        throw numkit::Error("min/max of empty array is not supported");
     const bool typeMatch = (x.type() == outType);
     if (x.isScalar() || x.dims().isVector()) {
         keel::usize firstValid = SIZE_MAX;

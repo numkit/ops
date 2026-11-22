@@ -11,12 +11,12 @@
 #include <keel/array.h>
 #include <keel/complex.h>
 #include <numkit/value/value.hpp>
+#include <numkit/value/error.hpp>
 #include <numkit/value/argcheck.hpp>    // numkit::argcheck (size-input validation)
 #include <numkit/ops/value_factory.hpp>   // DimsArg/createMatrix/createForDims/createLike (now in numkit::ops)
 #include <numkit/value/shape_ops.hpp>
 
 #include <algorithm>
-#include <stdexcept>
 #include <type_traits>
 #include <utility>
 
@@ -213,7 +213,7 @@ inline Value emptyResultForBinary(const Value &a, const Value &b,
     if (aShaper && bShaper && a.dims() != b.dims()) {
         auto msg = keel::format("Matrix dimensions must agree. a=[{}x{}], b=[{}x{}] (line 211)",
                                 a.dims().rows(), a.dims().cols(), b.dims().rows(), b.dims().cols());
-        throw std::runtime_error(msg.c_str());
+        throw numkit::Error(msg.c_str());
     }
     const Value &shape = aShaper ? a : (bShaper ? b : a);
     return createLike(shape, outType, mr);
@@ -287,7 +287,7 @@ Value elementwiseDouble(const Value &a, const Value &b, Op op, keel::Allocator *
         // ND broadcast (NumPy: align right, dims match or 1)
         Dims outD;
         if (!broadcastDimsND(a.dims(), b.dims(), outD))
-            throw std::runtime_error("ND dimensions must broadcast: each axis must match or be 1");
+            throw numkit::Error("ND dimensions must broadcast: each axis must match or be 1");
         auto r = createForDims(outD, ValueType::DOUBLE, mr);
         const keel::f64 *da = a.doubleData(), *db = b.doubleData();
         keel::f64 *dst = r.doubleDataMut();
@@ -321,7 +321,7 @@ Value elementwiseDouble(const Value &a, const Value &b, Op op, keel::Allocator *
         const keel::usize bP = b.dims().is3D() ? b.dims().pages() : 1;
         keel::usize outR, outC, outP;
         if (!broadcastDims3D(aR, aC, aP, bR, bC, bP, outR, outC, outP))
-            throw std::runtime_error(
+            throw numkit::Error(
                 "3D dimensions must broadcast: each axis must match or be 1");
 
         // Same-shape fast path skips the per-axis broadcast index math.
@@ -352,7 +352,7 @@ Value elementwiseDouble(const Value &a, const Value &b, Op op, keel::Allocator *
     if (!broadcastDims(ar, ac, br, bc, outR, outC)) {
         auto msg = keel::format("Matrix dimensions must agree. a=[{}x{}], b=[{}x{}] (line 332)",
                                 ar, ac, br, bc);
-        throw std::runtime_error(msg.c_str());
+        throw numkit::Error(msg.c_str());
     }
 
     // Fast path: same dimensions, no broadcasting needed
@@ -422,7 +422,7 @@ Value elementwiseComplexImpl(const Value &a, const Value &b, Op op, keel::Alloca
         }
         Dims outD;
         if (!broadcastDimsND(ca.dims(), cb.dims(), outD))
-            throw std::runtime_error("ND dimensions must broadcast: each axis must match or be 1");
+            throw numkit::Error("ND dimensions must broadcast: each axis must match or be 1");
         auto r = createForDims(outD, ValueType::COMPLEX, mr);
         const keel::c64 *da = ca.complexData(), *db = cb.complexData();
         keel::c64 *dst = r.complexDataMut();
@@ -454,7 +454,7 @@ Value elementwiseComplexImpl(const Value &a, const Value &b, Op op, keel::Alloca
         const keel::usize bP = cb.dims().is3D() ? cb.dims().pages() : 1;
         keel::usize outR, outC, outP;
         if (!broadcastDims3D(aR, aC, aP, bR, bC, bP, outR, outC, outP))
-            throw std::runtime_error(
+            throw numkit::Error(
                 "3D dimensions must broadcast: each axis must match or be 1");
 
         if (aR == bR && aC == bC && aP == bP) {
@@ -483,7 +483,7 @@ Value elementwiseComplexImpl(const Value &a, const Value &b, Op op, keel::Alloca
     if (!broadcastDims(ar, ac, br, bc, outR, outC)) {
         auto msg = keel::format("Matrix dimensions must agree. a=[{}x{}], b=[{}x{}] (line 454)",
                                 ar, ac, br, bc);
-        throw std::runtime_error(msg.c_str());
+        throw numkit::Error(msg.c_str());
     }
 
     if (ar == br && ac == bc) {
@@ -885,7 +885,7 @@ Value elementwiseTyped(const Value &a, const Value &b, ValueType targetType, Op 
         }
         Dims outD;
         if (!broadcastDimsND(a.dims(), b.dims(), outD))
-            throw std::runtime_error("ND dimensions must broadcast: each axis must match or be 1");
+            throw numkit::Error("ND dimensions must broadcast: each axis must match or be 1");
         auto r = createForDims(outD, targetType, mr);
         T *dst = static_cast<T *>(r.rawDataMut());
         forEachNDPair(a.dims(), b.dims(), outD,
@@ -922,7 +922,7 @@ Value elementwiseTyped(const Value &a, const Value &b, ValueType targetType, Op 
         const keel::usize bP = b.dims().is3D() ? b.dims().pages() : 1;
         keel::usize outR, outC, outP;
         if (!broadcastDims3D(aR, aC, aP, bR, bC, bP, outR, outC, outP))
-            throw std::runtime_error(
+            throw numkit::Error(
                 "3D dimensions must broadcast: each axis must match or be 1");
 
         if (aR == bR && aC == bC && aP == bP) {
@@ -954,7 +954,7 @@ Value elementwiseTyped(const Value &a, const Value &b, ValueType targetType, Op 
     if (!broadcastDims(ar, ac, br, bc, outR, outC)) {
         auto msg = keel::format("Matrix dimensions must agree. a=[{}x{}], b=[{}x{}] (line 913)",
                                 ar, ac, br, bc);
-        throw std::runtime_error(msg.c_str());
+        throw numkit::Error(msg.c_str());
     }
 
     auto r = Value::matrix(outR, outC, targetType, mr);
@@ -987,7 +987,7 @@ inline ValueType resolveIntegerPairType(const Value &a, const Value &b)
 
     if (ai && bi) {
         if (ta != tb)
-            throw std::runtime_error("Integers can only be combined with integers of the same class");
+            throw numkit::Error("Integers can only be combined with integers of the same class");
         return ta;
     }
     if (ai && (bf || tb == ValueType::LOGICAL)) return ta;

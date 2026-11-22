@@ -17,7 +17,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <stdexcept>
 #include <type_traits>
 
 // Forward-declare the SIMD/portable cast backend (defined in
@@ -399,7 +398,7 @@ Value issorted(const Value &x, const Value &mode, keel::Allocator *mr)
 {
     SortMode m = SortMode::Ascend;
     if (!readSortMode(mode, m))
-        throw std::runtime_error("issorted: unrecognized sort mode");
+        throw numkit::Error("issorted: unrecognized sort mode");
     if (x.isEmpty() || x.isScalar())
         return Value::logicalScalar(true, mr);
 
@@ -424,7 +423,7 @@ Value issortedrows(const Value &x, keel::Allocator *mr)
         return Value::logicalScalar(true, mr);
     const auto &d = x.dims();
     if (d.ndim() > 2)
-        throw std::runtime_error("issortedrows: input must be 2-D");
+        throw numkit::Error("issortedrows: input must be 2-D");
     const keel::usize R = d.rows(), C = d.cols();
     if (R < 2) return Value::logicalScalar(true, mr);
     const keel::f64 *p = x.doubleData();
@@ -452,7 +451,7 @@ Value isuniform(const Value &x, keel::Allocator *mr)
     const auto &d = x.dims();
     // Treat as 1-D: only meaningful for row/column vectors.
     if (d.ndim() > 2 || (d.rows() != 1 && d.cols() != 1))
-        throw std::runtime_error("isuniform: input must be a vector");
+        throw numkit::Error("isuniform: input must be a vector");
     if (n < 2) return Value::logicalScalar(true, mr);
     const keel::f64 *p = x.doubleData();
     for (keel::usize i = 0; i < n; ++i)
@@ -481,7 +480,7 @@ Value flintmax(const Value &t, keel::Allocator *mr)
         return typedScalar<keel::f32>(ValueType::SINGLE, keel::as<keel::f32>(1u << 24), mr);
     if (name == "double")
         return Value::scalar(9007199254740992.0, mr);  // 2^53 exactly
-    throw std::runtime_error("flintmax: type must be 'double' or 'single'");
+    throw numkit::Error("flintmax: type must be 'double' or 'single'");
 }
 
 Value intmax(const Value &t, keel::Allocator *mr)
@@ -495,7 +494,7 @@ Value intmax(const Value &t, keel::Allocator *mr)
     if (name == "uint16") return typedScalar<keel::u16>(ValueType::UINT16, keel::Limits<keel::u16>::kMax, mr);
     if (name == "uint32") return typedScalar<keel::u32>(ValueType::UINT32, keel::Limits<keel::u32>::kMax, mr);
     if (name == "uint64") return typedScalar<keel::u64>(ValueType::UINT64, keel::Limits<keel::u64>::kMax, mr);
-    throw std::runtime_error("intmax: unsupported integer class");
+    throw numkit::Error("intmax: unsupported integer class");
 }
 
 Value intmin(const Value &t, keel::Allocator *mr)
@@ -509,7 +508,7 @@ Value intmin(const Value &t, keel::Allocator *mr)
     if (name == "uint16") return typedScalar<keel::u16>(ValueType::UINT16, keel::as<keel::u16>(0), mr);
     if (name == "uint32") return typedScalar<keel::u32>(ValueType::UINT32, keel::as<keel::u32>(0), mr);
     if (name == "uint64") return typedScalar<keel::u64>(ValueType::UINT64, keel::as<keel::u64>(0), mr);
-    throw std::runtime_error("intmin: unsupported integer class");
+    throw numkit::Error("intmin: unsupported integer class");
 }
 
 Value realmax(const Value &t, keel::Allocator *mr)
@@ -519,7 +518,7 @@ Value realmax(const Value &t, keel::Allocator *mr)
         return typedScalar<keel::f32>(ValueType::SINGLE, keel::Limits<keel::f32>::kMax, mr);
     if (name == "double")
         return Value::scalar(keel::Limits<keel::f64>::kMax, mr);
-    throw std::runtime_error("realmax: type must be 'double' or 'single'");
+    throw numkit::Error("realmax: type must be 'double' or 'single'");
 }
 
 Value realmin(const Value &t, keel::Allocator *mr)
@@ -529,7 +528,7 @@ Value realmin(const Value &t, keel::Allocator *mr)
         return typedScalar<keel::f32>(ValueType::SINGLE, keel::Limits<keel::f32>::kMin, mr);
     if (name == "double")
         return Value::scalar(keel::Limits<keel::f64>::kMin, mr);
-    throw std::runtime_error("realmin: type must be 'double' or 'single'");
+    throw numkit::Error("realmin: type must be 'double' or 'single'");
 }
 
 Value flintmax(keel::StringRef className, keel::Allocator *mr)

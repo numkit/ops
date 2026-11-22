@@ -507,7 +507,7 @@ inline bool applyCmp(Cmp c, keel::f64 x, keel::f64 y)
 [[maybe_unused]] keel::Array<keel::u8> toBoolArray(const Value &v, keel::Allocator *mr)
 {
     auto nanErr = [] {
-        throw std::runtime_error("NaN values cannot be converted to logicals.");
+        throw numkit::Error("NaN values cannot be converted to logicals.");
     };
     keel::Array<keel::u8> r(v.numel(), mr);
     if (v.isLogical()) {
@@ -544,12 +544,12 @@ inline bool applyCmp(Cmp c, keel::f64 x, keel::f64 y)
     if (v.isComplex()) {
         keel::c64 c = v.toComplex();
         if (keel::is_nan(c.real()) || keel::is_nan(c.imag()))
-            throw std::runtime_error("NaN values cannot be converted to logicals.");
+            throw numkit::Error("NaN values cannot be converted to logicals.");
         return c.real() != 0.0 || c.imag() != 0.0;
     }
     keel::f64 x = v.elemAsDouble(0);
     if (keel::is_nan(x))
-        throw std::runtime_error("NaN values cannot be converted to logicals.");
+        throw numkit::Error("NaN values cannot be converted to logicals.");
     return x != 0.0;
 }
 

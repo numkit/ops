@@ -12,7 +12,6 @@
 #include <numkit/ops/helpers.hpp>
 
 #include <cstdint>
-#include <stdexcept>
 
 #include "unary_ops_detail.hpp"
 
@@ -63,7 +62,7 @@ Value uplus(const Value &x, keel::Allocator *)
 Value logical_not(const Value &x, keel::Allocator *mr)
 {
     auto nanErr = [] {
-        throw std::runtime_error("NaN values cannot be converted to logicals.");
+        throw numkit::Error("NaN values cannot be converted to logicals.");
     };
     keel::Allocator *p = mr;
     if (x.isLogical()) {

@@ -380,7 +380,7 @@ inline keel::String readTypeName(const Value &t, const char *def)
 {
     if (t.isEmpty()) return keel::String::from(def);
     if (!t.isChar() && !t.isString())
-        throw std::runtime_error("numeric-limit: type argument must be a string");
+        throw numkit::Error("numeric-limit: type argument must be a string");
     keel::String s = t.toString();
     s.to_ascii_lower_in_place();
     return s;

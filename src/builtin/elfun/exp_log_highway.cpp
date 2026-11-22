@@ -25,7 +25,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <stdexcept>
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "builtin/elfun/exp_log_highway.cpp"
@@ -430,7 +429,7 @@ Value reallog(const Value &x, keel::Allocator *mr)
 {
     auto scalarOp = [](keel::f64 v) {
         if (v < 0.0)
-            throw std::runtime_error("reallog produced complex result â€” use log(...) instead");
+            throw numkit::Error("reallog produced complex result â€” use log(...) instead");
         return keel::log(v);
     };
     if (x.isComplex() || x.isScalar() || x.type() != ValueType::DOUBLE)
@@ -440,7 +439,7 @@ Value reallog(const Value &x, keel::Allocator *mr)
     const keel::usize n  = x.numel();
     for (keel::usize i = 0; i < n; ++i)
         if (in[i] < 0.0)
-            throw std::runtime_error("reallog produced complex result â€” use log(...) instead");
+            throw numkit::Error("reallog produced complex result â€” use log(...) instead");
 
     Value r = createLike(x, ValueType::DOUBLE, mr);
     if (n == 0)
@@ -484,7 +483,7 @@ Value realsqrt(const Value &x, keel::Allocator *mr)
 {
     auto scalarOp = [](keel::f64 v) {
         if (v < 0.0)
-            throw std::runtime_error("realsqrt produced complex result â€” use sqrt(...) instead");
+            throw numkit::Error("realsqrt produced complex result â€” use sqrt(...) instead");
         return keel::sqrt(v);
     };
     if (x.isComplex() || x.isScalar() || x.type() != ValueType::DOUBLE)
@@ -494,7 +493,7 @@ Value realsqrt(const Value &x, keel::Allocator *mr)
     const keel::usize n  = x.numel();
     for (keel::usize i = 0; i < n; ++i)
         if (in[i] < 0.0)
-            throw std::runtime_error("realsqrt produced complex result â€” use sqrt(...) instead");
+            throw numkit::Error("realsqrt produced complex result â€” use sqrt(...) instead");
 
     Value r = createLike(x, ValueType::DOUBLE, mr);
     if (n == 0)
