@@ -4,6 +4,7 @@
 #pragma once
 
 #include <keel/core.h>
+#include <keel/algo.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
 #include <keel/arena.h>
@@ -20,11 +21,8 @@
 #include <numkit/ops/reductions.hpp>  // engine-free numkit::builtin::detail dim-infra (ops re-export)
 
 #include <algorithm>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
-#include <limits>
 #include <numeric>
 #include <tuple>
 #include <utility>
@@ -287,7 +285,7 @@ void materialisePage(T *dst, const Value &src, keel::usize pageOff,
 
     if (tr == TranspOp::None) {
         if (typeMatches) {
-            std::memcpy(dst, static_cast<const T *>(src.rawData()) + base,
+            keel::mem_copy(dst, static_cast<const T *>(src.rawData()) + base,
                         pageElems * sizeof(T));
         } else {
             for (keel::usize i = 0; i < pageElems; ++i)
@@ -440,8 +438,7 @@ Value toDoubleMatrix2D(const Value &x, const char *fn, keel::Allocator *mr)
         // touching the input through a shared buffer later.
         auto r = Value::matrix(R, C, ValueType::DOUBLE, mr);
         if (x.numel() > 0)
-            std::memcpy(r.doubleDataMut(), x.doubleData(),
-                        x.numel() * sizeof(keel::f64));
+            keel::copy_n(r.doubleDataMut(), x.doubleData(), x.numel());
         return r;
     }
     auto r = Value::matrix(R, C, ValueType::DOUBLE, mr);
@@ -459,7 +456,7 @@ Value toDoubleMatrix2D(const Value &x, const char *fn, keel::Allocator *mr)
 inline bool cxRowLess(keel::c64 a, keel::c64 b)
 {
     const keel::f64 am = keel::abs(a), bm = keel::abs(b);
-    const bool an = std::isnan(am), bn = std::isnan(bm);
+    const bool an = keel::is_nan(am), bn = keel::is_nan(bm);
     if (an || bn) { if (an && bn) return false; return bn; }   // non-NaN < NaN
     if (am != bm) return am < bm;
     return keel::arg(a) < keel::arg(b);
@@ -683,7 +680,7 @@ Value collectTypedNonzeros(const Value &x, ValueType outType, Reader read, keel:
     auto r = Value::matrix(vals.size(), 1, outType, mr);
     if (!vals.empty()) {
         T *dst = typedDstFor<T>(r, outType);
-        std::memcpy(dst, vals.data(), vals.size() * sizeof(T));
+        keel::mem_copy(dst, vals.data(), vals.size() * sizeof(T));
     }
     return r;
 }
@@ -704,8 +701,8 @@ template <typename T>
 void cumIntegerScanInto(const Value &x, T *dst, keel::usize strideD, keel::usize lenD,
                         bool isProd)
 {
-    const keel::f64 lo = keel::as<keel::f64>(std::numeric_limits<T>::min());
-    const keel::f64 hi = keel::as<keel::f64>(std::numeric_limits<T>::max());
+    const keel::f64 lo = keel::as<keel::f64>(keel::Limits<T>::kMin);
+    const keel::f64 hi = keel::as<keel::f64>(keel::Limits<T>::kMax);
     const keel::usize n = x.numel();
     for (keel::usize i = 0; i < n; ++i) {
         const keel::usize coord = (i / strideD) % lenD;
@@ -822,7 +819,7 @@ void cumIntegerScanInto(const Value &x, T *dst, keel::usize strideD, keel::usize
     const keel::c64 *src = x.complexData();
     keel::c64 *dst = r.complexDataMut();
     auto isMissing = [](keel::c64 z) {
-        return std::isnan(z.real()) || std::isnan(z.imag());
+        return keel::is_nan(z.real()) || keel::is_nan(z.imag());
     };
     auto vBetter = [&](keel::c64 v, keel::c64 best) {
         const keel::f64 av = keel::abs(v), ab = keel::abs(best);
@@ -1142,7 +1139,7 @@ namespace {
     for (keel::i32 i = 0; i < nd; ++i) dims[i] = dd.dim(i);
     auto r = Value::matrixND(dims, nd, ValueType::COMPLEX, mr);
     if (x.numel() > 0)
-        std::memcpy(r.complexDataMut(), x.complexData(), x.numel() * sizeof(keel::c64));
+        keel::copy_n(r.complexDataMut(), x.complexData(), x.numel());
     return r;
 }
 
@@ -1155,8 +1152,7 @@ Value copyToDouble(const Value &x, keel::Allocator *mr)
     for (keel::i32 i = 0; i < nd; ++i) dims[i] = dd.dim(i);
     auto r = Value::matrixND(dims, nd, ValueType::DOUBLE, mr);
     if (x.type() == ValueType::DOUBLE) {
-        std::memcpy(r.doubleDataMut(), x.doubleData(),
-                    x.numel() * sizeof(keel::f64));
+        keel::copy_n(r.doubleDataMut(), x.doubleData(), x.numel());
     } else {
         keel::f64 *dst = r.doubleDataMut();
         for (keel::usize i = 0; i < x.numel(); ++i)
@@ -1178,8 +1174,8 @@ void diffOnceIntegerT(const T *src, T *dst, const Dims &srcDims, keel::i32 d)
     keel::usize outerCount = 1;
     for (keel::i32 i = d; i < nd; ++i) outerCount *= srcDims.dim(i);
     const keel::usize outSliceLen = sliceLen - 1;
-    const keel::f64 lo = keel::as<keel::f64>(std::numeric_limits<T>::min());
-    const keel::f64 hi = keel::as<keel::f64>(std::numeric_limits<T>::max());
+    const keel::f64 lo = keel::as<keel::f64>(keel::Limits<T>::kMin);
+    const keel::f64 hi = keel::as<keel::f64>(keel::Limits<T>::kMax);
     auto sub = [&](T a, T b) -> T {
         keel::f64 v = keel::as<keel::f64>(a) - keel::as<keel::f64>(b);
         if (v < lo) v = lo;

@@ -20,8 +20,6 @@
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
-#include <cmath>
-#include <limits>
 
 namespace numkit::linalg {
 
@@ -41,7 +39,7 @@ inline keel::usize lin(keel::usize i, keel::usize j, keel::usize R) { return i +
 inline keel::f64 absLin(const Value &x, keel::usize i)
 {
     return x.isComplex() ? keel::abs(x.complexData()[i])
-                         : std::fabs(x.elemAsDouble(i));
+                         : keel::abs(x.elemAsDouble(i));
 }
 
 // vecnorm's own contract: like the float family but logical is rejected
@@ -73,15 +71,15 @@ Value norm_value(const Value &x, keel::f64 p, keel::Allocator *mr)
         if (p == 2.0) {
             keel::f64 s = 0.0;
             for (keel::usize i = 0; i < n; ++i) { const keel::f64 a = absLin(x, i); s += a * a; }
-            return detail::narrowDoubleToSingleIf(Value::scalar(std::sqrt(s), mr), wantSingle, mr);
+            return detail::narrowDoubleToSingleIf(Value::scalar(keel::sqrt(s), mr), wantSingle, mr);
         } else if (p == 1.0) {
             keel::f64 s = 0.0;
             for (keel::usize i = 0; i < n; ++i) s += absLin(x, i);
             return detail::narrowDoubleToSingleIf(Value::scalar(s, mr), wantSingle, mr);
         } else {
             keel::f64 s = 0.0;
-            for (keel::usize i = 0; i < n; ++i) s += std::pow(absLin(x, i), p);
-            return detail::narrowDoubleToSingleIf(Value::scalar(std::pow(s, 1.0 / p), mr), wantSingle, mr);
+            for (keel::usize i = 0; i < n; ++i) s += keel::pow(absLin(x, i), p);
+            return detail::narrowDoubleToSingleIf(Value::scalar(keel::pow(s, 1.0 / p), mr), wantSingle, mr);
         }
     }
 
@@ -148,7 +146,7 @@ Value norm_fro(const Value &x, keel::Allocator *mr)
         return detail::narrowDoubleToSingleIf(Value::scalar(0.0, mr), wantSingle, mr);
     keel::f64 s = 0.0;
     for (keel::usize i = 0; i < n; ++i) { const keel::f64 a = absLin(x, i); s += a * a; }
-    return detail::narrowDoubleToSingleIf(Value::scalar(std::sqrt(s), mr), wantSingle, mr);
+    return detail::narrowDoubleToSingleIf(Value::scalar(keel::sqrt(s), mr), wantSingle, mr);
 }
 
 Value vecnorm(const Value &A, keel::f64 p, keel::i32 dim, keel::Allocator *mr)
@@ -173,20 +171,20 @@ Value vecnorm(const Value &A, keel::f64 p, keel::i32 dim, keel::Allocator *mr)
 
     auto p_norm = [&](auto getAbs, keel::usize n) -> keel::f64 {
         if (n == 0) return 0.0;
-        if (std::isinf(p) && p > 0) {
+        if (keel::is_inf(p) && p > 0) {
             keel::f64 m = 0.0;
             for (keel::usize k = 0; k < n; ++k) {
                 keel::f64 v = getAbs(k);
-                if (std::isnan(v)) return std::numeric_limits<keel::f64>::quiet_NaN();
+                if (keel::is_nan(v)) return keel::Limits<keel::f64>::quiet_nan();
                 if (v > m) m = v;
             }
             return m;
         }
-        if (std::isinf(p) && p < 0) {
-            keel::f64 m = std::numeric_limits<keel::f64>::infinity();
+        if (keel::is_inf(p) && p < 0) {
+            keel::f64 m = keel::Limits<keel::f64>::infinity();
             for (keel::usize k = 0; k < n; ++k) {
                 keel::f64 v = getAbs(k);
-                if (std::isnan(v)) return std::numeric_limits<keel::f64>::quiet_NaN();
+                if (keel::is_nan(v)) return keel::Limits<keel::f64>::quiet_nan();
                 if (v < m) m = v;
             }
             return m;
@@ -197,11 +195,11 @@ Value vecnorm(const Value &A, keel::f64 p, keel::i32 dim, keel::Allocator *mr)
                 keel::f64 v = getAbs(k);
                 s += v * v;
             }
-            return std::sqrt(s);
+            return keel::sqrt(s);
         }
         keel::f64 s = 0.0;
-        for (keel::usize k = 0; k < n; ++k) s += std::pow(getAbs(k), p);
-        return std::pow(s, 1.0 / p);
+        for (keel::usize k = 0; k < n; ++k) s += keel::pow(getAbs(k), p);
+        return keel::pow(s, 1.0 / p);
     };
 
     auto getAbs = [&](keel::usize i, keel::usize j) -> keel::f64 {

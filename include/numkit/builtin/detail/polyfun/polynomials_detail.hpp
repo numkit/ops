@@ -4,6 +4,7 @@
 #pragma once
 
 #include <keel/core.h>
+#include <keel/algo.h>
 #include <keel/memory.h>
 #include <keel/array.h>
 #include <keel/complex.h>
@@ -14,11 +15,8 @@
 #include <numkit/ops/reductions.hpp>  // engine-free numkit::builtin::detail dim-infra (ops re-export)
 
 #include <algorithm>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
-#include <limits>
 #include <numeric>
 #include <tuple>
 #include <utility>
@@ -76,7 +74,7 @@ keel::Array<keel::f64> readPolyAsDouble(const Value &p, const char *fn, keel::Al
 {
     auto out = Value::matrix(1, n, ValueType::DOUBLE, mr);
     if (n > 0)
-        std::memcpy(out.doubleDataMut(), v, n * sizeof(keel::f64));
+        keel::copy_n(out.doubleDataMut(), v, n);
     return out;
 }
 

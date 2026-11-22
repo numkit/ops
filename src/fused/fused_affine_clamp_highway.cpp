@@ -6,10 +6,10 @@
 // std::fmin/fmax NaN semantics so the result matches the per-op fallback.
 
 #include <keel/core.h>
+#include <keel/math.h>
 #include <numkit/ops/fused/fused_kernels.hpp>
 #include <numkit/ops/parallel_for.hpp>
 
-#include <cmath>
 #include <cstddef>
 
 #undef HWY_TARGET_INCLUDE
@@ -52,7 +52,7 @@ void AffineClampImpl(const keel::f64 *x, keel::f64 p0, keel::f64 p1, bool divide
     }
     for (; i < n; ++i) {
         const keel::f64 v = divide ? (x[i] - p0) / p1 : p0 * x[i] + p1;
-        out[i] = std::fmax(lo, std::fmin(hi, v));
+        out[i] = keel::fmax(lo, keel::fmin(hi, v));
     }
 }
 
@@ -75,7 +75,7 @@ void AffineClampMinOuterImpl(const keel::f64 *x, keel::f64 p0, keel::f64 p1, boo
     }
     for (; i < n; ++i) {
         const keel::f64 v = divide ? (x[i] - p0) / p1 : p0 * x[i] + p1;
-        out[i] = std::fmin(hi, std::fmax(lo, v));
+        out[i] = keel::fmin(hi, keel::fmax(lo, v));
     }
 }
 

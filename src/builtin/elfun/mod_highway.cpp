@@ -11,9 +11,9 @@
 // for; the a - trunc(a/b)*b approximation drifts from std::fmod.
 
 #include <keel/core.h>
+#include <keel/math.h>
 #include "mod_simd.hpp"
 
-#include <cmath>
 #include <cstddef>
 
 #undef HWY_TARGET_INCLUDE
@@ -44,7 +44,7 @@ void ModLoopVV(const keel::f64 *HWY_RESTRICT a, const keel::f64 *HWY_RESTRICT b,
     keel::usize i = 0;
     for (; i + N <= n; i += N)
         hn::StoreU(ModVec(d, hn::LoadU(d, a + i), hn::LoadU(d, b + i)), d, out + i);
-    for (; i < n; ++i) out[i] = (b[i] != 0) ? a[i] - std::floor(a[i] / b[i]) * b[i] : a[i];
+    for (; i < n; ++i) out[i] = (b[i] != 0) ? a[i] - keel::floor(a[i] / b[i]) * b[i] : a[i];
 }
 
 void ModLoopVS(const keel::f64 *HWY_RESTRICT a, keel::f64 s,
@@ -56,7 +56,7 @@ void ModLoopVS(const keel::f64 *HWY_RESTRICT a, keel::f64 s,
     keel::usize i = 0;
     for (; i + N <= n; i += N)
         hn::StoreU(ModVec(d, hn::LoadU(d, a + i), vs), d, out + i);
-    for (; i < n; ++i) out[i] = (s != 0) ? a[i] - std::floor(a[i] / s) * s : a[i];
+    for (; i < n; ++i) out[i] = (s != 0) ? a[i] - keel::floor(a[i] / s) * s : a[i];
 }
 
 void ModLoopSV(keel::f64 s, const keel::f64 *HWY_RESTRICT b,
@@ -68,7 +68,7 @@ void ModLoopSV(keel::f64 s, const keel::f64 *HWY_RESTRICT b,
     keel::usize i = 0;
     for (; i + N <= n; i += N)
         hn::StoreU(ModVec(d, vs, hn::LoadU(d, b + i)), d, out + i);
-    for (; i < n; ++i) out[i] = (b[i] != 0) ? s - std::floor(s / b[i]) * b[i] : s;
+    for (; i < n; ++i) out[i] = (b[i] != 0) ? s - keel::floor(s / b[i]) * b[i] : s;
 }
 
 } // namespace HWY_NAMESPACE

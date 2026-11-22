@@ -1,6 +1,7 @@
 // toolboxes/signal/src/digital_filtering/filter.cpp
 
 #include <keel/core.h>
+#include <keel/algo.h>
 #include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/arena.h>
@@ -17,7 +18,6 @@
 #include "filter_detail.hpp"
 
 #include <algorithm>
-#include <cstring>
 
 namespace numkit::signal {
 
@@ -249,10 +249,9 @@ static FilterState runFilter(const FilterPlan &p, const Value &b,
                                    xd + s * p.sigLen, p.sigLen,
                                    ziRun, ziRunLen,
                                    p.stateLen ? zf.data() : nullptr, scratch.allocator());
-        std::memcpy(y + s * p.sigLen, out.data(), p.sigLen * sizeof(keel::f64));
+        keel::copy_n(y + s * p.sigLen, out.data(), p.sigLen);
         if (p.stateLen)
-            std::memcpy(zfData + s * p.stateLen, zf.data(),
-                        p.stateLen * sizeof(keel::f64));
+            keel::copy_n(zfData + s * p.stateLen, zf.data(), p.stateLen);
     }
     return {std::move(r), std::move(zfv)};
 }
@@ -371,7 +370,7 @@ Value filtfilt(const Value &b, const Value &a, const Value &x, keel::Allocator *
     auto r = createLike(x, ValueType::DOUBLE, mr);
     keel::f64 *y = r.doubleDataMut();
     if (nx > 0)
-        std::memcpy(y, bwd.data() + nEdge, nx * sizeof(keel::f64));
+        keel::copy_n(y, bwd.data() + nEdge, nx);
     return r;
 }
 

@@ -21,7 +21,6 @@
 #include "keel/fft.h"
 
 #include <algorithm>
-#include <cmath>
 
 // ── Low-level kernel forwarders to keel::fft::fft_kernels ───────────────────
 namespace numkit::ops::detail {

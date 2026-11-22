@@ -1,6 +1,7 @@
 // toolboxes/builtin/src/datatypes/strings/print.cpp
 
 #include <keel/core.h>
+#include <keel/math.h>
 #include <keel/string.h>
 #include <numkit/builtin/strfun.hpp>
 
@@ -8,9 +9,7 @@
 #include <numkit/value/shape_ops.hpp>
 #include <numkit/value/error.hpp>
 
-#include <cmath>
 #include <cstdio>
-#include <cstring>
 #include <cstdint>
 
 namespace numkit::builtin {
@@ -61,7 +60,7 @@ keel::String dispFormat(const Value &a)
                 for (keel::usize c = 0; c < d.cols(); ++c) {
                     if (c > 0) out.push_back(' ');
                     keel::f64 v = a(0, c);
-                    if (v == std::floor(v) && std::isfinite(v))
+                    if (v == keel::floor(v) && keel::is_finite(v))
                         appendLL(keel::as<keel::i64>(v));
                     else
                         appendDouble(v);
@@ -72,7 +71,7 @@ keel::String dispFormat(const Value &a)
                     if (r > 0) out.push_back('\n');
                     keel::f64 v = a(r, 0);
                     out.append("   ");
-                    if (v == std::floor(v) && std::isfinite(v))
+                    if (v == keel::floor(v) && keel::is_finite(v))
                         appendLL(keel::as<keel::i64>(v));
                     else
                         appendDouble(v);
@@ -97,7 +96,7 @@ keel::String dispFormat(const Value &a)
                         for (keel::usize c = 0; c < C; ++c) {
                             keel::f64 v = page[c * R + r];
                             out.push_back(' ');
-                            if (v == std::floor(v) && std::isfinite(v))
+                            if (v == keel::floor(v) && keel::is_finite(v))
                                 appendLL(keel::as<keel::i64>(v));
                             else
                                 appendDouble(v);

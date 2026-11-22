@@ -16,13 +16,12 @@
 #pragma once
 
 #include <keel/core.h>
+#include <keel/math.h>
 #include <keel/memory.h>
 #include <numkit/ops/matlab_mt19937.hpp>
 #include <numkit/value/value.hpp>
 
-#include <cmath>    // v4Normal: std::sqrt / std::log
 #include <cstdint>
-#include <cstring>
 
 namespace numkit::ops {
 
@@ -212,14 +211,11 @@ public:
         j ^= (j >> 17);
         j ^= (j << 5);
         v5SwbJ_ = j;
-        keel::u64 xb = 0;
-        std::memcpy(&xb, &x, sizeof(xb));
+        keel::u64 xb = keel::bit_cast<keel::u64>(x);
         const keel::u64 mask = (keel::as<keel::u64>(j & 0xFFFFFu) << 32)
                                  | keel::as<keel::u64>(jPrev);
         xb ^= mask;
-        keel::f64 r = 0.0;
-        std::memcpy(&r, &xb, sizeof(r));
-        return r;
+        return keel::bit_cast<keel::f64>(xb);
     }
     const keel::f64 *v5SwbZ() const noexcept { return v5SwbZ_; }
     keel::usize v5SwbIdx() const noexcept { return v5SwbIdx_; }
@@ -237,7 +233,7 @@ public:
             const keel::f64 v2 = 2.0 * v4RandnUniform() - 1.0;
             const keel::f64 s = v1 * v1 + v2 * v2;
             if (s > 0.0 && s < 1.0)
-                return v1 * std::sqrt(-2.0 * std::log(s) / s);
+                return v1 * keel::sqrt(-2.0 * keel::log(s) / s);
         }
     }
     keel::f64 v5Normal();

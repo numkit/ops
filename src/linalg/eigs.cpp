@@ -21,7 +21,6 @@
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
-#include <cmath>
 #include <numeric>
 
 namespace numkit::linalg {
@@ -34,7 +33,7 @@ struct EigenPair {
 };
 
 bool isFiniteComplex(const keel::c64 &c) {
-    return std::isfinite(c.real()) && std::isfinite(c.imag());
+    return keel::is_finite(c.real()) && keel::is_finite(c.imag());
 }
 
 void sortEigenPairsBySigma(keel::Array<EigenPair> &pairs, keel::usize k, const Value &sigma)

@@ -20,11 +20,10 @@
 // scalar-ly before entering the SIMD loop.
 
 #include <keel/core.h>
+#include <keel/math.h>
 #include "cumsum.hpp"
 
-#include <cmath>
 #include <cstddef>
-#include <limits>
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "builtin/datafun/cumsum_highway.cpp"
@@ -134,7 +133,7 @@ void CummaxScanLoopBody(const keel::f64 *HWY_RESTRICT src,
 {
     const hn::ScalableTag<keel::f64> d;
     const keel::usize N = hn::Lanes(d);
-    constexpr keel::f64 NEG_INF = -std::numeric_limits<keel::f64>::infinity();
+    constexpr keel::f64 NEG_INF = -keel::Limits<keel::f64>::infinity();
     const auto neg_inf_v = hn::Set(d, NEG_INF);
 
     keel::f64 carry = initialCarry;
@@ -150,7 +149,7 @@ void CummaxScanLoopBody(const keel::f64 *HWY_RESTRICT src,
     }
     for (; i < n; ++i) {
         const keel::f64 xi = src[i];
-        if (!std::isnan(xi) && xi > carry) carry = xi;
+        if (!keel::is_nan(xi) && xi > carry) carry = xi;
         dst[i] = carry;
     }
 }
@@ -161,7 +160,7 @@ void CumminScanLoopBody(const keel::f64 *HWY_RESTRICT src,
 {
     const hn::ScalableTag<keel::f64> d;
     const keel::usize N = hn::Lanes(d);
-    constexpr keel::f64 POS_INF = std::numeric_limits<keel::f64>::infinity();
+    constexpr keel::f64 POS_INF = keel::Limits<keel::f64>::infinity();
     const auto pos_inf_v = hn::Set(d, POS_INF);
 
     keel::f64 carry = initialCarry;
@@ -177,7 +176,7 @@ void CumminScanLoopBody(const keel::f64 *HWY_RESTRICT src,
     }
     for (; i < n; ++i) {
         const keel::f64 xi = src[i];
-        if (!std::isnan(xi) && xi < carry) carry = xi;
+        if (!keel::is_nan(xi) && xi < carry) carry = xi;
         dst[i] = carry;
     }
 }
@@ -213,8 +212,8 @@ namespace {
 keel::usize copyLeadingNaN(const keel::f64 *src, keel::f64 *dst, keel::usize n)
 {
     keel::usize i = 0;
-    for (; i < n && std::isnan(src[i]); ++i)
-        dst[i] = std::nan("");
+    for (; i < n && keel::is_nan(src[i]); ++i)
+        dst[i] = keel::kNaN;
     return i;
 }
 

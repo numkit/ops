@@ -7,6 +7,8 @@
 #pragma once
 
 #include <keel/core.h>
+#include <keel/algo.h>
+#include <keel/math.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
 #include <keel/string.h>
@@ -15,9 +17,6 @@
 #include <keel/utf8.h>
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
-#include <cmath>
-#include <cstring>
-#include <limits>
 
 namespace numkit::ops {
 
@@ -36,25 +35,25 @@ inline SizeSpec parseReadSize(const Value &sz, const char *fn)
 {
     if (sz.isScalar()) {
         keel::f64 s = sz.toScalar();
-        if (std::isinf(s))
+        if (keel::is_inf(s))
             return SizeSpec{SizeSpec::Kind::Flat, SIZE_MAX, 0, 0};
-        if (s < 0 || !std::isfinite(s))
+        if (s < 0 || !keel::is_finite(s))
             throw Error(keel::format("{}: size must be Inf or a non-negative integer", fn));
         return SizeSpec{SizeSpec::Kind::Flat, keel::as<keel::usize>(s), 0, 0};
     }
     if (sz.numel() == 2) {
         keel::f64 r = sz(0);
         keel::f64 c = sz(1);
-        if (r < 0 || !std::isfinite(r) || std::isinf(r))
+        if (r < 0 || !keel::is_finite(r) || keel::is_inf(r))
             throw Error(keel::format("{}: rows in [m n] must be finite non-negative", fn));
         keel::usize rows = keel::as<keel::usize>(r);
         keel::usize cols;
         keel::usize limit;
-        if (std::isinf(c)) {
+        if (keel::is_inf(c)) {
             cols = SIZE_MAX;
             limit = SIZE_MAX;
         } else {
-            if (c < 0 || !std::isfinite(c))
+            if (c < 0 || !keel::is_finite(c))
                 throw Error(keel::format("{}: cols in [m n] must be finite non-negative or Inf", fn));
             cols = keel::as<keel::usize>(c);
             limit = rows * cols;
@@ -71,7 +70,7 @@ inline Value shapeFreadOutput(const keel::f64 *values, keel::usize n,
         if (n == 0)
             return Value::matrix(0, 0, ValueType::DOUBLE, mr);
         Value M = Value::matrix(n, 1, ValueType::DOUBLE, mr);
-        std::memcpy(M.doubleDataMut(), values, n * sizeof(keel::f64));
+        keel::copy_n(M.doubleDataMut(), values, n);
         return M;
     }
     keel::usize cols_out = (sz.cols == SIZE_MAX)
@@ -80,7 +79,7 @@ inline Value shapeFreadOutput(const keel::f64 *values, keel::usize n,
     if (sz.rows == 0 || cols_out == 0)
         return Value::matrix(sz.rows, cols_out, ValueType::DOUBLE, mr);
     Value M = Value::matrix(sz.rows, cols_out, ValueType::DOUBLE, mr);
-    std::memcpy(M.doubleDataMut(), values, n * sizeof(keel::f64));
+    keel::copy_n(M.doubleDataMut(), values, n);
     return M;
 }
 

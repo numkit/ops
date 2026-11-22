@@ -29,9 +29,7 @@
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
-#include <cmath>
 #include <cstdint>
-#include <limits>
 
 namespace numkit::linalg {
 
@@ -51,8 +49,8 @@ namespace {
 keel::f64 defaultRankTol(keel::usize m, keel::usize n, keel::f64 sigma_max, bool isSingle = false)
 {
     const keel::f64 eps = isSingle
-        ? keel::as<keel::f64>(std::numeric_limits<keel::f32>::epsilon())
-        : std::numeric_limits<keel::f64>::epsilon();
+        ? keel::as<keel::f64>(keel::Limits<keel::f32>::kEpsilon)
+        : keel::Limits<keel::f64>::kEpsilon;
     return keel::as<keel::f64>(std::max(m, n)) * sigma_max * eps;
 }
 
@@ -102,7 +100,7 @@ Value inv(const Value &A, keel::Allocator *mr)
         for (keel::usize i = 0; i < n; ++i) I_buf[i + i * n] = keel::c64(1.0, 0.0);
         Value out = Value::complexMatrix(n, n, mr);
         if (!numkit::ops::la_solve(A.complexData(), n, n, I_buf.data(), n, out.complexDataMut(), mr)) {
-            const keel::f64 inf = std::numeric_limits<keel::f64>::infinity();
+            const keel::f64 inf = keel::Limits<keel::f64>::infinity();
             for (keel::usize i = 0; i < n * n; ++i) out.complexDataMut()[i] = keel::c64(inf, 0.0);
         }
         return detail::narrow_if_real(out, mr);
@@ -116,7 +114,7 @@ Value inv(const Value &A, keel::Allocator *mr)
 
     Value out = Value::matrix(n, n, ValueType::DOUBLE, mr);
     if (!numkit::ops::la_solve(Aw.doubleData(), n, n, I_buf.data(), n, out.doubleDataMut(), mr)) {
-        const keel::f64 inf = std::numeric_limits<keel::f64>::infinity();
+        const keel::f64 inf = keel::Limits<keel::f64>::infinity();
         std::fill(out.doubleDataMut(), out.doubleDataMut() + n * n, inf);
     }
     return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
@@ -241,12 +239,12 @@ Value cond_2norm(const Value &A, keel::Allocator *mr)
     auto sv = svd_values(Aw, mr);
     const keel::usize k = sv.numel();
     if (k == 0)
-        return detail::narrowDoubleToSingleIf(Value::scalar(std::numeric_limits<keel::f64>::quiet_NaN(), mr), wantSingle, mr);
+        return detail::narrowDoubleToSingleIf(Value::scalar(keel::Limits<keel::f64>::quiet_nan(), mr), wantSingle, mr);
     const keel::f64 *s = sv.doubleData();
     const keel::f64 sigma_max = s[0];
     const keel::f64 sigma_min = s[k - 1];
     if (sigma_min <= 0.0)
-        return detail::narrowDoubleToSingleIf(Value::scalar(std::numeric_limits<keel::f64>::infinity(), mr), wantSingle, mr);
+        return detail::narrowDoubleToSingleIf(Value::scalar(keel::Limits<keel::f64>::infinity(), mr), wantSingle, mr);
     return detail::narrowDoubleToSingleIf(Value::scalar(sigma_max / sigma_min, mr), wantSingle, mr);
 }
 
@@ -280,17 +278,17 @@ Value cond_pnorm(const Value &A, keel::i32 p_kind, keel::Allocator *mr)
 
     const keel::f64 an = norm_for_kind(A);
     if (an == 0.0)
-        return detail::narrowDoubleToSingleIf(Value::scalar(std::numeric_limits<keel::f64>::infinity(), mr), wantSingle, mr);
+        return detail::narrowDoubleToSingleIf(Value::scalar(keel::Limits<keel::f64>::infinity(), mr), wantSingle, mr);
 
     Value Ainv;
     try {
         Ainv = inv(A, mr);
     } catch (...) {
-        return detail::narrowDoubleToSingleIf(Value::scalar(std::numeric_limits<keel::f64>::infinity(), mr), wantSingle, mr);
+        return detail::narrowDoubleToSingleIf(Value::scalar(keel::Limits<keel::f64>::infinity(), mr), wantSingle, mr);
     }
     const keel::f64 in = norm_for_kind(Ainv);
-    if (!std::isfinite(in))
-        return detail::narrowDoubleToSingleIf(Value::scalar(std::numeric_limits<keel::f64>::infinity(), mr), wantSingle, mr);
+    if (!keel::is_finite(in))
+        return detail::narrowDoubleToSingleIf(Value::scalar(keel::Limits<keel::f64>::infinity(), mr), wantSingle, mr);
     return detail::narrowDoubleToSingleIf(Value::scalar(an * in, mr), wantSingle, mr);
 }
 
@@ -324,7 +322,7 @@ Value rcond(const Value &A, keel::Allocator *mr)
                     0, 0, "rcond", "", "numkit:rcond:NotSquare");
     const bool wantSingle = A.type() == ValueType::SINGLE;
     if (M == 0)
-        return detail::narrowDoubleToSingleIf(Value::scalar(std::numeric_limits<keel::f64>::infinity(), mr), wantSingle, mr);
+        return detail::narrowDoubleToSingleIf(Value::scalar(keel::Limits<keel::f64>::infinity(), mr), wantSingle, mr);
 
     const keel::f64 anorm = value_one_norm(A, M, N);
     if (anorm == 0.0)
@@ -337,7 +335,7 @@ Value rcond(const Value &A, keel::Allocator *mr)
         return detail::narrowDoubleToSingleIf(Value::scalar(0.0, mr), wantSingle, mr);
     }
     const keel::f64 inv_norm = value_one_norm(Ainv, M, N);
-    if (!std::isfinite(inv_norm) || inv_norm == 0.0)
+    if (!keel::is_finite(inv_norm) || inv_norm == 0.0)
         return detail::narrowDoubleToSingleIf(Value::scalar(0.0, mr), wantSingle, mr);
     return detail::narrowDoubleToSingleIf(Value::scalar(1.0 / (anorm * inv_norm), mr), wantSingle, mr);
 }
@@ -359,17 +357,17 @@ Value condest(const Value &A, keel::Allocator *mr)
 
     const keel::f64 anorm = value_one_norm(A, M, N);
     if (anorm == 0.0)
-        return detail::narrowDoubleToSingleIf(Value::scalar(std::numeric_limits<keel::f64>::infinity(), mr), wantSingle, mr);
+        return detail::narrowDoubleToSingleIf(Value::scalar(keel::Limits<keel::f64>::infinity(), mr), wantSingle, mr);
 
     Value Ainv;
     try {
         Ainv = inv(A, mr);
     } catch (...) {
-        return detail::narrowDoubleToSingleIf(Value::scalar(std::numeric_limits<keel::f64>::infinity(), mr), wantSingle, mr);
+        return detail::narrowDoubleToSingleIf(Value::scalar(keel::Limits<keel::f64>::infinity(), mr), wantSingle, mr);
     }
     const keel::f64 inv_norm = value_one_norm(Ainv, M, N);
-    if (!std::isfinite(inv_norm))
-        return detail::narrowDoubleToSingleIf(Value::scalar(std::numeric_limits<keel::f64>::infinity(), mr), wantSingle, mr);
+    if (!keel::is_finite(inv_norm))
+        return detail::narrowDoubleToSingleIf(Value::scalar(keel::Limits<keel::f64>::infinity(), mr), wantSingle, mr);
     return detail::narrowDoubleToSingleIf(Value::scalar(anorm * inv_norm, mr), wantSingle, mr);
 }
 
@@ -397,9 +395,9 @@ Value condeig(const Value &A, keel::Allocator *mr)
             const keel::f64 tol = 1e-10;
             for (keel::usize i = 0; i < n; ++i)
                 for (keel::usize j = i + 1; j < n; ++j) {
-                    const keel::f64 d = std::fabs(p[i + j * n] - p[j + i * n]);
-                    const keel::f64 s = std::max(std::fabs(p[i + j * n]),
-                                               std::fabs(p[j + i * n]));
+                    const keel::f64 d = keel::abs(p[i + j * n] - p[j + i * n]);
+                    const keel::f64 s = std::max(keel::abs(p[i + j * n]),
+                                               keel::abs(p[j + i * n]));
                     if (d > tol * (1.0 + s)) return false;
                 }
             return true;
@@ -435,12 +433,12 @@ Value condeig(const Value &A, keel::Allocator *mr)
             keel::f64 v_norm = 0.0;
             for (keel::usize k = 0; k < n; ++k)
                 v_norm += keel::norm(vd[k + i * n]);
-            v_norm = std::sqrt(v_norm);
+            v_norm = keel::sqrt(v_norm);
 
             keel::f64 w_norm = 0.0;
             for (keel::usize k = 0; k < n; ++k)
                 w_norm += keel::norm(Vinv[i + k * n]);
-            w_norm = std::sqrt(w_norm);
+            w_norm = keel::sqrt(w_norm);
 
             keel::c64 dot(0.0, 0.0);
             for (keel::usize k = 0; k < n; ++k)
@@ -448,7 +446,7 @@ Value condeig(const Value &A, keel::Allocator *mr)
 
             const keel::f64 abs_dot = keel::abs(dot);
             if (abs_dot < 1e-300) {
-                s[i] = std::numeric_limits<keel::f64>::infinity();
+                s[i] = keel::Limits<keel::f64>::infinity();
             } else {
                 s[i] = v_norm * w_norm / abs_dot;
             }
@@ -472,23 +470,23 @@ Value condeig(const Value &A, keel::Allocator *mr)
         keel::f64 v_norm = 0.0;
         for (keel::usize k = 0; k < n; ++k)
             v_norm += vd[k + i * n] * vd[k + i * n];
-        v_norm = std::sqrt(v_norm);
+        v_norm = keel::sqrt(v_norm);
 
         keel::f64 w_norm = 0.0;
         for (keel::usize k = 0; k < n; ++k) {
             const keel::f64 w_k = Vinv[i + k * n];
             w_norm += w_k * w_k;
         }
-        w_norm = std::sqrt(w_norm);
+        w_norm = keel::sqrt(w_norm);
 
         keel::f64 dot = 0.0;
         for (keel::usize k = 0; k < n; ++k)
             dot += Vinv[i + k * n] * vd[k + i * n];
 
-        if (std::fabs(dot) < 1e-300) {
-            s[i] = std::numeric_limits<keel::f64>::infinity();
+        if (keel::abs(dot) < 1e-300) {
+            s[i] = keel::Limits<keel::f64>::infinity();
         } else {
-            s[i] = v_norm * w_norm / std::fabs(dot);
+            s[i] = v_norm * w_norm / keel::abs(dot);
         }
     }
     return detail::narrowDoubleToSingleIf(out, wantSingle, mr);

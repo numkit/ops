@@ -9,11 +9,8 @@
 #include <numkit/ops/reductions.hpp>
 
 #include <algorithm>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
-#include <limits>
 #include <numeric>
 #include <tuple>
 #include <utility>
@@ -24,19 +21,19 @@ namespace numkit::builtin {
 namespace {
 
 inline keel::i8 saturateNeg(keel::i8 v) {
-    if (v == std::numeric_limits<keel::i8>::min()) return std::numeric_limits<keel::i8>::max();
+    if (v == keel::Limits<keel::i8>::kMin) return keel::Limits<keel::i8>::kMax;
     return keel::as<keel::i8>(-v);
 }
 inline keel::i16 saturateNeg(keel::i16 v) {
-    if (v == std::numeric_limits<keel::i16>::min()) return std::numeric_limits<keel::i16>::max();
+    if (v == keel::Limits<keel::i16>::kMin) return keel::Limits<keel::i16>::kMax;
     return keel::as<keel::i16>(-v);
 }
 inline keel::i32 saturateNeg(keel::i32 v) {
-    if (v == std::numeric_limits<keel::i32>::min()) return std::numeric_limits<keel::i32>::max();
+    if (v == keel::Limits<keel::i32>::kMin) return keel::Limits<keel::i32>::kMax;
     return keel::as<keel::i32>(-v);
 }
 inline keel::i64 saturateNeg(keel::i64 v) {
-    if (v == std::numeric_limits<keel::i64>::min()) return std::numeric_limits<keel::i64>::max();
+    if (v == keel::Limits<keel::i64>::kMin) return keel::Limits<keel::i64>::kMax;
     return keel::as<keel::i64>(-v);
 }
 
@@ -113,7 +110,7 @@ inline Value transpose2D(const Value &x, bool conjugate, const char *fnName,
     char *dst = static_cast<char *>(r.rawDataMut());
     for (keel::usize i = 0; i < rows; ++i)
         for (keel::usize j = 0; j < cols; ++j)
-            std::memcpy(dst + (i * cols + j) * es,
+            keel::mem_copy(dst + (i * cols + j) * es,
                         src + (j * rows + i) * es, es);
     return r;
 }

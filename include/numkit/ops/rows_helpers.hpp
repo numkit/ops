@@ -7,10 +7,10 @@
 #pragma once
 
 #include <keel/core.h>
+#include <keel/math.h>
 #include <keel/memory.h>
 #include <numkit/value/value.hpp>
 
-#include <cmath>
 #include <cstddef>
 
 namespace numkit::ops {
@@ -25,8 +25,8 @@ inline keel::i32 rowLexCmp(const keel::f64 *p, keel::usize cols, keel::usize row
     for (keel::usize c = 0; c < cols; ++c) {
         const keel::f64 av = p[c * rows + a];
         const keel::f64 bv = p[c * rows + b];
-        const bool aNan = std::isnan(av);
-        const bool bNan = std::isnan(bv);
+        const bool aNan = keel::is_nan(av);
+        const bool bNan = keel::is_nan(bv);
         if (aNan && bNan) continue;
         if (aNan) return  1;
         if (bNan) return -1;
@@ -53,8 +53,8 @@ inline keel::i32 rowLexCmpByCols(const keel::f64 *p, keel::usize totalCols,
         (void) totalCols;  // caller validated rawCol in range
         const keel::f64 av = p[cIdx * rows + a];
         const keel::f64 bv = p[cIdx * rows + b];
-        const bool aNan = std::isnan(av);
-        const bool bNan = std::isnan(bv);
+        const bool aNan = keel::is_nan(av);
+        const bool bNan = keel::is_nan(bv);
         if (aNan && bNan) continue;
         // NaN goes to the end on ascending; flip on descending.
         if (aNan) return desc ? -1 :  1;

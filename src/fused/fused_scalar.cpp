@@ -23,10 +23,10 @@
 // inline gates / fused_kernels_portable.cpp.
 
 #include <keel/core.h>
+#include <keel/math.h>
 #include <numkit/ops/compiler.hpp>
 #include <numkit/ops/fused/fused_kernels.hpp>
 
-#include <cmath>
 #include <cstddef>
 
 namespace numkit::ops {
@@ -38,17 +38,17 @@ NUMKIT_NOINLINE void fusedAffineScalar(const keel::f64 *x, keel::f64 scale, keel
 
 NUMKIT_NOINLINE void fusedAbsAffineScalar(const keel::f64 *x, keel::f64 scale, keel::f64 offset,
                                           keel::f64 *out, keel::usize n) {
-    for (keel::usize i = 0; i < n; ++i) out[i] = std::fabs(scale * x[i] + offset);
+    for (keel::usize i = 0; i < n; ++i) out[i] = keel::abs(scale * x[i] + offset);
 }
 
 NUMKIT_NOINLINE void fusedAbsShiftDivScalar(const keel::f64 *x, keel::f64 sub, keel::f64 div,
                                             keel::f64 *out, keel::usize n) {
-    for (keel::usize i = 0; i < n; ++i) out[i] = std::fabs((x[i] - sub) / div);
+    for (keel::usize i = 0; i < n; ++i) out[i] = keel::abs((x[i] - sub) / div);
 }
 
 NUMKIT_NOINLINE void fusedAbsDiffScalar(const keel::f64 *x, const keel::f64 *y,
                                         keel::f64 *out, keel::usize n) {
-    for (keel::usize i = 0; i < n; ++i) out[i] = std::fabs(x[i] - y[i]);
+    for (keel::usize i = 0; i < n; ++i) out[i] = keel::abs(x[i] - y[i]);
 }
 
 NUMKIT_NOINLINE void fusedSqAffineScalar(const keel::f64 *x, keel::f64 scale, keel::f64 offset,

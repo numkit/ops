@@ -1,6 +1,7 @@
 // toolboxes/builtin/src/lang/arrays/matrix.cpp
 
 #include <keel/core.h>
+#include <keel/algo.h>
 #include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
@@ -26,10 +27,7 @@
 #include <numkit/builtin/ops.hpp>  // transposeNC()
 
 #include <algorithm>
-#include <cmath>
 #include <cstdint>
-#include <cstring>
-#include <limits>
 #include <type_traits>
 
 #include "matrix_detail.hpp"
@@ -750,7 +748,7 @@ Value reshape(const Value &x, keel::usize rows, keel::usize cols, keel::usize pa
 
     auto r = createMatrix(d, x.type(), mr);
     if (x.rawBytes() > 0)
-        std::memcpy(r.rawDataMut(), x.rawData(), x.rawBytes());
+        keel::mem_copy(r.rawDataMut(), x.rawData(), x.rawBytes());
     return r;
 }
 
@@ -784,7 +782,7 @@ Value reshapeND(const Value &x, keel::ArrayRef<keel::usize> dims, keel::Allocato
 
     auto r = createMatrixND(dims.data(), nDims, x.type(), mr);
     if (x.rawBytes() > 0)
-        std::memcpy(r.rawDataMut(), x.rawData(), x.rawBytes());
+        keel::mem_copy(r.rawDataMut(), x.rawData(), x.rawBytes());
     return r;
 }
 
@@ -833,8 +831,8 @@ Surface3 sphere(keel::usize n, keel::Allocator *mr)
     for (keel::usize i = 0; i < m; ++i) {
         const keel::f64 phi = (2.0 * keel::as<keel::f64>(i) - keel::as<keel::f64>(n))
                               / keel::as<keel::f64>(n) * (kPi / 2.0);
-        cosPhi[i] = std::cos(phi);
-        sinPhi[i] = std::sin(phi);
+        cosPhi[i] = keel::cos(phi);
+        sinPhi[i] = keel::sin(phi);
     }
     cosPhi[0] = 0.0;
     cosPhi[m - 1] = 0.0;
@@ -844,8 +842,8 @@ Surface3 sphere(keel::usize n, keel::Allocator *mr)
     for (keel::usize j = 0; j < m; ++j) {
         const keel::f64 theta = (2.0 * keel::as<keel::f64>(j) - keel::as<keel::f64>(n))
                                 / keel::as<keel::f64>(n) * kPi;
-        cosTh[j] = std::cos(theta);
-        sinTh[j] = std::sin(theta);
+        cosTh[j] = keel::cos(theta);
+        sinTh[j] = keel::sin(theta);
     }
     sinTh[0] = 0.0;
     sinTh[m - 1] = 0.0;
@@ -883,7 +881,7 @@ Surface3 cylinder(const Value &R, keel::usize n, keel::Allocator *mr)
     const keel::f64 *Rd = R.doubleData();
     for (keel::usize j = 0; j < cols; ++j) {
         const keel::f64 theta = 2.0 * kPi * keel::as<keel::f64>(j) / keel::as<keel::f64>(n);
-        const keel::f64 ct = std::cos(theta), st = std::sin(theta);
+        const keel::f64 ct = keel::cos(theta), st = keel::sin(theta);
         for (keel::usize i = 0; i < rows; ++i) {
             const keel::usize k = j * rows + i;
             xd[k] = Rd[i] * ct;
@@ -930,11 +928,11 @@ Value peaks(keel::usize n, keel::Allocator *mr)
             const keel::f64 xm1   = 1.0 - x;
             const keel::f64 yp1   = y + 1.0;
             const keel::f64 term1 = 3.0 * xm1 * xm1
-                                  * std::exp(-(x * x) - yp1 * yp1);
+                                  * keel::exp(-(x * x) - yp1 * yp1);
             const keel::f64 term2 = -10.0 * (x / 5.0 - x * x * x - y * y * y * y * y)
-                                  * std::exp(-(x * x) - (y * y));
+                                  * keel::exp(-(x * x) - (y * y));
             const keel::f64 xp1   = x + 1.0;
-            const keel::f64 term3 = -std::exp(-(xp1 * xp1) - (y * y)) / 3.0;
+            const keel::f64 term3 = -keel::exp(-(xp1 * xp1) - (y * y)) / 3.0;
             zd[j * n + i] = term1 + term2 + term3;
         }
     }
@@ -1010,7 +1008,7 @@ Value diag(const Value &x, keel::i32 k, keel::Allocator *mr)
         for (keel::usize i = 0; i < n; ++i) {
             const keel::usize row = (k >= 0) ? i : i + ak;
             const keel::usize col = (k >= 0) ? i + ak : i;
-            std::memcpy(dst + (col * m + row) * es, src + i * es, es);  // col-major
+            keel::mem_copy(dst + (col * m + row) * es, src + i * es, es);  // col-major
         }
         return r;
     }
@@ -1027,7 +1025,7 @@ Value diag(const Value &x, keel::i32 k, keel::Allocator *mr)
     char *dst = static_cast<char *>(r.rawDataMut());
     for (keel::usize i = 0; i < len; ++i) {
         const keel::usize row = row0 + i, col = col0 + i;
-        std::memcpy(dst + i * es, src + (col * R + row) * es, es);  // x col-major
+        keel::mem_copy(dst + i * es, src + (col * R + row) * es, es);  // x col-major
     }
     return r;
 }
@@ -1076,7 +1074,7 @@ std::tuple<Value, Value> sortComplex(const Value &x, keel::i32 dim, bool descend
                 std::stable_sort(buf.begin(), buf.end(),
                           [descend, nanFirst](const auto &a, const auto &b) {
                               const keel::f64 am = keel::abs(a.first), bm = keel::abs(b.first);
-                              const bool an = std::isnan(am), bn = std::isnan(bm);
+                              const bool an = keel::is_nan(am), bn = keel::is_nan(bm);
                               if (an || bn) {
                                   if (an && bn) return false;
                                   return nanFirst ? an : bn;
@@ -1145,7 +1143,7 @@ std::tuple<Value, Value> sort(const Value &x, keel::i32 dim, bool descend,
                 std::stable_sort(buf.begin(), buf.end(),
                           [descend, nanFirst](const auto &a, const auto &b) {
                               const keel::f64 av = a.first, bv = b.first;
-                              const bool an = std::isnan(av), bn = std::isnan(bv);
+                              const bool an = keel::is_nan(av), bn = keel::is_nan(bv);
                               if (an || bn) {
                                   if (an && bn) return false;
                                   return nanFirst ? an : bn;
@@ -1195,7 +1193,7 @@ Value find(const Value &x, keel::Allocator *mr)
     auto r = rowResult ? Value::matrix(1, indices.size(), ValueType::DOUBLE, mr)
                        : Value::matrix(indices.size(), 1, ValueType::DOUBLE, mr);
     if (!indices.empty())
-        std::memcpy(r.doubleDataMut(), indices.data(), indices.size() * sizeof(keel::f64));
+        keel::copy_n(r.doubleDataMut(), indices.data(), indices.size());
     return r;
 }
 
@@ -1534,8 +1532,8 @@ Value cummax(const Value &x, keel::i32 dim, keel::Allocator *mr)
     // and propagates otherwise. Default = 'omitnan' since R2018a; we
     // skip NaN here, treating them as identity.
     return cumScanDispatch(x, dim, numkit::builtin::cummaxScan, [](keel::f64 a, keel::f64 b) {
-                               if (std::isnan(b)) return a;
-                               if (std::isnan(a)) return b;
+                               if (keel::is_nan(b)) return a;
+                               if (keel::is_nan(a)) return b;
                                return std::max(a, b);
                            }, "cummax", mr);
 }
@@ -1550,8 +1548,8 @@ Value cummin(const Value &x, keel::i32 dim, keel::Allocator *mr)
         return cumComplexMinMaxAlongDim(x, dim <= 0 ? firstNonSingletonDim(x) : dim,
                                         /*isMax=*/false, mr);
     return cumScanDispatch(x, dim, numkit::builtin::cumminScan, [](keel::f64 a, keel::f64 b) {
-                               if (std::isnan(b)) return a;
-                               if (std::isnan(a)) return b;
+                               if (keel::is_nan(b)) return a;
+                               if (keel::is_nan(a)) return b;
                                return std::min(a, b);
                            }, "cummin", mr);
 }

@@ -4,6 +4,7 @@
 #pragma once
 
 #include <keel/arena.h>
+#include <keel/algo.h>
 #include <keel/array.h>
 #include <keel/complex.h>
 #include <keel/core.h>
@@ -16,8 +17,6 @@
 #include <numkit/value/error.hpp>
 #include <numkit/value/value.hpp>
 
-#include <cstring>
-#include <limits>
 #include <utility>
 
 namespace numkit::builtin {
@@ -256,7 +255,7 @@ void validateMonotonicAscending(const keel::f64 *g, keel::usize n, const char *a
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     keel::Array<keel::f64> Vd(R * C, scratch.allocator());
     if (V.type() == ValueType::DOUBLE)
-        std::memcpy(Vd.data(), V.doubleData(), R * C * sizeof(keel::f64));
+        keel::copy_n(Vd.data(), V.doubleData(), R * C);
     else
         for (keel::usize i = 0; i < R * C; ++i) Vd[i] = V.elemAsDouble(i);
 
@@ -331,7 +330,7 @@ void validateMonotonicAscending(const keel::f64 *g, keel::usize n, const char *a
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     keel::Array<keel::f64> Vd(R * C * P, scratch.allocator());
     if (V.type() == ValueType::DOUBLE)
-        std::memcpy(Vd.data(), V.doubleData(), R * C * P * sizeof(keel::f64));
+        keel::copy_n(Vd.data(), V.doubleData(), R * C * P);
     else
         for (keel::usize i = 0; i < R * C * P; ++i) Vd[i] = V.elemAsDouble(i);
 

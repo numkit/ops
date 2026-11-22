@@ -26,8 +26,6 @@
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
-#include <cmath>
-#include <limits>
 #include <tuple>
 
 namespace numkit::linalg {
@@ -97,7 +95,7 @@ static bool isHermitianComplexApprox(const Value &A, keel::f64 tol = 1e-10)
     }
     const keel::f64 thresh = tol * aMax;
     for (keel::usize i = 0; i < n; ++i) {
-        if (std::fabs(ad[i + i * n].imag()) > thresh) return false;
+        if (keel::abs(ad[i + i * n].imag()) > thresh) return false;
         for (keel::usize j = i + 1; j < n; ++j) {
             if (keel::abs(ad[i + j * n] - keel::conj(ad[j + i * n])) > thresh)
                 return false;
@@ -115,7 +113,7 @@ bool cleanRealSpectrum(keel::c64 *Vd, keel::c64 *Dd, keel::usize n, keel::f64 im
     for (keel::usize k = 0; k < n; ++k) {
         const keel::c64 dkk = Dd[k + k * n];
         const bool isRealEig =
-            (allowNonFinite && !std::isfinite(dkk.real())) ||
+            (allowNonFinite && !keel::is_finite(dkk.real())) ||
             (keel::abs(dkk.imag()) <= imagTol * (allowNonFinite ? std::max(1.0, keel::abs(dkk.real())) : 1.0));
         if (isRealEig) {
             Dd[k + k * n] = keel::c64(dkk.real(), 0.0);
@@ -140,7 +138,7 @@ bool cleanRealSpectrum(keel::c64 *Vd, keel::c64 *Dd, keel::usize n, keel::f64 im
                         Vd[i + k * n] = keel::c64(re, 0.0);
                         rNormSq += re * re;
                     }
-                    const keel::f64 rNorm = std::sqrt(rNormSq);
+                    const keel::f64 rNorm = keel::sqrt(rNormSq);
                     if (rNorm > 0.0) {
                         for (keel::usize i = 0; i < n; ++i)
                             Vd[i + k * n] = keel::c64(Vd[i + k * n].real() / rNorm, 0.0);
@@ -209,7 +207,7 @@ Value eig_general_values(const Value &A, keel::Allocator *mr)
                 keel::f64 det = a * d - b * c;
                 keel::f64 disc = tr * tr - 4.0 * det;
                 keel::f64 re = 0.5 * tr;
-                keel::f64 im = 0.5 * std::sqrt(std::max(0.0, -disc));
+                keel::f64 im = 0.5 * keel::sqrt(std::max(0.0, -disc));
                 o[i] = keel::c64(re, im);
                 o[i + 1] = keel::c64(re, -im);
                 i += 2;
@@ -295,7 +293,7 @@ eig_general_VD(const Value &A, keel::Allocator *mr)
         for (keel::usize i = 0; i < n * n; ++i)
             aMax = std::max(aMax, keel::abs(Ac[i].real()));
         const keel::f64 tol = 64.0 * keel::as<keel::f64>(n) *
-                           std::numeric_limits<keel::f64>::epsilon() * (1.0 + aMax);
+                           keel::Limits<keel::f64>::kEpsilon * (1.0 + aMax);
         if (cleanRealSpectrum(Vd, Dd, n, tol, false)) {
             auto Vr = Value::matrix(n, n, ValueType::DOUBLE, mr);
             auto Dr = Value::matrix(n, n, ValueType::DOUBLE, mr);
@@ -328,7 +326,7 @@ bool isSymmetricApprox(const Value &A, keel::f64 tol)
     if (m != n) return false;
     keel::f64 aMax = 1.0;
     for (keel::usize idx = 0; idx < n * n; ++idx) {
-        const keel::f64 v = std::fabs(A.elemAsDouble(idx));
+        const keel::f64 v = keel::abs(A.elemAsDouble(idx));
         if (v > aMax) aMax = v;
     }
     const keel::f64 thresh = tol * aMax;
@@ -336,7 +334,7 @@ bool isSymmetricApprox(const Value &A, keel::f64 tol)
         for (keel::usize j = i + 1; j < n; ++j) {
             const keel::f64 aij = A.elemAsDouble(i + j * m);
             const keel::f64 aji = A.elemAsDouble(j + i * m);
-            const keel::f64 d = std::fabs(aij - aji);
+            const keel::f64 d = keel::abs(aij - aji);
             if (d > thresh) return false;
         }
     return true;
@@ -480,7 +478,7 @@ eig_generalized_VD(const Value &A, const Value &B, keel::Allocator *mr)
         }
         const keel::f64 abScale = std::max(1.0, std::max(aMax, bMax));
         const keel::f64 imagTol = 64.0 * keel::as<keel::f64>(n) *
-                               std::numeric_limits<keel::f64>::epsilon() * (1.0 + abScale);
+                               keel::Limits<keel::f64>::kEpsilon * (1.0 + abScale);
         if (cleanRealSpectrum(Vd, Dd, n, imagTol, true)) {
             auto Vr = Value::matrix(n, n, ValueType::DOUBLE, mr);
             auto Dr = Value::matrix(n, n, ValueType::DOUBLE, mr);
@@ -704,7 +702,7 @@ Value sylvester_sym(const Value &A, const Value &B, const Value &C,
         const keel::f64 dai = Dad[i + i * n];
         for (keel::usize j = 0; j < m; ++j) {
             const keel::f64 denom = dai + Dbd[j + j * m];
-            if (std::fabs(denom) < 1e-300)
+            if (keel::abs(denom) < 1e-300)
                 throw Error("sylvester: A and -B share an eigenvalue (no unique solution)",
                             0, 0, "sylvester", "", "numkit:sylvester:singular");
             Y[i + j * n] /= denom;
@@ -865,7 +863,7 @@ Value ordeig(const Value &T, keel::Allocator *mr)
     keel::usize i = 0;
     while (i < n) {
         const keel::f64 sub = (i + 1 < n) ? Td[(i + 1) + i * n] : 0.0;
-        if (std::fabs(sub) <= 1e-14 * (1.0 + std::fabs(Td[i + i * n]))) {
+        if (keel::abs(sub) <= 1e-14 * (1.0 + keel::abs(Td[i + i * n]))) {
             out_complex.push_back(keel::c64(Td[i + i * n], 0.0));
             ++i;
         } else {
@@ -876,11 +874,11 @@ Value ordeig(const Value &T, keel::Allocator *mr)
             const keel::f64 disc_re = (a - ap) * (a - ap) + 4.0 * c * d;
             const keel::f64 mean = 0.5 * (a + ap);
             if (disc_re >= 0.0) {
-                const keel::f64 half_sqrt = 0.5 * std::sqrt(disc_re);
+                const keel::f64 half_sqrt = 0.5 * keel::sqrt(disc_re);
                 out_complex.push_back(keel::c64(mean + half_sqrt, 0.0));
                 out_complex.push_back(keel::c64(mean - half_sqrt, 0.0));
             } else {
-                const keel::f64 half_imag = 0.5 * std::sqrt(-disc_re);
+                const keel::f64 half_imag = 0.5 * keel::sqrt(-disc_re);
                 out_complex.push_back(keel::c64(mean,  half_imag));
                 out_complex.push_back(keel::c64(mean, -half_imag));
                 any_complex = true;

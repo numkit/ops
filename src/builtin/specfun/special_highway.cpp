@@ -19,6 +19,7 @@
 // checked in toolboxes/builtin/tests/simd_parity_test.cpp.
 
 #include <keel/core.h>
+#include <keel/math.h>
 #include <keel/memory.h>
 #include <numkit/builtin/specfun.hpp>
 
@@ -28,7 +29,6 @@
 
 #include <numkit/ops/helpers.hpp>
 
-#include <cmath>
 #include <cstddef>
 
 #undef HWY_TARGET_INCLUDE
@@ -282,7 +282,7 @@ void ErfLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel
         z = hn::CopySign(z, a);
         hn::StoreU(z, d, out + i);
     }
-    for (; i < n; ++i) out[i] = std::erf(in[i]);
+    for (; i < n; ++i) out[i] = keel::erf(in[i]);
 }
 
 } // namespace HWY_NAMESPACE
@@ -298,7 +298,7 @@ HWY_EXPORT(ErfLoop);
 Value erf(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex() || x.isScalar() || x.type() != ValueType::DOUBLE)
-        return unaryDouble(x, [](keel::f64 v) { return std::erf(v); }, mr);
+        return unaryDouble(x, [](keel::f64 v) { return keel::erf(v); }, mr);
 
     Value r = createLike(x, ValueType::DOUBLE, mr);
     if (x.numel() == 0)

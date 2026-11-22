@@ -9,14 +9,13 @@
 // saturate.
 
 #include <keel/core.h>
+#include <keel/math.h>
 #include "casts.hpp"
 
 #include <numkit/value/error.hpp>
 
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <limits>
 
 namespace numkit::builtin::detail {
 
@@ -25,12 +24,12 @@ namespace {
 template <typename T>
 inline T saturate_cast(keel::f64 v)
 {
-    if (std::isnan(v)) return 0;
-    v = std::round(v);
-    constexpr keel::f64 lo = keel::as<keel::f64>(std::numeric_limits<T>::min());
-    constexpr keel::f64 hi = keel::as<keel::f64>(std::numeric_limits<T>::max());
-    if (v < lo) return std::numeric_limits<T>::min();
-    if (v > hi) return std::numeric_limits<T>::max();
+    if (keel::is_nan(v)) return 0;
+    v = keel::round(v);
+    constexpr keel::f64 lo = keel::as<keel::f64>(keel::Limits<T>::kMin);
+    constexpr keel::f64 hi = keel::as<keel::f64>(keel::Limits<T>::kMax);
+    if (v < lo) return keel::Limits<T>::kMin;
+    if (v > hi) return keel::Limits<T>::kMax;
     return static_cast<T>(v);
 }
 

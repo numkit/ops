@@ -4,6 +4,7 @@
 #pragma once
 
 #include <keel/core.h>
+#include <keel/math.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
 #include <keel/string.h>
@@ -14,11 +15,8 @@
 #include <numkit/ops/reductions.hpp>  // engine-free numkit::builtin::detail dim-infra (ops re-export)
 
 #include <algorithm>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
-#include <limits>
 #include <numeric>
 #include <tuple>
 #include <utility>
@@ -52,12 +50,12 @@ namespace {
 template <typename T>
 T saturateCast(keel::f64 v)
 {
-    if (std::isnan(v)) return 0;
-    v = std::round(v);
-    constexpr keel::f64 lo = keel::as<keel::f64>(std::numeric_limits<T>::min());
-    constexpr keel::f64 hi = keel::as<keel::f64>(std::numeric_limits<T>::max());
-    if (v < lo) return std::numeric_limits<T>::min();
-    if (v > hi) return std::numeric_limits<T>::max();
+    if (keel::is_nan(v)) return 0;
+    v = keel::round(v);
+    constexpr keel::f64 lo = keel::as<keel::f64>(keel::Limits<T>::kMin);
+    constexpr keel::f64 hi = keel::as<keel::f64>(keel::Limits<T>::kMax);
+    if (v < lo) return keel::Limits<T>::kMin;
+    if (v > hi) return keel::Limits<T>::kMax;
     return static_cast<T>(v);
 }
 
@@ -146,13 +144,13 @@ inline bool int64EqualScalar(const Value &a, keel::usize ia, const Value &b, kee
     // Exact comparison when at least one side is INT64 or UINT64 (avoids double
     // precision loss above 2^53).
     auto cmpU64WithF64 = [](keel::u64 u, keel::f64 d) -> bool {
-        if (!std::isfinite(d) || d < 0.0 || d >= 18446744073709551616.0) return false;
-        if (std::floor(d) != d) return false;
+        if (!keel::is_finite(d) || d < 0.0 || d >= 18446744073709551616.0) return false;
+        if (keel::floor(d) != d) return false;
         return static_cast<keel::u64>(d) == u;
     };
     auto cmpI64WithF64 = [](keel::i64 s, keel::f64 d) -> bool {
-        if (!std::isfinite(d) || d < -9223372036854775808.0 || d >= 9223372036854775808.0) return false;
-        if (std::floor(d) != d) return false;
+        if (!keel::is_finite(d) || d < -9223372036854775808.0 || d >= 9223372036854775808.0) return false;
+        if (keel::floor(d) != d) return false;
         return static_cast<keel::i64>(d) == s;
     };
     const ValueType ta = a.type(), tb = b.type();
@@ -234,8 +232,8 @@ bool valuesEqual(const Value &a, const Value &b, bool nanEqual)
                 const keel::f64 ia = (ta == ValueType::COMPLEX) ? a.complexData()[i].imag() : 0.0;
                 const keel::f64 rb = (tb == ValueType::COMPLEX) ? b.complexData()[i].real() : elemComparableDouble(b, i);
                 const keel::f64 ib = (tb == ValueType::COMPLEX) ? b.complexData()[i].imag() : 0.0;
-                const bool rEq = (ra == rb) || (nanEqual && std::isnan(ra) && std::isnan(rb));
-                const bool iEq = (ia == ib) || (nanEqual && std::isnan(ia) && std::isnan(ib));
+                const bool rEq = (ra == rb) || (nanEqual && keel::is_nan(ra) && keel::is_nan(rb));
+                const bool iEq = (ia == ib) || (nanEqual && keel::is_nan(ia) && keel::is_nan(ib));
                 if (!rEq || !iEq) return false;
             }
             return true;
@@ -244,7 +242,7 @@ bool valuesEqual(const Value &a, const Value &b, bool nanEqual)
             const keel::f64 da = elemComparableDouble(a, i);
             const keel::f64 db = elemComparableDouble(b, i);
             if (da == db) continue;
-            if (nanEqual && std::isnan(da) && std::isnan(db)) continue;
+            if (nanEqual && keel::is_nan(da) && keel::is_nan(db)) continue;
             return false;
         }
         return true;
@@ -256,7 +254,7 @@ bool valuesEqual(const Value &a, const Value &b, bool nanEqual)
         const keel::f64 *da = a.doubleData(), *db = b.doubleData();
         for (keel::usize i = 0; i < n; ++i) {
             if (da[i] == db[i]) continue;
-            if (nanEqual && std::isnan(da[i]) && std::isnan(db[i])) continue;
+            if (nanEqual && keel::is_nan(da[i]) && keel::is_nan(db[i])) continue;
             return false;
         }
         return true;
@@ -265,7 +263,7 @@ bool valuesEqual(const Value &a, const Value &b, bool nanEqual)
         const keel::f32 *fa = a.singleData(), *fb = b.singleData();
         for (keel::usize i = 0; i < n; ++i) {
             if (fa[i] == fb[i]) continue;
-            if (nanEqual && std::isnan(fa[i]) && std::isnan(fb[i])) continue;
+            if (nanEqual && keel::is_nan(fa[i]) && keel::is_nan(fb[i])) continue;
             return false;
         }
         return true;
@@ -276,9 +274,9 @@ bool valuesEqual(const Value &a, const Value &b, bool nanEqual)
             if (ca[i] == cb[i]) continue;
             if (nanEqual) {
                 bool rEq = (ca[i].real() == cb[i].real())
-                           || (std::isnan(ca[i].real()) && std::isnan(cb[i].real()));
+                           || (keel::is_nan(ca[i].real()) && keel::is_nan(cb[i].real()));
                 bool iEq = (ca[i].imag() == cb[i].imag())
-                           || (std::isnan(ca[i].imag()) && std::isnan(cb[i].imag()));
+                           || (keel::is_nan(ca[i].imag()) && keel::is_nan(cb[i].imag()));
                 if (rEq && iEq) continue;
             }
             return false;
@@ -286,11 +284,11 @@ bool valuesEqual(const Value &a, const Value &b, bool nanEqual)
         return true;
     }
     if (t == ValueType::CHAR)
-        return std::memcmp(a.charData(), b.charData(), n) == 0;
+        return keel::mem_cmp(a.charData(), b.charData(), n) == 0;
     if (t == ValueType::LOGICAL)
-        return std::memcmp(a.logicalData(), b.logicalData(), n) == 0;
+        return keel::mem_cmp(a.logicalData(), b.logicalData(), n) == 0;
     if (isIntegerType(t))
-        return std::memcmp(a.rawData(), b.rawData(), n * elementSize(t)) == 0;
+        return keel::mem_cmp(a.rawData(), b.rawData(), n * elementSize(t)) == 0;
     if (t == ValueType::CELL) {
         for (keel::usize i = 0; i < n; ++i)
             if (!valuesEqual(a.cellAt(i), b.cellAt(i), nanEqual)) return false;
@@ -350,7 +348,7 @@ inline bool runSorted(const keel::f64 *first, keel::usize n, SortMode mode)
     // NaN anywhere → not sorted (matches MATLAB issorted behaviour for
     // simple ascend/descend modes).
     for (keel::usize i = 0; i < n; ++i)
-        if (std::isnan(first[i])) return false;
+        if (keel::is_nan(first[i])) return false;
 
     switch (mode) {
     case SortMode::Ascend:
@@ -407,21 +405,21 @@ T swapBytesScalar(T v)
     if constexpr (sizeof(T) == 1) {
         return v;
     } else if constexpr (sizeof(T) == 2) {
-        keel::u16 u; std::memcpy(&u, &v, 2);
+        keel::u16 u; keel::mem_copy(&u, &v, 2);
         u = keel::as<keel::u16>((u << 8) | (u >> 8));
-        T r; std::memcpy(&r, &u, 2); return r;
+        T r; keel::mem_copy(&r, &u, 2); return r;
     } else if constexpr (sizeof(T) == 4) {
-        keel::u32 u; std::memcpy(&u, &v, 4);
+        keel::u32 u; keel::mem_copy(&u, &v, 4);
         u = ((u & 0xFF000000U) >> 24) | ((u & 0x00FF0000U) >> 8)
           | ((u & 0x0000FF00U) << 8)  | ((u & 0x000000FFU) << 24);
-        T r; std::memcpy(&r, &u, 4); return r;
+        T r; keel::mem_copy(&r, &u, 4); return r;
     } else {  // 8
-        keel::u64 u; std::memcpy(&u, &v, 8);
+        keel::u64 u; keel::mem_copy(&u, &v, 8);
         u = ((u & 0xFF00000000000000ULL) >> 56) | ((u & 0x00FF000000000000ULL) >> 40)
           | ((u & 0x0000FF0000000000ULL) >> 24) | ((u & 0x000000FF00000000ULL) >> 8)
           | ((u & 0x00000000FF000000ULL) << 8)  | ((u & 0x0000000000FF0000ULL) << 24)
           | ((u & 0x000000000000FF00ULL) << 40) | ((u & 0x00000000000000FFULL) << 56);
-        T r; std::memcpy(&r, &u, 8); return r;
+        T r; keel::mem_copy(&r, &u, 8); return r;
     }
 }
 

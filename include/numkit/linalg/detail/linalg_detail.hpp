@@ -13,7 +13,6 @@
 #include <keel/complex.h>
 #include <keel/math.h>
 #include <algorithm>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <type_traits>

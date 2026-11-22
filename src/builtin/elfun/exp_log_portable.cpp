@@ -16,7 +16,6 @@
 
 #include <numkit/ops/helpers.hpp>
 
-#include <cmath>
 #include <stdexcept>
 
 namespace numkit::builtin {
@@ -51,7 +50,7 @@ Value unaryRealDoubleHint(const Value &x, Value *hint, ScalarOp scalarOp, Comple
 
 Value exp(const Value &x, Value *hint, keel::Allocator *mr)
 {
-    return unaryRealDoubleHint(x, hint, [](keel::f64 v) { return std::exp(v); }, [](const keel::c64 &c) { return keel::exp(c); }, mr);
+    return unaryRealDoubleHint(x, hint, [](keel::f64 v) { return keel::exp(v); }, [](const keel::c64 &c) { return keel::exp(c); }, mr);
 }
 
 static bool anyNegative_p(const Value &x);  // defined below (shared with sqrt)
@@ -67,7 +66,7 @@ Value log(const Value &x, Value *hint, keel::Allocator *mr)
         Value cx = x; cx.promoteToComplex(mr);
         return unaryComplex(cx, [](const keel::c64 &c) { return keel::log(c); }, mr);
     }
-    return unaryRealDoubleHint(x, hint, [](keel::f64 v) { return std::log(v); }, [](const keel::c64 &c) { return keel::log(c); }, mr);
+    return unaryRealDoubleHint(x, hint, [](keel::f64 v) { return keel::log(v); }, [](const keel::c64 &c) { return keel::log(c); }, mr);
 }
 
 // expm1 / log1p / log2 — reference scalar path (the SIMD variants live in
@@ -77,7 +76,7 @@ Value expm1(const Value &x, keel::Allocator *mr)
     // MATLAB: expm1(z) = exp(z) - 1 on complex.
     if (x.isComplex())
         return unaryComplex(x, [](const keel::c64 &c) { return keel::exp(c) - 1.0; }, mr);
-    return unaryDouble(x, [](keel::f64 v) { return std::expm1(v); }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return keel::expm1(v); }, mr);
 }
 
 // log1p of a real x as a (possibly) complex value, accurate per element:
@@ -86,8 +85,8 @@ Value expm1(const Value &x, keel::Allocator *mr)
 static inline keel::c64 log1pRealToComplex_p(keel::f64 x)
 {
     constexpr keel::f64 kPi = keel::kPi;
-    if (x >= -1.0) return keel::c64(std::log1p(x), 0.0);
-    return keel::c64(std::log(-(1.0 + x)), kPi);
+    if (x >= -1.0) return keel::c64(keel::log1p(x), 0.0);
+    return keel::c64(keel::log(-(1.0 + x)), kPi);
 }
 static inline bool anyLessThanMinusOne_p(const Value &x)
 {
@@ -108,7 +107,7 @@ Value log1p(const Value &x, keel::Allocator *mr)
     if (x.isScalar()) {
         const keel::f64 v = x.toScalar();
         if (v < -1.0) return Value::complexScalar(log1pRealToComplex_p(v), mr);
-        return Value::scalar(std::log1p(v), mr);
+        return Value::scalar(keel::log1p(v), mr);
     }
     if (anyLessThanMinusOne_p(x)) {
         Value r = createLike(x, ValueType::COMPLEX, mr);
@@ -118,20 +117,20 @@ Value log1p(const Value &x, keel::Allocator *mr)
             out[i] = log1pRealToComplex_p(x.elemAsDouble(i));
         return r;
     }
-    return unaryDouble(x, [](keel::f64 v) { return std::log1p(v); }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return keel::log1p(v); }, mr);
 }
 
 Value log2(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
-        return unaryComplex(x, [](const keel::c64 &c) { return keel::log(c) / std::log(2.0); }, mr);
+        return unaryComplex(x, [](const keel::c64 &c) { return keel::log(c) / keel::log(2.0); }, mr);
     if (x.isScalar() && x.toScalar() < 0.0)
-        return Value::complexScalar(keel::log(keel::c64(x.toScalar(), 0.0)) / std::log(2.0), mr);
+        return Value::complexScalar(keel::log(keel::c64(x.toScalar(), 0.0)) / keel::log(2.0), mr);
     if (anyNegative_p(x)) {
         Value cx = x; cx.promoteToComplex(mr);
-        return unaryComplex(cx, [](const keel::c64 &c) { return keel::log(c) / std::log(2.0); }, mr);
+        return unaryComplex(cx, [](const keel::c64 &c) { return keel::log(c) / keel::log(2.0); }, mr);
     }
-    return unaryDouble(x, [](keel::f64 v) { return std::log2(v); }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return keel::log2(v); }, mr);
 }
 
 Value log10(const Value &x, keel::Allocator *mr)
@@ -144,7 +143,7 @@ Value log10(const Value &x, keel::Allocator *mr)
         Value cx = x; cx.promoteToComplex(mr);
         return unaryComplex(cx, [](const keel::c64 &c) { return keel::log10(c); }, mr);
     }
-    return unaryDouble(x, [](keel::f64 v) { return std::log10(v); }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return keel::log10(v); }, mr);
 }
 
 Value reallog(const Value &x, keel::Allocator *mr)
@@ -152,7 +151,7 @@ Value reallog(const Value &x, keel::Allocator *mr)
     return unaryDouble(x, [](keel::f64 v) {
         if (v < 0.0)
             throw std::runtime_error("reallog produced complex result — use log(...) instead");
-        return std::log(v);
+        return keel::log(v);
     }, mr);
 }
 
@@ -174,7 +173,7 @@ Value sqrt(const Value &x, keel::Allocator *mr)
         Value cx = x; cx.promoteToComplex(mr);
         return unaryComplex(cx, [](const keel::c64 &c) { return keel::sqrt(c); }, mr);
     }
-    return unaryDouble(x, [](keel::f64 v) { return std::sqrt(v); }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return keel::sqrt(v); }, mr);
 }
 
 Value realsqrt(const Value &x, keel::Allocator *mr)
@@ -182,13 +181,13 @@ Value realsqrt(const Value &x, keel::Allocator *mr)
     return unaryDouble(x, [](keel::f64 v) {
         if (v < 0.0)
             throw std::runtime_error("realsqrt produced complex result — use sqrt(...) instead");
-        return std::sqrt(v);
+        return keel::sqrt(v);
     }, mr);
 }
 
 Value pow2(const Value &y, keel::Allocator *mr)
 {
-    return unaryDouble(y, [](keel::f64 v) { return std::exp2(v); }, mr);
+    return unaryDouble(y, [](keel::f64 v) { return keel::exp2(v); }, mr);
 }
 
 } // namespace numkit::builtin

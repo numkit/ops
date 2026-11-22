@@ -7,6 +7,8 @@
 //   grouptransform — per-group data transformation
 
 #include <keel/core.h>
+#include <keel/algo.h>
+#include <keel/math.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
 #include <keel/arena.h>
@@ -17,9 +19,6 @@
 #include <numkit/value/value.hpp>
 
 #include <algorithm>
-#include <cmath>
-#include <cstring>
-#include <limits>
 
 namespace numkit::builtin {
 
@@ -49,7 +48,7 @@ void groupOf(const Value &g, keel::Array<keel::usize> &out_groups,
     keel::Array<keel::f64> sorted(alloc);
     sorted.reserve(n);
     for (keel::f64 v : vals)
-        if (!std::isnan(v)) sorted.push_back(v);
+        if (!keel::is_nan(v)) sorted.push_back(v);
     std::sort(sorted.begin(), sorted.end());
     auto newEnd = std::unique(sorted.begin(), sorted.end(),
                               [](keel::f64 a, keel::f64 b) {
@@ -57,7 +56,7 @@ void groupOf(const Value &g, keel::Array<keel::usize> &out_groups,
                               });
     sorted.resize(newEnd - sorted.begin());
     for (keel::usize i = 0; i < n; ++i) {
-        if (std::isnan(vals[i])) { out_groups[i] = 0; continue; }
+        if (keel::is_nan(vals[i])) { out_groups[i] = 0; continue; }
         const auto it = std::lower_bound(sorted.begin(), sorted.end(), vals[i]);
         out_groups[i] = (keel::usize)(it - sorted.begin()) + 1;   // 1-based
     }
@@ -77,13 +76,12 @@ FindgroupsResult findgroups(const Value &g, keel::Allocator *mr)
     auto G = Value::matrix(g.dims().rows(), g.dims().cols(),
                            ValueType::DOUBLE, mr);
     keel::f64 *gd = G.doubleDataMut();
-    const keel::f64 nan = std::numeric_limits<keel::f64>::quiet_NaN();
+    const keel::f64 nan = keel::Limits<keel::f64>::quiet_nan();
     for (keel::usize i = 0; i < groups.size(); ++i)
         gd[i] = (groups[i] == 0) ? nan : keel::f64(groups[i]);
     auto ID = Value::matrix(uniqueVals.size(), 1, ValueType::DOUBLE, mr);
     if (!uniqueVals.empty())
-        std::memcpy(ID.doubleDataMut(), uniqueVals.data(),
-                    uniqueVals.size() * sizeof(keel::f64));
+        keel::copy_n(ID.doubleDataMut(), uniqueVals.data(), uniqueVals.size());
     return {std::move(G), std::move(ID)};
 }
 
@@ -119,7 +117,7 @@ GroupcountsResult groupcounts(const Value &g, keel::Allocator *mr)
         keel::f64 *gd = R.GR.doubleDataMut();
         for (keel::usize i = 0; i < uniqueVals.size(); ++i) gd[i] = uniqueVals[i];
         if (have_nan)
-            gd[uniqueVals.size()] = std::numeric_limits<keel::f64>::quiet_NaN();
+            gd[uniqueVals.size()] = keel::Limits<keel::f64>::quiet_nan();
     }
     const keel::f64 total = keel::f64(groups.size());
     R.P = Value::matrix(nGroups, 1, ValueType::DOUBLE, mr);
@@ -178,7 +176,7 @@ GroupsummaryResult groupsummary(const Value &A, const Value &G,
             if (method == "sum") {
                 for (auto r : rows) out += Aget(r, c);
             } else if (method == "mean") {
-                if (kn == 0) out = std::numeric_limits<keel::f64>::quiet_NaN();
+                if (kn == 0) out = keel::Limits<keel::f64>::quiet_nan();
                 else {
                     keel::f64 s = 0.0;
                     for (auto r : rows) s += Aget(r, c);
@@ -188,32 +186,32 @@ GroupsummaryResult groupsummary(const Value &A, const Value &G,
                 keel::Array<keel::f64> v(scratch.allocator()); v.reserve(kn);
                 for (auto r : rows) v.push_back(Aget(r, c));
                 std::sort(v.begin(), v.end());
-                out = (kn == 0)            ? std::numeric_limits<keel::f64>::quiet_NaN()
+                out = (kn == 0)            ? keel::Limits<keel::f64>::quiet_nan()
                     : (kn % 2 == 1)        ? v[kn / 2]
                                             : 0.5 * (v[kn / 2 - 1] + v[kn / 2]);
             } else if (method == "max") {
-                out = -std::numeric_limits<keel::f64>::infinity();
+                out = -keel::Limits<keel::f64>::infinity();
                 for (auto r : rows) {
                     const keel::f64 v = Aget(r, c);
                     if (v > out) out = v;
                 }
-                if (kn == 0) out = std::numeric_limits<keel::f64>::quiet_NaN();
+                if (kn == 0) out = keel::Limits<keel::f64>::quiet_nan();
             } else if (method == "min") {
-                out = std::numeric_limits<keel::f64>::infinity();
+                out = keel::Limits<keel::f64>::infinity();
                 for (auto r : rows) {
                     const keel::f64 v = Aget(r, c);
                     if (v < out) out = v;
                 }
-                if (kn == 0) out = std::numeric_limits<keel::f64>::quiet_NaN();
+                if (kn == 0) out = keel::Limits<keel::f64>::quiet_nan();
             } else if (method == "std" || method == "var") {
-                if (kn < 2) out = std::numeric_limits<keel::f64>::quiet_NaN();
+                if (kn < 2) out = keel::Limits<keel::f64>::quiet_nan();
                 else {
                     keel::f64 s = 0.0, ss = 0.0;
                     for (auto r : rows) { keel::f64 v = Aget(r, c); s += v; ss += v*v; }
                     const keel::f64 m = s / keel::f64(kn);
                     const keel::f64 v = (ss - keel::f64(kn) * m * m) / keel::f64(kn - 1);
                     out = (method == "var") ? std::max(0.0, v)
-                                             : std::sqrt(std::max(0.0, v));
+                                             : keel::sqrt(std::max(0.0, v));
                 }
             } else if (method == "numunique") {
                 keel::Array<keel::f64> v(scratch.allocator()); v.reserve(kn);
@@ -230,7 +228,7 @@ GroupsummaryResult groupsummary(const Value &A, const Value &G,
                 for (auto r : rows) v.push_back(Aget(r, c));
                 std::sort(v.begin(), v.end());
                 keel::usize best_run = 0, cur_run = 0;
-                keel::f64 best_val = std::numeric_limits<keel::f64>::quiet_NaN();
+                keel::f64 best_val = keel::Limits<keel::f64>::quiet_nan();
                 for (keel::usize i = 0; i < v.size(); ++i) {
                     if (i == 0 || v[i] != v[i - 1]) cur_run = 1;
                     else                            ++cur_run;
@@ -261,7 +259,7 @@ GroupsummaryResult groupsummary(const Value &A, const Value &G,
         keel::f64 *gd = R.BG.doubleDataMut();
         for (keel::usize i = 0; i < uniqueVals.size(); ++i) gd[i] = uniqueVals[i];
         if (have_nan)
-            gd[uniqueVals.size()] = std::numeric_limits<keel::f64>::quiet_NaN();
+            gd[uniqueVals.size()] = keel::Limits<keel::f64>::quiet_nan();
     }
     R.BC = Value::matrix(nGroups, 1, ValueType::DOUBLE, mr);
     {
@@ -314,7 +312,7 @@ Value grouptransform(const Value &A, const Value &G,
                           : Value::matrix(nRows, nCols, ValueType::DOUBLE, mr);
     keel::f64 *bd = B.doubleDataMut();
     for (keel::usize i = 0; i < nRows * nCols; ++i)
-        bd[i] = std::numeric_limits<keel::f64>::quiet_NaN();
+        bd[i] = keel::Limits<keel::f64>::quiet_nan();
 
     auto Aget = [&](keel::usize r, keel::usize c) {
         return A.elemAsDouble(r + c * nRows);
@@ -331,7 +329,7 @@ Value grouptransform(const Value &A, const Value &G,
                 keel::usize k = 0;
                 for (auto r : rows) {
                     const keel::f64 v = Aget(r, c);
-                    if (!std::isnan(v)) { sum += v; sq += v*v; ++k; }
+                    if (!keel::is_nan(v)) { sum += v; sq += v*v; ++k; }
                 }
                 const keel::f64 mean = (k > 0) ? sum / keel::f64(k) : 0.0;
                 if (method == "meancenter") {
@@ -341,30 +339,30 @@ Value grouptransform(const Value &A, const Value &G,
                     const keel::f64 var = (k > 1)
                         ? (sq - keel::f64(k) * mean * mean) / keel::f64(k - 1)
                         : 0.0;
-                    const keel::f64 sd  = std::sqrt(std::max(0.0, var));
+                    const keel::f64 sd  = keel::sqrt(std::max(0.0, var));
                     for (auto r : rows)
                         bd[r + c * nRows] = (sd > 0.0)
                             ? (Aget(r, c) - mean) / sd
                             : 0.0;
                 } else {  // norm
-                    const keel::f64 nm = std::sqrt(sq);
+                    const keel::f64 nm = keel::sqrt(sq);
                     for (auto r : rows)
                         bd[r + c * nRows] = (nm > 0.0)
                             ? Aget(r, c) / nm : 0.0;
                 }
             } else if (method == "rescale") {
-                keel::f64 lo = std::numeric_limits<keel::f64>::infinity();
-                keel::f64 hi = -std::numeric_limits<keel::f64>::infinity();
+                keel::f64 lo = keel::Limits<keel::f64>::infinity();
+                keel::f64 hi = -keel::Limits<keel::f64>::infinity();
                 for (auto r : rows) {
                     const keel::f64 v = Aget(r, c);
-                    if (std::isnan(v)) continue;
+                    if (keel::is_nan(v)) continue;
                     if (v < lo) lo = v;
                     if (v > hi) hi = v;
                 }
                 const keel::f64 range = hi - lo;
                 for (auto r : rows) {
                     const keel::f64 v = Aget(r, c);
-                    if (std::isnan(v))            bd[r + c * nRows] = v;
+                    if (keel::is_nan(v))            bd[r + c * nRows] = v;
                     else if (range == 0.0)         bd[r + c * nRows] = 0.0;
                     else                            bd[r + c * nRows] = (v - lo) / range;
                 }
@@ -373,13 +371,13 @@ Value grouptransform(const Value &A, const Value &G,
                 keel::usize k = 0;
                 for (auto r : rows) {
                     const keel::f64 v = Aget(r, c);
-                    if (!std::isnan(v)) { sum += v; ++k; }
+                    if (!keel::is_nan(v)) { sum += v; ++k; }
                 }
                 const keel::f64 mean = (k > 0) ? sum / keel::f64(k)
-                                            : std::numeric_limits<keel::f64>::quiet_NaN();
+                                            : keel::Limits<keel::f64>::quiet_nan();
                 for (auto r : rows) {
                     const keel::f64 v = Aget(r, c);
-                    bd[r + c * nRows] = std::isnan(v) ? mean : v;
+                    bd[r + c * nRows] = keel::is_nan(v) ? mean : v;
                 }
             } else if (method == "linearfill") {
                 keel::Array<keel::f64> vals(kn, scratch.allocator());
@@ -387,7 +385,7 @@ Value grouptransform(const Value &A, const Value &G,
                 keel::Array<keel::usize> good(scratch.allocator());
                 good.reserve(kn);
                 for (keel::usize j = 0; j < kn; ++j)
-                    if (!std::isnan(vals[j])) good.push_back(j);
+                    if (!keel::is_nan(vals[j])) good.push_back(j);
                 keel::Array<keel::f64> out(keel::ArrayRef<keel::f64>(vals), scratch.allocator());
                 if (good.size() >= 2) {
                     for (keel::usize k = 0; k + 1 < good.size(); ++k) {

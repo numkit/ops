@@ -5,9 +5,9 @@
 // so this is fundamentally one-add-per-cycle on the portable build.
 
 #include <keel/core.h>
+#include <keel/math.h>
 #include "cumsum.hpp"
 
-#include <cmath>
 #include <cstddef>
 
 namespace numkit::builtin {
@@ -35,13 +35,13 @@ void cummaxScan(const keel::f64 *src, keel::f64 *dst, keel::usize n)
     if (n == 0) return;
     // Walk leading NaN, preserve as NaN.
     keel::usize i = 0;
-    for (; i < n && std::isnan(src[i]); ++i) dst[i] = std::nan("");
+    for (; i < n && keel::is_nan(src[i]); ++i) dst[i] = keel::kNaN;
     if (i == n) return;
     keel::f64 acc = src[i];
     dst[i] = acc;
     for (++i; i < n; ++i) {
         const keel::f64 xi = src[i];
-        if (!std::isnan(xi) && xi > acc) acc = xi;
+        if (!keel::is_nan(xi) && xi > acc) acc = xi;
         dst[i] = acc;
     }
 }
@@ -50,13 +50,13 @@ void cumminScan(const keel::f64 *src, keel::f64 *dst, keel::usize n)
 {
     if (n == 0) return;
     keel::usize i = 0;
-    for (; i < n && std::isnan(src[i]); ++i) dst[i] = std::nan("");
+    for (; i < n && keel::is_nan(src[i]); ++i) dst[i] = keel::kNaN;
     if (i == n) return;
     keel::f64 acc = src[i];
     dst[i] = acc;
     for (++i; i < n; ++i) {
         const keel::f64 xi = src[i];
-        if (!std::isnan(xi) && xi < acc) acc = xi;
+        if (!keel::is_nan(xi) && xi < acc) acc = xi;
         dst[i] = acc;
     }
 }

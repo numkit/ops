@@ -15,11 +15,8 @@
 #include <numkit/ops/reductions.hpp>  // engine-free numkit::builtin::detail dim-infra (ops re-export)
 
 #include <algorithm>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
-#include <limits>
 #include <numeric>
 #include <tuple>
 #include <utility>
@@ -47,7 +44,7 @@ Value reduce(const Value &x, Op op, keel::f64 init, keel::Allocator *mr, bool me
     // (Partial empties like zeros(0,3) keep their per-column shape and are
     // handled by the matrix path below.)
     if (x.dims().ndim() == 2 && x.dims().rows() == 0 && x.dims().cols() == 0)
-        return Value::scalar(meanMode ? std::nan("") : init, mr);
+        return Value::scalar(meanMode ? keel::kNaN : init, mr);
 
     if (x.dims().isVector() || x.isScalar()) {
         keel::f64 acc = init;
@@ -113,9 +110,9 @@ inline T readSrcAsT(const Value &x, keel::usize i, bool typeMatch)
         return static_cast<T>(x.elemAsDouble(i));
     } else {
         const keel::f64 d = x.elemAsDouble(i);
-        return static_cast<T>(std::clamp(std::round(d),
-            keel::as<keel::f64>(std::numeric_limits<T>::lowest()),
-            keel::as<keel::f64>(std::numeric_limits<T>::max())));
+        return static_cast<T>(std::clamp(keel::round(d),
+            keel::as<keel::f64>(keel::Limits<T>::kLowest),
+            keel::as<keel::f64>(keel::Limits<T>::kMax)));
     }
 }
 
@@ -329,8 +326,8 @@ inline bool complexBetter(keel::c64 v, keel::c64 best, bool allReal)
 template <bool IsMax>
 inline keel::c64 complexMinMaxPick(keel::c64 a, keel::c64 b, bool omitNan)
 {
-    const bool aNan = std::isnan(a.real()) || std::isnan(a.imag());
-    const bool bNan = std::isnan(b.real()) || std::isnan(b.imag());
+    const bool aNan = keel::is_nan(a.real()) || keel::is_nan(a.imag());
+    const bool bNan = keel::is_nan(b.real()) || keel::is_nan(b.imag());
     if (omitNan) {
         if (aNan && bNan) return a;
         if (aNan)         return b;
@@ -490,7 +487,7 @@ dispatchMinMaxAlongDim(const Value &x, keel::i32 dim, Cmp cmp, keel::Allocator *
 template <typename T>
 inline bool isElemNan(T v)
 {
-    if constexpr (std::is_floating_point_v<T>) return std::isnan(v);
+    if constexpr (std::is_floating_point_v<T>) return keel::is_nan(v);
     else                                       return false;
 }
 
@@ -523,7 +520,7 @@ void minMaxNanAlongDim(const Value &x, keel::i32 redDim, T *dst, keel::f64 *dstI
         if (firstValid == SIZE_MAX) {
             // All-NaN slice: NaN value, idx = 1 (MATLAB convention).
             if constexpr (std::is_floating_point_v<T>)
-                dst[outIdx] = std::numeric_limits<T>::quiet_NaN();
+                dst[outIdx] = keel::Limits<T>::quiet_nan();
             else
                 dst[outIdx] = T{};
             dstI[outIdx] = 1.0;
@@ -559,7 +556,7 @@ reduceMinMaxNanAllT(const Value &x, Cmp cmp, ValueType outType, keel::Allocator 
         }
         if (firstValid == SIZE_MAX) {
             if constexpr (std::is_floating_point_v<T>)
-                return std::make_tuple(makeScalarT<T>(std::numeric_limits<T>::quiet_NaN(), outType, mr),
+                return std::make_tuple(makeScalarT<T>(keel::Limits<T>::quiet_nan(), outType, mr),
                                        Value::scalar(1.0, mr));
             else
                 return std::make_tuple(makeScalarT<T>(T{}, outType, mr),
@@ -605,7 +602,7 @@ reduceMinMaxComplexNanAll(const Value &x, keel::Allocator *mr, const char *fn)
         throw Error(keel::format("{} of empty array is not supported", fn),
                      0, 0, fn, "", keel::format("numkit:{}:empty", fn));
     const keel::c64 *data = x.complexData();
-    auto isNan = [](keel::c64 c) { return std::isnan(c.real()) || std::isnan(c.imag()); };
+    auto isNan = [](keel::c64 c) { return keel::is_nan(c.real()) || keel::is_nan(c.imag()); };
     // For all-real check, only consider non-NaN elements.
     bool allReal = true;
     for (keel::usize i = 0; i < x.numel(); ++i) {
@@ -631,7 +628,7 @@ reduceMinMaxComplexNanAll(const Value &x, keel::Allocator *mr, const char *fn)
         keel::c64 best;
         keel::usize bi = 0;
         if (!findBest(0, 1, x.numel(), best, bi))
-            return std::make_tuple(Value::complexScalar(keel::c64(std::nan(""), 0.0), mr),
+            return std::make_tuple(Value::complexScalar(keel::c64(keel::kNaN, 0.0), mr),
                                    Value::scalar(1.0, mr));
         return std::make_tuple(Value::complexScalar(best, mr),
                                Value::scalar(keel::as<keel::f64>(bi + 1), mr));
@@ -653,7 +650,7 @@ reduceMinMaxComplexNanAll(const Value &x, keel::Allocator *mr, const char *fn)
         keel::c64 best;
         keel::usize bi = 0;
         if (!findBest(baseOff, stride, sliceLen, best, bi)) {
-            dst[outOff] = keel::c64(std::nan(""), 0.0);
+            dst[outOff] = keel::c64(keel::kNaN, 0.0);
             dstI[outOff] = 1.0;
         } else {
             dst[outOff] = best;
@@ -680,7 +677,7 @@ reduceMinMaxComplexNanAlongDim(const Value &x, keel::i32 dim, keel::Allocator *m
         return reduceMinMaxComplexNanAll<IsMax>(x, mr, fn);
     }
     const keel::c64 *data = x.complexData();
-    auto isNan = [](keel::c64 c) { return std::isnan(c.real()) || std::isnan(c.imag()); };
+    auto isNan = [](keel::c64 c) { return keel::is_nan(c.real()) || keel::is_nan(c.imag()); };
     bool allReal = true;
     for (keel::usize i = 0; i < x.numel(); ++i) {
         if (isNan(data[i])) continue;
@@ -709,7 +706,7 @@ reduceMinMaxComplexNanAlongDim(const Value &x, keel::i32 dim, keel::Allocator *m
             else if (complexBetter<IsMax>(v, best, allReal)) { best = v; bi = k; firstValid = k; }
         }
         if (firstValid == SIZE_MAX) {
-            dst[outOff] = keel::c64(std::nan(""), 0.0);
+            dst[outOff] = keel::c64(keel::kNaN, 0.0);
             dstI[outOff] = 1.0;
         } else {
             dst[outOff] = best;

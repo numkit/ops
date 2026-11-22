@@ -16,7 +16,6 @@
 
 #include <numkit/ops/helpers.hpp>
 
-#include <cmath>
 
 namespace numkit::builtin {
 
@@ -47,7 +46,7 @@ Value abs(const Value &x, Value *hint, keel::Allocator *mr)
         const keel::f32 *in = x.singleData();
         keel::f32 *out = r.singleDataMut();
         for (keel::usize i = 0; i < x.numel(); ++i)
-            out[i] = std::fabs(in[i]);
+            out[i] = keel::abs(in[i]);
         return r;
     }
     if (x.type() == ValueType::LOGICAL || x.type() == ValueType::CHAR) {
@@ -66,7 +65,7 @@ Value abs(const Value &x, Value *hint, keel::Allocator *mr)
         return r;
     }
     if (x.isScalar())
-        return Value::scalar(std::fabs(x.toScalar()), mr);
+        return Value::scalar(keel::abs(x.toScalar()), mr);
     // Output-reuse fast path: caller-provided hint is a heap double
     // of matching shape with unique ownership — write straight into
     // its buffer instead of allocating a fresh one.
@@ -76,7 +75,7 @@ Value abs(const Value &x, Value *hint, keel::Allocator *mr)
         const keel::f64 *in  = x.doubleData();
         keel::f64       *out = r.doubleDataMut();
         for (keel::usize i = 0; i < x.numel(); ++i)
-            out[i] = std::fabs(in[i]);
+            out[i] = keel::abs(in[i]);
         return r;
     }
     return unaryDouble(x, [](keel::f64 v) { return keel::abs(v); }, mr);

@@ -4,16 +4,14 @@
 #pragma once
 
 #include <keel/core.h>
+#include <keel/math.h>
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
 #include <numkit/ops/reductions.hpp>  // engine-free numkit::builtin::detail dim-infra (ops re-export)
 
 #include <algorithm>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
-#include <limits>
 #include <numeric>
 #include <tuple>
 #include <utility>
@@ -25,7 +23,7 @@ namespace {
 
 inline keel::i64 toInt64(keel::f64 v)
 {
-    if (std::isnan(v) || std::isinf(v)) return 0;
+    if (keel::is_nan(v) || keel::is_inf(v)) return 0;
     return keel::as<keel::i64>(v);
 }
 

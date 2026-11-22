@@ -1,6 +1,7 @@
 // src/builtin/src/ops/unary_ops.cpp
 
 #include <keel/core.h>
+#include <keel/math.h>
 #include <keel/memory.h>
 #include <keel/complex.h>
 #include <numkit/builtin/ops.hpp>
@@ -10,9 +11,7 @@
 
 #include <numkit/ops/helpers.hpp>
 
-#include <cmath>
 #include <cstdint>
-#include <cstring>
 #include <stdexcept>
 
 #include "unary_ops_detail.hpp"
@@ -80,7 +79,7 @@ Value logical_not(const Value &x, keel::Allocator *mr)
     if (x.type() == ValueType::DOUBLE) {
         if (x.isScalar()) {
             keel::f64 v = x.toScalar();
-            if (std::isnan(v))
+            if (keel::is_nan(v))
                 nanErr();
             return Value::logicalScalar(v == 0.0, p);
         }
@@ -88,7 +87,7 @@ Value logical_not(const Value &x, keel::Allocator *mr)
         const keel::f64 *src = x.doubleData();
         keel::u8 *dst = r.logicalDataMut();
         for (keel::usize i = 0; i < x.numel(); ++i) {
-            if (std::isnan(src[i]))
+            if (keel::is_nan(src[i]))
                 nanErr();
             dst[i] = (src[i] == 0.0) ? 1 : 0;
         }
@@ -99,7 +98,7 @@ Value logical_not(const Value &x, keel::Allocator *mr)
         const keel::c64 *src = x.complexData();
         keel::u8 *dst = r.logicalDataMut();
         for (keel::usize i = 0; i < x.numel(); ++i) {
-            if (std::isnan(src[i].real()) || std::isnan(src[i].imag()))
+            if (keel::is_nan(src[i].real()) || keel::is_nan(src[i].imag()))
                 nanErr();
             dst[i] = (src[i].real() == 0.0 && src[i].imag() == 0.0) ? 1 : 0;
         }
@@ -107,7 +106,7 @@ Value logical_not(const Value &x, keel::Allocator *mr)
     }
     if (x.isScalar()) {
         keel::f64 v = x.elemAsDouble(0);
-        if (std::isnan(v))
+        if (keel::is_nan(v))
             nanErr();
         return Value::logicalScalar(v == 0.0, p);
     }
@@ -115,7 +114,7 @@ Value logical_not(const Value &x, keel::Allocator *mr)
     keel::u8 *dst = r.logicalDataMut();
     for (keel::usize i = 0; i < x.numel(); ++i) {
         keel::f64 v = x.elemAsDouble(i);
-        if (std::isnan(v))
+        if (keel::is_nan(v))
             nanErr();
         dst[i] = (v == 0.0) ? 1 : 0;
     }

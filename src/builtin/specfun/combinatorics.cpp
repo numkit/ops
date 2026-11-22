@@ -1,6 +1,7 @@
 // src/builtin/src/specfun/combinatorics.cpp
 
 #include <keel/core.h>
+#include <keel/math.h>
 #include <keel/memory.h>
 #include <keel/arena.h>
 #include <keel/array.h>
@@ -11,11 +12,8 @@
 #include <numkit/ops/helpers.hpp>
 
 #include <algorithm>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
-#include <limits>
 #include <numeric>
 #include <utility>
 
@@ -30,9 +28,9 @@ namespace numkit::builtin {
 
 Value primes(keel::f64 n, keel::Allocator *mr)
 {
-    if (!std::isfinite(n) || n < 2)
+    if (!keel::is_finite(n) || n < 2)
         return Value::matrix(1, 0, ValueType::DOUBLE, mr);
-    const keel::u64 N = keel::as<keel::u64>(std::floor(n));
+    const keel::u64 N = keel::as<keel::u64>(keel::floor(n));
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     keel::Array<keel::u64> ps = keel::specfun::primes_up_to(N, scratch.allocator());
 
@@ -133,10 +131,10 @@ Value factorial(const Value &n, keel::Allocator *mr)
 
 Value nchoosek(keel::f64 n, keel::f64 k, keel::Allocator *mr)
 {
-    if (!std::isfinite(n) || !std::isfinite(k))
+    if (!keel::is_finite(n) || !keel::is_finite(k))
         throw Error("nchoosek: arguments must be finite",
                      0, 0, "nchoosek", "", "numkit:nchoosek:badArg");
-    if (n < 0 || k < 0 || n != std::floor(n) || k != std::floor(k))
+    if (n < 0 || k < 0 || n != keel::floor(n) || k != keel::floor(k))
         throw Error("nchoosek: arguments must be non-negative integers",
                      0, 0, "nchoosek", "", "numkit:nchoosek:badArg");
     if (k > n)
@@ -153,7 +151,7 @@ Value nchoosek(keel::f64 n, keel::f64 k, keel::Allocator *mr)
 Value nchoosekCombinations(const Value &v, keel::f64 kd, keel::Allocator *mr)
 {
     const keel::usize n = v.numel();
-    if (!std::isfinite(kd) || kd < 0 || kd != std::floor(kd))
+    if (!keel::is_finite(kd) || kd < 0 || kd != keel::floor(kd))
         throw Error("nchoosek: K must be a non-negative integer",
                      0, 0, "nchoosek", "", "numkit:nchoosek:badArg");
     const keel::usize k = keel::as<keel::usize>(kd);
@@ -172,7 +170,7 @@ Value nchoosekCombinations(const Value &v, keel::f64 kd, keel::Allocator *mr)
     keel::f64 rd = 1.0;
     for (keel::usize i = 0; i < kk; ++i)
         rd = rd * keel::as<keel::f64>(n - i) / keel::as<keel::f64>(i + 1);
-    const keel::usize R = keel::as<keel::usize>(std::round(rd));
+    const keel::usize R = keel::as<keel::usize>(keel::round(rd));
 
     auto out = Value::matrix(R, k, ValueType::DOUBLE, mr);
     keel::f64 *od = out.doubleDataMut();

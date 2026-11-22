@@ -9,7 +9,6 @@
 #include <numkit/ops/fft/fft_radix2.hpp>   // numkit::fftRadix2(buf,N,W) base butterfly (ops-layer)
 
 #include <algorithm>
-#include <cmath>
 #include <cstddef>
 
 
@@ -35,7 +34,7 @@ inline void fillFftTwiddles(keel::c64 *W, keel::usize N, keel::i32 dir)
     const keel::f64 base = dir * 2.0 * keel::kPi / keel::as<keel::f64>(N);
     for (keel::usize k = 0; k < half; ++k) {
         const keel::f64 a = base * keel::as<keel::f64>(k);
-        W[k] = keel::c64(std::cos(a), std::sin(a));
+        W[k] = keel::c64(keel::cos(a), keel::sin(a));
     }
 }
 

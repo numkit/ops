@@ -16,7 +16,6 @@
 
 #include <numkit/ops/helpers.hpp>
 
-#include <cmath>
 
 namespace numkit::builtin {
 
@@ -26,22 +25,22 @@ constexpr keel::f64 kRad2Deg = 180.0 / keel::kPi;
 
 inline keel::f64 sind_scalar(keel::f64 x)
 {
-    if (!std::isfinite(x)) return std::numeric_limits<keel::f64>::quiet_NaN();
-    const keel::f64 xr = std::fmod(x, 360.0);
+    if (!keel::is_finite(x)) return keel::Limits<keel::f64>::quiet_nan();
+    const keel::f64 xr = keel::fmod(x, 360.0);
     if (xr == 0.0 || xr == 180.0 || xr == -180.0) return 0.0;
     if (xr == 90.0)  return  1.0;
     if (xr == -90.0) return -1.0;
-    return std::sin(xr * kDeg2Rad);
+    return keel::sin(xr * kDeg2Rad);
 }
 
 inline keel::f64 cosd_scalar(keel::f64 x)
 {
-    if (!std::isfinite(x)) return std::numeric_limits<keel::f64>::quiet_NaN();
-    const keel::f64 xr = std::fmod(x, 360.0);
+    if (!keel::is_finite(x)) return keel::Limits<keel::f64>::quiet_nan();
+    const keel::f64 xr = keel::fmod(x, 360.0);
     if (xr == 90.0 || xr == -90.0 || xr == 270.0 || xr == -270.0) return 0.0;
     if (xr == 0.0) return  1.0;
     if (xr == 180.0 || xr == -180.0) return -1.0;
-    return std::cos(xr * kDeg2Rad);
+    return keel::cos(xr * kDeg2Rad);
 }
 } // namespace
 
@@ -51,21 +50,21 @@ Value sec(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
         return unaryComplex(x, [](const keel::c64 &c) { return keel::c64(1.0) / keel::cos(c); }, mr);
-    return unaryDouble(x, [](keel::f64 v) { return 1.0 / std::cos(v); }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return 1.0 / keel::cos(v); }, mr);
 }
 
 Value csc(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
         return unaryComplex(x, [](const keel::c64 &c) { return keel::c64(1.0) / keel::sin(c); }, mr);
-    return unaryDouble(x, [](keel::f64 v) { return 1.0 / std::sin(v); }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return 1.0 / keel::sin(v); }, mr);
 }
 
 Value cot(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
         return unaryComplex(x, [](const keel::c64 &c) { return keel::cos(c) / keel::sin(c); }, mr);
-    return unaryDouble(x, [](keel::f64 v) { return std::cos(v) / std::sin(v); }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return keel::cos(v) / keel::sin(v); }, mr);
 }
 
 // ── Hyperbolic reciprocal ──────────────────────────────────────────
@@ -74,21 +73,21 @@ Value sech(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
         return unaryComplex(x, [](const keel::c64 &c) { return keel::c64(1.0) / keel::cosh(c); }, mr);
-    return unaryDouble(x, [](keel::f64 v) { return 1.0 / std::cosh(v); }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return 1.0 / keel::cosh(v); }, mr);
 }
 
 Value csch(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
         return unaryComplex(x, [](const keel::c64 &c) { return keel::c64(1.0) / keel::sinh(c); }, mr);
-    return unaryDouble(x, [](keel::f64 v) { return 1.0 / std::sinh(v); }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return 1.0 / keel::sinh(v); }, mr);
 }
 
 Value coth(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
         return unaryComplex(x, [](const keel::c64 &c) { return keel::cosh(c) / keel::sinh(c); }, mr);
-    return unaryDouble(x, [](keel::f64 v) { return std::cosh(v) / std::sinh(v); }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return keel::cosh(v) / keel::sinh(v); }, mr);
 }
 
 // ── Degree reciprocal ──────────────────────────────────────────────
@@ -127,7 +126,7 @@ Value asec(const Value &x, keel::Allocator *mr)
         if (v > -1.0 && v < 1.0)
             return Value::complexScalar(keel::acos(keel::c64(1.0 / v, 0.0)), mr);
     }
-    return unaryDouble(x, [](keel::f64 v) { return std::acos(1.0 / v); }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return keel::acos(1.0 / v); }, mr);
 }
 
 Value acsc(const Value &x, keel::Allocator *mr)
@@ -139,14 +138,14 @@ Value acsc(const Value &x, keel::Allocator *mr)
         if (v > -1.0 && v < 1.0 && v != 0.0)
             return Value::complexScalar(keel::asin(keel::c64(1.0 / v, 0.0)), mr);
     }
-    return unaryDouble(x, [](keel::f64 v) { return std::asin(1.0 / v); }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return keel::asin(1.0 / v); }, mr);
 }
 
 Value acot(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
         return unaryComplex(x, [](const keel::c64 &c) { return keel::atan(keel::c64(1.0) / c); }, mr);
-    return unaryDouble(x, [](keel::f64 v) { return std::atan(1.0 / v); }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return keel::atan(1.0 / v); }, mr);
 }
 
 // ── Inverse hyperbolic reciprocal ──────────────────────────────────
@@ -160,14 +159,14 @@ Value asech(const Value &x, keel::Allocator *mr)
         if (v <= 0.0 || v > 1.0)
             return Value::complexScalar(keel::acosh(keel::c64(1.0 / v, 0.0)), mr);
     }
-    return unaryDouble(x, [](keel::f64 v) { return std::acosh(1.0 / v); }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return keel::acosh(1.0 / v); }, mr);
 }
 
 Value acsch(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
         return unaryComplex(x, [](const keel::c64 &c) { return keel::asinh(keel::c64(1.0) / c); }, mr);
-    return unaryDouble(x, [](keel::f64 v) { return std::asinh(1.0 / v); }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return keel::asinh(1.0 / v); }, mr);
 }
 
 Value acoth(const Value &x, keel::Allocator *mr)
@@ -179,7 +178,7 @@ Value acoth(const Value &x, keel::Allocator *mr)
         if (v >= -1.0 && v <= 1.0)
             return Value::complexScalar(keel::atanh(keel::c64(1.0 / v, 0.0)), mr);
     }
-    return unaryDouble(x, [](keel::f64 v) { return std::atanh(1.0 / v); }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return keel::atanh(1.0 / v); }, mr);
 }
 
 // ── Inverse degree reciprocal ──────────────────────────────────────
@@ -195,7 +194,7 @@ Value asecd(const Value &x, keel::Allocator *mr)
         if (v > -1.0 && v < 1.0)
             return Value::complexScalar(keel::acos(keel::c64(1.0 / v, 0.0)) * kRad2Deg, mr);
     }
-    return unaryDouble(x, [](keel::f64 v) { return std::acos(1.0 / v) * kRad2Deg; }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return keel::acos(1.0 / v) * kRad2Deg; }, mr);
 }
 
 Value acscd(const Value &x, keel::Allocator *mr)
@@ -209,7 +208,7 @@ Value acscd(const Value &x, keel::Allocator *mr)
         if (v > -1.0 && v < 1.0 && v != 0.0)
             return Value::complexScalar(keel::asin(keel::c64(1.0 / v, 0.0)) * kRad2Deg, mr);
     }
-    return unaryDouble(x, [](keel::f64 v) { return std::asin(1.0 / v) * kRad2Deg; }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return keel::asin(1.0 / v) * kRad2Deg; }, mr);
 }
 
 Value acotd(const Value &x, keel::Allocator *mr)
@@ -218,7 +217,7 @@ Value acotd(const Value &x, keel::Allocator *mr)
         return unaryComplex(x, [](const keel::c64 &c) {
             return keel::atan(keel::c64(1.0) / c) * kRad2Deg;
         }, mr);
-    return unaryDouble(x, [](keel::f64 v) { return std::atan(1.0 / v) * kRad2Deg; }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return keel::atan(1.0 / v) * kRad2Deg; }, mr);
 }
 
 } // namespace numkit::builtin

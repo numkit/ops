@@ -6,6 +6,7 @@
 #pragma once
 
 #include <keel/array.h>
+#include <keel/algo.h>
 #include <keel/core.h>
 #include <keel/format.h>
 #include <keel/math.h>
@@ -17,7 +18,6 @@
 #include <numkit/value/fn_handle.hpp>
 #include <numkit/value/value.hpp>
 
-#include <cstring>
 #include <tuple>
 #include <utility>
 
@@ -116,7 +116,7 @@ runKeelOde(KeelOdeSolverFn solver_fn, const char *solver, keel::i32 refine_defau
         const keel::usize dim = y.size();
         Value tv = Value::scalar(t, mr);
         Value yv = Value::matrix(dim, 1, ValueType::DOUBLE, mr);
-        if (dim > 0) std::memcpy(yv.doubleDataMut(), y.data(), dim * sizeof(keel::f64));
+        if (dim > 0) keel::copy_n(yv.doubleDataMut(), y.data(), dim);
         keel::StaticArray<Value, 2> args_buf{tv, yv};
         Value out_buf;
         rhs(keel::ArrayRef<Value>(args_buf.data(), 2), keel::MutArrayRef<Value>(&out_buf, 1), mr);
@@ -168,9 +168,9 @@ runKeelOde(KeelOdeSolverFn solver_fn, const char *solver, keel::i32 refine_defau
 
     const keel::usize m = sol.num_points();
     Value t_val = Value::matrix(m, 1, ValueType::DOUBLE, mr);
-    if (m > 0) std::memcpy(t_val.doubleDataMut(), sol.t.data(), m * sizeof(keel::f64));
+    if (m > 0) keel::copy_n(t_val.doubleDataMut(), sol.t.data(), m);
     Value y_val = Value::matrix(m, d, ValueType::DOUBLE, mr);
-    if (m * d > 0) std::memcpy(y_val.doubleDataMut(), sol.y_colmajor.data(), m * d * sizeof(keel::f64));
+    if (m * d > 0) keel::copy_n(y_val.doubleDataMut(), sol.y_colmajor.data(), m * d);
     return {std::move(t_val), std::move(y_val)};
 }
 

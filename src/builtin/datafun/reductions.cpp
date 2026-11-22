@@ -9,6 +9,7 @@
 // math/random/rng.cpp.
 
 #include <keel/core.h>
+#include <keel/math.h>
 #include <keel/memory.h>
 #include <keel/complex.h>
 #include <numkit/builtin/elmat.hpp>       // reshape (for 'all')
@@ -26,8 +27,6 @@
 #include "../elfun/_unary_hint.hpp"  // 3-arg sin/cos/exp/log/abs hint overloads
 
 #include <algorithm>
-#include <cmath>
-#include <limits>
 #include <type_traits>
 
 #include "reductions_detail.hpp"
@@ -188,7 +187,7 @@ Value max(const Value &a, const Value &b, keel::Allocator *mr)
     }
     // fmax (not std::max) ignores NaN like MATLAB: max([NaN 6],[5 7]) = [5 7]
     // not [NaN 7]. std::max is order-dependent for NaN and returned NaN here.
-    return elementwiseDouble(a, b, [](keel::f64 aa, keel::f64 bb) { return std::fmax(aa, bb); }, p);
+    return elementwiseDouble(a, b, [](keel::f64 aa, keel::f64 bb) { return keel::fmax(aa, bb); }, p);
 }
 
 Value min(const Value &a, const Value &b, keel::Allocator *mr)
@@ -200,7 +199,7 @@ Value min(const Value &a, const Value &b, keel::Allocator *mr)
             [](auto x, auto y) { return x < y ? x : y; }, p);
         if (!r.isUnset()) return r;
     }
-    return elementwiseDouble(a, b, [](keel::f64 aa, keel::f64 bb) { return std::fmin(aa, bb); }, p);
+    return elementwiseDouble(a, b, [](keel::f64 aa, keel::f64 bb) { return keel::fmin(aa, bb); }, p);
 }
 
 // Binary nan-aware variants. For floating types, NaN propagates as
@@ -216,16 +215,16 @@ Value maxOmitNanBinary(const Value &a, const Value &b, keel::Allocator *mr)
             [](auto x, auto y) {
                 using T = decltype(x);
                 if constexpr (std::is_floating_point_v<T>) {
-                    if (std::isnan(x)) return y;
-                    if (std::isnan(y)) return x;
+                    if (keel::is_nan(x)) return y;
+                    if (keel::is_nan(y)) return x;
                 }
                 return x > y ? x : y;
             }, p);
         if (!r.isUnset()) return r;
     }
     return elementwiseDouble(a, b, [](keel::f64 aa, keel::f64 bb) {
-        if (std::isnan(aa)) return bb;
-        if (std::isnan(bb)) return aa;
+        if (keel::is_nan(aa)) return bb;
+        if (keel::is_nan(bb)) return aa;
         return std::max(aa, bb);
     }, p);
 }
@@ -239,16 +238,16 @@ Value minOmitNanBinary(const Value &a, const Value &b, keel::Allocator *mr)
             [](auto x, auto y) {
                 using T = decltype(x);
                 if constexpr (std::is_floating_point_v<T>) {
-                    if (std::isnan(x)) return y;
-                    if (std::isnan(y)) return x;
+                    if (keel::is_nan(x)) return y;
+                    if (keel::is_nan(y)) return x;
                 }
                 return x < y ? x : y;
             }, p);
         if (!r.isUnset()) return r;
     }
     return elementwiseDouble(a, b, [](keel::f64 aa, keel::f64 bb) {
-        if (std::isnan(aa)) return bb;
-        if (std::isnan(bb)) return aa;
+        if (keel::is_nan(aa)) return bb;
+        if (keel::is_nan(bb)) return aa;
         return std::min(aa, bb);
     }, p);
 }
@@ -287,12 +286,12 @@ Value logspace(keel::f64 a, keel::f64 b, keel::usize n, keel::Allocator *mr)
     if (n == 0)
         return r;
     if (n == 1) {
-        r.doubleDataMut()[0] = std::pow(10.0, b);
+        r.doubleDataMut()[0] = keel::pow(10.0, b);
         return r;
     }
     for (keel::usize i = 0; i < n; ++i) {
         const keel::f64 exponent = a + (b - a) * keel::as<keel::f64>(i) / keel::as<keel::f64>(n - 1);
-        r.doubleDataMut()[i] = std::pow(10.0, exponent);
+        r.doubleDataMut()[i] = keel::pow(10.0, exponent);
     }
     return r;
 }

@@ -27,10 +27,8 @@
 #include <numkit/ops/helpers.hpp>
 #include "sinpi_kernel.hpp"
 
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <limits>
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "builtin/elfun/trig_highway.cpp"
@@ -53,7 +51,7 @@ void SinLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Sin(d, v), d, out + i);
     }
-    for (; i < n; ++i) out[i] = std::sin(in[i]);
+    for (; i < n; ++i) out[i] = keel::sin(in[i]);
 }
 
 void CosLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel::usize n)
@@ -65,7 +63,7 @@ void CosLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Cos(d, v), d, out + i);
     }
-    for (; i < n; ++i) out[i] = std::cos(in[i]);
+    for (; i < n; ++i) out[i] = keel::cos(in[i]);
 }
 
 // â”€â”€ Hyperbolic (Highway has Sinh and Tanh; Cosh is composed below) â”€â”€â”€
@@ -79,7 +77,7 @@ void SinhLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, kee
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::IfThenElse(hn::IsFinite(v), hn::Sinh(d, v), v), d, out + i);
     }
-    for (; i < n; ++i) out[i] = std::sinh(in[i]);
+    for (; i < n; ++i) out[i] = keel::sinh(in[i]);
 }
 
 void TanhLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel::usize n)
@@ -91,7 +89,7 @@ void TanhLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, kee
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Tanh(d, v), d, out + i);
     }
-    for (; i < n; ++i) out[i] = std::tanh(in[i]);
+    for (; i < n; ++i) out[i] = keel::tanh(in[i]);
 }
 
 // cosh(x) = (e^x + e^-x) / 2 â€” composed from Highway Exp.
@@ -116,7 +114,7 @@ void CoshLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, kee
         auto en  = safeExp(hn::Neg(v));
         hn::StoreU(hn::IfThenElse(hn::IsNaN(v), v, hn::Mul(half, hn::Add(ep, en))), d, out + i);
     }
-    for (; i < n; ++i) out[i] = std::cosh(in[i]);
+    for (; i < n; ++i) out[i] = keel::cosh(in[i]);
 }
 
 // â”€â”€ Inverse trig â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -130,7 +128,7 @@ void AsinLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, kee
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Asin(d, v), d, out + i);
     }
-    for (; i < n; ++i) out[i] = std::asin(in[i]);
+    for (; i < n; ++i) out[i] = keel::asin(in[i]);
 }
 
 void AcosLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel::usize n)
@@ -142,7 +140,7 @@ void AcosLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, kee
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Acos(d, v), d, out + i);
     }
-    for (; i < n; ++i) out[i] = std::acos(in[i]);
+    for (; i < n; ++i) out[i] = keel::acos(in[i]);
 }
 
 void AtanLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel::usize n)
@@ -154,7 +152,7 @@ void AtanLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, kee
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Atan(d, v), d, out + i);
     }
-    for (; i < n; ++i) out[i] = std::atan(in[i]);
+    for (; i < n; ++i) out[i] = keel::atan(in[i]);
 }
 
 void AsinhLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel::usize n)
@@ -166,7 +164,7 @@ void AsinhLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, ke
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::IfThenElse(hn::IsFinite(v), hn::Asinh(d, v), v), d, out + i);
     }
-    for (; i < n; ++i) out[i] = std::asinh(in[i]);
+    for (; i < n; ++i) out[i] = keel::asinh(in[i]);
 }
 
 void AtanhLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel::usize n)
@@ -178,7 +176,7 @@ void AtanhLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, ke
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Atanh(d, v), d, out + i);
     }
-    for (; i < n; ++i) out[i] = std::atanh(in[i]);
+    for (; i < n; ++i) out[i] = keel::atanh(in[i]);
 }
 
 // tan(x) = sin(x) / cos(x) â€” composed because Highway has no Tan.
@@ -243,9 +241,9 @@ void TanLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel
         if (hn::AllTrue(d, hn::Lt(hn::Abs(v), rempiThreshold)))
             hn::StoreU(TanVec(d, di, v), d, out + i);
         else // |x| >= 1e6 or non-finite: scalar reference for the whole block
-            for (keel::usize j = 0; j < N; ++j) out[i + j] = std::tan(in[i + j]);
+            for (keel::usize j = 0; j < N; ++j) out[i + j] = keel::tan(in[i + j]);
     }
-    for (; i < n; ++i) out[i] = std::tan(in[i]);
+    for (; i < n; ++i) out[i] = keel::tan(in[i]);
 }
 
 void AcoshLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel::usize n)
@@ -257,7 +255,7 @@ void AcoshLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, ke
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::IfThenElse(hn::IsFinite(v), hn::Acosh(d, v), v), d, out + i);
     }
-    for (; i < n; ++i) out[i] = std::acosh(in[i]);
+    for (; i < n; ++i) out[i] = keel::acosh(in[i]);
 }
 
 // â”€â”€ Atan2 / Hypot (binary) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -273,7 +271,7 @@ void Atan2Loop(const keel::f64 *HWY_RESTRICT y, const keel::f64 *HWY_RESTRICT x,
         auto vx = hn::LoadU(d, x + i);
         hn::StoreU(hn::Atan2(d, vy, vx), d, out + i);
     }
-    for (; i < n; ++i) out[i] = std::atan2(y[i], x[i]);
+    for (; i < n; ++i) out[i] = keel::atan2(y[i], x[i]);
 }
 
 // hypot(a, b) = sqrt(aÂ² + bÂ²). Highway has Sqrt but no Hypot;
@@ -292,7 +290,7 @@ void HypotLoop(const keel::f64 *HWY_RESTRICT a, const keel::f64 *HWY_RESTRICT b,
         auto vb = hn::LoadU(d, b + i);
         hn::StoreU(hn::Sqrt(hn::MulAdd(va, va, hn::Mul(vb, vb))), d, out + i);
     }
-    for (; i < n; ++i) out[i] = std::hypot(a[i], b[i]);
+    for (; i < n; ++i) out[i] = keel::hypot(a[i], b[i]);
 }
 
 // â”€â”€ Degree variants: SIMD bulk path. â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -320,7 +318,7 @@ void SindLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, kee
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Sin(d, hn::Mul(v, k)), d, out + i);
     }
-    for (; i < n; ++i) out[i] = std::sin(in[i] * deg_consts::kDeg2Rad);
+    for (; i < n; ++i) out[i] = keel::sin(in[i] * deg_consts::kDeg2Rad);
 }
 
 void CosdLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel::usize n)
@@ -333,7 +331,7 @@ void CosdLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, kee
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Cos(d, hn::Mul(v, k)), d, out + i);
     }
-    for (; i < n; ++i) out[i] = std::cos(in[i] * deg_consts::kDeg2Rad);
+    for (; i < n; ++i) out[i] = keel::cos(in[i] * deg_consts::kDeg2Rad);
 }
 
 void TandLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel::usize n)
@@ -347,7 +345,7 @@ void TandLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, kee
         auto r = hn::Mul(v, k);
         hn::StoreU(hn::Div(hn::Sin(d, r), hn::Cos(d, r)), d, out + i);
     }
-    for (; i < n; ++i) out[i] = std::tan(in[i] * deg_consts::kDeg2Rad);
+    for (; i < n; ++i) out[i] = keel::tan(in[i] * deg_consts::kDeg2Rad);
 }
 
 void AsindLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel::usize n)
@@ -360,7 +358,7 @@ void AsindLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, ke
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Mul(hn::Asin(d, v), k), d, out + i);
     }
-    for (; i < n; ++i) out[i] = std::asin(in[i]) * deg_consts::kRad2Deg;
+    for (; i < n; ++i) out[i] = keel::asin(in[i]) * deg_consts::kRad2Deg;
 }
 
 void AcosdLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel::usize n)
@@ -373,7 +371,7 @@ void AcosdLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, ke
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Mul(hn::Acos(d, v), k), d, out + i);
     }
-    for (; i < n; ++i) out[i] = std::acos(in[i]) * deg_consts::kRad2Deg;
+    for (; i < n; ++i) out[i] = keel::acos(in[i]) * deg_consts::kRad2Deg;
 }
 
 void AtandLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel::usize n)
@@ -386,7 +384,7 @@ void AtandLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, ke
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Mul(hn::Atan(d, v), k), d, out + i);
     }
-    for (; i < n; ++i) out[i] = std::atan(in[i]) * deg_consts::kRad2Deg;
+    for (; i < n; ++i) out[i] = keel::atan(in[i]) * deg_consts::kRad2Deg;
 }
 
 void Atan2dLoop(const keel::f64 *HWY_RESTRICT y, const keel::f64 *HWY_RESTRICT x,
@@ -401,7 +399,7 @@ void Atan2dLoop(const keel::f64 *HWY_RESTRICT y, const keel::f64 *HWY_RESTRICT x
         auto vx = hn::LoadU(d, x + i);
         hn::StoreU(hn::Mul(hn::Atan2(d, vy, vx), k), d, out + i);
     }
-    for (; i < n; ++i) out[i] = std::atan2(y[i], x[i]) * deg_consts::kRad2Deg;
+    for (; i < n; ++i) out[i] = keel::atan2(y[i], x[i]) * deg_consts::kRad2Deg;
 }
 
 // â”€â”€ Multiple-of-Ï€ variants. â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -456,7 +454,7 @@ HWY_INLINE hn::VFromD<D> SinCospiVec(D d, DI di, hn::VFromD<D> v)
     const auto isZero = hn::Eq(x, hn::Zero(d));
     x = hn::IfThenElse(isZero, Cos ? hn::Zero(d) : hn::CopySign(hn::Zero(d), v), x);
 
-    const auto qnan = hn::Set(d, std::numeric_limits<keel::f64>::quiet_NaN());
+    const auto qnan = hn::Set(d, keel::Limits<keel::f64>::quiet_nan());
     x = hn::IfThenElse(big, Cos ? hn::Set(d, 1.0) : hn::CopySign(hn::Zero(d), v), x);
     x = hn::IfThenElse(hn::IsInf(v), qnan, x);
     x = hn::IfThenElse(nan, v, x);
@@ -531,34 +529,34 @@ constexpr keel::f64 kPi      = keel::kPi;
 // SIMD path skips this â€” bench inputs rarely hit exact multiples.
 inline keel::f64 sind_scalar(keel::f64 x)
 {
-    if (!std::isfinite(x)) return std::numeric_limits<keel::f64>::quiet_NaN();
-    const keel::f64 xr = std::fmod(x, 360.0);
+    if (!keel::is_finite(x)) return keel::Limits<keel::f64>::quiet_nan();
+    const keel::f64 xr = keel::fmod(x, 360.0);
     if (xr == 0.0 || xr == 180.0 || xr == -180.0) return 0.0;
     if (xr == 90.0)  return  1.0;
     if (xr == -90.0) return -1.0;
-    return std::sin(xr * kDeg2Rad);
+    return keel::sin(xr * kDeg2Rad);
 }
 
 inline keel::f64 cosd_scalar(keel::f64 x)
 {
-    if (!std::isfinite(x)) return std::numeric_limits<keel::f64>::quiet_NaN();
-    const keel::f64 xr = std::fmod(x, 360.0);
+    if (!keel::is_finite(x)) return keel::Limits<keel::f64>::quiet_nan();
+    const keel::f64 xr = keel::fmod(x, 360.0);
     if (xr == 90.0 || xr == -90.0 || xr == 270.0 || xr == -270.0) return 0.0;
     if (xr == 0.0) return  1.0;
     if (xr == 180.0 || xr == -180.0) return -1.0;
-    return std::cos(xr * kDeg2Rad);
+    return keel::cos(xr * kDeg2Rad);
 }
 
 inline keel::f64 tand_scalar(keel::f64 x)
 {
-    if (!std::isfinite(x)) return std::numeric_limits<keel::f64>::quiet_NaN();
-    const keel::f64 xr = std::fmod(x, 360.0);
+    if (!keel::is_finite(x)) return keel::Limits<keel::f64>::quiet_nan();
+    const keel::f64 xr = keel::fmod(x, 360.0);
     if (xr == 0.0 || xr == 180.0 || xr == -180.0) return 0.0;
-    if (xr == 90.0)  return  std::numeric_limits<keel::f64>::infinity();
-    if (xr == -90.0) return -std::numeric_limits<keel::f64>::infinity();
-    if (xr == 270.0) return  std::numeric_limits<keel::f64>::infinity();
-    if (xr == -270.0)return -std::numeric_limits<keel::f64>::infinity();
-    return std::tan(xr * kDeg2Rad);
+    if (xr == 90.0)  return  keel::Limits<keel::f64>::infinity();
+    if (xr == -90.0) return -keel::Limits<keel::f64>::infinity();
+    if (xr == 270.0) return  keel::Limits<keel::f64>::infinity();
+    if (xr == -270.0)return -keel::Limits<keel::f64>::infinity();
+    return keel::tan(xr * kDeg2Rad);
 }
 
 // Accurate sin(pi*x) / cos(pi*x): exact octant reduction + SLEEF
@@ -617,14 +615,14 @@ Value sin(const Value &x, Value *hint, keel::Allocator *mr)
 {
     return unaryRealDouble(x, hint, [](const keel::f64 *in, keel::f64 *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(SinLoop)(in, out, n);
-        }, [](keel::f64 v) { return std::sin(v); }, [](const keel::c64 &c) { return keel::sin(c); }, mr);
+        }, [](keel::f64 v) { return keel::sin(v); }, [](const keel::c64 &c) { return keel::sin(c); }, mr);
 }
 
 Value cos(const Value &x, Value *hint, keel::Allocator *mr)
 {
     return unaryRealDouble(x, hint, [](const keel::f64 *in, keel::f64 *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(CosLoop)(in, out, n);
-        }, [](keel::f64 v) { return std::cos(v); }, [](const keel::c64 &c) { return keel::cos(c); }, mr);
+        }, [](keel::f64 v) { return keel::cos(v); }, [](const keel::c64 &c) { return keel::cos(c); }, mr);
 }
 
 // â”€â”€ Hyperbolic + inverse trig: SIMD-dispatched real-vector path. â”€â”€â”€â”€â”€
@@ -636,21 +634,21 @@ Value sinh(const Value &x, keel::Allocator *mr)
 {
     return unaryRealDouble(x, /*hint*/ nullptr, [](const keel::f64 *in, keel::f64 *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(SinhLoop)(in, out, n);
-        }, [](keel::f64 v) { return std::sinh(v); }, [](const keel::c64 &c) { return keel::sinh(c); }, mr);
+        }, [](keel::f64 v) { return keel::sinh(v); }, [](const keel::c64 &c) { return keel::sinh(c); }, mr);
 }
 
 Value cosh(const Value &x, keel::Allocator *mr)
 {
     return unaryRealDouble(x, /*hint*/ nullptr, [](const keel::f64 *in, keel::f64 *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(CoshLoop)(in, out, n);
-        }, [](keel::f64 v) { return std::cosh(v); }, [](const keel::c64 &c) { return keel::cosh(c); }, mr);
+        }, [](keel::f64 v) { return keel::cosh(v); }, [](const keel::c64 &c) { return keel::cosh(c); }, mr);
 }
 
 Value tanh(const Value &x, keel::Allocator *mr)
 {
     return unaryRealDouble(x, /*hint*/ nullptr, [](const keel::f64 *in, keel::f64 *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(TanhLoop)(in, out, n);
-        }, [](keel::f64 v) { return std::tanh(v); }, [](const keel::c64 &c) { return keel::tanh(c); }, mr);
+        }, [](keel::f64 v) { return keel::tanh(v); }, [](const keel::c64 &c) { return keel::tanh(c); }, mr);
 }
 
 // asin/acos of a REAL argument outside [-1,1] go complex in MATLAB, and if
@@ -675,23 +673,23 @@ bool anyOutsideUnitInterval(const Value &x)
 }
 keel::c64 acosRealToComplex(keel::f64 v)
 {
-    if (v >= -1.0 && v <= 1.0) return keel::c64(std::acos(v), 0.0);
-    if (v > 1.0)               return keel::c64(0.0, std::acosh(v));
-    return keel::c64(kPiInvTrig, -std::acosh(-v));
+    if (v >= -1.0 && v <= 1.0) return keel::c64(keel::acos(v), 0.0);
+    if (v > 1.0)               return keel::c64(0.0, keel::acosh(v));
+    return keel::c64(kPiInvTrig, -keel::acosh(-v));
 }
 keel::c64 asinRealToComplex(keel::f64 v)
 {
-    if (v >= -1.0 && v <= 1.0) return keel::c64(std::asin(v), 0.0);
-    if (v > 1.0)               return keel::c64(kHalfPiInvTrig, -std::acosh(v));
-    return keel::c64(-kHalfPiInvTrig, std::acosh(-v));
+    if (v >= -1.0 && v <= 1.0) return keel::c64(keel::asin(v), 0.0);
+    if (v > 1.0)               return keel::c64(kHalfPiInvTrig, -keel::acosh(v));
+    return keel::c64(-kHalfPiInvTrig, keel::acosh(-v));
 }
 // MATLAB atanh of a real |x|>1: atanh(1/x) + i*sign(x)*pi/2. std::atanh's
 // complex branch flips the imaginary sign for x<-1, so use the explicit form.
 keel::c64 atanhRealToComplex(keel::f64 v)
 {
-    if (std::isnan(v))         return keel::c64(v, 0.0);
-    if (v >= -1.0 && v <= 1.0) return keel::c64(std::atanh(v), 0.0);  // real (Â±Inf at Â±1)
-    return keel::c64(std::atanh(1.0 / v), v > 0.0 ? kHalfPiInvTrig : -kHalfPiInvTrig);
+    if (keel::is_nan(v))         return keel::c64(v, 0.0);
+    if (v >= -1.0 && v <= 1.0) return keel::c64(keel::atanh(v), 0.0);  // real (Â±Inf at Â±1)
+    return keel::c64(keel::atanh(1.0 / v), v > 0.0 ? kHalfPiInvTrig : -kHalfPiInvTrig);
 }
 // True if any real element is < 1 (NaN compares false â†’ stays real). acosh of
 // such an input goes complex; any out-of-range element promotes the array.
@@ -719,7 +717,7 @@ Value asin(const Value &x, keel::Allocator *mr)
         return mapRealToComplexUnit(x, asinRealToComplex, mr);
     return unaryRealDouble(x, /*hint*/ nullptr, [](const keel::f64 *in, keel::f64 *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(AsinLoop)(in, out, n);
-        }, [](keel::f64 v) { return std::asin(v); }, [](const keel::c64 &c) { return keel::asin(c); }, mr);
+        }, [](keel::f64 v) { return keel::asin(v); }, [](const keel::c64 &c) { return keel::asin(c); }, mr);
 }
 
 Value acos(const Value &x, keel::Allocator *mr)
@@ -728,21 +726,21 @@ Value acos(const Value &x, keel::Allocator *mr)
         return mapRealToComplexUnit(x, acosRealToComplex, mr);
     return unaryRealDouble(x, /*hint*/ nullptr, [](const keel::f64 *in, keel::f64 *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(AcosLoop)(in, out, n);
-        }, [](keel::f64 v) { return std::acos(v); }, [](const keel::c64 &c) { return keel::acos(c); }, mr);
+        }, [](keel::f64 v) { return keel::acos(v); }, [](const keel::c64 &c) { return keel::acos(c); }, mr);
 }
 
 Value atan(const Value &x, keel::Allocator *mr)
 {
     return unaryRealDouble(x, /*hint*/ nullptr, [](const keel::f64 *in, keel::f64 *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(AtanLoop)(in, out, n);
-        }, [](keel::f64 v) { return std::atan(v); }, [](const keel::c64 &c) { return keel::atan(c); }, mr);
+        }, [](keel::f64 v) { return keel::atan(v); }, [](const keel::c64 &c) { return keel::atan(c); }, mr);
 }
 
 Value asinh(const Value &x, keel::Allocator *mr)
 {
     return unaryRealDouble(x, /*hint*/ nullptr, [](const keel::f64 *in, keel::f64 *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(AsinhLoop)(in, out, n);
-        }, [](keel::f64 v) { return std::asinh(v); }, [](const keel::c64 &c) { return keel::asinh(c); }, mr);
+        }, [](keel::f64 v) { return keel::asinh(v); }, [](const keel::c64 &c) { return keel::asinh(c); }, mr);
 }
 
 Value atanh(const Value &x, keel::Allocator *mr)
@@ -755,14 +753,14 @@ Value atanh(const Value &x, keel::Allocator *mr)
         return mapRealToComplexUnit(x, atanhRealToComplex, mr);
     return unaryRealDouble(x, /*hint*/ nullptr, [](const keel::f64 *in, keel::f64 *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(AtanhLoop)(in, out, n);
-        }, [](keel::f64 v) { return std::atanh(v); }, [](const keel::c64 &c) { return keel::atanh(c); }, mr);
+        }, [](keel::f64 v) { return keel::atanh(v); }, [](const keel::c64 &c) { return keel::atanh(c); }, mr);
 }
 
 Value tan(const Value &x, keel::Allocator *mr)
 {
     return unaryRealDouble(x, /*hint*/ nullptr, [](const keel::f64 *in, keel::f64 *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(TanLoop)(in, out, n);
-        }, [](keel::f64 v) { return std::tan(v); }, [](const keel::c64 &c) { return keel::tan(c); }, mr);
+        }, [](keel::f64 v) { return keel::tan(v); }, [](const keel::c64 &c) { return keel::tan(c); }, mr);
 }
 
 Value acosh(const Value &x, keel::Allocator *mr)
@@ -778,7 +776,7 @@ Value acosh(const Value &x, keel::Allocator *mr)
     }
     return unaryRealDouble(x, /*hint*/ nullptr, [](const keel::f64 *in, keel::f64 *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(AcoshLoop)(in, out, n);
-        }, [](keel::f64 v) { return std::acosh(v); }, [](const keel::c64 &c) { return keel::acosh(c); }, mr);
+        }, [](keel::f64 v) { return keel::acosh(v); }, [](const keel::c64 &c) { return keel::acosh(c); }, mr);
 }
 
 // atan2 is binary: y, x â†’ P. Real same-shape case uses the SIMD
@@ -787,9 +785,9 @@ Value acosh(const Value &x, keel::Allocator *mr)
 Value atan2(const Value &y, const Value &x, keel::Allocator *mr)
 {
     if (y.isComplex() || x.isComplex())
-        return elementwiseDouble(y, x, [](keel::f64 yy, keel::f64 xx) { return std::atan2(yy, xx); }, mr);
+        return elementwiseDouble(y, x, [](keel::f64 yy, keel::f64 xx) { return keel::atan2(yy, xx); }, mr);
     if (y.isScalar() && x.isScalar())
-        return Value::scalar(std::atan2(y.toScalar(), x.toScalar()), mr);
+        return Value::scalar(keel::atan2(y.toScalar(), x.toScalar()), mr);
 
     if (!y.isScalar() && !x.isScalar() && y.dims() == x.dims()) {
         Value r = createLike(y, ValueType::DOUBLE, mr);
@@ -804,7 +802,7 @@ Value atan2(const Value &y, const Value &x, keel::Allocator *mr)
             });
         return r;
     }
-    return elementwiseDouble(y, x, [](keel::f64 yy, keel::f64 xx) { return std::atan2(yy, xx); }, mr);
+    return elementwiseDouble(y, x, [](keel::f64 yy, keel::f64 xx) { return keel::atan2(yy, xx); }, mr);
 }
 
 // â”€â”€ Degree variants + sinpi/cospi: SIMD-dispatched real-vector path â”€â”€
@@ -851,29 +849,29 @@ Value asind(const Value &x, keel::Allocator *mr)
 {
     return unaryRealDouble(x, /*hint*/ nullptr, [](const keel::f64 *in, keel::f64 *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(AsindLoop)(in, out, n);
-        }, [](keel::f64 v) { return std::asin(v) * kRad2Deg; }, [](const keel::c64 &c) { return keel::asin(c) * kRad2Deg; }, mr);
+        }, [](keel::f64 v) { return keel::asin(v) * kRad2Deg; }, [](const keel::c64 &c) { return keel::asin(c) * kRad2Deg; }, mr);
 }
 
 Value acosd(const Value &x, keel::Allocator *mr)
 {
     return unaryRealDouble(x, /*hint*/ nullptr, [](const keel::f64 *in, keel::f64 *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(AcosdLoop)(in, out, n);
-        }, [](keel::f64 v) { return std::acos(v) * kRad2Deg; }, [](const keel::c64 &c) { return keel::acos(c) * kRad2Deg; }, mr);
+        }, [](keel::f64 v) { return keel::acos(v) * kRad2Deg; }, [](const keel::c64 &c) { return keel::acos(c) * kRad2Deg; }, mr);
 }
 
 Value atand(const Value &x, keel::Allocator *mr)
 {
     return unaryRealDouble(x, /*hint*/ nullptr, [](const keel::f64 *in, keel::f64 *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(AtandLoop)(in, out, n);
-        }, [](keel::f64 v) { return std::atan(v) * kRad2Deg; }, [](const keel::c64 &c) { return keel::atan(c) * kRad2Deg; }, mr);
+        }, [](keel::f64 v) { return keel::atan(v) * kRad2Deg; }, [](const keel::c64 &c) { return keel::atan(c) * kRad2Deg; }, mr);
 }
 
 Value atan2d(const Value &y, const Value &x, keel::Allocator *mr)
 {
     if (y.isComplex() || x.isComplex())
-        return elementwiseDouble(y, x, [](keel::f64 yy, keel::f64 xx) { return std::atan2(yy, xx) * kRad2Deg; }, mr);
+        return elementwiseDouble(y, x, [](keel::f64 yy, keel::f64 xx) { return keel::atan2(yy, xx) * kRad2Deg; }, mr);
     if (y.isScalar() && x.isScalar())
-        return Value::scalar(std::atan2(y.toScalar(), x.toScalar()) * kRad2Deg, mr);
+        return Value::scalar(keel::atan2(y.toScalar(), x.toScalar()) * kRad2Deg, mr);
 
     if (!y.isScalar() && !x.isScalar() && y.dims() == x.dims()) {
         Value r = createLike(y, ValueType::DOUBLE, mr);
@@ -888,7 +886,7 @@ Value atan2d(const Value &y, const Value &x, keel::Allocator *mr)
             });
         return r;
     }
-    return elementwiseDouble(y, x, [](keel::f64 yy, keel::f64 xx) { return std::atan2(yy, xx) * kRad2Deg; }, mr);
+    return elementwiseDouble(y, x, [](keel::f64 yy, keel::f64 xx) { return keel::atan2(yy, xx) * kRad2Deg; }, mr);
 }
 
 Value sinpi(const Value &x, keel::Allocator *mr)
@@ -919,9 +917,9 @@ Value cospi(const Value &x, keel::Allocator *mr)
 Value hypot(const Value &a, const Value &b, keel::Allocator *mr)
 {
     if (a.isComplex() || b.isComplex())
-        return elementwiseDouble(a, b, [](keel::f64 aa, keel::f64 bb) { return std::hypot(aa, bb); }, mr);
+        return elementwiseDouble(a, b, [](keel::f64 aa, keel::f64 bb) { return keel::hypot(aa, bb); }, mr);
     if (a.isScalar() && b.isScalar())
-        return Value::scalar(std::hypot(a.toScalar(), b.toScalar()), mr);
+        return Value::scalar(keel::hypot(a.toScalar(), b.toScalar()), mr);
 
     if (!a.isScalar() && !b.isScalar() && a.dims() == b.dims()) {
         Value r = createLike(a, ValueType::DOUBLE, mr);
@@ -936,7 +934,7 @@ Value hypot(const Value &a, const Value &b, keel::Allocator *mr)
             });
         return r;
     }
-    return elementwiseDouble(a, b, [](keel::f64 aa, keel::f64 bb) { return std::hypot(aa, bb); }, mr);
+    return elementwiseDouble(a, b, [](keel::f64 aa, keel::f64 bb) { return keel::hypot(aa, bb); }, mr);
 }
 
 } // namespace numkit::builtin

@@ -19,12 +19,10 @@
 
 #include <algorithm>
 #include <keel/static_array.h>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
-#include <limits>
 #include <numeric>
 #include <stdexcept>
 #include <tuple>
@@ -47,10 +45,10 @@ keel::String num2strComplexScalar(keel::c64 z, keel::i32 precOverride,
     const keel::f64 re = z.real(), im = z.imag();
     keel::i32 prec = precOverride;
     if (prec < 1) {
-        const keel::f64 M = std::max(std::fabs(re), std::fabs(im));
+        const keel::f64 M = std::max(keel::abs(re), keel::abs(im));
         prec = 5;
         if (M != 0.0) {
-            const keel::i32 e = keel::as<keel::i32>(std::floor(std::log10(M)));
+            const keel::i32 e = keel::as<keel::i32>(keel::floor(keel::log10(M)));
             prec = (e > 0 ? e : 0) + 5;
         }
     }
@@ -61,7 +59,7 @@ keel::String num2strComplexScalar(keel::c64 z, keel::i32 precOverride,
     if (im == 0.0) return keel::String::from(bufRe, alloc);
 
     char bufIm[64];
-    keel::f64 iv = std::fabs(im);
+    keel::f64 iv = keel::abs(im);
     if (iv == 0.0) iv = 0.0;
     std::snprintf(bufIm, sizeof(bufIm), "%.*g", prec, iv);
 
@@ -99,7 +97,7 @@ inline keel::String num2strComplexArray(const Value &x, keel::i32 precOverride,
     keel::f64 maxAbs = 0.0;
     for (keel::usize i = 0; i < rows * cols; ++i) {
         if (d[i].imag() != 0.0) anyImag = true;
-        if (d[i].real() != std::floor(d[i].real())) allInt = false;
+        if (d[i].real() != keel::floor(d[i].real())) allInt = false;
         maxAbs = std::max(maxAbs, std::max(keel::abs(d[i].real()), keel::abs(d[i].imag())));
     }
     if (!anyImag) {
@@ -114,7 +112,7 @@ inline keel::String num2strComplexArray(const Value &x, keel::i32 precOverride,
             cells.push_back(std::move(s));
         }
         const keel::usize W = allInt ? wmax + 2
-                                     : (keel::as<keel::usize>(std::max(0, keel::as<keel::i32>(std::floor(std::log10(maxAbs > 0 ? maxAbs : 1.0))))) + 5 + 7);
+                                     : (keel::as<keel::usize>(std::max(0, keel::as<keel::i32>(keel::floor(keel::log10(maxAbs > 0 ? maxAbs : 1.0))))) + 5 + 7);
         keel::String out(salloc);
         for (keel::usize r = 0; r < rows; ++r) {
             if (r) out.push_back('\n');
@@ -206,10 +204,10 @@ inline keel::String num2strComplexArray(const Value &x, keel::i32 precOverride,
     keel::i32 maxChars = 1;
     for (keel::usize i = 0; i < n; ++i) {
         const keel::f64 v = x.elemAsDouble(i);
-        if (!std::isfinite(v)) { allInt = false; continue; }
-        const keel::f64 a = std::fabs(v);
+        if (!keel::is_finite(v)) { allInt = false; continue; }
+        const keel::f64 a = keel::abs(v);
         if (a > maxabs) maxabs = a;
-        if (v != std::floor(v)) allInt = false;
+        if (v != keel::floor(v)) allInt = false;
         // Column width is driven by the DIGIT count of |v| (sign excluded):
         // MATLAB's integer field is max-abs-digits + 2, and a minus sign is
         // absorbed into the field rather than widening it — num2str([-1 10
@@ -225,7 +223,7 @@ inline keel::String num2strComplexArray(const Value &x, keel::i32 precOverride,
     }
     keel::i32 p = 5;
     if (maxabs != 0.0) {
-        const keel::i32 e = keel::as<keel::i32>(std::floor(std::log10(maxabs)));
+        const keel::i32 e = keel::as<keel::i32>(keel::floor(keel::log10(maxabs)));
         p = (e > 0 ? e : 0) + 5;
     }
     if (p > 99) p = 99;
@@ -283,7 +281,7 @@ Value strCmpElementwise(const Value &a, const Value &b, Pred cmp,
     auto out = Value::matrix(rr, cc, ValueType::LOGICAL, mr);
     auto *od = out.logicalDataMut();
     if ((!ac && !isText(a)) || (!bc && !isText(b))) {
-        std::memset(od, 0, n);
+        keel::mem_zero(od, n);
         return out;
     }
     const keel::StringRef scalA = ac ? keel::StringRef{} : a.asStringRef();
@@ -675,9 +673,7 @@ namespace {
                           0, 0, "hex2num", "", "numkit:hex2num:badDigit");
         bits = (bits << 4) | keel::as<keel::u64>(d);
     }
-    keel::f64 out;
-    std::memcpy(&out, &bits, sizeof(out));
-    return out;
+    return keel::bit_cast<keel::f64>(bits);
 }
 } // anon
 namespace {
@@ -726,7 +722,7 @@ struct RatExpansion {
 RatExpansion ratExpansion(keel::f64 x, keel::f64 tol)
 {
     RatExpansion r;
-    if (!std::isfinite(x)) return r;
+    if (!keel::is_finite(x)) return r;
 
     keel::f64 rem = x;
     // Track the last two convergents.
@@ -734,7 +730,7 @@ RatExpansion ratExpansion(keel::f64 x, keel::f64 tol)
     keel::i64 prev_q = 1, curr_q = 0;
 
     for (keel::i32 i = 0; i < 64; ++i) {
-        const keel::i64 a = keel::as<keel::i64>(std::round(rem));
+        const keel::i64 a = keel::as<keel::i64>(keel::round(rem));
         const keel::i64 new_p = a * curr_p + prev_p;
         const keel::i64 new_q = a * curr_q + prev_q;
         r.coeffs[r.n_coeffs++] = a;
@@ -744,12 +740,12 @@ RatExpansion ratExpansion(keel::f64 x, keel::f64 tol)
         if (curr_q != 0) {
             const keel::f64 approx = keel::as<keel::f64>(curr_p)
                                 / keel::as<keel::f64>(curr_q);
-            if (std::fabs(approx - x) <= tol) break;
+            if (keel::abs(approx - x) <= tol) break;
         }
         const keel::f64 frac = rem - keel::as<keel::f64>(a);
         if (frac == 0.0) break;
         rem = 1.0 / frac;
-        if (std::fabs(rem) > 1e15) break;
+        if (keel::abs(rem) > 1e15) break;
     }
 
     r.p = curr_p;
@@ -787,7 +783,7 @@ RatExpansion ratExpansion(keel::f64 x, keel::f64 tol)
 // terminates (the loop hits frac == 0 at i=0 anyway, but keep safe).
 inline keel::f64 defaultRatTol(keel::f64 x)
 {
-    return 1e-6 * std::max(1.0, std::fabs(x));
+    return 1e-6 * std::max(1.0, keel::abs(x));
 }
 
 } // anonymous

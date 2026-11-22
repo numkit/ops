@@ -7,6 +7,7 @@
 // outside the [-2^53, 2^53] safe integer range degrade like MATLAB:
 // the round-trip through double rounds.
 
+#include <keel/bits.h>
 #include <keel/core.h>
 #include <keel/memory.h>
 #include <numkit/builtin/ops.hpp>
@@ -18,7 +19,6 @@
 
 #include <numkit/ops/helpers.hpp>
 
-#include <cmath>
 #include <cstdint>
 
 #include "int_math_detail.hpp"
@@ -97,7 +97,7 @@ Value bitshift(const Value &a, const Value &k, keel::Allocator *mr)
             // negative values pre-C++20. We do it explicitly to be safe.
             if (x >= 0) return keel::as<keel::f64>(x >> s);
             const keel::u64 ux = keel::as<keel::u64>(x);
-            const keel::u64 mask = ~keel::u64{0} << (64 - s);
+            const keel::u64 mask = keel::Limits<keel::u64>::kMax << (64 - s);
             return keel::as<keel::f64>(keel::as<keel::i64>((ux >> s) | mask));
         }
         return keel::as<keel::f64>(x);
@@ -109,8 +109,7 @@ Value bitcmp(const Value &a, keel::i32 width, keel::Allocator *mr)
     if (width != 8 && width != 16 && width != 32 && width != 64)
         throw Error("bitcmp: width must be 8, 16, 32, or 64",
                      0, 0, "bitcmp", "", "numkit:bitcmp:badWidth");
-    const keel::u64 mask = (width == 64) ? ~keel::u64{0}
-                                        : ((keel::u64{1} << width) - 1);
+    const keel::u64 mask = keel::low_bits_mask<keel::u64>(keel::as<keel::u32>(width));
     return unaryDouble(a, [mask](keel::f64 xv) {
         const keel::u64 ux = keel::as<keel::u64>(toInt64(xv));
         return keel::as<keel::f64>((~ux) & mask);

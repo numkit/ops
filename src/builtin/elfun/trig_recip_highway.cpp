@@ -29,7 +29,6 @@
 
 #include <numkit/ops/helpers.hpp>
 
-#include <cmath>
 #include <cstddef>
 
 #undef HWY_TARGET_INCLUDE
@@ -61,7 +60,7 @@ void SecLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Div(one, hn::Cos(d, v)), d, out + i);
     }
-    for (; i < n; ++i) out[i] = 1.0 / std::cos(in[i]);
+    for (; i < n; ++i) out[i] = 1.0 / keel::cos(in[i]);
 }
 
 void CscLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel::usize n)
@@ -74,7 +73,7 @@ void CscLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Div(one, hn::Sin(d, v)), d, out + i);
     }
-    for (; i < n; ++i) out[i] = 1.0 / std::sin(in[i]);
+    for (; i < n; ++i) out[i] = 1.0 / keel::sin(in[i]);
 }
 
 void CotLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel::usize n)
@@ -86,7 +85,7 @@ void CotLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Div(hn::Cos(d, v), hn::Sin(d, v)), d, out + i);
     }
-    for (; i < n; ++i) out[i] = std::cos(in[i]) / std::sin(in[i]);
+    for (; i < n; ++i) out[i] = keel::cos(in[i]) / keel::sin(in[i]);
 }
 
 // â”€â”€ Hyperbolic reciprocal: sech / csch / coth â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -110,7 +109,7 @@ void SechLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, kee
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Div(one, CoshVec(d, v)), d, out + i);
     }
-    for (; i < n; ++i) out[i] = 1.0 / std::cosh(in[i]);
+    for (; i < n; ++i) out[i] = 1.0 / keel::cosh(in[i]);
 }
 
 void CschLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel::usize n)
@@ -123,7 +122,7 @@ void CschLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, kee
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Div(one, hn::Sinh(d, v)), d, out + i);
     }
-    for (; i < n; ++i) out[i] = 1.0 / std::sinh(in[i]);
+    for (; i < n; ++i) out[i] = 1.0 / keel::sinh(in[i]);
 }
 
 void CothLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel::usize n)
@@ -135,7 +134,7 @@ void CothLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, kee
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Div(CoshVec(d, v), hn::Sinh(d, v)), d, out + i);
     }
-    for (; i < n; ++i) out[i] = std::cosh(in[i]) / std::sinh(in[i]);
+    for (; i < n; ++i) out[i] = keel::cosh(in[i]) / keel::sinh(in[i]);
 }
 
 // â”€â”€ Degree reciprocal: secd / cscd / cotd â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -154,7 +153,7 @@ void SecdLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, kee
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Div(one, hn::Cos(d, hn::Mul(v, k))), d, out + i);
     }
-    for (; i < n; ++i) out[i] = 1.0 / std::cos(in[i] * recip_consts::kDeg2Rad);
+    for (; i < n; ++i) out[i] = 1.0 / keel::cos(in[i] * recip_consts::kDeg2Rad);
 }
 
 void CscdLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel::usize n)
@@ -168,7 +167,7 @@ void CscdLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, kee
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Div(one, hn::Sin(d, hn::Mul(v, k))), d, out + i);
     }
-    for (; i < n; ++i) out[i] = 1.0 / std::sin(in[i] * recip_consts::kDeg2Rad);
+    for (; i < n; ++i) out[i] = 1.0 / keel::sin(in[i] * recip_consts::kDeg2Rad);
 }
 
 void CotdLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel::usize n)
@@ -182,8 +181,8 @@ void CotdLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, kee
         auto vrad = hn::Mul(v, k);
         hn::StoreU(hn::Div(hn::Cos(d, vrad), hn::Sin(d, vrad)), d, out + i);
     }
-    for (; i < n; ++i) out[i] = std::cos(in[i] * recip_consts::kDeg2Rad)
-                                / std::sin(in[i] * recip_consts::kDeg2Rad);
+    for (; i < n; ++i) out[i] = keel::cos(in[i] * recip_consts::kDeg2Rad)
+                                / keel::sin(in[i] * recip_consts::kDeg2Rad);
 }
 
 // â”€â”€ Inverse reciprocal: asec / acsc / acot â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -201,7 +200,7 @@ void AsecLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, kee
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Acos(d, hn::Div(one, v)), d, out + i);
     }
-    for (; i < n; ++i) out[i] = std::acos(1.0 / in[i]);
+    for (; i < n; ++i) out[i] = keel::acos(1.0 / in[i]);
 }
 
 void AcscLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel::usize n)
@@ -214,7 +213,7 @@ void AcscLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, kee
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Asin(d, hn::Div(one, v)), d, out + i);
     }
-    for (; i < n; ++i) out[i] = std::asin(1.0 / in[i]);
+    for (; i < n; ++i) out[i] = keel::asin(1.0 / in[i]);
 }
 
 void AcotLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel::usize n)
@@ -227,7 +226,7 @@ void AcotLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, kee
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Atan(d, hn::Div(one, v)), d, out + i);
     }
-    for (; i < n; ++i) out[i] = std::atan(1.0 / in[i]);
+    for (; i < n; ++i) out[i] = keel::atan(1.0 / in[i]);
 }
 
 // â”€â”€ Inverse hyperbolic reciprocal: asech / acsch / acoth â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -242,7 +241,7 @@ void AsechLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, ke
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Acosh(d, hn::Div(one, v)), d, out + i);
     }
-    for (; i < n; ++i) out[i] = std::acosh(1.0 / in[i]);
+    for (; i < n; ++i) out[i] = keel::acosh(1.0 / in[i]);
 }
 
 void AcschLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel::usize n)
@@ -255,7 +254,7 @@ void AcschLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, ke
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Asinh(d, hn::Div(one, v)), d, out + i);
     }
-    for (; i < n; ++i) out[i] = std::asinh(1.0 / in[i]);
+    for (; i < n; ++i) out[i] = keel::asinh(1.0 / in[i]);
 }
 
 void AcothLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel::usize n)
@@ -268,7 +267,7 @@ void AcothLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, ke
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Atanh(d, hn::Div(one, v)), d, out + i);
     }
-    for (; i < n; ++i) out[i] = std::atanh(1.0 / in[i]);
+    for (; i < n; ++i) out[i] = keel::atanh(1.0 / in[i]);
 }
 
 // â”€â”€ Inverse degree reciprocal: asecd / acscd / acotd â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -284,7 +283,7 @@ void AsecdLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, ke
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Mul(hn::Acos(d, hn::Div(one, v)), r2d), d, out + i);
     }
-    for (; i < n; ++i) out[i] = std::acos(1.0 / in[i]) * recip_consts::kRad2Deg;
+    for (; i < n; ++i) out[i] = keel::acos(1.0 / in[i]) * recip_consts::kRad2Deg;
 }
 
 void AcscdLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel::usize n)
@@ -298,7 +297,7 @@ void AcscdLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, ke
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Mul(hn::Asin(d, hn::Div(one, v)), r2d), d, out + i);
     }
-    for (; i < n; ++i) out[i] = std::asin(1.0 / in[i]) * recip_consts::kRad2Deg;
+    for (; i < n; ++i) out[i] = keel::asin(1.0 / in[i]) * recip_consts::kRad2Deg;
 }
 
 void AcotdLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel::usize n)
@@ -312,7 +311,7 @@ void AcotdLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, ke
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Mul(hn::Atan(d, hn::Div(one, v)), r2d), d, out + i);
     }
-    for (; i < n; ++i) out[i] = std::atan(1.0 / in[i]) * recip_consts::kRad2Deg;
+    for (; i < n; ++i) out[i] = keel::atan(1.0 / in[i]) * recip_consts::kRad2Deg;
 }
 
 } // namespace HWY_NAMESPACE
@@ -352,22 +351,22 @@ constexpr keel::f64 kRad2Deg = 180.0 / keel::kPi;
 // Â±Inf at integer multiples of 90Â° on scalar input.
 inline keel::f64 sind_scalar(keel::f64 x)
 {
-    if (!std::isfinite(x)) return std::numeric_limits<keel::f64>::quiet_NaN();
-    const keel::f64 xr = std::fmod(x, 360.0);
+    if (!keel::is_finite(x)) return keel::Limits<keel::f64>::quiet_nan();
+    const keel::f64 xr = keel::fmod(x, 360.0);
     if (xr == 0.0 || xr == 180.0 || xr == -180.0) return 0.0;
     if (xr == 90.0)  return  1.0;
     if (xr == -90.0) return -1.0;
-    return std::sin(xr * kDeg2Rad);
+    return keel::sin(xr * kDeg2Rad);
 }
 
 inline keel::f64 cosd_scalar(keel::f64 x)
 {
-    if (!std::isfinite(x)) return std::numeric_limits<keel::f64>::quiet_NaN();
-    const keel::f64 xr = std::fmod(x, 360.0);
+    if (!keel::is_finite(x)) return keel::Limits<keel::f64>::quiet_nan();
+    const keel::f64 xr = keel::fmod(x, 360.0);
     if (xr == 90.0 || xr == -90.0 || xr == 270.0 || xr == -270.0) return 0.0;
     if (xr == 0.0) return  1.0;
     if (xr == 180.0 || xr == -180.0) return -1.0;
-    return std::cos(xr * kDeg2Rad);
+    return keel::cos(xr * kDeg2Rad);
 }
 
 // Generic SIMD-dispatched real-vector path. Mirror of unaryRealDouble
@@ -403,21 +402,21 @@ Value sec(const Value &x, keel::Allocator *mr)
 {
     return unaryRealDoubleRecip(x, [](const keel::f64 *in, keel::f64 *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(SecLoop)(in, out, n);
-        }, [](keel::f64 v) { return 1.0 / std::cos(v); }, [](const keel::c64 &c) { return keel::c64(1.0) / keel::cos(c); }, mr);
+        }, [](keel::f64 v) { return 1.0 / keel::cos(v); }, [](const keel::c64 &c) { return keel::c64(1.0) / keel::cos(c); }, mr);
 }
 
 Value csc(const Value &x, keel::Allocator *mr)
 {
     return unaryRealDoubleRecip(x, [](const keel::f64 *in, keel::f64 *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(CscLoop)(in, out, n);
-        }, [](keel::f64 v) { return 1.0 / std::sin(v); }, [](const keel::c64 &c) { return keel::c64(1.0) / keel::sin(c); }, mr);
+        }, [](keel::f64 v) { return 1.0 / keel::sin(v); }, [](const keel::c64 &c) { return keel::c64(1.0) / keel::sin(c); }, mr);
 }
 
 Value cot(const Value &x, keel::Allocator *mr)
 {
     return unaryRealDoubleRecip(x, [](const keel::f64 *in, keel::f64 *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(CotLoop)(in, out, n);
-        }, [](keel::f64 v) { return std::cos(v) / std::sin(v); }, [](const keel::c64 &c) { return keel::cos(c) / keel::sin(c); }, mr);
+        }, [](keel::f64 v) { return keel::cos(v) / keel::sin(v); }, [](const keel::c64 &c) { return keel::cos(c) / keel::sin(c); }, mr);
 }
 
 // â”€â”€ Hyperbolic reciprocal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -426,21 +425,21 @@ Value sech(const Value &x, keel::Allocator *mr)
 {
     return unaryRealDoubleRecip(x, [](const keel::f64 *in, keel::f64 *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(SechLoop)(in, out, n);
-        }, [](keel::f64 v) { return 1.0 / std::cosh(v); }, [](const keel::c64 &c) { return keel::c64(1.0) / keel::cosh(c); }, mr);
+        }, [](keel::f64 v) { return 1.0 / keel::cosh(v); }, [](const keel::c64 &c) { return keel::c64(1.0) / keel::cosh(c); }, mr);
 }
 
 Value csch(const Value &x, keel::Allocator *mr)
 {
     return unaryRealDoubleRecip(x, [](const keel::f64 *in, keel::f64 *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(CschLoop)(in, out, n);
-        }, [](keel::f64 v) { return 1.0 / std::sinh(v); }, [](const keel::c64 &c) { return keel::c64(1.0) / keel::sinh(c); }, mr);
+        }, [](keel::f64 v) { return 1.0 / keel::sinh(v); }, [](const keel::c64 &c) { return keel::c64(1.0) / keel::sinh(c); }, mr);
 }
 
 Value coth(const Value &x, keel::Allocator *mr)
 {
     return unaryRealDoubleRecip(x, [](const keel::f64 *in, keel::f64 *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(CothLoop)(in, out, n);
-        }, [](keel::f64 v) { return std::cosh(v) / std::sinh(v); }, [](const keel::c64 &c) { return keel::cosh(c) / keel::sinh(c); }, mr);
+        }, [](keel::f64 v) { return keel::cosh(v) / keel::sinh(v); }, [](const keel::c64 &c) { return keel::cosh(c) / keel::sinh(c); }, mr);
 }
 
 // â”€â”€ Degree reciprocal: scalar path keeps the integer-multiple-of-90Â° snap.
@@ -482,7 +481,7 @@ Value asec(const Value &x, keel::Allocator *mr)
     }
     return unaryRealDoubleRecip(x, [](const keel::f64 *in, keel::f64 *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(AsecLoop)(in, out, n);
-        }, [](keel::f64 v) { return std::acos(1.0 / v); }, [](const keel::c64 &c) { return keel::acos(keel::c64(1.0) / c); }, mr);
+        }, [](keel::f64 v) { return keel::acos(1.0 / v); }, [](const keel::c64 &c) { return keel::acos(keel::c64(1.0) / c); }, mr);
 }
 
 Value acsc(const Value &x, keel::Allocator *mr)
@@ -496,14 +495,14 @@ Value acsc(const Value &x, keel::Allocator *mr)
     }
     return unaryRealDoubleRecip(x, [](const keel::f64 *in, keel::f64 *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(AcscLoop)(in, out, n);
-        }, [](keel::f64 v) { return std::asin(1.0 / v); }, [](const keel::c64 &c) { return keel::asin(keel::c64(1.0) / c); }, mr);
+        }, [](keel::f64 v) { return keel::asin(1.0 / v); }, [](const keel::c64 &c) { return keel::asin(keel::c64(1.0) / c); }, mr);
 }
 
 Value acot(const Value &x, keel::Allocator *mr)
 {
     return unaryRealDoubleRecip(x, [](const keel::f64 *in, keel::f64 *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(AcotLoop)(in, out, n);
-        }, [](keel::f64 v) { return std::atan(1.0 / v); }, [](const keel::c64 &c) { return keel::atan(keel::c64(1.0) / c); }, mr);
+        }, [](keel::f64 v) { return keel::atan(1.0 / v); }, [](const keel::c64 &c) { return keel::atan(keel::c64(1.0) / c); }, mr);
 }
 
 // â”€â”€ Inverse hyperbolic reciprocal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -519,14 +518,14 @@ Value asech(const Value &x, keel::Allocator *mr)
     }
     return unaryRealDoubleRecip(x, [](const keel::f64 *in, keel::f64 *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(AsechLoop)(in, out, n);
-        }, [](keel::f64 v) { return std::acosh(1.0 / v); }, [](const keel::c64 &c) { return keel::acosh(keel::c64(1.0) / c); }, mr);
+        }, [](keel::f64 v) { return keel::acosh(1.0 / v); }, [](const keel::c64 &c) { return keel::acosh(keel::c64(1.0) / c); }, mr);
 }
 
 Value acsch(const Value &x, keel::Allocator *mr)
 {
     return unaryRealDoubleRecip(x, [](const keel::f64 *in, keel::f64 *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(AcschLoop)(in, out, n);
-        }, [](keel::f64 v) { return std::asinh(1.0 / v); }, [](const keel::c64 &c) { return keel::asinh(keel::c64(1.0) / c); }, mr);
+        }, [](keel::f64 v) { return keel::asinh(1.0 / v); }, [](const keel::c64 &c) { return keel::asinh(keel::c64(1.0) / c); }, mr);
 }
 
 Value acoth(const Value &x, keel::Allocator *mr)
@@ -540,7 +539,7 @@ Value acoth(const Value &x, keel::Allocator *mr)
     }
     return unaryRealDoubleRecip(x, [](const keel::f64 *in, keel::f64 *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(AcothLoop)(in, out, n);
-        }, [](keel::f64 v) { return std::atanh(1.0 / v); }, [](const keel::c64 &c) { return keel::atanh(keel::c64(1.0) / c); }, mr);
+        }, [](keel::f64 v) { return keel::atanh(1.0 / v); }, [](const keel::c64 &c) { return keel::atanh(keel::c64(1.0) / c); }, mr);
 }
 
 // â”€â”€ Inverse degree reciprocal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -558,7 +557,7 @@ Value asecd(const Value &x, keel::Allocator *mr)
     }
     return unaryRealDoubleRecip(x, [](const keel::f64 *in, keel::f64 *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(AsecdLoop)(in, out, n);
-        }, [](keel::f64 v) { return std::acos(1.0 / v) * kRad2Deg; }, [](const keel::c64 &c) { return keel::acos(keel::c64(1.0) / c) * kRad2Deg; }, mr);
+        }, [](keel::f64 v) { return keel::acos(1.0 / v) * kRad2Deg; }, [](const keel::c64 &c) { return keel::acos(keel::c64(1.0) / c) * kRad2Deg; }, mr);
 }
 
 Value acscd(const Value &x, keel::Allocator *mr)
@@ -574,14 +573,14 @@ Value acscd(const Value &x, keel::Allocator *mr)
     }
     return unaryRealDoubleRecip(x, [](const keel::f64 *in, keel::f64 *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(AcscdLoop)(in, out, n);
-        }, [](keel::f64 v) { return std::asin(1.0 / v) * kRad2Deg; }, [](const keel::c64 &c) { return keel::asin(keel::c64(1.0) / c) * kRad2Deg; }, mr);
+        }, [](keel::f64 v) { return keel::asin(1.0 / v) * kRad2Deg; }, [](const keel::c64 &c) { return keel::asin(keel::c64(1.0) / c) * kRad2Deg; }, mr);
 }
 
 Value acotd(const Value &x, keel::Allocator *mr)
 {
     return unaryRealDoubleRecip(x, [](const keel::f64 *in, keel::f64 *out, keel::usize n) {
             HWY_DYNAMIC_DISPATCH(AcotdLoop)(in, out, n);
-        }, [](keel::f64 v) { return std::atan(1.0 / v) * kRad2Deg; }, [](const keel::c64 &c) { return keel::atan(keel::c64(1.0) / c) * kRad2Deg; }, mr);
+        }, [](keel::f64 v) { return keel::atan(1.0 / v) * kRad2Deg; }, [](const keel::c64 &c) { return keel::atan(keel::c64(1.0) / c) * kRad2Deg; }, mr);
 }
 
 } // namespace numkit::builtin

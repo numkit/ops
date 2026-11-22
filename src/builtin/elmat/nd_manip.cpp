@@ -23,7 +23,6 @@
 #include <numkit/ops/helpers.hpp>
 
 #include <algorithm>
-#include <cstring>
 #include <numeric>
 
 namespace numkit::builtin {
@@ -170,7 +169,7 @@ Value permute(const Value &x, keel::ArrayRef<keel::i32> perm, keel::Allocator *m
             for (keel::i32 k = 0; k < inNd; ++k)
                 srcOff += outCoords[k] * inStrides[p[k] - 1];
             if (isCell) r.cellAt(dstOff) = x.cellAt(srcOff);
-            else        std::memcpy(dst + dstOff * es, src + srcOff * es, es);
+            else        keel::mem_copy(dst + dstOff * es, src + srcOff * es, es);
             ++dstOff;
         } while (incrementCoords(outCoords, outDimsObj));
         return r;
@@ -388,7 +387,7 @@ Value catDim3(const Value *values, keel::usize count, keel::Allocator *mr)
         const auto &v = values[i];
         if (v.isEmpty() || v.numel() == 0) continue;
         const keel::usize P = v.dims().is3D() ? v.dims().pages() : 1;
-        std::memcpy(dst + pageOff * R * C * es,
+        keel::mem_copy(dst + pageOff * R * C * es,
                     static_cast<const char *>(v.rawData()), R * C * P * es);
         pageOff += P;
     }
@@ -476,7 +475,7 @@ Value catND(keel::i32 dim, const Value *values, keel::usize count, keel::Allocat
         const keel::usize inputOuterStride = inputDimK * B;
         const keel::usize blockBytes = inputDimK * B * es;
         for (keel::usize o = 0; o < O; ++o) {
-            std::memcpy(dst + (o * resultOuterStride + accumK * B) * es,
+            keel::mem_copy(dst + (o * resultOuterStride + accumK * B) * es,
                         src + o * inputOuterStride * es,
                         blockBytes);
         }
@@ -542,7 +541,7 @@ Value blkdiag(keel::ArrayRef<Value> values, keel::Allocator *mr)
     char *dst = static_cast<char *>(r.rawDataMut());
     // Zero-init (matrix() may return an uninitialised buffer in some builds);
     // the zero byte pattern is the canonical zero for every supported type.
-    std::memset(dst, 0, totalRows * totalCols * es);
+    keel::mem_zero(dst, totalRows * totalCols * es);
 
     keel::usize rowOff = 0, colOff = 0;
     for (keel::usize k = 0; k < count; ++k) {
@@ -552,7 +551,7 @@ Value blkdiag(keel::ArrayRef<Value> values, keel::Allocator *mr)
             const char *src = static_cast<const char *>(v.rawData());
             for (keel::usize c = 0; c < C; ++c) {
                 const keel::usize dstColStart = ((colOff + c) * totalRows + rowOff) * es;
-                std::memcpy(dst + dstColStart, src + c * R * es, R * es);
+                keel::mem_copy(dst + dstColStart, src + c * R * es, R * es);
             }
         }
         rowOff += R;

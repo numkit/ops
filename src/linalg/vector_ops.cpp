@@ -4,6 +4,7 @@
 // Migrated from toolboxes/builtin/src/language/arrays/matrix.cpp.
 
 #include <keel/core.h>
+#include <keel/math.h>
 #include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/complex.h>
@@ -15,8 +16,6 @@
 #include <numkit/value/error.hpp>
 #include <numkit/value/value_type.hpp>
 
-#include <cmath>
-#include <limits>
 
 namespace numkit::linalg {
 
@@ -32,10 +31,10 @@ static Value narrowKronToInteger(const Value &d, ValueType vt,
     const keel::f64 *src = d.doubleData();
     auto fill = [&](auto *dst) {
         using T = std::remove_pointer_t<std::decay_t<decltype(dst)>>;
-        const keel::f64 lo = keel::as<keel::f64>(std::numeric_limits<T>::min());
-        const keel::f64 hi = keel::as<keel::f64>(std::numeric_limits<T>::max());
+        const keel::f64 lo = keel::as<keel::f64>(keel::Limits<T>::kMin);
+        const keel::f64 hi = keel::as<keel::f64>(keel::Limits<T>::kMax);
         for (keel::usize i = 0; i < n; ++i) {
-            keel::f64 v = std::round(src[i]);
+            keel::f64 v = keel::round(src[i]);
             if (v < lo) v = lo; else if (v > hi) v = hi;
             dst[i] = static_cast<T>(v);
         }
@@ -76,14 +75,14 @@ static ValueType kronIntegerClass(const Value &a, const Value &b)
 static void intTypeRange(ValueType vt, keel::f64 &lo, keel::f64 &hi)
 {
     switch (vt) {
-    case ValueType::INT8:   lo = std::numeric_limits<keel::i8>::min();   hi = std::numeric_limits<keel::i8>::max();   break;
-    case ValueType::INT16:  lo = std::numeric_limits<keel::i16>::min();  hi = std::numeric_limits<keel::i16>::max();  break;
-    case ValueType::INT32:  lo = std::numeric_limits<keel::i32>::min();  hi = std::numeric_limits<keel::i32>::max();  break;
-    case ValueType::INT64:  lo = keel::as<keel::f64>(std::numeric_limits<keel::i64>::min());  hi = keel::as<keel::f64>(std::numeric_limits<keel::i64>::max());  break;
-    case ValueType::UINT8:  lo = 0; hi = std::numeric_limits<keel::u8>::max();  break;
-    case ValueType::UINT16: lo = 0; hi = std::numeric_limits<keel::u16>::max(); break;
-    case ValueType::UINT32: lo = 0; hi = std::numeric_limits<keel::u32>::max(); break;
-    case ValueType::UINT64: lo = 0; hi = keel::as<keel::f64>(std::numeric_limits<keel::u64>::max()); break;
+    case ValueType::INT8:   lo = keel::Limits<keel::i8>::kMin;   hi = keel::Limits<keel::i8>::kMax;   break;
+    case ValueType::INT16:  lo = keel::Limits<keel::i16>::kMin;  hi = keel::Limits<keel::i16>::kMax;  break;
+    case ValueType::INT32:  lo = keel::Limits<keel::i32>::kMin;  hi = keel::Limits<keel::i32>::kMax;  break;
+    case ValueType::INT64:  lo = keel::as<keel::f64>(keel::Limits<keel::i64>::kMin);  hi = keel::as<keel::f64>(keel::Limits<keel::i64>::kMax);  break;
+    case ValueType::UINT8:  lo = 0; hi = keel::Limits<keel::u8>::kMax;  break;
+    case ValueType::UINT16: lo = 0; hi = keel::Limits<keel::u16>::kMax; break;
+    case ValueType::UINT32: lo = 0; hi = keel::Limits<keel::u32>::kMax; break;
+    case ValueType::UINT64: lo = 0; hi = keel::as<keel::f64>(keel::Limits<keel::u64>::kMax); break;
     default:                lo = 0; hi = 0; break;
     }
 }
@@ -130,7 +129,7 @@ static Value crossIntegerSaturating(const Value &a, const Value &b, keel::i32 cr
     keel::f64 lo, hi;
     intTypeRange(outType, lo, hi);
     auto sat = [lo, hi](keel::f64 v) {
-        v = std::round(v);
+        v = keel::round(v);
         return v < lo ? lo : (v > hi ? hi : v);
     };
     auto comp = [&](keel::f64 p, keel::f64 q, keel::f64 r, keel::f64 s) {

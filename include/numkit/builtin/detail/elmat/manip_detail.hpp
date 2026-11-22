@@ -4,6 +4,7 @@
 #pragma once
 
 #include <keel/core.h>
+#include <keel/math.h>
 #include <keel/memory.h>
 #include <keel/arena.h>
 #include <keel/array.h>
@@ -13,11 +14,8 @@
 #include <numkit/ops/reductions.hpp>  // engine-free numkit::builtin::detail dim-infra (ops re-export)
 
 #include <algorithm>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
-#include <limits>
 #include <numeric>
 #include <tuple>
 #include <utility>
@@ -137,7 +135,7 @@ Value flipCellStr(const Value &x, keel::i32 axis, const char *fn, keel::Allocato
     // axis past the actual rank, or singleton dim → identity copy.
     const keel::usize flipDim = (axis < nd) ? d.dim(axis) : 1;
     if (flipDim <= 1) {
-        std::memcpy(dst, src, x.numel() * es);
+        keel::mem_copy(dst, src, x.numel() * es);
         return r;
     }
 
@@ -149,7 +147,7 @@ Value flipCellStr(const Value &x, keel::i32 axis, const char *fn, keel::Allocato
     for (keel::usize o = 0; o < O; ++o) {
         const keel::usize outerBase = o * flipDim * B;
         for (keel::usize i = 0; i < flipDim; ++i) {
-            std::memcpy(dst + (outerBase + i * B) * es,
+            keel::mem_copy(dst + (outerBase + i * B) * es,
                         src + (outerBase + (flipDim - 1 - i) * B) * es,
                         B * es);
         }
@@ -196,7 +194,7 @@ inline void rot90OncePageBytes(const char *src, char *dst,
 {
     for (keel::usize c = 0; c < C; ++c)
         for (keel::usize rr = 0; rr < R; ++rr)
-            std::memcpy(dst + (rr * C + (C - 1 - c)) * es,
+            keel::mem_copy(dst + (rr * C + (C - 1 - c)) * es,
                         src + (c * R + rr) * es, es);
 }
 
@@ -205,7 +203,7 @@ inline void rot180PageBytes(const char *src, char *dst,
 {
     for (keel::usize c = 0; c < C; ++c)
         for (keel::usize rr = 0; rr < R; ++rr)
-            std::memcpy(dst + ((C - 1 - c) * R + (R - 1 - rr)) * es,
+            keel::mem_copy(dst + ((C - 1 - c) * R + (R - 1 - rr)) * es,
                         src + (c * R + rr) * es, es);
 }
 
@@ -214,7 +212,7 @@ inline void rot270PageBytes(const char *src, char *dst,
 {
     for (keel::usize c = 0; c < C; ++c)
         for (keel::usize rr = 0; rr < R; ++rr)
-            std::memcpy(dst + ((R - 1 - rr) * C + c) * es,
+            keel::mem_copy(dst + ((R - 1 - rr) * C + c) * es,
                         src + (c * R + rr) * es, es);
 }
 
@@ -293,8 +291,8 @@ inline void trilPageBytes(const char *src, char *dst, keel::usize R, keel::usize
         for (keel::usize rr = 0; rr < R; ++rr) {
             const keel::i32 diff = keel::as<keel::i32>(c) - keel::as<keel::i32>(rr);
             const keel::usize off = (c * R + rr) * es;
-            if (diff <= k) std::memcpy(dst + off, src + off, es);
-            else           std::memset(dst + off, 0, es);
+            if (diff <= k) keel::mem_copy(dst + off, src + off, es);
+            else           keel::mem_zero(dst + off, es);
         }
 }
 
@@ -305,8 +303,8 @@ inline void triuPageBytes(const char *src, char *dst, keel::usize R, keel::usize
         for (keel::usize rr = 0; rr < R; ++rr) {
             const keel::i32 diff = keel::as<keel::i32>(c) - keel::as<keel::i32>(rr);
             const keel::usize off = (c * R + rr) * es;
-            if (diff >= k) std::memcpy(dst + off, src + off, es);
-            else           std::memset(dst + off, 0, es);
+            if (diff >= k) keel::mem_copy(dst + off, src + off, es);
+            else           keel::mem_zero(dst + off, es);
         }
 }
 
@@ -354,7 +352,7 @@ namespace {
 {
     keel::Array<keel::usize> map(arena.allocator());
     auto checkCount = [](keel::f64 c) -> keel::usize {
-        if (!(c >= 0.0) || std::floor(c) != c)
+        if (!(c >= 0.0) || keel::floor(c) != c)
             throw Error("repelem: replication counts must be nonnegative integers",
                          0, 0, "repelem", "", "numkit:repelem:badCount");
         return keel::as<keel::usize>(c);

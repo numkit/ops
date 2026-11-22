@@ -8,6 +8,7 @@
 // objective (no Engine dependency); the engine adapters live in bundle.
 
 #include <keel/core.h>
+#include <keel/math.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
 #include <keel/arena.h>
@@ -16,14 +17,13 @@
 #include <numkit/ops/root_solve.hpp>
 #include <numkit/value/error.hpp>
 
-#include <cmath>
 #include <utility>
 
 namespace numkit::optim {
 
 Value fzero(FnHandle fn, keel::f64 x0, keel::Allocator *mr)
 {
-    if (!std::isfinite(x0))
+    if (!keel::is_finite(x0))
         throw Error("fzero: x0 must be finite", 0, 0, "fzero", "", "numkit:fzero:badX0");
     auto [a, b] = ops::findBracket(fn, x0, mr);
     if (a == b) return Value::scalar(a, mr);
@@ -33,7 +33,7 @@ Value fzero(FnHandle fn, keel::f64 x0, keel::Allocator *mr)
 
 Value fzero(FnHandle fn, keel::f64 a, keel::f64 b, keel::Allocator *mr)
 {
-    if (!std::isfinite(a) || !std::isfinite(b) || a >= b)
+    if (!keel::is_finite(a) || !keel::is_finite(b) || a >= b)
         throw Error("fzero: interval [a, b] must satisfy a < b and be finite", 0, 0, "fzero", "",
                     "numkit:fzero:badInterval");
     return Value::scalar(ops::brent(fn, a, b, mr), mr);
@@ -41,7 +41,7 @@ Value fzero(FnHandle fn, keel::f64 a, keel::f64 b, keel::Allocator *mr)
 
 Value fminbnd(FnHandle fn, keel::f64 lo, keel::f64 hi, keel::f64 tol, keel::Allocator *mr)
 {
-    if (!std::isfinite(lo) || !std::isfinite(hi) || lo >= hi)
+    if (!keel::is_finite(lo) || !keel::is_finite(hi) || lo >= hi)
         throw Error("fminbnd: lo < hi must be finite", 0, 0, "fminbnd", "",
                     "numkit:fminbnd:badRange");
     if (!(tol > 0)) tol = 1e-6;

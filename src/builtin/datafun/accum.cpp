@@ -15,10 +15,8 @@
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <limits>
 
 namespace numkit::builtin {
 
@@ -27,10 +25,10 @@ namespace {
 // 1-based subscript validation: must be a positive integer <= outDim.
 keel::usize toSubIndex(keel::f64 v, keel::usize maxAllowed, const char *fn)
 {
-    if (!std::isfinite(v) || v < 1.0)
+    if (!keel::is_finite(v) || v < 1.0)
         throw Error(keel::format("{}: subscripts must be positive integers", fn),
                      0, 0, fn, "", keel::format("numkit:{}:subRange", fn));
-    const keel::f64 rounded = std::round(v);
+    const keel::f64 rounded = keel::round(v);
     if (keel::abs(v - rounded) > 1e-9)
         throw Error(keel::format("{}: subscripts must be integer-valued", fn),
                      0, 0, fn, "", keel::format("numkit:{}:subInt", fn));
@@ -47,8 +45,8 @@ keel::f64 identityFor(AccumReducer op)
     case AccumReducer::Sum:  return 0.0;
     case AccumReducer::Mean: return 0.0;
     case AccumReducer::Prod: return 1.0;
-    case AccumReducer::Max:  return -std::numeric_limits<keel::f64>::infinity();
-    case AccumReducer::Min:  return  std::numeric_limits<keel::f64>::infinity();
+    case AccumReducer::Max:  return -keel::Limits<keel::f64>::infinity();
+    case AccumReducer::Min:  return  keel::Limits<keel::f64>::infinity();
     case AccumReducer::Any:  return 0.0;
     case AccumReducer::All:  return 1.0;
     }
@@ -61,8 +59,8 @@ inline keel::f64 applyReducer(AccumReducer op, keel::f64 acc, keel::f64 v)
     case AccumReducer::Sum:
     case AccumReducer::Mean: return acc + v;
     case AccumReducer::Prod: return acc * v;
-    case AccumReducer::Max:  return (v > acc || std::isnan(v)) ? v : acc;
-    case AccumReducer::Min:  return (v < acc || std::isnan(v)) ? v : acc;
+    case AccumReducer::Max:  return (v > acc || keel::is_nan(v)) ? v : acc;
+    case AccumReducer::Min:  return (v < acc || keel::is_nan(v)) ? v : acc;
     case AccumReducer::Any:  return (acc != 0.0 || v != 0.0) ? 1.0 : 0.0;
     case AccumReducer::All:  return (acc != 0.0 && v != 0.0) ? 1.0 : 0.0;
     }

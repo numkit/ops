@@ -22,7 +22,6 @@
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
-#include <cmath>
 
 namespace numkit::linalg {
 
@@ -58,7 +57,7 @@ Value applyScalarFnSym(const Value &A, keel::f64 (*f)(keel::f64),
     for (keel::usize k = 0; k < n; ++k) {
         const keel::f64 e = Ddata[k + k * n];
         const keel::f64 fe = f(e);
-        if (!std::isfinite(fe))
+        if (!keel::is_finite(fe))
             throw Error(keel::format("{}: eigenvalue out of domain (got {})", fnName, e),
                         0, 0, fnName, "", errId);
         for (keel::usize i = 0; i < n; ++i) VfD[i + k * n] = Vdata[i + k * n] * fe;
@@ -105,13 +104,13 @@ Value expm(const Value &A, keel::Allocator *mr)
 
 Value logm_sym(const Value &A, keel::Allocator *mr)
 {
-    return applyScalarFnSym(A, [](keel::f64 x) { return std::log(x); },
+    return applyScalarFnSym(A, [](keel::f64 x) { return keel::log(x); },
                             "logm", "numkit:logm:negativeEigenvalue", mr);
 }
 
 Value sqrtm_sym(const Value &A, keel::Allocator *mr)
 {
-    return applyScalarFnSym(A, [](keel::f64 x) { return std::sqrt(x); },
+    return applyScalarFnSym(A, [](keel::f64 x) { return keel::sqrt(x); },
                             "sqrtm", "numkit:sqrtm:negativeEigenvalue", mr);
 }
 
@@ -157,7 +156,7 @@ Value sylvester(const Value &A, const Value &B, const Value &C, keel::Allocator 
             const keel::f64 re = cx ? v->complexElem(i).real()
                                  : v->elemAsDouble(i);
             const keel::f64 im = cx ? v->complexElem(i).imag() : 0.0;
-            if (!std::isfinite(re) || !std::isfinite(im))
+            if (!keel::is_finite(re) || !keel::is_finite(im))
                 throw Error("sylvester: inputs must be finite (NaN or Inf "
                             "found).",
                             0, 0, "sylvester", "",

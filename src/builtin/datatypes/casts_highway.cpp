@@ -14,15 +14,14 @@
 // demote needed.
 
 #include <keel/core.h>
+#include <keel/math.h>
 #include "casts.hpp"
 
 #include <numkit/ops/parallel_for.hpp>
 #include <numkit/value/error.hpp>
 
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <limits>
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "builtin/datatypes/casts_highway.cpp"
@@ -39,12 +38,12 @@ namespace hn = hwy::HWY_NAMESPACE;
 template <typename T>
 inline T saturate_cast_scalar(keel::f64 v)
 {
-    if (std::isnan(v)) return 0;
-    v = std::round(v);
-    constexpr keel::f64 lo = keel::as<keel::f64>(std::numeric_limits<T>::min());
-    constexpr keel::f64 hi = keel::as<keel::f64>(std::numeric_limits<T>::max());
-    if (v < lo) return std::numeric_limits<T>::min();
-    if (v > hi) return std::numeric_limits<T>::max();
+    if (keel::is_nan(v)) return 0;
+    v = keel::round(v);
+    constexpr keel::f64 lo = keel::as<keel::f64>(keel::Limits<T>::kMin);
+    constexpr keel::f64 hi = keel::as<keel::f64>(keel::Limits<T>::kMax);
+    if (v < lo) return keel::Limits<T>::kMin;
+    if (v > hi) return keel::Limits<T>::kMax;
     return static_cast<T>(v);
 }
 
@@ -66,8 +65,8 @@ void DoubleToInt32Loop(const keel::f64 *HWY_RESTRICT in, keel::i32 *HWY_RESTRICT
     const hn::ScalableTag<keel::f64>  d;
     const hn::Rebind<keel::i32, decltype(d)> di_rebind;
     const auto zero = hn::Zero(d);
-    const auto lo   = hn::Set(d, keel::as<keel::f64>(std::numeric_limits<keel::i32>::min()));
-    const auto hi   = hn::Set(d, keel::as<keel::f64>(std::numeric_limits<keel::i32>::max()));
+    const auto lo   = hn::Set(d, keel::as<keel::f64>(keel::Limits<keel::i32>::kMin));
+    const auto hi   = hn::Set(d, keel::as<keel::f64>(keel::Limits<keel::i32>::kMax));
     const keel::usize N = hn::Lanes(d);
     keel::usize i = 0;
     for (; i + N <= n; i += N) {
@@ -87,7 +86,7 @@ void DoubleToUInt32Loop(const keel::f64 *HWY_RESTRICT in, keel::u32 *HWY_RESTRIC
     const hn::Rebind<keel::u32, decltype(d)> du_rebind;
     const auto zero = hn::Zero(d);
     const auto lo   = hn::Set(d, 0.0);
-    const auto hi   = hn::Set(d, keel::as<keel::f64>(std::numeric_limits<keel::u32>::max()));
+    const auto hi   = hn::Set(d, keel::as<keel::f64>(keel::Limits<keel::u32>::kMax));
     const keel::usize N = hn::Lanes(d);
     keel::usize i = 0;
     for (; i + N <= n; i += N) {
@@ -110,8 +109,8 @@ void DoubleToInt64Loop(const keel::f64 *HWY_RESTRICT in, keel::i64 *HWY_RESTRICT
     // int64 range exceeds double-exact precision; saturation bounds
     // are still meaningful for clamping but inputs above 2^53 lose
     // representability â€” same as MATLAB.
-    const auto lo   = hn::Set(d, keel::as<keel::f64>(std::numeric_limits<keel::i64>::min()));
-    const auto hi   = hn::Set(d, keel::as<keel::f64>(std::numeric_limits<keel::i64>::max()));
+    const auto lo   = hn::Set(d, keel::as<keel::f64>(keel::Limits<keel::i64>::kMin));
+    const auto hi   = hn::Set(d, keel::as<keel::f64>(keel::Limits<keel::i64>::kMax));
     const keel::usize N = hn::Lanes(d);
     keel::usize i = 0;
     for (; i + N <= n; i += N) {

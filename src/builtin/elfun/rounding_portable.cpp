@@ -4,31 +4,31 @@
 // Compiled when NUMKIT_WITH_SIMD=OFF.
 
 #include <keel/core.h>
+#include <keel/math.h>
 #include "rounding_detail.hpp"
 
-#include <cmath>
 #include <cstddef>
 
 namespace numkit::builtin::detail {
 
 void doubleCeilLoop(const keel::f64 *in, keel::f64 *out, keel::usize n)
 {
-    for (keel::usize i = 0; i < n; ++i) out[i] = std::ceil(in[i]);
+    for (keel::usize i = 0; i < n; ++i) out[i] = keel::ceil(in[i]);
 }
 
 void doubleFloorLoop(const keel::f64 *in, keel::f64 *out, keel::usize n)
 {
-    for (keel::usize i = 0; i < n; ++i) out[i] = std::floor(in[i]);
+    for (keel::usize i = 0; i < n; ++i) out[i] = keel::floor(in[i]);
 }
 
 void doubleRoundLoop(const keel::f64 *in, keel::f64 *out, keel::usize n)
 {
-    for (keel::usize i = 0; i < n; ++i) out[i] = std::round(in[i]);
+    for (keel::usize i = 0; i < n; ++i) out[i] = keel::round(in[i]);
 }
 
 void doubleFixLoop(const keel::f64 *in, keel::f64 *out, keel::usize n)
 {
-    for (keel::usize i = 0; i < n; ++i) out[i] = std::trunc(in[i]);
+    for (keel::usize i = 0; i < n; ++i) out[i] = keel::trunc(in[i]);
 }
 
 } // namespace numkit::builtin::detail

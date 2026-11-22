@@ -9,10 +9,10 @@
 // (two roundings, NOT FMA) to match the affine fallback.
 
 #include <keel/core.h>
+#include <keel/math.h>
 #include <numkit/ops/fused/fused_kernels.hpp>
 #include <numkit/ops/parallel_for.hpp>
 
-#include <cmath>
 #include <cstddef>
 
 #undef HWY_TARGET_INCLUDE
@@ -53,22 +53,22 @@ void UnaryAffineImpl(const keel::f64 *x, keel::f64 p0, keel::f64 p1, bool divide
         case UnaryAffineFn::Sqrt:
             unaryInnerLoop(x, p0, p1, divide, out, n,
                            [](auto v) { return hn::Sqrt(v); },
-                           [](keel::f64 v) { return std::sqrt(v); });
+                           [](keel::f64 v) { return keel::sqrt(v); });
             break;
         case UnaryAffineFn::Floor:
             unaryInnerLoop(x, p0, p1, divide, out, n,
                            [](auto v) { return hn::Floor(v); },
-                           [](keel::f64 v) { return std::floor(v); });
+                           [](keel::f64 v) { return keel::floor(v); });
             break;
         case UnaryAffineFn::Ceil:
             unaryInnerLoop(x, p0, p1, divide, out, n,
                            [](auto v) { return hn::Ceil(v); },
-                           [](keel::f64 v) { return std::ceil(v); });
+                           [](keel::f64 v) { return keel::ceil(v); });
             break;
         case UnaryAffineFn::Fix:
             unaryInnerLoop(x, p0, p1, divide, out, n,
                            [](auto v) { return hn::Trunc(v); },
-                           [](keel::f64 v) { return std::trunc(v); });
+                           [](keel::f64 v) { return keel::trunc(v); });
             break;
         case UnaryAffineFn::Round:
             // MATLAB round = half-away-from-zero: Trunc(v + CopySign(0.5, v)),
@@ -78,7 +78,7 @@ void UnaryAffineImpl(const keel::f64 *x, keel::f64 p0, keel::f64 p1, bool divide
                                const hn::DFromV<decltype(v)> d;
                                return hn::Trunc(hn::Add(v, hn::CopySign(hn::Set(d, 0.5), v)));
                            },
-                           [](keel::f64 v) { return std::round(v); });
+                           [](keel::f64 v) { return keel::round(v); });
             break;
     }
 }

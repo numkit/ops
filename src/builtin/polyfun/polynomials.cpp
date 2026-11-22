@@ -3,6 +3,7 @@
 // Value-level polynomial builtins delegating numerical kernels to keel::poly.
 
 #include <keel/arena.h>
+#include <keel/algo.h>
 #include <keel/array.h>
 #include <keel/complex.h>
 #include <keel/core.h>
@@ -20,7 +21,6 @@
 #include <numkit/value/value.hpp>
 
 #include <algorithm>
-#include <cstring>
 #include <tuple>
 #include <utility>
 
@@ -308,7 +308,7 @@ Value packDirectTerm(keel::ArrayRef<keel::f64> k, keel::Allocator *mr)
     if (k.empty() || (k.size() == 1 && k[0] == 0.0))
         return Value::matrix(0, 0, ValueType::DOUBLE, mr);
     auto out = Value::matrix(1, k.size(), ValueType::DOUBLE, mr);
-    std::memcpy(out.doubleDataMut(), k.data(), k.size() * sizeof(keel::f64));
+    keel::copy_n(out.doubleDataMut(), k.data(), k.size());
     return out;
 }
 

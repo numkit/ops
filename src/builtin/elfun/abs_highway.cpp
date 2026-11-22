@@ -18,7 +18,6 @@
 #include <numkit/ops/helpers.hpp>
 
 #include <algorithm>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
 
@@ -56,7 +55,7 @@ void AbsLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel
     const keel::usize head = (rem == 0) ? 0
                                         : std::min<keel::usize>((align_bytes - rem) / sizeof(keel::f64), n);
     for (keel::usize k = 0; k < head; ++k, ++i)
-        out[i] = std::fabs(in[i]);
+        out[i] = keel::abs(in[i]);
 
     // 4Ã— unrolled body â€” independent loads + ops + Stream stores.
     const keel::usize step4 = 4 * N;
@@ -69,7 +68,7 @@ void AbsLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel
     for (; i + N <= n; i += N)
         hn::Stream(hn::Abs(hn::LoadU(d, in + i)), d, out + i);
     for (; i < n; ++i)
-        out[i] = std::fabs(in[i]);
+        out[i] = keel::abs(in[i]);
     // FlushStream issued once at the dispatcher level (see abs() below).
 }
 
@@ -116,7 +115,7 @@ Value abs(const Value &x, Value *hint, keel::Allocator *mr)
         const keel::f32 *in = x.singleData();
         keel::f32 *out = r.singleDataMut();
         for (keel::usize i = 0; i < x.numel(); ++i)
-            out[i] = std::fabs(in[i]);
+            out[i] = keel::abs(in[i]);
         return r;
     }
     // Logical / char widen to double (char codes), like the reference.
@@ -137,7 +136,7 @@ Value abs(const Value &x, Value *hint, keel::Allocator *mr)
     }
 
     if (x.isScalar())
-        return Value::scalar(std::fabs(x.toScalar()), mr);
+        return Value::scalar(keel::abs(x.toScalar()), mr);
 
     // Output-reuse fast path: caller-provided hint is a heap double of
     // matching shape with unique ownership â€” steal its buffer instead

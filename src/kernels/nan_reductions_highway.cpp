@@ -12,11 +12,10 @@
 // existing binary-op SIMD loops.
 
 #include <keel/core.h>
+#include <keel/math.h>
 #include <numkit/ops/nan_reductions.hpp>
 
-#include <cmath>
 #include <cstddef>
-#include <limits>
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "nan_reductions_highway.cpp"
@@ -54,7 +53,7 @@ keel::f64 NanSumScanLoop(const keel::f64 *HWY_RESTRICT p, keel::usize n)
     }
     keel::f64 sum = hn::ReduceSum(d, hn::Add(hn::Add(a0, a1), hn::Add(a2, a3)));
     for (; i < n; ++i)
-        if (!std::isnan(p[i])) sum += p[i];
+        if (!keel::is_nan(p[i])) sum += p[i];
     return sum;
 }
 
@@ -104,7 +103,7 @@ void NanSumCountScanLoop(const keel::f64 *HWY_RESTRICT p, keel::usize n,
     keel::f64 sum = hn::ReduceSum(d, hn::Add(hn::Add(sum0, sum1), hn::Add(sum2, sum3)));
     keel::f64 cnt = hn::ReduceSum(d, hn::Add(hn::Add(cnt0, cnt1), hn::Add(cnt2, cnt3)));
     for (; i < n; ++i) {
-        if (!std::isnan(p[i])) {
+        if (!keel::is_nan(p[i])) {
             sum += p[i];
             cnt += 1.0;
         }
@@ -127,7 +126,7 @@ void NanMaxScanLoop(const keel::f64 *HWY_RESTRICT p, keel::usize n,
 {
     const hn::ScalableTag<keel::f64> d;
     const keel::usize N = hn::Lanes(d);
-    const auto neg_inf = hn::Set(d, -std::numeric_limits<keel::f64>::infinity());
+    const auto neg_inf = hn::Set(d, -keel::Limits<keel::f64>::infinity());
     const auto zero    = hn::Zero(d);
     const auto one     = hn::Set(d, 1.0);
 
@@ -163,7 +162,7 @@ void NanMaxScanLoop(const keel::f64 *HWY_RESTRICT p, keel::usize n,
     keel::f64 best = hn::ReduceMax(d, hn::Max(hn::Max(m0, m1), hn::Max(m2, m3)));
     keel::f64 validCount = hn::ReduceSum(d, cnt);
     for (; i < n; ++i) {
-        if (!std::isnan(p[i])) {
+        if (!keel::is_nan(p[i])) {
             if (p[i] > best) best = p[i];
             validCount += 1.0;
         }
@@ -178,7 +177,7 @@ void NanMinScanLoop(const keel::f64 *HWY_RESTRICT p, keel::usize n,
 {
     const hn::ScalableTag<keel::f64> d;
     const keel::usize N = hn::Lanes(d);
-    const auto pos_inf = hn::Set(d, std::numeric_limits<keel::f64>::infinity());
+    const auto pos_inf = hn::Set(d, keel::Limits<keel::f64>::infinity());
     const auto zero    = hn::Zero(d);
     const auto one     = hn::Set(d, 1.0);
 
@@ -213,7 +212,7 @@ void NanMinScanLoop(const keel::f64 *HWY_RESTRICT p, keel::usize n,
     keel::f64 best = hn::ReduceMin(d, hn::Min(hn::Min(m0, m1), hn::Min(m2, m3)));
     keel::f64 validCount = hn::ReduceSum(d, cnt);
     for (; i < n; ++i) {
-        if (!std::isnan(p[i])) {
+        if (!keel::is_nan(p[i])) {
             if (p[i] < best) best = p[i];
             validCount += 1.0;
         }
@@ -262,7 +261,7 @@ keel::f64 NanSumSqDevScanLoop(const keel::f64 *HWY_RESTRICT p, keel::usize n,
     }
     keel::f64 ss = hn::ReduceSum(d, hn::Add(hn::Add(a0, a1), hn::Add(a2, a3)));
     for (; i < n; ++i) {
-        if (!std::isnan(p[i])) {
+        if (!keel::is_nan(p[i])) {
             const keel::f64 dv = p[i] - mean;
             ss += dv * dv;
         }
@@ -299,25 +298,25 @@ NanSumCount nanSumCountScan(const keel::f64 *p, keel::usize n)
 
 keel::f64 nanMaxScan(const keel::f64 *p, keel::usize n)
 {
-    if (n == 0) return std::nan("");
+    if (n == 0) return keel::kNaN;
     keel::f64 best = 0.0, allNaN = 0.0;
     HWY_DYNAMIC_DISPATCH(NanMaxScanLoop)(p, n, &best, &allNaN);
-    return (allNaN != 0.0) ? std::nan("") : best;
+    return (allNaN != 0.0) ? keel::kNaN : best;
 }
 
 keel::f64 nanMinScan(const keel::f64 *p, keel::usize n)
 {
-    if (n == 0) return std::nan("");
+    if (n == 0) return keel::kNaN;
     keel::f64 best = 0.0, allNaN = 0.0;
     HWY_DYNAMIC_DISPATCH(NanMinScanLoop)(p, n, &best, &allNaN);
-    return (allNaN != 0.0) ? std::nan("") : best;
+    return (allNaN != 0.0) ? keel::kNaN : best;
 }
 
 keel::f64 nanVarianceTwoPass(const keel::f64 *p, keel::usize n, keel::i32 normFlag)
 {
-    if (n == 0) return std::nan("");
+    if (n == 0) return keel::kNaN;
     const auto sc = nanSumCountScan(p, n);
-    if (sc.count == 0) return std::nan("");
+    if (sc.count == 0) return keel::kNaN;
     // MATLAB: variance over a single non-NaN value is 0 for BOTH the N-1
     // (default) and N normalizations — e.g. nanvar([NaN 5 NaN]) == 0, not NaN.
     if (sc.count == 1) return 0.0;

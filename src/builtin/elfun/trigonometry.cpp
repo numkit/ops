@@ -10,7 +10,6 @@
 #include <numkit/value/error.hpp>
 #include <numkit/ops/helpers.hpp>
 
-#include <cmath>
 #include "_unary_hint.hpp"
 
 namespace numkit::builtin {
@@ -40,7 +39,7 @@ constexpr keel::f64 kTwoPi = 2.0 * kPi;
 
 inline keel::f64 wrapMod(keel::f64 x, keel::f64 period)
 {
-    return x - std::floor(x / period) * period;
+    return x - keel::floor(x / period) * period;
 }
 
 inline keel::f64 wrapToUpper(keel::f64 x, keel::f64 period)
@@ -96,9 +95,9 @@ CylTriple cart2pol(const Value &x, const Value &y, const Value &z, keel::Allocat
 CartPair pol2cart(const Value &theta, const Value &rho, keel::Allocator *mr)
 {
     Value xv = elementwiseDouble(rho, theta,
-        [](keel::f64 r, keel::f64 t) { return r * std::cos(t); }, mr);
+        [](keel::f64 r, keel::f64 t) { return r * keel::cos(t); }, mr);
     Value yv = elementwiseDouble(rho, theta,
-        [](keel::f64 r, keel::f64 t) { return r * std::sin(t); }, mr);
+        [](keel::f64 r, keel::f64 t) { return r * keel::sin(t); }, mr);
     return { std::move(xv), std::move(yv) };
 }
 
@@ -111,26 +110,26 @@ CartTriple pol2cart(const Value &theta, const Value &rho, const Value &z, keel::
 SphTriple cart2sph(const Value &x, const Value &y, const Value &z, keel::Allocator *mr)
 {
     Value az = elementwiseDouble(y, x,
-        [](keel::f64 yy, keel::f64 xx) { return std::atan2(yy + 0.0, xx + 0.0); }, mr);
+        [](keel::f64 yy, keel::f64 xx) { return keel::atan2(yy + 0.0, xx + 0.0); }, mr);
     Value rxy = elementwiseDouble(x, y,
-        [](keel::f64 xx, keel::f64 yy) { return std::hypot(xx, yy); }, mr);
+        [](keel::f64 xx, keel::f64 yy) { return keel::hypot(xx, yy); }, mr);
     Value el = elementwiseDouble(z, rxy,
-        [](keel::f64 zz, keel::f64 rr) { return std::atan2(zz + 0.0, rr + 0.0); }, mr);
+        [](keel::f64 zz, keel::f64 rr) { return keel::atan2(zz + 0.0, rr + 0.0); }, mr);
     Value r = elementwiseDouble(rxy, z,
-        [](keel::f64 rxy_v, keel::f64 zz) { return std::hypot(rxy_v, zz); }, mr);
+        [](keel::f64 rxy_v, keel::f64 zz) { return keel::hypot(rxy_v, zz); }, mr);
     return { std::move(az), std::move(el), std::move(r) };
 }
 
 CartTriple sph2cart(const Value &az, const Value &el, const Value &r, keel::Allocator *mr)
 {
     Value rcos_el = elementwiseDouble(r, el,
-        [](keel::f64 rr, keel::f64 ee) { return rr * std::cos(ee); }, mr);
+        [](keel::f64 rr, keel::f64 ee) { return rr * keel::cos(ee); }, mr);
     Value xv = elementwiseDouble(rcos_el, az,
-        [](keel::f64 rce, keel::f64 aa) { return rce * std::cos(aa); }, mr);
+        [](keel::f64 rce, keel::f64 aa) { return rce * keel::cos(aa); }, mr);
     Value yv = elementwiseDouble(rcos_el, az,
-        [](keel::f64 rce, keel::f64 aa) { return rce * std::sin(aa); }, mr);
+        [](keel::f64 rce, keel::f64 aa) { return rce * keel::sin(aa); }, mr);
     Value zv = elementwiseDouble(r, el,
-        [](keel::f64 rr, keel::f64 ee) { return rr * std::sin(ee); }, mr);
+        [](keel::f64 rr, keel::f64 ee) { return rr * keel::sin(ee); }, mr);
     return { std::move(xv), std::move(yv), std::move(zv) };
 }
 

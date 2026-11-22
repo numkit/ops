@@ -5,17 +5,16 @@
 // in the kernel layer. See quantile_select.hpp.
 
 #include <keel/core.h>
+#include <keel/math.h>
 #include <numkit/ops/quantile_select.hpp>
 
 #include <algorithm>
-#include <cmath>
-#include <limits>
 
 namespace numkit::ops {
 
 keel::f64 sliceQuantile(keel::f64 *s, keel::usize n, keel::f64 p)
 {
-    if (n == 0) return std::numeric_limits<keel::f64>::quiet_NaN();
+    if (n == 0) return keel::Limits<keel::f64>::quiet_nan();
     if (n == 1) return s[0];
     // The MATLAB "+0.5" rule needs at most two adjacent order statistics, so
     // partition with nth_element (O(n) average) instead of a full O(n log n)
@@ -26,8 +25,8 @@ keel::f64 sliceQuantile(keel::f64 *s, keel::usize n, keel::f64 p)
     const keel::f64 q = p * keel::as<keel::f64>(n) + 0.5;
     if (q <= 1.0) return *std::min_element(s, s + n);
     if (q >= keel::as<keel::f64>(n)) return *std::max_element(s, s + n);
-    const keel::usize lo   = keel::as<keel::usize>(std::floor(q)) - 1;
-    const keel::f64      frac = q - std::floor(q);
+    const keel::usize lo   = keel::as<keel::usize>(keel::floor(q)) - 1;
+    const keel::f64      frac = q - keel::floor(q);
     // Place the lo-th smallest at s[lo]; everything in (lo, n) is then >= it,
     // so the (lo+1)-th smallest is the minimum of that right partition.
     std::nth_element(s, s + lo, s + n);

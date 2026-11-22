@@ -4,6 +4,7 @@
 // pages and dispatch to the 2-D variant.
 
 #include <keel/core.h>
+#include <keel/math.h>
 #include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/arena.h>
@@ -26,8 +27,6 @@
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
-#include <cmath>
-#include <limits>
 
 namespace numkit::linalg {
 
@@ -266,7 +265,7 @@ Value scalarNormDispatch(const Value &page, keel::f64 p, bool fro_flag, bool inf
                          keel::Allocator *mr)
 {
     if (fro_flag) return norm_fro(page, mr);
-    if (inf_flag || std::isinf(p)) return norm_inf(page, mr);
+    if (inf_flag || keel::is_inf(p)) return norm_inf(page, mr);
     return norm_value(page, p, mr);
 }
 

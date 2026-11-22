@@ -9,9 +9,9 @@
 // stages. Tail loop falls through to scalar std::isnan/isinf/isfinite.
 
 #include <keel/core.h>
+#include <keel/math.h>
 #include "isfinite.hpp"
 
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
 
@@ -56,17 +56,17 @@ void scanLoopImpl(const keel::f64 *HWY_RESTRICT in, keel::u8 *HWY_RESTRICT out,
 
 void IsNaNLoop(const keel::f64 *HWY_RESTRICT in, keel::u8 *HWY_RESTRICT out, keel::usize n)
 {
-    scanLoopImpl(in, out, n, [](keel::f64 v) { return std::isnan(v); });
+    scanLoopImpl(in, out, n, [](keel::f64 v) { return keel::is_nan(v); });
 }
 
 void IsInfLoop(const keel::f64 *HWY_RESTRICT in, keel::u8 *HWY_RESTRICT out, keel::usize n)
 {
-    scanLoopImpl(in, out, n, [](keel::f64 v) { return std::isinf(v); });
+    scanLoopImpl(in, out, n, [](keel::f64 v) { return keel::is_inf(v); });
 }
 
 void IsFiniteLoop(const keel::f64 *HWY_RESTRICT in, keel::u8 *HWY_RESTRICT out, keel::usize n)
 {
-    scanLoopImpl(in, out, n, [](keel::f64 v) { return std::isfinite(v); });
+    scanLoopImpl(in, out, n, [](keel::f64 v) { return keel::is_finite(v); });
 }
 
 } // namespace HWY_NAMESPACE

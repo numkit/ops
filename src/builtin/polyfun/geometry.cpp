@@ -3,6 +3,7 @@
 // Computational-geometry Value adapters delegating to keel::geom (<keel/geom.h>).
 
 #include <keel/arena.h>
+#include <keel/algo.h>
 #include <keel/array.h>
 #include <keel/core.h>
 #include <keel/format.h>
@@ -16,7 +17,6 @@
 #include <numkit/value/value.hpp>
 
 #include <algorithm>
-#include <cstring>
 
 namespace numkit::builtin {
 
@@ -27,7 +27,7 @@ keel::Array<keel::f64> toDoubleArray(const Value &v, keel::Allocator *alloc)
     const keel::usize n = v.numel();
     keel::Array<keel::f64> out(n, alloc);
     if (v.type() == ValueType::DOUBLE && n > 0) {
-        std::memcpy(out.data(), v.doubleData(), n * sizeof(keel::f64));
+        keel::copy_n(out.data(), v.doubleData(), n);
     } else {
         for (keel::usize i = 0; i < n; ++i) out[i] = v.elemAsDouble(i);
     }

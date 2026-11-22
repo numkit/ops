@@ -4,9 +4,8 @@
 #pragma once
 
 #include <keel/core.h>
-#include <cmath>
+#include <keel/math.h>
 #include <cstdint>
-#include <limits>
 
 namespace numkit::builtin::detail {
 
@@ -55,9 +54,9 @@ inline keel::i64 sinpi_octant(keel::f64 u)
 
 inline keel::f64 sinpi_kernel(keel::f64 d)
 {
-    if (std::isnan(d)) return d;
-    if (std::isinf(d)) return std::numeric_limits<keel::f64>::quiet_NaN();
-    if (std::fabs(d) >= kSinpiIntThreshold) return std::copysign(0.0, d);
+    if (keel::is_nan(d)) return d;
+    if (keel::is_inf(d)) return keel::Limits<keel::f64>::quiet_nan();
+    if (keel::abs(d) >= kSinpiIntThreshold) return keel::copysign(0.0, d);
 
     const keel::f64        u = d * 4.0;
     const keel::i64  q = sinpi_octant(u);
@@ -70,14 +69,14 @@ inline keel::f64 sinpi_kernel(keel::f64 d)
     x = (q & 4) ? -x : x;
     // sinpi(integer) is an exact zero whose sign MATLAB takes from the
     // input (sinpi(1)==+0, sinpi(-1)==-0), not from the quadrant.
-    return (x == 0.0) ? std::copysign(0.0, d) : x;
+    return (x == 0.0) ? keel::copysign(0.0, d) : x;
 }
 
 inline keel::f64 cospi_kernel(keel::f64 d)
 {
-    if (std::isnan(d)) return d;
-    if (std::isinf(d)) return std::numeric_limits<keel::f64>::quiet_NaN();
-    if (std::fabs(d) >= kSinpiIntThreshold) return 1.0;
+    if (keel::is_nan(d)) return d;
+    if (keel::is_inf(d)) return keel::Limits<keel::f64>::quiet_nan();
+    if (keel::abs(d) >= kSinpiIntThreshold) return 1.0;
 
     const keel::f64        u = d * 4.0;
     const keel::i64  q = sinpi_octant(u);

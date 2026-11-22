@@ -20,10 +20,7 @@
 #include <numkit/linalg/eig.hpp>
 
 #include <algorithm>
-#include <cmath>
 #include <cstdint>
-#include <cstring>
-#include <limits>
 #include <type_traits>
 
 #include "binary_ops_detail.hpp"
@@ -348,7 +345,7 @@ static bool powNeedsComplex(const Value &a, const Value &b)
     if (a.type() != ValueType::DOUBLE || b.type() != ValueType::DOUBLE)
         return false;
     auto negBase = [](keel::f64 x) { return x < 0.0; };
-    auto fracExp = [](keel::f64 y) { return y != std::floor(y); };
+    auto fracExp = [](keel::f64 y) { return y != keel::floor(y); };
     if (a.isScalar() && b.isScalar())
         return negBase(a.toScalar()) && fracExp(b.toScalar());
     if (b.isScalar()) {
@@ -388,9 +385,9 @@ Value power(const Value &a, const Value &b, keel::Allocator *mr)
             return Value::complexScalar(keel::pow(ca.toComplex(), cb.toComplex()), p);
         }
         const keel::f64 base = a.toScalar(), e = b.toScalar();
-        if (base < 0.0 && e != std::floor(e))
+        if (base < 0.0 && e != keel::floor(e))
             return Value::complexScalar(keel::pow(keel::c64(base, 0.0), e), p);
-        return Value::scalar(std::pow(base, e), p);
+        return Value::scalar(keel::pow(base, e), p);
     }
     if (b.isScalar() && !a.isScalar()
         && a.dims().rows() == a.dims().cols()
@@ -399,7 +396,7 @@ Value power(const Value &a, const Value &b, keel::Allocator *mr)
         const bool bCplx = b.isComplex();
         const keel::f64 bs = bCplx ? b.toComplex().real() : b.toScalar();
         const bool bRealInt = (!bCplx || b.toComplex().imag() == 0.0)
-                              && std::isfinite(bs) && std::floor(bs) == bs
+                              && keel::is_finite(bs) && keel::floor(bs) == bs
                               && keel::abs(bs) <= 1e9;
         if (bRealInt) {
             const keel::i64 n = keel::as<keel::i64>(bs);
@@ -413,7 +410,7 @@ Value power(const Value &a, const Value &b, keel::Allocator *mr)
                 }
                 auto I = Value::matrix(R, R, ValueType::DOUBLE, p);
                 keel::f64 *id = I.doubleDataMut();
-                std::memset(id, 0, sizeof(keel::f64) * R * R);
+                keel::mem_zero(id, sizeof(keel::f64) * R * R);
                 for (keel::usize i = 0; i < R; ++i) id[i * R + i] = 1.0;
                 return I;
             };
@@ -457,7 +454,7 @@ Value power(const Value &a, const Value &b, keel::Allocator *mr)
             for (keel::usize i = 0; i < R; ++i) {
                 keel::c64 d = aCplx ? a.complexElem(i + i * R) : keel::c64(a.elemAsDouble(i + i * R), 0.0);
                 keel::c64 dp = (!aCplx && !bCplx && d.real() >= 0.0)
-                                 ? keel::c64(std::pow(d.real(), bs), 0.0)
+                                 ? keel::c64(keel::pow(d.real(), bs), 0.0)
                                  : keel::pow(d, expC);
                 od[i + i * R] = dp;
                 if (dp.imag() != 0.0) anyImag = true;
@@ -465,7 +462,7 @@ Value power(const Value &a, const Value &b, keel::Allocator *mr)
             if (!anyImag && !aCplx && !bCplx) {
                 Value outR = Value::matrix(R, R, ValueType::DOUBLE, p);
                 keel::f64 *rd = outR.doubleDataMut();
-                std::memset(rd, 0, sizeof(keel::f64) * R * R);
+                keel::mem_zero(rd, sizeof(keel::f64) * R * R);
                 for (keel::usize i = 0; i < R; ++i) rd[i + i * R] = od[i + i * R].real();
                 return outR;
             }
@@ -480,7 +477,7 @@ Value power(const Value &a, const Value &b, keel::Allocator *mr)
         for (keel::usize j = 0; j < R; ++j) {
             keel::c64 dj = dIsCplx ? D.complexElem(j + j * R) : keel::c64(D.elemAsDouble(j + j * R), 0.0);
             keel::c64 dp = (!dIsCplx && !bCplx && dj.real() >= 0.0)
-                             ? keel::c64(std::pow(dj.real(), bs), 0.0)
+                             ? keel::c64(keel::pow(dj.real(), bs), 0.0)
                              : keel::pow(dj, expC);
             for (keel::usize i = 0; i < R; ++i) {
                 keel::c64 vij = vIsCplx ? V.complexElem(i + j * R) : keel::c64(V.elemAsDouble(i + j * R), 0.0);
@@ -531,17 +528,17 @@ Value elementPower(const Value &a, const Value &b, keel::Allocator *mr)
             return elementwiseComplex(
                 ca, cb, [](const keel::c64 &x, const keel::c64 &y) { return keel::pow(x, y); }, p);
         }
-        return elementwiseDouble(a, b, [](keel::f64 x, keel::f64 y) { return std::pow(x, y); }, p);
+        return elementwiseDouble(a, b, [](keel::f64 x, keel::f64 y) { return keel::pow(x, y); }, p);
     }
     {
         auto r = dispatchIntegerBinaryOp(a, b, [](auto x, auto y) -> decltype(x) {
-            keel::f64 r = std::pow(keel::as<keel::f64>(x), keel::as<keel::f64>(y));
+            keel::f64 r = keel::pow(keel::as<keel::f64>(x), keel::as<keel::f64>(y));
             if constexpr (std::is_integral_v<decltype(x)>) {
-                r = std::round(r);
-                if (r > keel::as<keel::f64>(std::numeric_limits<decltype(x)>::max()))
-                    return std::numeric_limits<decltype(x)>::max();
-                if (r < keel::as<keel::f64>(std::numeric_limits<decltype(x)>::min()))
-                    return std::numeric_limits<decltype(x)>::min();
+                r = keel::round(r);
+                if (r > keel::as<keel::f64>(keel::Limits<decltype(x)>::kMax))
+                    return keel::Limits<decltype(x)>::kMax;
+                if (r < keel::as<keel::f64>(keel::Limits<decltype(x)>::kMin))
+                    return keel::Limits<decltype(x)>::kMin;
                 return static_cast<decltype(x)>(r);
             } else {
                 return static_cast<decltype(x)>(r);

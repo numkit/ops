@@ -13,7 +13,6 @@
 #include <keel/complex.h>
 #include <keel/math.h>
 #include <algorithm>
-#include <cmath>
 #include <cstddef>
 #include <tuple>
 
@@ -40,10 +39,10 @@ keel::usize cholUpperFactor(const T *a, T *r, keel::usize n) {
         }
         if constexpr (detail::is_complex_v<T>) {
             if (s.real() <= 0.0 || keel::abs(s.imag()) > 1e-12 * (1.0 + keel::abs(s.real()))) return j + 1;
-            r[j + j * n] = T(std::sqrt(s.real()), 0.0);
+            r[j + j * n] = T(keel::sqrt(s.real()), 0.0);
         } else {
             if (s <= 0.0) return j + 1;
-            r[j + j * n] = std::sqrt(s);
+            r[j + j * n] = keel::sqrt(s);
         }
         const T inv_diag = T(1) / r[j + j * n];
         for (keel::usize i = j + 1; i < n; ++i) {

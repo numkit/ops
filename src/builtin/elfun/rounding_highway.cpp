@@ -7,9 +7,9 @@
 // round-to-nearest-even.
 
 #include <keel/core.h>
+#include <keel/math.h>
 #include "rounding_detail.hpp"
 
-#include <cmath>
 #include <cstddef>
 
 #undef HWY_TARGET_INCLUDE
@@ -32,7 +32,7 @@ void CeilLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, kee
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Ceil(v), d, out + i);
     }
-    for (; i < n; ++i) out[i] = std::ceil(in[i]);
+    for (; i < n; ++i) out[i] = keel::ceil(in[i]);
 }
 
 void FloorLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel::usize n)
@@ -44,7 +44,7 @@ void FloorLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, ke
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Floor(v), d, out + i);
     }
-    for (; i < n; ++i) out[i] = std::floor(in[i]);
+    for (; i < n; ++i) out[i] = keel::floor(in[i]);
 }
 
 void FixLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel::usize n)
@@ -57,7 +57,7 @@ void FixLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel
         auto v = hn::LoadU(d, in + i);
         hn::StoreU(hn::Trunc(v), d, out + i);
     }
-    for (; i < n; ++i) out[i] = std::trunc(in[i]);
+    for (; i < n; ++i) out[i] = keel::trunc(in[i]);
 }
 
 void RoundLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel::usize n)
@@ -75,7 +75,7 @@ void RoundLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, ke
         auto h = hn::CopySign(half, v);
         hn::StoreU(hn::Trunc(hn::Add(v, h)), d, out + i);
     }
-    for (; i < n; ++i) out[i] = std::round(in[i]);
+    for (; i < n; ++i) out[i] = keel::round(in[i]);
 }
 
 } // namespace HWY_NAMESPACE

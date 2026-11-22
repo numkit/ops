@@ -4,6 +4,7 @@
 // factories, never Engine/CallContext. Keeping it off <nk/core/engine.hpp>
 // is what lets toolbox compute files include it without dragging in the engine.
 #include <keel/core.h>
+#include <keel/math.h>
 #include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
@@ -15,8 +16,6 @@
 #include <numkit/value/shape_ops.hpp>
 
 #include <algorithm>
-#include <cmath>
-#include <limits>
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
@@ -107,10 +106,10 @@ inline Value absIntegerSaturate(const Value &x, keel::Allocator *mr = nullptr)
     const keel::usize n = x.numel();
     auto fill = [&](auto *dst) {
         using T = std::remove_pointer_t<std::decay_t<decltype(dst)>>;
-        const keel::f64 lo = keel::as<keel::f64>(std::numeric_limits<T>::min());
-        const keel::f64 hi = keel::as<keel::f64>(std::numeric_limits<T>::max());
+        const keel::f64 lo = keel::as<keel::f64>(keel::Limits<T>::kMin);
+        const keel::f64 hi = keel::as<keel::f64>(keel::Limits<T>::kMax);
         for (keel::usize i = 0; i < n; ++i) {
-            keel::f64 v = std::fabs(x.elemAsDouble(i));
+            keel::f64 v = keel::abs(x.elemAsDouble(i));
             if (v < lo) v = lo;
             else if (v > hi) v = hi;
             dst[i] = static_cast<T>(v);
@@ -143,8 +142,8 @@ inline Value doubleToIntegerExact(const Value &d, ValueType vt,
     const keel::usize n = d.numel();
     auto fill = [&](auto *dst) {
         using T = std::remove_pointer_t<std::decay_t<decltype(dst)>>;
-        const keel::f64 lo = keel::as<keel::f64>(std::numeric_limits<T>::min());
-        const keel::f64 hi = keel::as<keel::f64>(std::numeric_limits<T>::max());
+        const keel::f64 lo = keel::as<keel::f64>(keel::Limits<T>::kMin);
+        const keel::f64 hi = keel::as<keel::f64>(keel::Limits<T>::kMax);
         for (keel::usize i = 0; i < n; ++i) {
             keel::f64 v = d.elemAsDouble(i);
             if (v < lo) v = lo;
@@ -748,12 +747,12 @@ inline T saturateAdd(T a, T b)
         return a + b;
     } else if constexpr (std::is_unsigned_v<T>) {
         T r = a + b;
-        return (r < a) ? std::numeric_limits<T>::max() : r;
+        return (r < a) ? keel::Limits<T>::kMax : r;
     } else {
         using W = keel::i64;
         W r = static_cast<W>(a) + static_cast<W>(b);
-        if (r > std::numeric_limits<T>::max()) return std::numeric_limits<T>::max();
-        if (r < std::numeric_limits<T>::min()) return std::numeric_limits<T>::min();
+        if (r > keel::Limits<T>::kMax) return keel::Limits<T>::kMax;
+        if (r < keel::Limits<T>::kMin) return keel::Limits<T>::kMin;
         return static_cast<T>(r);
     }
 }
@@ -768,8 +767,8 @@ inline T saturateSub(T a, T b)
     } else {
         using W = keel::i64;
         W r = static_cast<W>(a) - static_cast<W>(b);
-        if (r > std::numeric_limits<T>::max()) return std::numeric_limits<T>::max();
-        if (r < std::numeric_limits<T>::min()) return std::numeric_limits<T>::min();
+        if (r > keel::Limits<T>::kMax) return keel::Limits<T>::kMax;
+        if (r < keel::Limits<T>::kMin) return keel::Limits<T>::kMin;
         return static_cast<T>(r);
     }
 }
@@ -781,14 +780,14 @@ inline T saturateMul(T a, T b)
         return a * b;
     } else if constexpr (std::is_same_v<T, keel::i64> || std::is_same_v<T, keel::u64>) {
         keel::f64 r = keel::as<keel::f64>(a) * keel::as<keel::f64>(b);
-        if (r > keel::as<keel::f64>(std::numeric_limits<T>::max())) return std::numeric_limits<T>::max();
-        if (r < keel::as<keel::f64>(std::numeric_limits<T>::min())) return std::numeric_limits<T>::min();
+        if (r > keel::as<keel::f64>(keel::Limits<T>::kMax)) return keel::Limits<T>::kMax;
+        if (r < keel::as<keel::f64>(keel::Limits<T>::kMin)) return keel::Limits<T>::kMin;
         return a * b;
     } else {
         using W = keel::i64;
         W r = static_cast<W>(a) * static_cast<W>(b);
-        if (r > std::numeric_limits<T>::max()) return std::numeric_limits<T>::max();
-        if (r < std::numeric_limits<T>::min()) return std::numeric_limits<T>::min();
+        if (r > keel::Limits<T>::kMax) return keel::Limits<T>::kMax;
+        if (r < keel::Limits<T>::kMin) return keel::Limits<T>::kMin;
         return static_cast<T>(r);
     }
 }
@@ -801,21 +800,21 @@ inline T saturateDiv(T a, T b)
     } else {
         if (b == 0) {
             if constexpr (std::is_unsigned_v<T>)
-                return (a == 0) ? T(0) : std::numeric_limits<T>::max();
+                return (a == 0) ? T(0) : keel::Limits<T>::kMax;
             else
-                return (a > 0) ? std::numeric_limits<T>::max()
-                     : (a < 0) ? std::numeric_limits<T>::min()
+                return (a > 0) ? keel::Limits<T>::kMax
+                     : (a < 0) ? keel::Limits<T>::kMin
                                : T(0);
         }
         if constexpr (!std::is_unsigned_v<T>) {
-            if (a == std::numeric_limits<T>::min() && b == T(-1))
-                return std::numeric_limits<T>::max();
+            if (a == keel::Limits<T>::kMin && b == T(-1))
+                return keel::Limits<T>::kMax;
         }
         // MATLAB integer division: round result
         keel::f64 r = keel::as<keel::f64>(a) / keel::as<keel::f64>(b);
-        r = std::round(r);
-        if (r > keel::as<keel::f64>(std::numeric_limits<T>::max())) return std::numeric_limits<T>::max();
-        if (r < keel::as<keel::f64>(std::numeric_limits<T>::min())) return std::numeric_limits<T>::min();
+        r = keel::round(r);
+        if (r > keel::as<keel::f64>(keel::Limits<T>::kMax)) return keel::Limits<T>::kMax;
+        if (r < keel::as<keel::f64>(keel::Limits<T>::kMin)) return keel::Limits<T>::kMin;
         return static_cast<T>(r);
     }
 }
@@ -828,7 +827,7 @@ inline T saturateNeg(T a)
     } else if constexpr (std::is_unsigned_v<T>) {
         return T(0);
     } else {
-        if (a == std::numeric_limits<T>::min()) return std::numeric_limits<T>::max();
+        if (a == keel::Limits<T>::kMin) return keel::Limits<T>::kMax;
         return -a;
     }
 }
@@ -849,9 +848,9 @@ Value elementwiseTyped(const Value &a, const Value &b, ValueType targetType, Op 
         if (v.type() == tgt) return static_cast<const T *>(v.rawData())[idx];
         keel::f64 d = v.elemAsDouble(idx);
         if constexpr (std::is_integral_v<T>)
-            return static_cast<T>(std::clamp(std::round(d),
-                keel::as<keel::f64>(std::numeric_limits<T>::min()),
-                keel::as<keel::f64>(std::numeric_limits<T>::max())));
+            return static_cast<T>(std::clamp(keel::round(d),
+                keel::as<keel::f64>(keel::Limits<T>::kMin),
+                keel::as<keel::f64>(keel::Limits<T>::kMax)));
         else
             return static_cast<T>(d);
     };
@@ -859,9 +858,9 @@ Value elementwiseTyped(const Value &a, const Value &b, ValueType targetType, Op 
         if (v.type() == tgt) return static_cast<const T *>(v.rawData())[i];
         keel::f64 d = v.elemAsDouble(i);
         if constexpr (std::is_integral_v<T>)
-            return static_cast<T>(std::clamp(std::round(d),
-                keel::as<keel::f64>(std::numeric_limits<T>::min()),
-                keel::as<keel::f64>(std::numeric_limits<T>::max())));
+            return static_cast<T>(std::clamp(keel::round(d),
+                keel::as<keel::f64>(keel::Limits<T>::kMin),
+                keel::as<keel::f64>(keel::Limits<T>::kMax)));
         else
             return static_cast<T>(d);
     };

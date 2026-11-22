@@ -8,10 +8,10 @@
 // so the result is bit-identical to `sign(x) .* max(0, abs(x) - t)`.
 
 #include <keel/core.h>
+#include <keel/math.h>
 #include <numkit/ops/fused/fused_kernels.hpp>
 #include <numkit/ops/parallel_for.hpp>
 
-#include <cmath>
 #include <cstddef>
 
 #undef HWY_TARGET_INCLUDE
@@ -44,8 +44,8 @@ void SoftThresholdImpl(const keel::f64 *x, keel::f64 t, keel::f64 *out, keel::us
     }
     for (; i < n; ++i) {
         const keel::f64 v = x[i];
-        const keel::f64 s = std::isnan(v) ? v : (v > 0 ? 1.0 : (v < 0 ? -1.0 : 0.0));
-        out[i] = s * std::fmax(0.0, std::fabs(v) - t);
+        const keel::f64 s = keel::is_nan(v) ? v : (v > 0 ? 1.0 : (v < 0 ? -1.0 : 0.0));
+        out[i] = s * keel::fmax(0.0, keel::abs(v) - t);
     }
 }
 

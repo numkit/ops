@@ -6,6 +6,7 @@
 // builtins (regexp/regexpi/regexprep) live in regex.cpp.
 
 #include <keel/core.h>
+#include <keel/math.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
 #include <keel/arena.h>
@@ -24,11 +25,9 @@
 
 #include <algorithm>
 #include <cerrno>
-#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <limits>
 #include <utility>
 
 #include "strings_detail.hpp"
@@ -100,11 +99,11 @@ Value num2str(const Value &x, keel::Allocator *mr)
     // of-decimal + 4 = max(floor(log10|v|),0) + 5. Hence num2str(1000000) =
     // "1000000" and num2str(1000000.5) = "1000000.5" (a fixed "%.5g" wrongly
     // gave "1e+06"). Non-finite values use MATLAB's capitalised spelling.
-    if (std::isnan(v)) return Value::fromString("NaN", mr);
-    if (std::isinf(v)) return Value::fromString(v < 0 ? "-Inf" : "Inf", mr);
+    if (keel::is_nan(v)) return Value::fromString("NaN", mr);
+    if (keel::is_inf(v)) return Value::fromString(v < 0 ? "-Inf" : "Inf", mr);
     keel::i32 prec = 5;
     if (v != 0.0) {
-        const keel::i32 e = keel::as<keel::i32>(std::floor(std::log10(std::fabs(v))));
+        const keel::i32 e = keel::as<keel::i32>(keel::floor(keel::log10(keel::abs(v))));
         prec = (e > 0 ? e : 0) + 5;
     }
     char buf[512];
@@ -187,7 +186,7 @@ Value num2str(const Value &x, keel::StringRef fmt,
                     if (z.imag() != 0.0) {
                         s.push_back(z.imag() < 0.0 ? '-' : '+');
                         const keel::String si =
-                            num2str(Value::scalar(std::fabs(z.imag()), mr), fmt, mr).toString();
+                            num2str(Value::scalar(keel::abs(z.imag()), mr), fmt, mr).toString();
                         s.append(si.as_ref());
                         s.push_back('i');
                     }
@@ -213,7 +212,7 @@ Value num2str(const Value &x, keel::StringRef fmt,
         if (z.imag() == 0.0) return Value::fromString(s, mr);
         s.push_back(z.imag() < 0.0 ? '-' : '+');
         const keel::String si =
-            num2str(Value::scalar(std::fabs(z.imag()), mr), fmt, mr).toString();
+            num2str(Value::scalar(keel::abs(z.imag()), mr), fmt, mr).toString();
         s.append(si.as_ref());
         s.push_back('i');
         return Value::fromString(s, mr);
@@ -311,14 +310,14 @@ Value int2str(const Value &x, keel::Allocator *mr)
         keel::f64 maxabs = 0.0;
         for (keel::usize i = 0; i < n; ++i) {
             const keel::f64 vi = cplx ? x.complexData()[i].real() : x.elemAsDouble(i);
-            keel::f64 r = std::isfinite(vi) ? std::round(vi) : vi;
+            keel::f64 r = keel::is_finite(vi) ? keel::round(vi) : vi;
             if (r == 0.0) r = 0.0;   // normalise -0 -> 0
             rd[i] = r;
-            if (std::isfinite(r) && std::fabs(r) > maxabs) maxabs = std::fabs(r);
+            if (keel::is_finite(r) && keel::abs(r) > maxabs) maxabs = keel::abs(r);
         }
         keel::i32 ndigits = 1;
         if (maxabs >= 1.0)
-            ndigits = keel::as<keel::i32>(std::floor(std::log10(maxabs))) + 1;
+            ndigits = keel::as<keel::i32>(keel::floor(keel::log10(maxabs))) + 1;
         char fmt[16];
         std::snprintf(fmt, sizeof(fmt), "%%%d.0f", ndigits + 2);
         return num2str(rounded, keel::StringRef(fmt), mr);
@@ -327,11 +326,11 @@ Value int2str(const Value &x, keel::Allocator *mr)
 
     const keel::f64 v = (x.type() == ValueType::COMPLEX) ? x.toComplex().real()
                                                       : x.toScalar();
-    if (std::isnan(v))
+    if (keel::is_nan(v))
         return Value::fromString("NaN", mr);
-    if (std::isinf(v))
+    if (keel::is_inf(v))
         return Value::fromString(v < 0 ? "-Inf" : "Inf", mr);
-    keel::f64 r = std::round(v);
+    keel::f64 r = keel::round(v);
     if (r == 0.0) r = 0.0;          // normalise -0 -> 0
     char buf[64];
     std::snprintf(buf, sizeof(buf), "%.0f", r);
@@ -417,7 +416,7 @@ static keel::f64 strtodFull(keel::StringRef t, keel::f64 defVal)
     const char *cs = tmp.c_str();
     char *end = nullptr;
     const keel::f64 v = std::strtod(cs, &end);
-    if (end != cs + tmp.size()) return std::numeric_limits<keel::f64>::quiet_NaN();
+    if (end != cs + tmp.size()) return keel::Limits<keel::f64>::quiet_nan();
     return v;
 }
 
@@ -432,7 +431,7 @@ struct Str2DoubleResult { keel::f64 re; keel::f64 im; bool isComplex; };
 
 static Str2DoubleResult str2doubleParse(keel::StringRef str)
 {
-    const keel::f64 nan = std::numeric_limits<keel::f64>::quiet_NaN();
+    const keel::f64 nan = keel::Limits<keel::f64>::quiet_nan();
     auto isWs = [](char c) {
         return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f' || c == '\v';
     };
@@ -489,7 +488,7 @@ static Str2DoubleResult str2doubleParse(keel::StringRef str)
 
 Value str2double(const Value &s, keel::Allocator *mr)
 {
-    const keel::f64 nan = std::numeric_limits<keel::f64>::quiet_NaN();
+    const keel::f64 nan = keel::Limits<keel::f64>::quiet_nan();
 
     // A cell array of char/string vectors OR a non-scalar string array maps
     // element-wise to a matrix of the SAME shape (MATLAB str2double). NaN where
@@ -540,8 +539,8 @@ Value toString(const Value &x, keel::Allocator *mr)
 {
     keel::Allocator *p = mr;
     auto fmtNum = [](keel::f64 d) -> keel::String {
-        if (std::isnan(d)) return keel::String::from("NaN");
-        if (std::isinf(d)) return keel::String::from(d < 0 ? "-Inf" : "Inf");
+        if (keel::is_nan(d)) return keel::String::from("NaN");
+        if (keel::is_inf(d)) return keel::String::from(d < 0 ? "-Inf" : "Inf");
         char buf[64];
         std::snprintf(buf, sizeof(buf), "%.6g", d);
         return keel::String::from(buf);
@@ -610,7 +609,7 @@ Value toChar(const Value &x, keel::Allocator *mr)
             return Value::fromString(rows[0], p);
         Value out = Value::matrix(n, maxCols, ValueType::CHAR, p);
         char *dst = out.charDataMut();
-        std::memset(dst, ' ', n * maxCols);
+        keel::mem_set(dst, ' ', n * maxCols);
         for (keel::usize r = 0; r < n; ++r)
             for (keel::usize c = 0; c < rows[r].size(); ++c)
                 dst[c * n + r] = rows[r][c];
@@ -625,7 +624,7 @@ Value toChar(const Value &x, keel::Allocator *mr)
             maxCols = std::max(maxCols, x.stringElemRef(i).size());
         Value out = Value::matrix(n, maxCols, ValueType::CHAR, p);
         char *dst = out.charDataMut();
-        std::memset(dst, ' ', n * maxCols);
+        keel::mem_set(dst, ' ', n * maxCols);
         for (keel::usize r = 0; r < n; ++r) {
             const keel::StringRef s = x.stringElemRef(r);
             for (keel::usize c = 0; c < s.size(); ++c)
@@ -1735,14 +1734,11 @@ Value num2hex(const Value &x, keel::Allocator *mr)
         const keel::f64 v = x.elemAsDouble(i);
         if (single) {
             const keel::f32 f = keel::as<keel::f32>(v);
-            keel::u32 bits;
-            std::memcpy(&bits, &f, sizeof(bits));
-            std::snprintf(buf, sizeof(buf), "%08x", keel::as<keel::u32>(bits));
+            const keel::u32 bits = keel::bit_cast<keel::u32>(f);
+            std::snprintf(buf, sizeof(buf), "%08x", bits);
         } else {
-            keel::u64 bits;
-            std::memcpy(&bits, &v, sizeof(bits));
-            std::snprintf(buf, sizeof(buf), "%016llx",
-                          keel::as<keel::u64>(bits));
+            const keel::u64 bits = keel::bit_cast<keel::u64>(v);
+            std::snprintf(buf, sizeof(buf), "%016llx", bits);
         }
         for (keel::i32 c = 0; c < W; ++c)
             dst[keel::as<keel::usize>(c) * n + i] = buf[c];
@@ -1790,8 +1786,8 @@ Value base2dec(const Value &s, keel::i32 base, keel::Allocator *mr)
 Value rat(const Value &x, keel::f64 tol, keel::Allocator *mr)
 {
     const keel::f64 v = x.toScalar();
-    if (!std::isfinite(v))
-        return Value::fromString(std::isnan(v) ? "NaN" : (v > 0 ? "Inf" : "-Inf"), mr);
+    if (!keel::is_finite(v))
+        return Value::fromString(keel::is_nan(v) ? "NaN" : (v > 0 ? "Inf" : "-Inf"), mr);
     if (tol <= 0.0) tol = defaultRatTol(v);
     const auto exp = ratExpansion(v, tol);
     return Value::fromString(buildCFString(exp), mr);
@@ -1820,8 +1816,8 @@ Value rats(const Value &x, keel::i32 len, keel::Allocator *mr)
     const keel::i32 num_width = field_width / 2;          // 7 for default len=13
     const keel::i32 den_width = field_width - num_width - 1;  // 6 for default
     auto appendOne = [&](keel::String &dst, keel::f64 v) {
-        if (!std::isfinite(v)) {
-            const keel::StringRef s = std::isnan(v) ? "NaN" : (v > 0 ? "Inf" : "-Inf");
+        if (!keel::is_finite(v)) {
+            const keel::StringRef s = keel::is_nan(v) ? "NaN" : (v > 0 ? "Inf" : "-Inf");
             const keel::i32 slack = std::max(0, field_width - keel::as<keel::i32>(s.size()));
             for (keel::i32 k = 0; k < slack; ++k) dst.push_back(' ');
             dst.append(s);
@@ -2034,7 +2030,7 @@ Value strjust(const Value &M, keel::StringRef side, keel::Allocator *mr)
 
     Value res = Value::matrix(rows, cols, ValueType::CHAR, mr);
     char *out = res.charDataMut();
-    std::memset(out, ' ', rows * cols);
+    keel::mem_set(out, ' ', rows * cols);
     for (keel::usize r = 0; r < rows; ++r) {
         // Column-major: row r, col c -> src[c*rows + r].
         keel::usize firstNonSp = cols, lastNonSp = 0;

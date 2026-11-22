@@ -19,8 +19,6 @@
 #include <keel/ref.h>
 
 #include <algorithm>
-#include <cmath>
-#include <cstring>
 #include <numeric>
 #include <tuple>
 #include <utility>
@@ -39,8 +37,7 @@ namespace {
 struct DoubleHashEq0 {
     keel::u64 operator()(keel::f64 v) const noexcept {
         if (v == 0.0) return 0;          // covers both +0 and -0
-        keel::u64 bits;
-        std::memcpy(&bits, &v, sizeof(bits));
+        keel::u64 bits = keel::bit_cast<keel::u64>(v);
         bits ^= bits >> 33;
         bits *= 0xff51afd7ed558ccdULL;
         bits ^= bits >> 33;
@@ -139,9 +136,7 @@ struct RowKeyHash {
     keel::u64 operator()(const RowKey &k) const noexcept {
         keel::u64 h = 0xcbf29ce484222325ULL;  // FNV-ish seed
         for (keel::f64 v : k) {
-            keel::u64 bits;
-            if (v == 0.0) bits = 0;  // collapse +0 / -0
-            else          std::memcpy(&bits, &v, sizeof(bits));
+            keel::u64 bits = (v == 0.0) ? 0ULL : keel::bit_cast<keel::u64>(v); // collapse +0 / -0
             bits ^= bits >> 33;
             bits *= 0xff51afd7ed558ccdULL;
             bits ^= bits >> 33;
@@ -246,7 +241,7 @@ bool edgesAreUniform(const keel::f64 *e, keel::usize nEdges, keel::f64 &outStep)
 namespace {
 inline keel::usize histcBin(keel::f64 v, const keel::f64 *e, keel::usize nE)
 {
-    if (std::isnan(v) || v < e[0] || v > e[nE - 1]) return SIZE_MAX;
+    if (keel::is_nan(v) || v < e[0] || v > e[nE - 1]) return SIZE_MAX;
     if (v == e[nE - 1]) return nE - 1;
     keel::usize lo = 0, hi = nE;
     while (lo < hi) {
@@ -260,9 +255,9 @@ namespace {
 
 bool isExactNonnegInt(keel::f64 v, keel::u64 &outU)
 {
-    if (!std::isfinite(v) || v < 0) return false;
-    if (v != std::floor(v))         return false;
-    if (v > keel::as<keel::f64>(std::numeric_limits<keel::u64>::max()))
+    if (!keel::is_finite(v) || v < 0) return false;
+    if (v != keel::floor(v))         return false;
+    if (v > keel::as<keel::f64>(keel::Limits<keel::u64>::kMax))
         return false;
     outU = keel::as<keel::u64>(v);
     return true;
@@ -305,11 +300,11 @@ keel::u64 permFactorial(keel::i32 n)
 
 keel::f64 factorialDouble(keel::f64 v, const char *fn)
 {
-    if (!std::isfinite(v) || v < 0 || v != std::floor(v))
+    if (!keel::is_finite(v) || v < 0 || v != keel::floor(v))
         throw Error(keel::format("{}: entries must be non-negative integers", fn),
                      0, 0, fn, "", keel::format("numkit:{}:badArg", fn));
     if (v > 170.0)
-        return std::numeric_limits<keel::f64>::infinity();
+        return keel::Limits<keel::f64>::infinity();
     keel::f64 r = 1.0;
     const keel::i32 n = keel::as<keel::i32>(v);
     for (keel::i32 i = 2; i <= n; ++i) r *= keel::as<keel::f64>(i);
@@ -321,7 +316,7 @@ namespace {
 inline bool nearlyEqualTol(keel::f64 x, keel::f64 y, keel::f64 tol)
 {
     if (x == y) return true;
-    if (std::isnan(x) || std::isnan(y)) return false;
+    if (keel::is_nan(x) || keel::is_nan(y)) return false;
     const keel::f64 s = std::max(keel::abs(x), keel::abs(y));
     return keel::abs(x - y) <= tol * std::max(1.0, s);
 }

@@ -5,19 +5,19 @@
 // and matches this file on every input outside the vectorised range.
 
 #include <keel/memory.h>
+#include <keel/math.h>
 #include <numkit/builtin/specfun.hpp>
 
 #include <numkit/value/error.hpp>
 
 #include <numkit/ops/helpers.hpp>
 
-#include <cmath>
 
 namespace numkit::builtin {
 
 Value erf(const Value &x, keel::Allocator *mr)
 {
-    return unaryDouble(x, [](keel::f64 v) { return std::erf(v); }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return keel::erf(v); }, mr);
 }
 
 } // namespace numkit::builtin

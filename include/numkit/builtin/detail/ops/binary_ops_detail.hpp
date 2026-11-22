@@ -18,11 +18,8 @@
 #include <numkit/value/shape_ops.hpp>
 
 #include <algorithm>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
-#include <limits>
 #include <numeric>
 #include <tuple>
 #include <utility>
@@ -310,7 +307,7 @@ inline bool applyCmp(Cmp c, keel::f64 x, keel::f64 y)
         };
         keel::String sa = toStr(a), sb = toStr(b);
         const keel::usize minLen = std::min(sa.size(), sb.size());
-        keel::i32 cmpRes = (minLen > 0) ? std::memcmp(sa.data(), sb.data(), minLen) : 0;
+        keel::i32 cmpRes = (minLen > 0) ? keel::mem_cmp(sa.data(), sb.data(), minLen) : 0;
         if (cmpRes == 0)
             cmpRes = (sa.size() < sb.size()) ? -1 : (sa.size() > sb.size() ? 1 : 0);
         switch (c) {
@@ -520,21 +517,21 @@ inline bool applyCmp(Cmp c, keel::f64 x, keel::f64 y)
     } else if (v.type() == ValueType::DOUBLE) {
         const keel::f64 *d = v.doubleData();
         for (keel::usize i = 0; i < v.numel(); ++i) {
-            if (std::isnan(d[i]))
+            if (keel::is_nan(d[i]))
                 nanErr();
             r[i] = (d[i] != 0.0) ? 1 : 0;
         }
     } else if (v.isComplex()) {
         const keel::c64 *d = v.complexData();
         for (keel::usize i = 0; i < v.numel(); ++i) {
-            if (std::isnan(d[i].real()) || std::isnan(d[i].imag()))
+            if (keel::is_nan(d[i].real()) || keel::is_nan(d[i].imag()))
                 nanErr();
             r[i] = (d[i].real() != 0.0 || d[i].imag() != 0.0) ? 1 : 0;
         }
     } else {
         for (keel::usize i = 0; i < v.numel(); ++i) {
             keel::f64 x = v.elemAsDouble(i);
-            if (std::isnan(x))
+            if (keel::is_nan(x))
                 nanErr();
             r[i] = (x != 0.0) ? 1 : 0;
         }
@@ -546,12 +543,12 @@ inline bool applyCmp(Cmp c, keel::f64 x, keel::f64 y)
 {
     if (v.isComplex()) {
         keel::c64 c = v.toComplex();
-        if (std::isnan(c.real()) || std::isnan(c.imag()))
+        if (keel::is_nan(c.real()) || keel::is_nan(c.imag()))
             throw std::runtime_error("NaN values cannot be converted to logicals.");
         return c.real() != 0.0 || c.imag() != 0.0;
     }
     keel::f64 x = v.elemAsDouble(0);
-    if (std::isnan(x))
+    if (keel::is_nan(x))
         throw std::runtime_error("NaN values cannot be converted to logicals.");
     return x != 0.0;
 }
@@ -671,7 +668,7 @@ void materialisePage(T *dst, const Value &src, keel::usize pageOff,
 
     if (tr == TranspOp::None) {
         if (typeMatches) {
-            std::memcpy(dst, static_cast<const T *>(src.rawData()) + base,
+            keel::mem_copy(dst, static_cast<const T *>(src.rawData()) + base,
                         pageElems * sizeof(T));
         } else {
             for (keel::usize i = 0; i < pageElems; ++i)

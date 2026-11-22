@@ -5,6 +5,7 @@
 // moved into named free functions that take std::pmr::memory_resource* explicitly.
 
 #include <keel/core.h>
+#include <keel/algo.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
 #include <keel/arena.h>
@@ -23,7 +24,6 @@
 #include "../signal_detail.hpp"  // shared argcheck cores
 
 #include <algorithm>
-#include <cmath>
 
 namespace numkit::signal {
 
@@ -52,7 +52,7 @@ inline bool conv_use_fft(keel::usize na, keel::usize nb)
     keel::usize need = na + nb - 1, nfft = 1;
     while (nfft < need) nfft <<= 1;
     const keel::f64 fft = 6.0 * keel::as<keel::f64>(nfft) *
-                       std::log2(keel::as<keel::f64>(nfft < 2 ? 2 : nfft));
+                       keel::log2(keel::as<keel::f64>(nfft < 2 ? 2 : nfft));
     return direct > fft;
 }
 
@@ -374,7 +374,7 @@ xcov(const Value &x, const Value &y, keel::i32 maxlag,
         const keel::f64 *yd = yc.doubleData();
         for (keel::usize i = 0; i < nx; ++i) c0x += xd[i] * xd[i];
         for (keel::usize i = 0; i < ny; ++i) c0y += yd[i] * yd[i];
-        const keel::f64 denom = std::sqrt(c0x * c0y);
+        const keel::f64 denom = keel::sqrt(c0x * c0y);
         if (denom > 0.0)
             for (keel::usize i = 0; i < nc; ++i) cd[i] /= denom;
     } else if (!(scaleopt.empty() || scaleopt.equals_ignore_ascii_case("none"))) {
@@ -418,7 +418,7 @@ Value cropConv2(const keel::f64 *full, keel::usize fullR, keel::usize fullC, kee
 {
     if (shape == "full") {
         auto out = Value::matrix(fullR, fullC, ValueType::DOUBLE, mr);
-        keel::mem_copy(out.doubleDataMut(), full, fullR * fullC * sizeof(keel::f64));
+        keel::copy_n(out.doubleDataMut(), full, fullR * fullC);
         return out;
     }
     if (shape == "same") {

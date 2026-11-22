@@ -10,10 +10,10 @@
 // handling. NaN/Inf propagate through the plain IEEE ops as per-op.
 
 #include <keel/core.h>
+#include <keel/math.h>
 #include <numkit/ops/fused/fused_kernels.hpp>
 #include <numkit/ops/parallel_for.hpp>
 
-#include <cmath>
 #include <cstddef>
 
 #undef HWY_TARGET_INCLUDE
@@ -70,7 +70,7 @@ void SqrtSumSqImpl(const keel::f64 *x, const keel::f64 *y, keel::f64 *out, keel:
         const auto vx = hn::LoadU(d, x + i), vy = hn::LoadU(d, y + i);
         hn::StoreU(hn::Sqrt(hn::Add(hn::Mul(vx, vx), hn::Mul(vy, vy))), d, out + i);
     }
-    for (; i < n; ++i) out[i] = std::sqrt(x[i] * x[i] + y[i] * y[i]);
+    for (; i < n; ++i) out[i] = keel::sqrt(x[i] * x[i] + y[i] * y[i]);
 }
 
 } // namespace HWY_NAMESPACE

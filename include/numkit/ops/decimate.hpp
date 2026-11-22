@@ -18,10 +18,10 @@
 // non-finite y is a gap; it is kept when it lands on a bucket endpoint.
 
 #include <keel/array.h>
+#include <keel/math.h>
 #include <keel/core.h>
 #include <keel/ref.h>
 #include <cstddef>
-#include <cmath>
 #include <algorithm>
 #include <utility>
 
@@ -79,7 +79,7 @@ inline DecimatedSeries decimateM4(const keel::f64 *x, const keel::f64 *y, keel::
     const keel::i32 cols = width < 1 ? 1 : width;
     const keel::f64 span = (x1 - x0) != 0.0 ? (x1 - x0) : 1.0;
     auto bucketOf = [&](keel::f64 xv) -> keel::i32 {
-        keel::i32 b = keel::as<keel::i32>(std::floor(((xv - x0) / span) * cols));
+        keel::i32 b = keel::as<keel::i32>(keel::floor(((xv - x0) / span) * cols));
         if (b < 0) b = 0; else if (b >= cols) b = cols - 1;
         return b;
     };
@@ -110,11 +110,11 @@ inline DecimatedSeries decimateM4(const keel::f64 *x, const keel::f64 *y, keel::
             flush();
             curBucket = b;
             bFirst = i; bLast = i; bMinI = i; bMaxI = i;
-            bMinY = std::isfinite(yv) ? yv : INFINITY;
-            bMaxY = std::isfinite(yv) ? yv : -INFINITY;
+            bMinY = keel::is_finite(yv) ? yv : keel::kInf;
+            bMaxY = keel::is_finite(yv) ? yv : -keel::kInf;
         } else {
             bLast = i;
-            if (std::isfinite(yv)) {
+            if (keel::is_finite(yv)) {
                 if (yv < bMinY) { bMinY = yv; bMinI = i; }
                 if (yv > bMaxY) { bMaxY = yv; bMaxI = i; }
             }
@@ -135,7 +135,7 @@ inline DecimatedSeries decimateM2(const keel::f64 *x, const keel::f64 *y, keel::
     const keel::i32 cols = width < 1 ? 1 : width;
     const keel::f64 span = (x1 - x0) != 0.0 ? (x1 - x0) : 1.0;
     auto bucketOf = [&](keel::f64 xv) -> keel::i32 {
-        keel::i32 b = keel::as<keel::i32>(std::floor(((xv - x0) / span) * cols));
+        keel::i32 b = keel::as<keel::i32>(keel::floor(((xv - x0) / span) * cols));
         if (b < 0) b = 0; else if (b >= cols) b = cols - 1;
         return b;
     };
@@ -156,9 +156,9 @@ inline DecimatedSeries decimateM2(const keel::f64 *x, const keel::f64 *y, keel::
         if (bk != curBucket) {
             flush();
             curBucket = bk; bMinI = i; bMaxI = i;
-            bMinY = std::isfinite(yv) ? yv : INFINITY;
-            bMaxY = std::isfinite(yv) ? yv : -INFINITY;
-        } else if (std::isfinite(yv)) {
+            bMinY = keel::is_finite(yv) ? yv : keel::kInf;
+            bMaxY = keel::is_finite(yv) ? yv : -keel::kInf;
+        } else if (keel::is_finite(yv)) {
             if (yv < bMinY) { bMinY = yv; bMinI = i; }
             if (yv > bMaxY) { bMaxY = yv; bMaxI = i; }
         }
@@ -185,20 +185,20 @@ inline DecimatedSeries decimateLTTB(const keel::f64 *x, const keel::f64 *y, keel
     keel::usize a = i0;                       // first point is always kept
     out.x.push_back(x[i0]); out.y.push_back(y[i0]);
     for (keel::i32 i = 0; i < threshold - 2; ++i) {
-        keel::usize avgStart = i0 + keel::as<keel::usize>(std::floor((i + 1) * bucketSize)) + 1;
-        keel::usize avgEnd   = i0 + keel::as<keel::usize>(std::floor((i + 2) * bucketSize)) + 1;
+        keel::usize avgStart = i0 + keel::as<keel::usize>(keel::floor((i + 1) * bucketSize)) + 1;
+        keel::usize avgEnd   = i0 + keel::as<keel::usize>(keel::floor((i + 2) * bucketSize)) + 1;
         if (avgEnd > i1) avgEnd = i1;
         keel::f64 avgX = 0.0, avgY = 0.0;
         const keel::usize avgN = avgEnd > avgStart ? (avgEnd - avgStart) : 1;
         for (keel::usize j = avgStart; j < avgEnd; ++j) { avgX += x[j]; avgY += y[j]; }
         avgX /= avgN; avgY /= avgN;
-        const keel::usize rangeStart = i0 + keel::as<keel::usize>(std::floor(i * bucketSize)) + 1;
-        const keel::usize rangeEnd   = i0 + keel::as<keel::usize>(std::floor((i + 1) * bucketSize)) + 1;
+        const keel::usize rangeStart = i0 + keel::as<keel::usize>(keel::floor(i * bucketSize)) + 1;
+        const keel::usize rangeEnd   = i0 + keel::as<keel::usize>(keel::floor((i + 1) * bucketSize)) + 1;
         const keel::f64 ax = x[a], ay = y[a];
         keel::f64 maxArea = -1.0;
         keel::usize maxIdx = rangeStart;
         for (keel::usize j = rangeStart; j < rangeEnd && j < i1; ++j) {
-            keel::f64 area = std::fabs((ax - avgX) * (y[j] - ay) - (ax - x[j]) * (avgY - ay));
+            keel::f64 area = keel::abs((ax - avgX) * (y[j] - ay) - (ax - x[j]) * (avgY - ay));
             if (area > maxArea) { maxArea = area; maxIdx = j; }
         }
         out.x.push_back(x[maxIdx]); out.y.push_back(y[maxIdx]);

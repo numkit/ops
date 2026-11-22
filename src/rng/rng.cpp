@@ -21,7 +21,6 @@
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
-#include <cmath>
 #include <cstdint>
 #include <numeric>
 
@@ -145,20 +144,20 @@ keel::f64 RngContext::v5Normal()
 
     const keel::f64 y = 0.4878992 * (vt[iz + 1] - keel::abs(x)) / (vt[iz + 1] - vt[iz]);
     const keel::f64 u1 = 0.5 + keel::as<keel::f64>(keel::as<keel::i32>(shr3Step())) * 2.3283064365386963e-10;
-    const keel::f64 f0 = std::exp(-0.5 * vt[iz] * vt[iz]);
-    const keel::f64 f1 = std::exp(-0.5 * vt[iz + 1] * vt[iz + 1]);
-    if (u1 < (std::exp(-0.5 * x * x) - f1) / (f0 - f1))
+    const keel::f64 f0 = keel::exp(-0.5 * vt[iz] * vt[iz]);
+    const keel::f64 f1 = keel::exp(-0.5 * vt[iz + 1] * vt[iz + 1]);
+    if (u1 < (keel::exp(-0.5 * x * x) - f1) / (f0 - f1))
         return x;
 
-    const keel::f64 fv0 = std::exp(-0.5 * vt[0] * vt[0]);
-    if ((1.0 - u1) < 12.37598359 * (std::exp(-0.5 * y * y) - fv0))
+    const keel::f64 fv0 = keel::exp(-0.5 * vt[0] * vt[0]);
+    if ((1.0 - u1) < 12.37598359 * (keel::exp(-0.5 * y * y) - fv0))
         return (x < 0.0) ? -y : y;
 
     for (;;) {
         const keel::f64 u2 = 0.5 + keel::as<keel::f64>(keel::as<keel::i32>(shr3Step())) * 2.3283064365386963e-10;
         const keel::f64 u3 = 0.5 + keel::as<keel::f64>(keel::as<keel::i32>(shr3Step())) * 2.3283064365386963e-10;
-        const keel::f64 tx = -std::log(u2) / 2.776994;
-        if (-2.0 * std::log(u3) > tx * tx) {
+        const keel::f64 tx = -keel::log(u2) / 2.776994;
+        if (-2.0 * keel::log(u3) > tx * tx) {
             const keel::f64 res = 2.776994 + tx;
             return (x < 0.0) ? -res : res;
         }
@@ -187,14 +186,14 @@ keel::f64 RngContext::nextNormal()
             constexpr keel::f64 r = 0x1.d3bb48209ad36p+1; // kZigguratX[255]
             constexpr keel::f64 invR = 1.0 / r;
             for (;;) {
-                const keel::f64 tx = -std::log(gen_.genRes53()) * invR;
-                const keel::f64 ty = -std::log(gen_.genRes53());
+                const keel::f64 tx = -keel::log(gen_.genRes53()) * invR;
+                const keel::f64 ty = -keel::log(gen_.genRes53());
                 if (ty + ty >= tx * tx)
                     return (u53 >= 0) ? (r + tx) : -(r + tx);
             }
         } else {
             if ((keel::random::random_detail::kZigguratF[k] - keel::random::random_detail::kZigguratF[k + 1]) * gen_.genRes53()
-                < std::exp(-0.5 * z * z) - keel::random::random_detail::kZigguratF[k + 1]) {
+                < keel::exp(-0.5 * z * z) - keel::random::random_detail::kZigguratF[k + 1]) {
                 return z;
             }
         }
@@ -302,7 +301,7 @@ void fillUniformInt(RngContext &rng, keel::f64 *dst, keel::usize n, keel::i64 lo
                                         : keel::as<keel::f64>(uSpan);
     for (keel::usize i = 0; i < n; ++i) {
         const keel::f64 u = rng.nextUniform();
-        dst[i] = keel::as<keel::f64>(lo) + std::floor(u * span);
+        dst[i] = keel::as<keel::f64>(lo) + keel::floor(u * span);
     }
 }
 
@@ -375,7 +374,7 @@ Value randperm(RngContext &rng, keel::usize n, keel::usize k, keel::Allocator *m
         dst[0] = 1.0;
         for (keel::usize i = 1; i < n; ++i) {
             const keel::usize j = keel::as<keel::usize>(
-                std::floor(rng.nextUniform() * keel::as<keel::f64>(i + 1)));
+                keel::floor(rng.nextUniform() * keel::as<keel::f64>(i + 1)));
             if (j != i)
                 dst[i] = dst[j];
             dst[j] = keel::as<keel::f64>(i + 1);
@@ -389,7 +388,7 @@ Value randperm(RngContext &rng, keel::usize n, keel::usize k, keel::Allocator *m
         for (keel::usize i = 0; i < k; ++i) {
             const keel::usize m = n - i;
             const keel::usize j = 1 + keel::as<keel::usize>(
-                std::floor(rng.nextUniform() * keel::as<keel::f64>(m)));
+                keel::floor(rng.nextUniform() * keel::as<keel::f64>(m)));
             const keel::usize *pJ = H.get(j);
             const keel::usize valJ = pJ ? *pJ : j;
             const keel::usize *pM = H.get(m);
@@ -416,7 +415,7 @@ Value randperm(RngContext &rng, keel::usize n, keel::usize k, keel::Allocator *m
         nrem -= 1.0;
         krem -= 1.0;
         const keel::usize j = keel::as<keel::usize>(
-            std::floor(rng.nextUniform() * keel::as<keel::f64>(i + 1)));
+            keel::floor(rng.nextUniform() * keel::as<keel::f64>(i + 1)));
         if (j != i)
             dst[i] = dst[j];
         dst[j] = keel::as<keel::f64>(t);

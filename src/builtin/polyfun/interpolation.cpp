@@ -16,9 +16,6 @@
 #include <numkit/ops/helpers.hpp>
 
 #include <algorithm>
-#include <cmath>
-#include <cstring>
-#include <limits>
 
 #include "interp_detail.hpp"
 
@@ -33,7 +30,7 @@ Value interp1(const Value &x, const Value &y, const Value &xq, keel::StringRef m
     // Public typed entry point: MATLAB's default extrapolation policy
     // (NaN out-of-range except for spline/pchip/makima).
     return interp1Dispatch(x, y, xq, method, Interp1Extrap::Default,
-                           std::numeric_limits<keel::f64>::quiet_NaN(), mr);
+                           keel::Limits<keel::f64>::quiet_nan(), mr);
 }
 
 // ── interp2 ───────────────────────────────────────────────────────────

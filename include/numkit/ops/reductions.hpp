@@ -20,6 +20,7 @@
 #pragma once
 
 #include <keel/core.h>
+#include <keel/math.h>
 #include <keel/memory.h>
 #include <keel/arena.h>
 #include <keel/array.h>
@@ -30,7 +31,6 @@
 #include <numkit/value/value.hpp>
 
 #include <algorithm>
-#include <cmath>
 #include <cstddef>
 #include <stdexcept>
 
@@ -410,7 +410,7 @@ inline keel::usize compactNonNan(keel::f64 *data, keel::usize n)
 {
     keel::usize w = 0;
     for (keel::usize i = 0; i < n; ++i) {
-        if (!std::isnan(data[i])) {
+        if (!keel::is_nan(data[i])) {
             if (w != i) data[w] = data[i];
             ++w;
         }

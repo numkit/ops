@@ -6,6 +6,7 @@
 // the compiler auto-vectorises in the inner copy loops.
 
 #include <keel/core.h>
+#include <keel/algo.h>
 #include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
@@ -22,7 +23,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <cstring>
 
 #include "manip_detail.hpp"
 
@@ -74,13 +74,13 @@ Value repmat(const Value &x, keel::usize m, keel::usize n, keel::usize p, keel::
                 for (keel::usize rTile = 0; rTile < m; ++rTile) {
                     keel::f64 *colDst = firstPage + (cTile * C + c) * outR
                                                  + rTile * R;
-                    std::memcpy(colDst, colSrc, R * sizeof(keel::f64));
+                    keel::copy_n(colDst, colSrc, R);
                 }
             }
         }
         for (keel::usize pTile = 1; pTile < p; ++pTile) {
             keel::f64 *targetPage = dst + (pTile * P + srcPage) * outR * outC;
-            std::memcpy(targetPage, firstPage, outR * outC * sizeof(keel::f64));
+            keel::copy_n(targetPage, firstPage, outR * outC);
         }
     }
     return r;
@@ -242,7 +242,7 @@ Value repmatND(const Value &x, keel::ArrayRef<keel::usize> tiles, keel::Allocato
     // 1D special case: input is a row/col, output is `tilesPadded[0]` copies.
     if (outNdim == 1) {
         for (keel::usize k = 0; k < tilesPadded[0]; ++k)
-            std::memcpy(dst + k * inDimPadded[0] * es, src,
+            keel::mem_copy(dst + k * inDimPadded[0] * es, src,
                         inDimPadded[0] * es);
         return r;
     }
@@ -268,7 +268,7 @@ Value repmatND(const Value &x, keel::ArrayRef<keel::usize> tiles, keel::Allocato
             dstOff += oc * outStrides[i];
         }
         for (keel::usize k = 0; k < tilesPadded[0]; ++k)
-            std::memcpy(dst + (dstOff + k * inDimPadded[0]) * es,
+            keel::mem_copy(dst + (dstOff + k * inDimPadded[0]) * es,
                         src + srcOff * es,
                         inDimPadded[0] * es);
     } while (incrementCoords(outerCoords, outerIter));
@@ -305,7 +305,7 @@ Value fliplr(const Value &x, keel::Allocator *mr)
         for (keel::usize c = 0; c < C; ++c) {
             const char *colSrc = src + (pp * R * C + (C - 1 - c) * R) * es;
             char *colDst = dst + (pp * R * C + c * R) * es;
-            std::memcpy(colDst, colSrc, R * es);
+            keel::mem_copy(colDst, colSrc, R * es);
         }
     return r;
 }
@@ -333,7 +333,7 @@ Value flipud(const Value &x, keel::Allocator *mr)
             const char *colSrc = src + (pp * R * C + c * R) * es;
             char *colDst = dst + (pp * R * C + c * R) * es;
             for (keel::usize rr = 0; rr < R; ++rr)
-                std::memcpy(colDst + rr * es, colSrc + (R - 1 - rr) * es, es);
+                keel::mem_copy(colDst + rr * es, colSrc + (R - 1 - rr) * es, es);
         }
     return r;
 }
@@ -402,7 +402,7 @@ Value rot90(const Value &x, keel::i32 k, keel::Allocator *mr)
         char *dst = static_cast<char *>(r.rawDataMut());
         const keel::usize pageElems = R * C;
         if (kMod == 0) {
-            std::memcpy(dst, src, x.numel() * es);
+            keel::mem_copy(dst, src, x.numel() * es);
         } else {
             auto pageFn = (kMod == 1) ? rot90OncePageBytes
                         : (kMod == 2) ? rot180PageBytes
@@ -427,7 +427,7 @@ Value rot90(const Value &x, keel::i32 k, keel::Allocator *mr)
         const char *src = static_cast<const char *>(x.rawData());
         if (kMod == 0) {
             auto r = is3D ? Value::matrix3d(R, C, P, t, mr) : Value::matrix(R, C, t, mr);
-            if (x.numel() > 0) std::memcpy(r.rawDataMut(), src, x.numel() * es);
+            if (x.numel() > 0) keel::mem_copy(r.rawDataMut(), src, x.numel() * es);
             return r;
         }
         if (kMod == 2) {
@@ -453,8 +453,7 @@ Value rot90(const Value &x, keel::i32 k, keel::Allocator *mr)
         auto r = is3D ? Value::matrix3d(R, C, P, ValueType::DOUBLE, mr)
                       : Value::matrix(R, C, ValueType::DOUBLE, mr);
         if (x.numel() > 0)
-            std::memcpy(r.doubleDataMut(), x.doubleData(),
-                        x.numel() * sizeof(keel::f64));
+            keel::copy_n(r.doubleDataMut(), x.doubleData(), x.numel());
         return r;
     }
 
@@ -589,7 +588,7 @@ Value circshiftND(const Value &x, keel::ArrayRef<keel::i64> shifts, keel::Alloca
     char *dst = isCell ? nullptr : static_cast<char *>(r.rawDataMut());
     auto copyElem = [&](keel::usize dIdx, keel::usize sIdx) {
         if (isCell) r.cellAt(dIdx) = x.cellAt(sIdx);
-        else        std::memcpy(dst + dIdx * es, src + sIdx * es, es);
+        else        keel::mem_copy(dst + dIdx * es, src + sIdx * es, es);
     };
     const keel::usize R = d.dim(0);
     const keel::usize shift0 = shiftMod[0];
@@ -620,7 +619,7 @@ Value circshiftND(const Value &x, keel::ArrayRef<keel::i64> shifts, keel::Alloca
             if (isCell)
                 for (keel::usize i = 0; i < R; ++i) copyElem(dstOuterOff + i, srcOuterOff + i);
             else
-                std::memcpy(dst + dstOuterOff * es, src + srcOuterOff * es, R * es);
+                keel::mem_copy(dst + dstOuterOff * es, src + srcOuterOff * es, R * es);
         } else {
             for (keel::usize i = 0; i < R; ++i)
                 copyElem(dstOuterOff + i, srcOuterOff + (i + R - shift0) % R);
@@ -936,7 +935,7 @@ Value paddata(const Value &v, keel::usize n, keel::i32 dim, keel::StringRef side
         if (R > 0 && C > 0) {
             const keel::f64 *src = v.doubleData();
             for (keel::usize c = 0; c < C; ++c)
-                std::memcpy(dst + c * n + padBefore, src + c * R, R * sizeof(keel::f64));
+                keel::copy_n(dst + c * n + padBefore, src + c * R, R);
         }
         return out;
     } else {
@@ -946,7 +945,7 @@ Value paddata(const Value &v, keel::usize n, keel::i32 dim, keel::StringRef side
         for (keel::usize i = 0; i < outR * n; ++i) dst[i] = fillValue;
         if (R > 0 && C > 0) {
             const keel::f64 *src = v.doubleData();
-            std::memcpy(dst + padBefore * outR, src, R * C * sizeof(keel::f64));
+            keel::copy_n(dst + padBefore * outR, src, R * C);
         }
         return out;
     }
@@ -1003,7 +1002,7 @@ Value trimdata(const Value &v, keel::usize n, keel::i32 dim, keel::StringRef sid
             const keel::f64 *src = v.doubleData();
             keel::f64 *dst = out.doubleDataMut();
             for (keel::usize c = 0; c < C; ++c)
-                std::memcpy(dst + c * n, src + c * R + keepStart, n * sizeof(keel::f64));
+                keel::copy_n(dst + c * n, src + c * R + keepStart, n);
         }
         return out;
     } else {
@@ -1011,7 +1010,7 @@ Value trimdata(const Value &v, keel::usize n, keel::i32 dim, keel::StringRef sid
         if (R > 0 && n > 0) {
             const keel::f64 *src = v.doubleData();
             keel::f64 *dst = out.doubleDataMut();
-            std::memcpy(dst, src + keepStart * R, R * n * sizeof(keel::f64));
+            keel::copy_n(dst, src + keepStart * R, R * n);
         }
         return out;
     }
@@ -1059,7 +1058,7 @@ Value head(const Value &x, keel::usize k, keel::Allocator *mr)
         for (keel::usize c = 0; c < C; ++c) {
             const char *srcCol = static_cast<const char *>(x.rawData()) + c * R * elemSize;
             char *dstCol = static_cast<char *>(out.rawDataMut()) + c * r * elemSize;
-            std::memcpy(dstCol, srcCol, r * elemSize);
+            keel::mem_copy(dstCol, srcCol, r * elemSize);
         }
     }
     return out;
@@ -1081,7 +1080,7 @@ Value tail(const Value &x, keel::usize k, keel::Allocator *mr)
         for (keel::usize c = 0; c < C; ++c) {
             const char *srcCol = static_cast<const char *>(x.rawData()) + (c * R + startRow) * elemSize;
             char *dstCol = static_cast<char *>(out.rawDataMut()) + c * r * elemSize;
-            std::memcpy(dstCol, srcCol, r * elemSize);
+            keel::mem_copy(dstCol, srcCol, r * elemSize);
         }
     }
     return out;

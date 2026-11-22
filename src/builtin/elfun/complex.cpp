@@ -11,7 +11,6 @@
 
 #include <numkit/ops/helpers.hpp>
 
-#include <cmath>
 
 namespace numkit::builtin {
 
@@ -143,10 +142,10 @@ Value angle(const Value &x, keel::Allocator *mr)
         const keel::f32 *src = x.singleData();
         keel::f32 *dst = r.singleDataMut();
         for (keel::usize i = 0; i < x.numel(); ++i)
-            dst[i] = std::atan2(0.0f, src[i]);
+            dst[i] = keel::atan2(0.0f, src[i]);
         return r;
     }
-    return unaryDouble(x, [](keel::f64 v) { return std::atan2(0.0, v); }, p);
+    return unaryDouble(x, [](keel::f64 v) { return keel::atan2(0.0, v); }, p);
 }
 
 Value isreal(const Value &x, keel::Allocator *mr)
@@ -175,10 +174,10 @@ Value unwrap(const Value &p, keel::f64 tol, keel::i32 /*dim*/, keel::Allocator *
     for (keel::usize i = 1; i < n; ++i) {
         keel::f64 d = data[i] - data[i - 1];
         if (d > tol) {
-            keel::f64 jumps = std::floor((d + tol) / kTwoPi);
+            keel::f64 jumps = keel::floor((d + tol) / kTwoPi);
             dp_corr -= jumps * kTwoPi;
         } else if (d < -tol) {
-            keel::f64 jumps = std::floor((-d + tol) / kTwoPi);
+            keel::f64 jumps = keel::floor((-d + tol) / kTwoPi);
             dp_corr += jumps * kTwoPi;
         }
         data[i] += dp_corr;

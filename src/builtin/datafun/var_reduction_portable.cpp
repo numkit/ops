@@ -6,9 +6,9 @@
 // inner-loop accumulator gives the same single-rounding behaviour.
 
 #include <keel/core.h>
+#include <keel/math.h>
 #include "var_reduction.hpp"
 
-#include <cmath>
 #include <cstddef>
 
 namespace numkit::builtin {
@@ -37,7 +37,7 @@ void addInto(keel::f64 *dst, const keel::f64 *src, keel::usize n)
 
 keel::f64 varianceTwoPass(const keel::f64 *p, keel::usize n, keel::i32 normFlag)
 {
-    if (n == 0) return std::nan("");
+    if (n == 0) return keel::kNaN;
     // MATLAB: variance of a single observation is 0 for BOTH the N-1
     // (default) and N normalizations — not NaN from the 0/0 of N-1.
     if (n == 1) return 0.0;

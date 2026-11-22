@@ -12,7 +12,6 @@
 #include <numkit/ops/helpers.hpp>
 #include "sinpi_kernel.hpp"
 
-#include <cmath>
 
 namespace numkit::builtin {
 
@@ -42,68 +41,68 @@ constexpr keel::f64 kDeg2Rad_p = keel::kPi / 180.0;
 constexpr keel::f64 kRad2Deg_p = 180.0 / keel::kPi;
 constexpr keel::f64 kPi_p      = keel::kPi;
 
-inline keel::f64 reduceDeg360_p(keel::f64 x) { return std::fmod(x, 360.0); }
+inline keel::f64 reduceDeg360_p(keel::f64 x) { return keel::fmod(x, 360.0); }
 
 inline keel::f64 sind_scalar_p(keel::f64 x)
 {
-    if (!std::isfinite(x)) return std::numeric_limits<keel::f64>::quiet_NaN();
+    if (!keel::is_finite(x)) return keel::Limits<keel::f64>::quiet_nan();
     const keel::f64 xr = reduceDeg360_p(x);
     if (xr == 0.0 || xr == 180.0 || xr == -180.0) return 0.0;
     if (xr == 90.0)  return  1.0;
     if (xr == -90.0) return -1.0;
-    return std::sin(xr * kDeg2Rad_p);
+    return keel::sin(xr * kDeg2Rad_p);
 }
 
 inline keel::f64 cosd_scalar_p(keel::f64 x)
 {
-    if (!std::isfinite(x)) return std::numeric_limits<keel::f64>::quiet_NaN();
+    if (!keel::is_finite(x)) return keel::Limits<keel::f64>::quiet_nan();
     const keel::f64 xr = reduceDeg360_p(x);
     if (xr == 90.0 || xr == -90.0 || xr == 270.0 || xr == -270.0) return 0.0;
     if (xr == 0.0) return  1.0;
     if (xr == 180.0 || xr == -180.0) return -1.0;
-    return std::cos(xr * kDeg2Rad_p);
+    return keel::cos(xr * kDeg2Rad_p);
 }
 
 inline keel::f64 tand_scalar_p(keel::f64 x)
 {
-    if (!std::isfinite(x)) return std::numeric_limits<keel::f64>::quiet_NaN();
+    if (!keel::is_finite(x)) return keel::Limits<keel::f64>::quiet_nan();
     const keel::f64 xr = reduceDeg360_p(x);
     if (xr == 0.0 || xr == 180.0 || xr == -180.0) return 0.0;
-    if (xr == 90.0)  return  std::numeric_limits<keel::f64>::infinity();
-    if (xr == -90.0) return -std::numeric_limits<keel::f64>::infinity();
-    if (xr == 270.0) return  std::numeric_limits<keel::f64>::infinity();
-    if (xr == -270.0)return -std::numeric_limits<keel::f64>::infinity();
-    return std::tan(xr * kDeg2Rad_p);
+    if (xr == 90.0)  return  keel::Limits<keel::f64>::infinity();
+    if (xr == -90.0) return -keel::Limits<keel::f64>::infinity();
+    if (xr == 270.0) return  keel::Limits<keel::f64>::infinity();
+    if (xr == -270.0)return -keel::Limits<keel::f64>::infinity();
+    return keel::tan(xr * kDeg2Rad_p);
 }
 
 inline keel::f64 asind_scalar_p(keel::f64 x)
 {
-    if (x < -1.0 || x > 1.0) return std::numeric_limits<keel::f64>::quiet_NaN();
+    if (x < -1.0 || x > 1.0) return keel::Limits<keel::f64>::quiet_nan();
     if (x ==  1.0) return  90.0;
     if (x == -1.0) return -90.0;
     if (x ==  0.0) return   0.0;
-    return std::asin(x) * kRad2Deg_p;
+    return keel::asin(x) * kRad2Deg_p;
 }
 
 inline keel::f64 acosd_scalar_p(keel::f64 x)
 {
-    if (x < -1.0 || x > 1.0) return std::numeric_limits<keel::f64>::quiet_NaN();
+    if (x < -1.0 || x > 1.0) return keel::Limits<keel::f64>::quiet_nan();
     if (x ==  1.0) return   0.0;
     if (x ==  0.0) return  90.0;
     if (x == -1.0) return 180.0;
-    return std::acos(x) * kRad2Deg_p;
+    return keel::acos(x) * kRad2Deg_p;
 }
 
 inline keel::f64 atand_scalar_p(keel::f64 x)
 {
-    if (std::isnan(x)) return x;
+    if (keel::is_nan(x)) return x;
     if (x == 0.0) return 0.0;
-    return std::atan(x) * kRad2Deg_p;
+    return keel::atan(x) * kRad2Deg_p;
 }
 
 inline keel::f64 atan2d_scalar_p(keel::f64 y, keel::f64 x)
 {
-    return std::atan2(y, x) * kRad2Deg_p;
+    return keel::atan2(y, x) * kRad2Deg_p;
 }
 
 inline keel::f64 sinpi_scalar_p(keel::f64 x) { return detail::sinpi_kernel(x); }
@@ -113,40 +112,40 @@ inline keel::f64 cospi_scalar_p(keel::f64 x) { return detail::cospi_kernel(x); }
 
 Value sin(const Value &x, Value *hint, keel::Allocator *mr)
 {
-    return unaryRealDoubleHint(x, hint, [](keel::f64 v) { return std::sin(v); }, [](const keel::c64 &c) { return keel::sin(c); }, mr);
+    return unaryRealDoubleHint(x, hint, [](keel::f64 v) { return keel::sin(v); }, [](const keel::c64 &c) { return keel::sin(c); }, mr);
 }
 
 Value cos(const Value &x, Value *hint, keel::Allocator *mr)
 {
-    return unaryRealDoubleHint(x, hint, [](keel::f64 v) { return std::cos(v); }, [](const keel::c64 &c) { return keel::cos(c); }, mr);
+    return unaryRealDoubleHint(x, hint, [](keel::f64 v) { return keel::cos(v); }, [](const keel::c64 &c) { return keel::cos(c); }, mr);
 }
 
 Value tan(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
         return unaryComplex(x, [](const keel::c64 &c) { return keel::tan(c); }, mr);
-    return unaryDouble(x, [](keel::f64 v) { return std::tan(v); }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return keel::tan(v); }, mr);
 }
 
 Value sinh(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
         return unaryComplex(x, [](const keel::c64 &c) { return keel::sinh(c); }, mr);
-    return unaryDouble(x, [](keel::f64 v) { return std::sinh(v); }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return keel::sinh(v); }, mr);
 }
 
 Value cosh(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
         return unaryComplex(x, [](const keel::c64 &c) { return keel::cosh(c); }, mr);
-    return unaryDouble(x, [](keel::f64 v) { return std::cosh(v); }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return keel::cosh(v); }, mr);
 }
 
 Value tanh(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
         return unaryComplex(x, [](const keel::c64 &c) { return keel::tanh(c); }, mr);
-    return unaryDouble(x, [](keel::f64 v) { return std::tanh(v); }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return keel::tanh(v); }, mr);
 }
 
 Value asin(const Value &x, keel::Allocator *mr)
@@ -160,7 +159,7 @@ Value asin(const Value &x, keel::Allocator *mr)
             return unaryComplex(x, [](const keel::c64 &c) { return keel::asin(c); }, mr);
         }
     }
-    return unaryDouble(x, [](keel::f64 v) { return std::asin(v); }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return keel::asin(v); }, mr);
 }
 
 Value acos(const Value &x, keel::Allocator *mr)
@@ -173,26 +172,26 @@ Value acos(const Value &x, keel::Allocator *mr)
             return unaryComplex(x, [](const keel::c64 &c) { return keel::acos(c); }, mr);
         }
     }
-    return unaryDouble(x, [](keel::f64 v) { return std::acos(v); }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return keel::acos(v); }, mr);
 }
 
 Value atan(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
         return unaryComplex(x, [](const keel::c64 &c) { return keel::atan(c); }, mr);
-    return unaryDouble(x, [](keel::f64 v) { return std::atan(v); }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return keel::atan(v); }, mr);
 }
 
 Value atan2(const Value &y, const Value &x, keel::Allocator *mr)
 {
-    return elementwiseDouble(y, x, [](keel::f64 yy, keel::f64 xx) { return std::atan2(yy, xx); }, mr);
+    return elementwiseDouble(y, x, [](keel::f64 yy, keel::f64 xx) { return keel::atan2(yy, xx); }, mr);
 }
 
 Value asinh(const Value &x, keel::Allocator *mr)
 {
     if (x.isComplex())
         return unaryComplex(x, [](const keel::c64 &c) { return keel::asinh(c); }, mr);
-    return unaryDouble(x, [](keel::f64 v) { return std::asinh(v); }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return keel::asinh(v); }, mr);
 }
 
 Value acosh(const Value &x, keel::Allocator *mr)
@@ -204,7 +203,7 @@ Value acosh(const Value &x, keel::Allocator *mr)
             return unaryComplex(x, [](const keel::c64 &c) { return keel::acosh(c); }, mr);
         }
     }
-    return unaryDouble(x, [](keel::f64 v) { return std::acosh(v); }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return keel::acosh(v); }, mr);
 }
 
 Value atanh(const Value &x, keel::Allocator *mr)
@@ -217,7 +216,7 @@ Value atanh(const Value &x, keel::Allocator *mr)
             return unaryComplex(x, [](const keel::c64 &c) { return keel::atanh(c); }, mr);
         }
     }
-    return unaryDouble(x, [](keel::f64 v) { return std::atanh(v); }, mr);
+    return unaryDouble(x, [](keel::f64 v) { return keel::atanh(v); }, mr);
 }
 
 Value sind(const Value &x, keel::Allocator *mr)

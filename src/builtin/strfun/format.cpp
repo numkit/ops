@@ -1,6 +1,7 @@
 // toolboxes/builtin/src/datatypes/strings/format.cpp
 
 #include <keel/core.h>
+#include <keel/math.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
 #include <keel/arena.h>
@@ -13,7 +14,6 @@
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
-#include <cmath>
 #include <cstdio>
 
 namespace numkit::builtin {
@@ -80,7 +80,7 @@ keel::StringRef specBody(keel::StringRef spec)
 // and integer (%d/...) conversions.
 void formatNonFinite(keel::StringRef spec, keel::f64 v, keel::String &out)
 {
-    keel::StringRef word = std::isnan(v) ? "NaN" : (v < 0 ? "-Inf" : "Inf");
+    keel::StringRef word = keel::is_nan(v) ? "NaN" : (v < 0 ? "-Inf" : "Inf");
 
     bool leftAlign = false, plus = false, space = false;
     keel::usize k = 1; // skip '%'
@@ -119,7 +119,7 @@ void formatNonFinite(keel::StringRef spec, keel::f64 v, keel::String &out)
 void formatIntegerConv(keel::StringRef spec, char type, keel::f64 v, keel::String &out)
 {
     char buf[160];
-    if (!std::isfinite(v)) {
+    if (!keel::is_finite(v)) {
         formatNonFinite(spec, v, out);
         return;
     }
@@ -129,7 +129,7 @@ void formatIntegerConv(keel::StringRef spec, char type, keel::f64 v, keel::Strin
     fmtStr.append(body);
 
     const bool whole =
-        (v == std::trunc(v)) && std::fabs(v) < 9.2e18; // fits in int64
+        (v == keel::trunc(v)) && keel::abs(v) < 9.2e18; // fits in int64
     if (whole) {
         if (type == 'u') {
             fmtStr.append("llu");
@@ -276,7 +276,7 @@ keel::String formatOnce(keel::StringRef fmt, keel::ArrayRef<Value> args, keel::u
             } else if (type == 'f' || type == 'e' || type == 'E' || type == 'g' || type == 'G') {
                 if (ai < args.size()) {
                     const keel::f64 v = args[ai].toScalar();
-                    if (!std::isfinite(v)) {
+                    if (!keel::is_finite(v)) {
                         // MATLAB prints Inf / -Inf / NaN (capitalised) rather
                         // than the C library's lowercase inf/nan.
                         formatNonFinite(spec.as_ref(), v, out);

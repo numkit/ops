@@ -19,8 +19,6 @@
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
-#include <cmath>
-#include <limits>
 
 namespace numkit::linalg {
 
@@ -30,8 +28,8 @@ namespace {
 keel::f64 defaultRankTol(keel::usize m, keel::usize n, keel::f64 sigma_max, bool isSingle = false)
 {
     const keel::f64 eps = isSingle
-        ? keel::as<keel::f64>(std::numeric_limits<keel::f32>::epsilon())
-        : std::numeric_limits<keel::f64>::epsilon();
+        ? keel::as<keel::f64>(keel::Limits<keel::f32>::kEpsilon)
+        : keel::Limits<keel::f64>::kEpsilon;
     return keel::as<keel::f64>(std::max(m, n)) * sigma_max * eps;
 }
 
@@ -241,7 +239,7 @@ Value subspace(const Value &A, const Value &B, keel::Allocator *mr)
         if (sd[i] < smin) smin = sd[i];
     if (smin > 1.0) smin = 1.0;
     if (smin < 0.0) smin = 0.0;
-    return detail::narrowDoubleToSingleIf(Value::scalar(std::acos(smin), mr), wantSingle, mr);
+    return detail::narrowDoubleToSingleIf(Value::scalar(keel::acos(smin), mr), wantSingle, mr);
 }
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•

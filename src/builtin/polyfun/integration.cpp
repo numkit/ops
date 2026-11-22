@@ -7,6 +7,7 @@
 // fzero lives in math/optim/fzero.cpp (uses the same callback helper).
 
 #include <keel/core.h>
+#include <keel/algo.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
 #include <keel/arena.h>
@@ -23,8 +24,6 @@
 #include <numkit/ops/callback_eval.hpp>
 
 #include <algorithm>
-#include <cmath>
-#include <cstring>
 #include <utility>
 
 namespace numkit::builtin {
@@ -91,8 +90,7 @@ Value toDoubleCopy(const Value &x, keel::Allocator *mr)
 {
     auto r = createLike(x, ValueType::DOUBLE, mr);
     if (x.type() == ValueType::DOUBLE) {
-        std::memcpy(r.doubleDataMut(), x.doubleData(),
-                    x.numel() * sizeof(keel::f64));
+        keel::copy_n(r.doubleDataMut(), x.doubleData(), x.numel());
     } else {
         keel::f64 *dst = r.doubleDataMut();
         for (keel::usize i = 0; i < x.numel(); ++i)
@@ -432,7 +430,7 @@ Value cumtrapz(const Value &x, const Value &y, keel::Allocator *mr)
         keel::f64 *dx = xMat.doubleDataMut();
         const keel::f64 *src = xs.doubleData();
         for (keel::usize c = 0; c < cols; ++c)
-            std::memcpy(dx + c * rows, src, rows * sizeof(keel::f64));
+            keel::copy_n(dx + c * rows, src, rows);
         return yIsC ? cumtrapzMatrixColsC(yc, dx, rows, cols, mr)
                     : cumtrapzMatrixCols(yd, dx, rows, cols, mr);
     }
@@ -464,7 +462,7 @@ static keel::c64 evalScalarOrComplex(FnHandle fn, keel::f64 x, bool &sawComplex,
 Value integral(FnHandle fn, keel::f64 a, keel::f64 b, keel::f64 absTol,
                keel::Allocator *mr)
 {
-    if (!std::isfinite(a) || !std::isfinite(b))
+    if (!keel::is_finite(a) || !keel::is_finite(b))
         throw Error("integral: bounds must be finite",
                      0, 0, "integral", "", "numkit:integral:badBounds");
     if (absTol <= 0)
@@ -485,7 +483,7 @@ Value integral(FnHandle fn, keel::f64 a, keel::f64 b, keel::f64 absTol,
 Value integral2(FnHandle fn, keel::f64 a, keel::f64 b, keel::f64 c, keel::f64 d,
                 keel::f64 absTol, keel::Allocator *mr)
 {
-    if (!std::isfinite(a) || !std::isfinite(b) || !std::isfinite(c) || !std::isfinite(d))
+    if (!keel::is_finite(a) || !keel::is_finite(b) || !keel::is_finite(c) || !keel::is_finite(d))
         throw Error("integral2: bounds must be finite",
                      0, 0, "integral2", "", "numkit:integral2:badBounds");
     if (absTol <= 0)
@@ -500,15 +498,15 @@ Value integral2(FnHandle fn, keel::f64 a, keel::f64 b, keel::f64 c, keel::f64 d,
         try {
             Value X = Value::matrix(15, 15, ValueType::DOUBLE, mr);
             Value Y = Value::matrix(15, 15, ValueType::DOUBLE, mr);
-            std::memcpy(X.doubleDataMut(), xs.data(), 225 * sizeof(keel::f64));
-            std::memcpy(Y.doubleDataMut(), ys.data(), 225 * sizeof(keel::f64));
+            keel::copy_n(X.doubleDataMut(), xs.data(), 225);
+            keel::copy_n(Y.doubleDataMut(), ys.data(), 225);
             Value xy[2] = {std::move(X), std::move(Y)};
             Value out[1];
             fn(keel::ArrayRef<Value>(xy, 2), keel::MutArrayRef<Value>(out, 1), mr);
             if (out[0].numel() == 225) {
                 if (out[0].type() == ValueType::COMPLEX) {
                     sawComplex = true;
-                    std::memcpy(out_buf.data(), out[0].complexData(), 225 * sizeof(keel::c64));
+                    keel::copy_n(out_buf.data(), out[0].complexData(), 225);
                     return true;
                 }
                 if (out[0].type() == ValueType::DOUBLE) {

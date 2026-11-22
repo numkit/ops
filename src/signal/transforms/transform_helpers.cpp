@@ -15,9 +15,6 @@
 #include "../dsp_helpers.hpp"  // Complex typedef
 #include <numkit/ops/helpers.hpp>         // createLike
 
-#include <cmath>
-#include <cstring>
-#include <limits>
 #include <utility>
 
 namespace numkit::signal {
@@ -70,22 +67,22 @@ Value cyclicShiftAll(const Value &x, keel::i32 mode, keel::Allocator *mr)
         keel::c64 *dst = r.complexDataMut();
         // Shift one dim at a time using two scratch buffers.
         keel::Array<keel::c64> buf(R * C * P, mr);
-        std::memcpy(buf.data(), src, sizeof(keel::c64) * R * C * P);
+        keel::mem_copy(buf.data(), src, sizeof(keel::c64) * R * C * P);
         keel::c64 *cur = buf.data(), *nxt = dst;
         if (dR) { shiftAlongDim<keel::c64>(cur, nxt, R, C, P, 1, mode); std::swap(cur, nxt); }
         if (dC) { shiftAlongDim<keel::c64>(cur, nxt, R, C, P, 2, mode); std::swap(cur, nxt); }
         if (dP) { shiftAlongDim<keel::c64>(cur, nxt, R, C, P, 3, mode); std::swap(cur, nxt); }
-        if (cur != dst) std::memcpy(dst, cur, sizeof(keel::c64) * R * C * P);
+        if (cur != dst) keel::mem_copy(dst, cur, sizeof(keel::c64) * R * C * P);
     } else {
         const keel::f64 *src = x.doubleData();
         keel::f64 *dst = r.doubleDataMut();
         keel::Array<keel::f64> buf(R * C * P, mr);
-        std::memcpy(buf.data(), src, sizeof(keel::f64) * R * C * P);
+        keel::mem_copy(buf.data(), src, sizeof(keel::f64) * R * C * P);
         keel::f64 *cur = buf.data(), *nxt = dst;
         if (dR) { shiftAlongDim<keel::f64>(cur, nxt, R, C, P, 1, mode); std::swap(cur, nxt); }
         if (dC) { shiftAlongDim<keel::f64>(cur, nxt, R, C, P, 2, mode); std::swap(cur, nxt); }
         if (dP) { shiftAlongDim<keel::f64>(cur, nxt, R, C, P, 3, mode); std::swap(cur, nxt); }
-        if (cur != dst) std::memcpy(dst, cur, sizeof(keel::f64) * R * C * P);
+        if (cur != dst) keel::mem_copy(dst, cur, sizeof(keel::f64) * R * C * P);
     }
     return r;
 }
@@ -117,10 +114,10 @@ Value cyclicShiftOneDim(const Value &x, keel::i32 dim, keel::i32 mode,
 //   else   -> ceil(log2(|x|))
 static keel::f64 nextpow2Element(keel::f64 v_abs)
 {
-    if (std::isnan(v_abs)) return std::numeric_limits<keel::f64>::quiet_NaN();
-    if (std::isinf(v_abs)) return std::numeric_limits<keel::f64>::infinity();
+    if (keel::is_nan(v_abs)) return keel::Limits<keel::f64>::quiet_nan();
+    if (keel::is_inf(v_abs)) return keel::Limits<keel::f64>::infinity();
     if (v_abs == 0.0) return 0.0;
-    return std::ceil(std::log2(v_abs));
+    return keel::ceil(keel::log2(v_abs));
 }
 
 Value nextpow2(keel::f64 n, keel::Allocator *mr)

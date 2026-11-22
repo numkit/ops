@@ -8,10 +8,10 @@
 // spelling. NaN/Inf flow through naturally (|NaN| = NaN, |±Inf| = Inf).
 
 #include <keel/core.h>
+#include <keel/math.h>
 #include <numkit/ops/fused/fused_kernels.hpp>
 #include <numkit/ops/parallel_for.hpp>
 
-#include <cmath>
 #include <cstddef>
 
 #undef HWY_TARGET_INCLUDE
@@ -41,7 +41,7 @@ void AbsAffineImpl(const keel::f64 *x, keel::f64 p0, keel::f64 p1, bool divide,
         hn::StoreU(hn::Abs(v), d, out + i);
     }
     for (; i < n; ++i)
-        out[i] = std::fabs(divide ? (x[i] - p0) / p1 : p0 * x[i] + p1);
+        out[i] = keel::abs(divide ? (x[i] - p0) / p1 : p0 * x[i] + p1);
 }
 
 void AbsDiffImpl(const keel::f64 *x, const keel::f64 *y, keel::f64 *out, keel::usize n) {
@@ -50,7 +50,7 @@ void AbsDiffImpl(const keel::f64 *x, const keel::f64 *y, keel::f64 *out, keel::u
     keel::usize i = 0;
     for (; i + L <= n; i += L)
         hn::StoreU(hn::Abs(hn::Sub(hn::LoadU(d, x + i), hn::LoadU(d, y + i))), d, out + i);
-    for (; i < n; ++i) out[i] = std::fabs(x[i] - y[i]);
+    for (; i < n; ++i) out[i] = keel::abs(x[i] - y[i]);
 }
 
 } // namespace HWY_NAMESPACE

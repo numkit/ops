@@ -4,6 +4,7 @@
 // parseReadSize / shapeFreadOutput with fileio.cpp via io_helpers.hpp.
 
 #include <keel/core.h>
+#include <keel/algo.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
 #include <keel/arena.h>
@@ -21,10 +22,7 @@
 
 #include <algorithm>
 #include <keel/static_array.h>
-#include <cmath>
 #include <cstdlib>
-#include <cstring>
-#include <limits>
 #include <utility>
 
 namespace numkit::builtin {
@@ -259,7 +257,7 @@ Value makeColumn(const keel::f64 *vals, keel::usize n, keel::Allocator *mr)
     if (n == 0)
         return Value::matrix(0, 0, ValueType::DOUBLE, mr);
     auto M = Value::matrix(n, 1, ValueType::DOUBLE, mr);
-    std::memcpy(M.doubleDataMut(), vals, n * sizeof(keel::f64));
+    keel::copy_n(M.doubleDataMut(), vals, n);
     return M;
 }
 

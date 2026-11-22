@@ -4,6 +4,7 @@
 #pragma once
 
 #include <keel/memory.h>
+#include <keel/math.h>
 #include <keel/complex.h>
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
@@ -11,11 +12,8 @@
 #include <numkit/ops/reductions.hpp>  // engine-free numkit::builtin::detail dim-infra (ops re-export)
 
 #include <algorithm>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
-#include <limits>
 #include <numeric>
 #include <tuple>
 #include <utility>
@@ -62,14 +60,14 @@ Value roundLikeDispatch(const Value &x, ScalarOp scalar, SimdOp simdLoop, keel::
 // 'significant'): N significant digits. Round-half-away-from-zero (MATLAB).
 inline keel::f64 roundNScalar(keel::f64 v, keel::i32 n, bool significant)
 {
-    if (!std::isfinite(v)) return v;
+    if (!keel::is_finite(v)) return v;
     keel::i32 digits = n;
     if (significant) {
         if (v == 0.0) return 0.0;
-        digits = n - keel::as<keel::i32>(std::floor(std::log10(std::fabs(v)))) - 1;
+        digits = n - keel::as<keel::i32>(keel::floor(keel::log10(keel::abs(v)))) - 1;
     }
-    const keel::f64 f = std::pow(10.0, digits);
-    return std::round(v * f) / f;
+    const keel::f64 f = keel::pow(10.0, digits);
+    return keel::round(v * f) / f;
 }
 
 } // namespace

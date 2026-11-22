@@ -6,9 +6,9 @@
 // Semantics match the SIMD versions bit-for-bit (std::fmin/fmax NaN rules).
 
 #include <keel/core.h>
+#include <keel/math.h>
 #include <numkit/ops/fused/fused_kernels.hpp>
 
-#include <cmath>
 #include <cstddef>
 
 namespace numkit::ops {
@@ -17,7 +17,7 @@ void fusedAffineClamp(const keel::f64 *x, keel::f64 scale, keel::f64 offset,
                       keel::f64 lo, keel::f64 hi, keel::f64 *out, keel::usize n) {
     for (keel::usize i = 0; i < n; ++i) {
         const keel::f64 v = scale * x[i] + offset;
-        out[i] = std::fmax(lo, std::fmin(hi, v));
+        out[i] = keel::fmax(lo, keel::fmin(hi, v));
     }
 }
 
@@ -25,7 +25,7 @@ void fusedAffineClampMinOuter(const keel::f64 *x, keel::f64 scale, keel::f64 off
                               keel::f64 lo, keel::f64 hi, keel::f64 *out, keel::usize n) {
     for (keel::usize i = 0; i < n; ++i) {
         const keel::f64 v = scale * x[i] + offset;
-        out[i] = std::fmin(hi, std::fmax(lo, v));
+        out[i] = keel::fmin(hi, keel::fmax(lo, v));
     }
 }
 
@@ -33,7 +33,7 @@ void fusedAffineClampShiftDiv(const keel::f64 *x, keel::f64 sub, keel::f64 div,
                               keel::f64 lo, keel::f64 hi, keel::f64 *out, keel::usize n) {
     for (keel::usize i = 0; i < n; ++i) {
         const keel::f64 v = (x[i] - sub) / div;
-        out[i] = std::fmax(lo, std::fmin(hi, v));
+        out[i] = keel::fmax(lo, keel::fmin(hi, v));
     }
 }
 
@@ -42,7 +42,7 @@ void fusedAffineClampMinOuterShiftDiv(const keel::f64 *x, keel::f64 sub, keel::f
                                       keel::usize n) {
     for (keel::usize i = 0; i < n; ++i) {
         const keel::f64 v = (x[i] - sub) / div;
-        out[i] = std::fmin(hi, std::fmax(lo, v));
+        out[i] = keel::fmin(hi, keel::fmax(lo, v));
     }
 }
 
@@ -89,19 +89,19 @@ void fusedUnaryAffine(const keel::f64 *x, keel::f64 scale, keel::f64 offset,
                       UnaryAffineFn fn, keel::f64 *out, keel::usize n) {
     switch (fn) {
         case UnaryAffineFn::Sqrt:
-            for (keel::usize i = 0; i < n; ++i) out[i] = std::sqrt(scale * x[i] + offset);
+            for (keel::usize i = 0; i < n; ++i) out[i] = keel::sqrt(scale * x[i] + offset);
             break;
         case UnaryAffineFn::Floor:
-            for (keel::usize i = 0; i < n; ++i) out[i] = std::floor(scale * x[i] + offset);
+            for (keel::usize i = 0; i < n; ++i) out[i] = keel::floor(scale * x[i] + offset);
             break;
         case UnaryAffineFn::Ceil:
-            for (keel::usize i = 0; i < n; ++i) out[i] = std::ceil(scale * x[i] + offset);
+            for (keel::usize i = 0; i < n; ++i) out[i] = keel::ceil(scale * x[i] + offset);
             break;
         case UnaryAffineFn::Fix:
-            for (keel::usize i = 0; i < n; ++i) out[i] = std::trunc(scale * x[i] + offset);
+            for (keel::usize i = 0; i < n; ++i) out[i] = keel::trunc(scale * x[i] + offset);
             break;
         case UnaryAffineFn::Round:
-            for (keel::usize i = 0; i < n; ++i) out[i] = std::round(scale * x[i] + offset);
+            for (keel::usize i = 0; i < n; ++i) out[i] = keel::round(scale * x[i] + offset);
             break;
     }
 }
@@ -110,19 +110,19 @@ void fusedUnaryShiftDiv(const keel::f64 *x, keel::f64 sub, keel::f64 div,
                         UnaryAffineFn fn, keel::f64 *out, keel::usize n) {
     switch (fn) {
         case UnaryAffineFn::Sqrt:
-            for (keel::usize i = 0; i < n; ++i) out[i] = std::sqrt((x[i] - sub) / div);
+            for (keel::usize i = 0; i < n; ++i) out[i] = keel::sqrt((x[i] - sub) / div);
             break;
         case UnaryAffineFn::Floor:
-            for (keel::usize i = 0; i < n; ++i) out[i] = std::floor((x[i] - sub) / div);
+            for (keel::usize i = 0; i < n; ++i) out[i] = keel::floor((x[i] - sub) / div);
             break;
         case UnaryAffineFn::Ceil:
-            for (keel::usize i = 0; i < n; ++i) out[i] = std::ceil((x[i] - sub) / div);
+            for (keel::usize i = 0; i < n; ++i) out[i] = keel::ceil((x[i] - sub) / div);
             break;
         case UnaryAffineFn::Fix:
-            for (keel::usize i = 0; i < n; ++i) out[i] = std::trunc((x[i] - sub) / div);
+            for (keel::usize i = 0; i < n; ++i) out[i] = keel::trunc((x[i] - sub) / div);
             break;
         case UnaryAffineFn::Round:
-            for (keel::usize i = 0; i < n; ++i) out[i] = std::round((x[i] - sub) / div);
+            for (keel::usize i = 0; i < n; ++i) out[i] = keel::round((x[i] - sub) / div);
             break;
     }
 }
@@ -142,14 +142,14 @@ void fusedSqShiftDiv(const keel::f64 *x, keel::f64 sub, keel::f64 div,
 }
 
 void fusedSqrtSumSq(const keel::f64 *x, const keel::f64 *y, keel::f64 *out, keel::usize n) {
-    for (keel::usize i = 0; i < n; ++i) out[i] = std::sqrt(x[i] * x[i] + y[i] * y[i]);
+    for (keel::usize i = 0; i < n; ++i) out[i] = keel::sqrt(x[i] * x[i] + y[i] * y[i]);
 }
 
 void fusedSoftThreshold(const keel::f64 *x, keel::f64 t, keel::f64 *out, keel::usize n) {
     for (keel::usize i = 0; i < n; ++i) {
         const keel::f64 v = x[i];
-        const keel::f64 s = std::isnan(v) ? v : (v > 0 ? 1.0 : (v < 0 ? -1.0 : 0.0));
-        out[i] = s * std::fmax(0.0, std::fabs(v) - t);
+        const keel::f64 s = keel::is_nan(v) ? v : (v > 0 ? 1.0 : (v < 0 ? -1.0 : 0.0));
+        out[i] = s * keel::fmax(0.0, keel::abs(v) - t);
     }
 }
 
@@ -159,58 +159,58 @@ void fusedTransAffine(const keel::f64 *x, keel::f64 scale, keel::f64 offset,
     // affine + scalar transcendental matches the per-op path bit-for-bit.
     switch (fn) {
         case TransAffineFn::Exp:
-            for (keel::usize i = 0; i < n; ++i) out[i] = std::exp(scale * x[i] + offset);
+            for (keel::usize i = 0; i < n; ++i) out[i] = keel::exp(scale * x[i] + offset);
             break;
         case TransAffineFn::Expm1:
-            for (keel::usize i = 0; i < n; ++i) out[i] = std::expm1(scale * x[i] + offset);
+            for (keel::usize i = 0; i < n; ++i) out[i] = keel::expm1(scale * x[i] + offset);
             break;
         case TransAffineFn::Log:
-            for (keel::usize i = 0; i < n; ++i) out[i] = std::log(scale * x[i] + offset);
+            for (keel::usize i = 0; i < n; ++i) out[i] = keel::log(scale * x[i] + offset);
             break;
         case TransAffineFn::Log2:
-            for (keel::usize i = 0; i < n; ++i) out[i] = std::log2(scale * x[i] + offset);
+            for (keel::usize i = 0; i < n; ++i) out[i] = keel::log2(scale * x[i] + offset);
             break;
         case TransAffineFn::Log10:
-            for (keel::usize i = 0; i < n; ++i) out[i] = std::log10(scale * x[i] + offset);
+            for (keel::usize i = 0; i < n; ++i) out[i] = keel::log10(scale * x[i] + offset);
             break;
         case TransAffineFn::Sin:
-            for (keel::usize i = 0; i < n; ++i) out[i] = std::sin(scale * x[i] + offset);
+            for (keel::usize i = 0; i < n; ++i) out[i] = keel::sin(scale * x[i] + offset);
             break;
         case TransAffineFn::Cos:
-            for (keel::usize i = 0; i < n; ++i) out[i] = std::cos(scale * x[i] + offset);
+            for (keel::usize i = 0; i < n; ++i) out[i] = keel::cos(scale * x[i] + offset);
             break;
         case TransAffineFn::Tanh:
-            for (keel::usize i = 0; i < n; ++i) out[i] = std::tanh(scale * x[i] + offset);
+            for (keel::usize i = 0; i < n; ++i) out[i] = keel::tanh(scale * x[i] + offset);
             break;
         case TransAffineFn::Sinh:
-            for (keel::usize i = 0; i < n; ++i) out[i] = std::sinh(scale * x[i] + offset);
+            for (keel::usize i = 0; i < n; ++i) out[i] = keel::sinh(scale * x[i] + offset);
             break;
         case TransAffineFn::Atan:
-            for (keel::usize i = 0; i < n; ++i) out[i] = std::atan(scale * x[i] + offset);
+            for (keel::usize i = 0; i < n; ++i) out[i] = keel::atan(scale * x[i] + offset);
             break;
         case TransAffineFn::Asinh:
-            for (keel::usize i = 0; i < n; ++i) out[i] = std::asinh(scale * x[i] + offset);
+            for (keel::usize i = 0; i < n; ++i) out[i] = keel::asinh(scale * x[i] + offset);
             break;
         case TransAffineFn::Asin:
-            for (keel::usize i = 0; i < n; ++i) out[i] = std::asin(scale * x[i] + offset);
+            for (keel::usize i = 0; i < n; ++i) out[i] = keel::asin(scale * x[i] + offset);
             break;
         case TransAffineFn::Acos:
-            for (keel::usize i = 0; i < n; ++i) out[i] = std::acos(scale * x[i] + offset);
+            for (keel::usize i = 0; i < n; ++i) out[i] = keel::acos(scale * x[i] + offset);
             break;
         case TransAffineFn::Acosh:
-            for (keel::usize i = 0; i < n; ++i) out[i] = std::acosh(scale * x[i] + offset);
+            for (keel::usize i = 0; i < n; ++i) out[i] = keel::acosh(scale * x[i] + offset);
             break;
         case TransAffineFn::Atanh:
-            for (keel::usize i = 0; i < n; ++i) out[i] = std::atanh(scale * x[i] + offset);
+            for (keel::usize i = 0; i < n; ++i) out[i] = keel::atanh(scale * x[i] + offset);
             break;
         case TransAffineFn::Log1p:
-            for (keel::usize i = 0; i < n; ++i) out[i] = std::log1p(scale * x[i] + offset);
+            for (keel::usize i = 0; i < n; ++i) out[i] = keel::log1p(scale * x[i] + offset);
             break;
         case TransAffineFn::Cosh:
-            for (keel::usize i = 0; i < n; ++i) out[i] = std::cosh(scale * x[i] + offset);
+            for (keel::usize i = 0; i < n; ++i) out[i] = keel::cosh(scale * x[i] + offset);
             break;
         case TransAffineFn::Tan:
-            for (keel::usize i = 0; i < n; ++i) out[i] = std::tan(scale * x[i] + offset);
+            for (keel::usize i = 0; i < n; ++i) out[i] = keel::tan(scale * x[i] + offset);
             break;
     }
 }
@@ -220,24 +220,24 @@ void fusedTransShiftDiv(const keel::f64 *x, keel::f64 sub, keel::f64 div,
     for (keel::usize i = 0; i < n; ++i) {
         const keel::f64 v = (x[i] - sub) / div;
         switch (fn) {
-            case TransAffineFn::Exp:   out[i] = std::exp(v);   break;
-            case TransAffineFn::Expm1: out[i] = std::expm1(v); break;
-            case TransAffineFn::Log:   out[i] = std::log(v);   break;
-            case TransAffineFn::Log2:  out[i] = std::log2(v);  break;
-            case TransAffineFn::Log10: out[i] = std::log10(v); break;
-            case TransAffineFn::Sin:   out[i] = std::sin(v);   break;
-            case TransAffineFn::Cos:   out[i] = std::cos(v);   break;
-            case TransAffineFn::Tanh:  out[i] = std::tanh(v);  break;
-            case TransAffineFn::Sinh:  out[i] = std::sinh(v);  break;
-            case TransAffineFn::Atan:  out[i] = std::atan(v);  break;
-            case TransAffineFn::Asinh: out[i] = std::asinh(v); break;
-            case TransAffineFn::Asin:  out[i] = std::asin(v);  break;
-            case TransAffineFn::Acos:  out[i] = std::acos(v);  break;
-            case TransAffineFn::Acosh: out[i] = std::acosh(v); break;
-            case TransAffineFn::Atanh: out[i] = std::atanh(v); break;
-            case TransAffineFn::Log1p: out[i] = std::log1p(v); break;
-            case TransAffineFn::Cosh:  out[i] = std::cosh(v);  break;
-            case TransAffineFn::Tan:   out[i] = std::tan(v);   break;
+            case TransAffineFn::Exp:   out[i] = keel::exp(v);   break;
+            case TransAffineFn::Expm1: out[i] = keel::expm1(v); break;
+            case TransAffineFn::Log:   out[i] = keel::log(v);   break;
+            case TransAffineFn::Log2:  out[i] = keel::log2(v);  break;
+            case TransAffineFn::Log10: out[i] = keel::log10(v); break;
+            case TransAffineFn::Sin:   out[i] = keel::sin(v);   break;
+            case TransAffineFn::Cos:   out[i] = keel::cos(v);   break;
+            case TransAffineFn::Tanh:  out[i] = keel::tanh(v);  break;
+            case TransAffineFn::Sinh:  out[i] = keel::sinh(v);  break;
+            case TransAffineFn::Atan:  out[i] = keel::atan(v);  break;
+            case TransAffineFn::Asinh: out[i] = keel::asinh(v); break;
+            case TransAffineFn::Asin:  out[i] = keel::asin(v);  break;
+            case TransAffineFn::Acos:  out[i] = keel::acos(v);  break;
+            case TransAffineFn::Acosh: out[i] = keel::acosh(v); break;
+            case TransAffineFn::Atanh: out[i] = keel::atanh(v); break;
+            case TransAffineFn::Log1p: out[i] = keel::log1p(v); break;
+            case TransAffineFn::Cosh:  out[i] = keel::cosh(v);  break;
+            case TransAffineFn::Tan:   out[i] = keel::tan(v);   break;
         }
     }
 }

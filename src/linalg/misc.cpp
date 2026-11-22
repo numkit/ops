@@ -19,8 +19,6 @@
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
-#include <cmath>
-#include <limits>
 
 namespace numkit::linalg {
 
@@ -36,10 +34,10 @@ keel::f64 single_rref_default_tol(const T *A, keel::usize M, keel::usize N)
         if (s > anorm) anorm = s;
     }
     const keel::f32 anorm_f = keel::as<keel::f32>(anorm);
-    const keel::f32 eps_f = std::numeric_limits<keel::f32>::epsilon();
+    const keel::f32 eps_f = keel::Limits<keel::f32>::kEpsilon;
     const keel::f64 eps_anorm = (anorm_f == 0.0f)
         ? keel::as<keel::f64>(eps_f)
-        : keel::as<keel::f64>(std::nextafter(anorm_f, std::numeric_limits<keel::f32>::infinity()) - anorm_f);
+        : keel::as<keel::f64>(keel::nextafter(anorm_f, keel::Limits<keel::f32>::infinity()) - anorm_f);
     return keel::as<keel::f64>(std::max(M, N)) * eps_anorm;
 }
 
@@ -120,7 +118,7 @@ planerot(const Value &xy, keel::Allocator *mr)
                 detail::narrowDoubleToSingleIf(yo, wantSingle, mr)};
     }
 
-    const keel::f64 r = std::hypot(x, y);
+    const keel::f64 r = keel::hypot(x, y);
     const keel::f64 c = x / r;
     const keel::f64 s = y / r;
     gd[0] = c;

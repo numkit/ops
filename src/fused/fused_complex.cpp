@@ -18,7 +18,6 @@
 #include <keel/math.h>
 #include <numkit/ops/fused/fused_kernels.hpp>
 
-#include <cmath>
 #include <cstddef>
 
 namespace numkit::ops {
@@ -102,10 +101,10 @@ void fusedSqrtShiftDivCx(const keel::c64 *x, keel::c64 sub, keel::c64 div, keel:
 // (Sqrt is whole-complex, not component-wise — it has its own kernel.)
 static inline keel::f64 roundLikeCxScalar(UnaryAffineFn fn, keel::f64 d) {
     switch (fn) {
-        case UnaryAffineFn::Floor: return std::floor(d);
-        case UnaryAffineFn::Ceil:  return std::ceil(d);
-        case UnaryAffineFn::Fix:   return std::trunc(d);
-        case UnaryAffineFn::Round: return std::round(d);   // half-away (std::round)
+        case UnaryAffineFn::Floor: return keel::floor(d);
+        case UnaryAffineFn::Ceil:  return keel::ceil(d);
+        case UnaryAffineFn::Fix:   return keel::trunc(d);
+        case UnaryAffineFn::Round: return keel::round(d);   // half-away (std::round)
         case UnaryAffineFn::Sqrt:  break;                  // not a roundLike fn
     }
     return d;
@@ -134,7 +133,7 @@ static inline keel::c64 transCxApply(TransAffineFn fn, keel::c64 v) {
     switch (fn) {
         case TransAffineFn::Exp:   return keel::exp(v);
         case TransAffineFn::Log:   return keel::log(v);
-        case TransAffineFn::Log2:  return keel::log(v) / std::log(2.0);
+        case TransAffineFn::Log2:  return keel::log(v) / keel::log(2.0);
         case TransAffineFn::Log10: return keel::log10(v);
         case TransAffineFn::Log1p: return keel::log(keel::c64(1.0, 0.0) + v);
         case TransAffineFn::Sin:   return keel::sin(v);
@@ -195,7 +194,7 @@ void fusedSoftThresholdCx(const keel::c64 *x, keel::f64 t, keel::c64 *out, keel:
         const keel::c64 z = x[i];
         const keel::f64 m = keel::abs(z);
         const keel::c64 s = (m == 0.0) ? keel::c64(0.0, 0.0) : z / m;   // sign(z)
-        out[i] = s * keel::c64(std::fmax(0.0, m - t), 0.0);
+        out[i] = s * keel::c64(keel::fmax(0.0, m - t), 0.0);
     }
 }
 
