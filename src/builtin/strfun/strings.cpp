@@ -729,8 +729,7 @@ Value upper(const Value &s, keel::Allocator *mr)
 {
     auto op = [](keel::StringRef r) -> keel::String {
         keel::String out = keel::String::from(r);
-        for (char &ch : out)
-            ch = keel::to_ascii_upper(ch);
+        out.to_ascii_upper_in_place();
         return out;
     };
     return mapStringPreserveClass(s, op, mr);
@@ -740,8 +739,7 @@ Value lower(const Value &s, keel::Allocator *mr)
 {
     auto op = [](keel::StringRef r) -> keel::String {
         keel::String out = keel::String::from(r);
-        for (char &ch : out)
-            ch = keel::to_ascii_lower(ch);
+        out.to_ascii_lower_in_place();
         return out;
     };
     return mapStringPreserveClass(s, op, mr);

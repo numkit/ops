@@ -3,6 +3,7 @@
 #include <keel/core.h>
 #include <keel/memory.h>
 #include <keel/complex.h>
+#include <keel/math.h>
 #include <numkit/builtin/elfun.hpp>
 
 #include <numkit/value/value.hpp>
@@ -168,7 +169,7 @@ Value unwrap(const Value &p, keel::f64 tol, keel::i32 /*dim*/, keel::Allocator *
     const keel::usize n = out.numel();
     if (n <= 1) return out;
 
-    constexpr keel::f64 kTwoPi = 2.0 * 3.14159265358979323846;
+    constexpr keel::f64 kTwoPi = keel::kTau;
     keel::f64 dp_corr = 0.0;
 
     for (keel::usize i = 1; i < n; ++i) {

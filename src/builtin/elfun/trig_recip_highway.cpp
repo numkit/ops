@@ -20,6 +20,7 @@
 #include <keel/core.h>
 #include <keel/memory.h>
 #include <keel/complex.h>
+#include <keel/math.h>
 #include <numkit/builtin/elfun.hpp>
 
 #include <numkit/value/value.hpp>
@@ -44,8 +45,8 @@ namespace HWY_NAMESPACE {
 namespace hn = hwy::HWY_NAMESPACE;
 
 namespace recip_consts {
-constexpr keel::f64 kDeg2Rad = 3.14159265358979323846 / 180.0;
-constexpr keel::f64 kRad2Deg = 180.0 / 3.14159265358979323846;
+constexpr keel::f64 kDeg2Rad = keel::kPi / 180.0;
+constexpr keel::f64 kRad2Deg = 180.0 / keel::kPi;
 }
 
 // â”€â”€ Forward reciprocal: sec / csc / cot â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -343,8 +344,8 @@ HWY_EXPORT(AcotdLoop);
 
 namespace {
 
-constexpr keel::f64 kDeg2Rad = 3.14159265358979323846 / 180.0;
-constexpr keel::f64 kRad2Deg = 180.0 / 3.14159265358979323846;
+constexpr keel::f64 kDeg2Rad = keel::kPi / 180.0;
+constexpr keel::f64 kRad2Deg = 180.0 / keel::kPi;
 
 // Snap helpers reused from the degree forms (sind/cosd/tand) for the
 // scalar fast-path of secd/cscd/cotd. MATLAB exposes exact 0 / Â±1 /

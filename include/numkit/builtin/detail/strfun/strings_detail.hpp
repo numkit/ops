@@ -30,9 +30,6 @@
 #include <tuple>
 #include <utility>
 
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
 
 namespace numkit::builtin {
 
@@ -439,8 +436,7 @@ void collectMatchPatterns(const Value &pat, keel::Array<keel::String> &out)
 // contains/startsWith/endsWith.
 inline void asciiLowerInPlace(keel::String &x)
 {
-    for (char &c : x)
-        c = keel::to_ascii_lower(c);
+    x.to_ascii_lower_in_place();
 }
 
 } // namespace
@@ -451,7 +447,7 @@ inline keel::String readSide(const Value &side, const char *def)
     if (!side.isChar() && !side.isString())
         throw std::runtime_error("string-side argument must be a string");
     keel::String s = side.toString();
-    for (char &c : s) c = keel::to_ascii_lower(c);
+    s.to_ascii_lower_in_place();
     return s;
 }
 } // anon

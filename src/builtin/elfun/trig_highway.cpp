@@ -17,6 +17,7 @@
 #include <keel/core.h>
 #include <keel/memory.h>
 #include <keel/complex.h>
+#include <keel/math.h>
 #include <numkit/builtin/elfun.hpp>
 
 #include <numkit/value/value.hpp>
@@ -305,8 +306,8 @@ void HypotLoop(const keel::f64 *HWY_RESTRICT a, const keel::f64 *HWY_RESTRICT b,
 // snapping, add a post-pass that overrides multiples of 90.)
 
 namespace deg_consts {
-constexpr keel::f64 kDeg2Rad = 3.14159265358979323846 / 180.0;
-constexpr keel::f64 kRad2Deg = 180.0 / 3.14159265358979323846;
+constexpr keel::f64 kDeg2Rad = keel::kPi / 180.0;
+constexpr keel::f64 kRad2Deg = 180.0 / keel::kPi;
 }
 
 void SindLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel::usize n)
@@ -520,9 +521,9 @@ namespace {
 
 // Constants for degree / multiple-of-Ï€ variants (scalar path).
 // kept in the anonymous namespace so they don't leak.
-constexpr keel::f64 kDeg2Rad = 3.14159265358979323846 / 180.0;
-constexpr keel::f64 kRad2Deg = 180.0 / 3.14159265358979323846;
-constexpr keel::f64 kPi      = 3.14159265358979323846;
+constexpr keel::f64 kDeg2Rad = keel::kPi / 180.0;
+constexpr keel::f64 kRad2Deg = 180.0 / keel::kPi;
+constexpr keel::f64 kPi      = keel::kPi;
 
 // Snap exact integer multiples of 90Â° to exact 0 / Â±1 / Â±Inf.
 // Used by the scalar fast-path for sind / cosd / tand to match
@@ -660,8 +661,8 @@ Value tanh(const Value &x, keel::Allocator *mr)
 //   acos(x>1) = 0    + i*acosh(x)     acos(x<-1) = pi    - i*acosh(|x|)
 //   asin(x>1) = pi/2 - i*acosh(x)     asin(x<-1) = -pi/2 + i*acosh(|x|)
 namespace {
-constexpr keel::f64 kPiInvTrig     = 3.14159265358979323846;
-constexpr keel::f64 kHalfPiInvTrig = 1.57079632679489661923;
+constexpr keel::f64 kPiInvTrig     = keel::kPi;
+constexpr keel::f64 kHalfPiInvTrig = keel::kHalfPi;
 
 bool anyOutsideUnitInterval(const Value &x)
 {

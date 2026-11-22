@@ -6,6 +6,7 @@
 #include <keel/core.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
+#include <keel/math.h>
 #include <numkit/value/value.hpp>
 
 namespace numkit::builtin {
@@ -847,7 +848,7 @@ Value sign(const Value &x, keel::Allocator *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Array with unwrapped continuous phase.
 /// @see angle, wrapToPi
-Value unwrap(const Value &p, keel::f64 tol = 3.14159265358979323846, keel::i32 dim = -1, keel::Allocator *mr = nullptr);
+Value unwrap(const Value &p, keel::f64 tol = keel::kPi, keel::i32 dim = -1, keel::Allocator *mr = nullptr);
 
 /// @brief Tests if array contains real values (false if complex storage is active).
 ///

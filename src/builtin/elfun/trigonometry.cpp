@@ -4,6 +4,7 @@
 
 #include <keel/memory.h>
 #include <keel/ref.h>
+#include <keel/math.h>
 #include <numkit/builtin/elfun.hpp>
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
@@ -21,20 +22,20 @@ Value cos(const Value &x, keel::Allocator *mr) { return cos(x, nullptr, mr); }
 
 Value deg2rad(const Value &x, keel::Allocator *mr)
 {
-    constexpr keel::f64 k = 3.14159265358979323846 / 180.0;
+    constexpr keel::f64 k = keel::kPi / 180.0;
     return unaryDouble(x, [](keel::f64 v) { return v * k; }, mr);
 }
 
 Value rad2deg(const Value &x, keel::Allocator *mr)
 {
-    constexpr keel::f64 k = 180.0 / 3.14159265358979323846;
+    constexpr keel::f64 k = 180.0 / keel::kPi;
     return unaryDouble(x, [](keel::f64 v) { return v * k; }, mr);
 }
 
 // ── Angle Wrapping ──────────────────────────────────────────────────────────
 
 namespace {
-constexpr keel::f64 kPi = 3.14159265358979323846;
+constexpr keel::f64 kPi = keel::kPi;
 constexpr keel::f64 kTwoPi = 2.0 * kPi;
 
 inline keel::f64 wrapMod(keel::f64 x, keel::f64 period)

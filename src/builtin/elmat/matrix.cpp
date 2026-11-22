@@ -816,7 +816,7 @@ Surface3 sphere(keel::usize n, keel::Allocator *mr)
     //   X = cos(phi) * cos(theta)
     //   Y = cos(phi) * sin(theta)
     //   Z = sin(phi) * ones(1, n+1)
-    constexpr keel::f64 kPi = 3.14159265358979323846;
+    constexpr keel::f64 kPi = keel::kPi;
     const keel::usize m = n + 1;
     auto X = Value::matrix(m, m, ValueType::DOUBLE, mr);
     auto Y = Value::matrix(m, m, ValueType::DOUBLE, mr);
@@ -865,7 +865,7 @@ Surface3 cylinder(const Value &R, keel::usize n, keel::Allocator *mr)
 {
     // Profile R is a 1-D vector of radii along z. Output is length(R) ×
     // (n+1). z is linspace(0, 1, length(R)) repeated across columns.
-    constexpr keel::f64 kPi = 3.14159265358979323846;
+    constexpr keel::f64 kPi = keel::kPi;
     const keel::usize rows = R.numel();
     if (rows == 0) {
         auto Z = Value::matrix(0, 0, ValueType::DOUBLE, mr);

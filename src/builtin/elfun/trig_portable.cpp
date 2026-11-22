@@ -5,6 +5,7 @@
 #include <keel/core.h>
 #include <keel/memory.h>
 #include <keel/complex.h>
+#include <keel/math.h>
 #include <numkit/builtin/elfun.hpp>
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
@@ -37,9 +38,9 @@ Value unaryRealDoubleHint(const Value &x, Value *hint, ScalarOp scalarOp, Comple
     return unaryDouble(x, scalarOp, mr);
 }
 
-constexpr keel::f64 kDeg2Rad_p = 3.14159265358979323846 / 180.0;
-constexpr keel::f64 kRad2Deg_p = 180.0 / 3.14159265358979323846;
-constexpr keel::f64 kPi_p      = 3.14159265358979323846;
+constexpr keel::f64 kDeg2Rad_p = keel::kPi / 180.0;
+constexpr keel::f64 kRad2Deg_p = 180.0 / keel::kPi;
+constexpr keel::f64 kPi_p      = keel::kPi;
 
 inline keel::f64 reduceDeg360_p(keel::f64 x) { return std::fmod(x, 360.0); }
 

@@ -8,6 +8,7 @@
 #include <keel/core.h>
 #include <keel/memory.h>
 #include <keel/complex.h>
+#include <keel/math.h>
 #include <numkit/builtin/elfun.hpp>
 
 #include <numkit/value/value.hpp>
@@ -84,7 +85,7 @@ Value expm1(const Value &x, keel::Allocator *mr)
 //   x <  -1 : 1+x < 0 → log|1+x| + i·π   (MATLAB principal branch)
 static inline keel::c64 log1pRealToComplex_p(keel::f64 x)
 {
-    constexpr keel::f64 kPi = 3.141592653589793;
+    constexpr keel::f64 kPi = keel::kPi;
     if (x >= -1.0) return keel::c64(std::log1p(x), 0.0);
     return keel::c64(std::log(-(1.0 + x)), kPi);
 }

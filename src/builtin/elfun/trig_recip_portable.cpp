@@ -8,6 +8,7 @@
 
 #include <keel/memory.h>
 #include <keel/complex.h>
+#include <keel/math.h>
 #include <numkit/builtin/elfun.hpp>
 
 #include <numkit/value/value.hpp>
@@ -20,8 +21,8 @@
 namespace numkit::builtin {
 
 namespace {
-constexpr keel::f64 kDeg2Rad = 3.14159265358979323846 / 180.0;
-constexpr keel::f64 kRad2Deg = 180.0 / 3.14159265358979323846;
+constexpr keel::f64 kDeg2Rad = keel::kPi / 180.0;
+constexpr keel::f64 kRad2Deg = 180.0 / keel::kPi;
 
 inline keel::f64 sind_scalar(keel::f64 x)
 {

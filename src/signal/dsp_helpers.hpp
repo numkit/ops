@@ -4,17 +4,14 @@
 #include <keel/memory.h>
 #include <keel/array.h>
 #include <keel/complex.h>
+#include <keel/math.h>
 #include <numkit/value/value.hpp>
 #include <numkit/ops/fft/fft_radix2.hpp>   // numkit::fftRadix2(buf,N,W) base butterfly (ops-layer)
 
-#define _USE_MATH_DEFINES
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
 
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
 
 namespace numkit {
 
@@ -35,7 +32,7 @@ inline void fillFftTwiddles(keel::c64 *W, keel::usize N, keel::i32 dir)
 {
     const keel::usize half = N / 2;
     if (half == 0) return;
-    const keel::f64 base = dir * 2.0 * M_PI / keel::as<keel::f64>(N);
+    const keel::f64 base = dir * 2.0 * keel::kPi / keel::as<keel::f64>(N);
     for (keel::usize k = 0; k < half; ++k) {
         const keel::f64 a = base * keel::as<keel::f64>(k);
         W[k] = keel::c64(std::cos(a), std::sin(a));
