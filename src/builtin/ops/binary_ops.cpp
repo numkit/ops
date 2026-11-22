@@ -36,115 +36,9 @@ namespace numkit::builtin {
 
 // ── Arithmetic ──────────────────────────────────────────────────────────
 
-namespace {
-
-bool isTfStruct(const Value &v)
-{
-    return v.isStruct() && v.numel() == 1 && v.hasField("kind")
-           && (v.field("kind").isChar() || v.field("kind").isString())
-           && v.field("kind").toString() == "tf"
-           && v.hasField("num") && v.hasField("den");
-}
-
-bool isTfOrScalarGain(const Value &v)
-{
-    return isTfStruct(v) || (v.isNumeric() && !v.isComplex() && v.numel() == 1);
-}
-
-struct TfPolyPair {
-    keel::Array<keel::f64> num;
-    keel::Array<keel::f64> den;
-    keel::f64 Ts = -1.0;
-
-    explicit TfPolyPair(keel::Allocator *alloc = nullptr)
-        : num(alloc), den(alloc) {}
-};
-
-TfPolyPair extractTfPoly(const Value &v, keel::Allocator *alloc)
-{
-    if (isTfStruct(v)) {
-        const Value &nv = v.field("num");
-        const Value &dv = v.field("den");
-        TfPolyPair out(alloc);
-        out.num.resize(nv.numel());
-        out.den.resize(dv.numel());
-        for (keel::usize i = 0; i < nv.numel(); ++i) out.num[i] = nv.elemAsDouble(i);
-        for (keel::usize i = 0; i < dv.numel(); ++i) out.den[i] = dv.elemAsDouble(i);
-        out.Ts = v.hasField("Ts") ? v.field("Ts").toScalar() : 0.0;
-        return out;
-    }
-    TfPolyPair out(alloc);
-    out.num.push_back(v.toScalar());
-    out.den.push_back(1.0);
-    out.Ts = -1.0;
-    return out;
-}
-
-keel::f64 combineTfTs(keel::f64 Ts1, keel::f64 Ts2, const char *op)
-{
-    if (Ts1 == 0.0 && Ts2 == 0.0) return 0.0;
-    if (Ts1 == Ts2) return Ts1;
-    if (Ts1 == -1.0) return Ts2;
-    if (Ts2 == -1.0) return Ts1;
-    throw Error(keel::format("{}: transfer function sample times must match", op),
-                0, 0, op, "", keel::format("numkit:{}:TsMismatch", op));
-}
-
-keel::Array<keel::f64> polyConv(keel::ArrayRef<keel::f64> a, keel::ArrayRef<keel::f64> b,
-                             keel::Allocator *alloc)
-{
-    if (a.empty() || b.empty()) return keel::Array<keel::f64>(alloc);
-    keel::Array<keel::f64> y(a.size() + b.size() - 1, 0.0, alloc);
-    for (keel::usize i = 0; i < a.size(); ++i)
-        for (keel::usize j = 0; j < b.size(); ++j)
-            y[i + j] += a[i] * b[j];
-    return y;
-}
-
-keel::Array<keel::f64> polyAddRightAligned(keel::ArrayRef<keel::f64> a,
-                                        keel::ArrayRef<keel::f64> b,
-                                        keel::f64 bSign,
-                                        keel::Allocator *alloc)
-{
-    const keel::usize na = a.size(), nb = b.size();
-    const keel::usize n = std::max(na, nb);
-    keel::Array<keel::f64> y(n, 0.0, alloc);
-    for (keel::usize i = 0; i < na; ++i) y[n - na + i] += a[i];
-    for (keel::usize i = 0; i < nb; ++i) y[n - nb + i] += bSign * b[i];
-    return y;
-}
-
-Value buildTfValue(keel::ArrayRef<keel::f64> num, keel::ArrayRef<keel::f64> den,
-                   keel::f64 Ts, keel::Allocator *mr)
-{
-    Value nv = Value::matrix(1, num.size(), ValueType::DOUBLE, mr);
-    if (!num.empty()) std::copy(num.begin(), num.end(), nv.doubleDataMut());
-    Value dv = Value::matrix(1, den.size(), ValueType::DOUBLE, mr);
-    if (!den.empty()) std::copy(den.begin(), den.end(), dv.doubleDataMut());
-    Value s = Value::structure(mr);
-    s.field("kind") = Value::fromString("tf", mr);
-    s.field("Ts") = Value::scalar(Ts, mr);
-    s.field("num") = std::move(nv);
-    s.field("den") = std::move(dv);
-    return s;
-}
-
-} // namespace
-
 Value plus(const Value &a, const Value &b, keel::Allocator *mr)
 {
     keel::Allocator *p = mr;
-    if ((isTfStruct(a) || isTfStruct(b)) && isTfOrScalarGain(a) && isTfOrScalarGain(b)) {
-        keel::ArenaTemp scratch = keel::get_scratch(p);
-        keel::Allocator *sa = scratch.allocator();
-        auto ta = extractTfPoly(a, sa);
-        auto tb = extractTfPoly(b, sa);
-        auto c1 = polyConv(ta.num, tb.den, sa);
-        auto c2 = polyConv(tb.num, ta.den, sa);
-        auto num = polyAddRightAligned(c1, c2, +1.0, sa);
-        auto den = polyConv(ta.den, tb.den, sa);
-        return buildTfValue(num, den, combineTfTs(ta.Ts, tb.Ts, "plus"), p);
-    }
     if (a.isEmpty() || b.isEmpty())
         return emptyArithResult(a, b, p);
     // MATLAB auto-coerces logical to double for arithmetic. See BUGS.md #24.
@@ -200,17 +94,6 @@ Value plus(const Value &a, const Value &b, keel::Allocator *mr)
 Value minus(const Value &a, const Value &b, keel::Allocator *mr)
 {
     keel::Allocator *p = mr;
-    if ((isTfStruct(a) || isTfStruct(b)) && isTfOrScalarGain(a) && isTfOrScalarGain(b)) {
-        keel::ArenaTemp scratch = keel::get_scratch(p);
-        keel::Allocator *sa = scratch.allocator();
-        auto ta = extractTfPoly(a, sa);
-        auto tb = extractTfPoly(b, sa);
-        auto c1 = polyConv(ta.num, tb.den, sa);
-        auto c2 = polyConv(tb.num, ta.den, sa);
-        auto num = polyAddRightAligned(c1, c2, -1.0, sa);
-        auto den = polyConv(ta.den, tb.den, sa);
-        return buildTfValue(num, den, combineTfTs(ta.Ts, tb.Ts, "minus"), p);
-    }
     if (a.isEmpty() || b.isEmpty())
         return emptyArithResult(a, b, p);
     if (a.type() == ValueType::LOGICAL || b.type() == ValueType::LOGICAL)
@@ -263,16 +146,6 @@ Value times(const Value &a, const Value &b, keel::Allocator *mr)
 Value mtimes(const Value &a, const Value &b, keel::Allocator *mr)
 {
     keel::Allocator *p = mr;
-
-    if ((isTfStruct(a) || isTfStruct(b)) && isTfOrScalarGain(a) && isTfOrScalarGain(b)) {
-        keel::ArenaTemp scratch = keel::get_scratch(p);
-        keel::Allocator *sa = scratch.allocator();
-        auto ta = extractTfPoly(a, sa);
-        auto tb = extractTfPoly(b, sa);
-        auto num = polyConv(ta.num, tb.num, sa);
-        auto den = polyConv(ta.den, tb.den, sa);
-        return buildTfValue(num, den, combineTfTs(ta.Ts, tb.Ts, "mtimes"), p);
-    }
 
     if (a.type() == ValueType::LOGICAL || b.type() == ValueType::LOGICAL)
         return mtimes(coerceLogicalToDouble(a, p), coerceLogicalToDouble(b, p), p);
