@@ -10,7 +10,6 @@
 #include <numkit/ops/fused/fused_kernels.hpp>
 #include <numkit/ops/parallel_for.hpp>
 
-#include <cstddef>
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "fused/fused_affine_clamp_highway.cpp"

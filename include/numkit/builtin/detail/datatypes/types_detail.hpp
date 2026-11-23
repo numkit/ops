@@ -15,8 +15,6 @@
 #include <numkit/ops/reductions.hpp>  // engine-free numkit::builtin::detail dim-infra (ops re-export)
 
 #include <algorithm>
-#include <cstddef>
-#include <cstdint>
 #include <numeric>
 #include <tuple>
 #include <utility>
@@ -101,24 +99,24 @@ Value numericConstructor(ValueType targetType, const Value &x, keel::Allocator *
     // is DOUBLE and there's actual data; falls through for other source
     // types (single, int*, logical, char) where the bulk of the cost
     // is type-conversion not iteration.
-    if constexpr (std::is_integral_v<T>) {
+    if constexpr (keel::IsIntegral<T>) {
         if (x.type() == ValueType::DOUBLE && n > 0) {
             const keel::f64 *src = x.doubleData();
-            if constexpr (std::is_same_v<T, keel::i8>)        ::numkit::builtin::detail::doubleToInt8 (src, dst, n);
-            else if constexpr (std::is_same_v<T, keel::i16>)  ::numkit::builtin::detail::doubleToInt16(src, dst, n);
-            else if constexpr (std::is_same_v<T, keel::i32>)  ::numkit::builtin::detail::doubleToInt32(src, dst, n);
-            else if constexpr (std::is_same_v<T, keel::i64>)  ::numkit::builtin::detail::doubleToInt64(src, dst, n);
-            else if constexpr (std::is_same_v<T, keel::u8>)  ::numkit::builtin::detail::doubleToUInt8 (src, dst, n);
-            else if constexpr (std::is_same_v<T, keel::u16>) ::numkit::builtin::detail::doubleToUInt16(src, dst, n);
-            else if constexpr (std::is_same_v<T, keel::u32>) ::numkit::builtin::detail::doubleToUInt32(src, dst, n);
-            else if constexpr (std::is_same_v<T, keel::u64>) ::numkit::builtin::detail::doubleToUInt64(src, dst, n);
+            if constexpr (keel::IsSame<T, keel::i8>)        ::numkit::builtin::detail::doubleToInt8 (src, dst, n);
+            else if constexpr (keel::IsSame<T, keel::i16>)  ::numkit::builtin::detail::doubleToInt16(src, dst, n);
+            else if constexpr (keel::IsSame<T, keel::i32>)  ::numkit::builtin::detail::doubleToInt32(src, dst, n);
+            else if constexpr (keel::IsSame<T, keel::i64>)  ::numkit::builtin::detail::doubleToInt64(src, dst, n);
+            else if constexpr (keel::IsSame<T, keel::u8>)  ::numkit::builtin::detail::doubleToUInt8 (src, dst, n);
+            else if constexpr (keel::IsSame<T, keel::u16>) ::numkit::builtin::detail::doubleToUInt16(src, dst, n);
+            else if constexpr (keel::IsSame<T, keel::u32>) ::numkit::builtin::detail::doubleToUInt32(src, dst, n);
+            else if constexpr (keel::IsSame<T, keel::u64>) ::numkit::builtin::detail::doubleToUInt64(src, dst, n);
             return r;
         }
     }
 
     for (keel::usize i = 0; i < n; ++i) {
         keel::f64 v = x.elemAsDouble(i);
-        if constexpr (std::is_integral_v<T>)
+        if constexpr (keel::IsIntegral<T>)
             dst[i] = saturateCast<T>(v);
         else
             dst[i] = static_cast<T>(v);
@@ -401,7 +399,7 @@ namespace {
 template <typename T>
 T swapBytesScalar(T v)
 {
-    static_assert(std::is_trivially_copyable_v<T>);
+    static_assert(keel::IsTriviallyCopyable<T>);
     if constexpr (sizeof(T) == 1) {
         return v;
     } else if constexpr (sizeof(T) == 2) {

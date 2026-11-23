@@ -20,8 +20,6 @@
 #include <numkit/linalg/eig.hpp>
 
 #include <algorithm>
-#include <cstdint>
-#include <type_traits>
 
 #include "binary_ops_detail.hpp"
 
@@ -533,7 +531,7 @@ Value elementPower(const Value &a, const Value &b, keel::Allocator *mr)
     {
         auto r = dispatchIntegerBinaryOp(a, b, [](auto x, auto y) -> decltype(x) {
             keel::f64 r = keel::pow(keel::as<keel::f64>(x), keel::as<keel::f64>(y));
-            if constexpr (std::is_integral_v<decltype(x)>) {
+            if constexpr (keel::IsIntegral<decltype(x)>) {
                 r = keel::round(r);
                 if (r > keel::as<keel::f64>(keel::Limits<decltype(x)>::kMax))
                     return keel::Limits<decltype(x)>::kMax;

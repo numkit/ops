@@ -20,8 +20,6 @@
 #include <numkit/ops/parallel_for.hpp>
 #include <numkit/value/error.hpp>
 
-#include <cstddef>
-#include <cstdint>
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "builtin/datatypes/casts_highway.cpp"

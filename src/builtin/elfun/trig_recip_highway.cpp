@@ -29,7 +29,6 @@
 
 #include <numkit/ops/helpers.hpp>
 
-#include <cstddef>
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "builtin/elfun/trig_recip_highway.cpp"

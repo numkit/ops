@@ -1051,7 +1051,7 @@ Value histc(const Value &x, const Value &edges, keel::Allocator *mr)
         const keel::usize n = x.numel();
         for (keel::usize i = 0; i < n; ++i) {
             const keel::usize b = histcBin(p[i], e, nE);
-            if (b != SIZE_MAX) dst[b] += 1.0;
+            if (b != keel::Limits<keel::usize>::kMax) dst[b] += 1.0;
         }
         return r;
     }
@@ -1063,7 +1063,7 @@ Value histc(const Value &x, const Value &edges, keel::Allocator *mr)
     for (keel::usize c = 0; c < W; ++c)
         for (keel::usize i = 0; i < H; ++i) {
             const keel::usize b = histcBin(p[c * H + i], e, nE);
-            if (b != SIZE_MAX) dst[c * nE + b] += 1.0;
+            if (b != keel::Limits<keel::usize>::kMax) dst[c * nE + b] += 1.0;
         }
     return r;
 }

@@ -4,7 +4,6 @@
 #pragma once
 
 #include <keel/core.h>
-#include <cstddef>
 
 namespace numkit::builtin::detail {
 

@@ -10,7 +10,6 @@
 #include <keel/core.h>
 #include <keel/memory.h>
 #include <keel/array.h>
-#include <cstddef>
 #include <numkit/value/fn_handle.hpp>
 #include <utility>
 

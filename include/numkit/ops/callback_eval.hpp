@@ -11,7 +11,6 @@
 #include <keel/core.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
-#include <cstddef>
 #include <numkit/value/error.hpp>
 #include <numkit/value/fn_handle.hpp>
 #include <numkit/value/value.hpp>

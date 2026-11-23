@@ -15,7 +15,6 @@
 #include <keel/memory.h>
 #include <numkit/value/value.hpp>
 
-#include <cstddef>
 
 namespace numkit::ops {
 

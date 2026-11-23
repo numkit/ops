@@ -36,7 +36,7 @@ inline SizeSpec parseReadSize(const Value &sz, const char *fn)
     if (sz.isScalar()) {
         keel::f64 s = sz.toScalar();
         if (keel::is_inf(s))
-            return SizeSpec{SizeSpec::Kind::Flat, SIZE_MAX, 0, 0};
+            return SizeSpec{SizeSpec::Kind::Flat, keel::Limits<keel::usize>::kMax, 0, 0};
         if (s < 0 || !keel::is_finite(s))
             throw Error(keel::format("{}: size must be Inf or a non-negative integer", fn));
         return SizeSpec{SizeSpec::Kind::Flat, keel::as<keel::usize>(s), 0, 0};
@@ -50,8 +50,8 @@ inline SizeSpec parseReadSize(const Value &sz, const char *fn)
         keel::usize cols;
         keel::usize limit;
         if (keel::is_inf(c)) {
-            cols = SIZE_MAX;
-            limit = SIZE_MAX;
+            cols = keel::Limits<keel::usize>::kMax;
+            limit = keel::Limits<keel::usize>::kMax;
         } else {
             if (c < 0 || !keel::is_finite(c))
                 throw Error(keel::format("{}: cols in [m n] must be finite non-negative or Inf", fn));
@@ -73,7 +73,7 @@ inline Value shapeFreadOutput(const keel::f64 *values, keel::usize n,
         keel::copy_n(M.doubleDataMut(), values, n);
         return M;
     }
-    keel::usize cols_out = (sz.cols == SIZE_MAX)
+    keel::usize cols_out = (sz.cols == keel::Limits<keel::usize>::kMax)
                           ? (sz.rows == 0 ? 0 : (n + sz.rows - 1) / sz.rows)
                           : sz.cols;
     if (sz.rows == 0 || cols_out == 0)

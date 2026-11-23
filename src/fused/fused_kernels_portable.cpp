@@ -9,7 +9,6 @@
 #include <keel/math.h>
 #include <numkit/ops/fused/fused_kernels.hpp>
 
-#include <cstddef>
 
 namespace numkit::ops {
 

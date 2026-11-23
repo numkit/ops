@@ -25,8 +25,6 @@
 
 #include <keel/core.h>
 #include <keel/random.h>
-#include <cstddef>
-#include <cstdint>
 
 namespace numkit::ops {
 

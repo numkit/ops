@@ -21,8 +21,6 @@
 #include <numkit/ops/reductions.hpp>  // engine-free numkit::builtin::detail dim-infra (ops re-export)
 
 #include <algorithm>
-#include <cstddef>
-#include <cstdint>
 #include <numeric>
 #include <tuple>
 #include <utility>
@@ -159,7 +157,7 @@ Value pageTransposeT(const Value &x, ValueType ty, bool conjugate, keel::Allocat
         T *dp       = dst + p * pageOutElems;
         for (keel::usize j = 0; j < N; ++j) {
             for (keel::usize i = 0; i < M; ++i) {
-                if constexpr (std::is_same_v<T, keel::c64>) {
+                if constexpr (keel::IsSame<T, keel::c64>) {
                     keel::c64 v = sp[j * M + i];
                     dp[i * N + j] = conjugate ? keel::conj(v) : v;
                 } else {
@@ -254,7 +252,7 @@ template <> constexpr ValueType pagemtimesElemMType<keel::c64>() { return ValueT
 template <typename T>
 inline T readElemAsT(const Value &src, keel::usize i, bool typeMatches)
 {
-    if constexpr (std::is_same_v<T, keel::c64>) {
+    if constexpr (keel::IsSame<T, keel::c64>) {
         if (typeMatches) return src.complexData()[i];
         return keel::c64(src.elemAsDouble(i), 0.0);
     } else {
@@ -267,7 +265,7 @@ inline T readElemAsT(const Value &src, keel::usize i, bool typeMatches)
 template <typename T>
 inline T conjIfComplex(T v)
 {
-    if constexpr (std::is_same_v<T, keel::c64>) return keel::conj(v);
+    if constexpr (keel::IsSame<T, keel::c64>) return keel::conj(v);
     else return v;
 }
 

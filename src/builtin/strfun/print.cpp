@@ -10,7 +10,6 @@
 #include <numkit/value/error.hpp>
 
 #include <cstdio>
-#include <cstdint>
 
 namespace numkit::builtin {
 

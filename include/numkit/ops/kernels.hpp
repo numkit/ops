@@ -18,7 +18,6 @@
 
 #include <keel/core.h>
 #include <keel/complex.h>
-#include <cstddef>
 
 // Linkage. Default (static — compiled into numkit_ops, a test, or a
 // self-contained artifact): plain. Building the numkit_ops_kernels shared lib:

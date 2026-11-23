@@ -19,7 +19,6 @@
 
 #include <numkit/ops/helpers.hpp>
 
-#include <cstdint>
 
 #include "int_math_detail.hpp"
 

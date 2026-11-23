@@ -22,7 +22,6 @@
 #include <numkit/ops/helpers.hpp>
 
 #include <algorithm>
-#include <cstdint>
 
 #include "manip_detail.hpp"
 

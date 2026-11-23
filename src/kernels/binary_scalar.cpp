@@ -16,7 +16,6 @@
 #include <numkit/ops/binary_ops.hpp>
 #include <numkit/ops/compiler.hpp>
 
-#include <cstddef>
 
 namespace numkit::ops::detail {
 

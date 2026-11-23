@@ -9,7 +9,6 @@
 #include <keel/math.h>
 #include <numkit/ops/nan_reductions.hpp>
 
-#include <cstddef>
 
 namespace numkit::ops {
 

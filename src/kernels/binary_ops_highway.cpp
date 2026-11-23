@@ -13,8 +13,6 @@
 #include <numkit/ops/parallel_for.hpp>
 
 #include <algorithm>
-#include <cstddef>
-#include <cstdint>
 
 #include <hwy/cache_control.h>  // hwy::FlushStream() — sfence on x86
 

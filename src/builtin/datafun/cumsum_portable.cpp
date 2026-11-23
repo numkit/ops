@@ -8,7 +8,6 @@
 #include <keel/math.h>
 #include "cumsum.hpp"
 
-#include <cstddef>
 
 namespace numkit::builtin {
 

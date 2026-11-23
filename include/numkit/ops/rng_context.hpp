@@ -21,7 +21,6 @@
 #include <numkit/ops/matlab_mt19937.hpp>
 #include <numkit/value/value.hpp>
 
-#include <cstdint>
 
 namespace numkit::ops {
 

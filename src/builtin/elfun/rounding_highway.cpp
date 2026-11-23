@@ -10,7 +10,6 @@
 #include <keel/math.h>
 #include "rounding_detail.hpp"
 
-#include <cstddef>
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "builtin/elfun/rounding_highway.cpp"

@@ -19,8 +19,6 @@
 #include <numkit/ops/helpers.hpp>
 #include <numkit/ops/reductions.hpp>
 
-#include <cstddef>
-#include <cstdint>
 
 namespace numkit::builtin {
 namespace {

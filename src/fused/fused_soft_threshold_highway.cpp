@@ -12,7 +12,6 @@
 #include <numkit/ops/fused/fused_kernels.hpp>
 #include <numkit/ops/parallel_for.hpp>
 
-#include <cstddef>
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "fused/fused_soft_threshold_highway.cpp"

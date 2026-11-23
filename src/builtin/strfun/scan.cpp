@@ -276,7 +276,7 @@ Value makeCharRow(const keel::f64 *vals, keel::usize n, keel::Allocator *mr)
 Value makeCharMatrix(const keel::f64 *vals, keel::usize n,
                      numkit::ops::SizeSpec sz, keel::Allocator *mr)
 {
-    keel::usize cols_out = (sz.cols == SIZE_MAX)
+    keel::usize cols_out = (sz.cols == keel::Limits<keel::usize>::kMax)
                          ? (sz.rows == 0 ? 0 : (n + sz.rows - 1) / sz.rows)
                          : sz.cols;
     if (sz.rows == 0 || cols_out == 0)
@@ -365,7 +365,7 @@ void sscanf(keel::ArrayRef<Value> args, keel::usize nargout, keel::MutArrayRef<V
     if (args.size() < 2 || !args[0].isChar() || !args[1].isChar())
         throw Error("sscanf: requires (str, format [, size])");
 
-    numkit::ops::SizeSpec sz{numkit::ops::SizeSpec::Kind::Flat, SIZE_MAX, 0, 0};
+    numkit::ops::SizeSpec sz{numkit::ops::SizeSpec::Kind::Flat, keel::Limits<keel::usize>::kMax, 0, 0};
     if (args.size() >= 3)
         sz = numkit::ops::parseReadSize(args[2], "sscanf");
 

@@ -27,7 +27,6 @@
 #include <numkit/ops/compiler.hpp>
 #include <numkit/ops/fused/fused_kernels.hpp>
 
-#include <cstddef>
 
 namespace numkit::ops {
 

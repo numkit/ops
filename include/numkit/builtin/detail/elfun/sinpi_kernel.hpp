@@ -5,7 +5,6 @@
 
 #include <keel/core.h>
 #include <keel/math.h>
-#include <cstdint>
 
 namespace numkit::builtin::detail {
 

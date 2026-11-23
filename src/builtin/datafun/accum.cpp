@@ -15,8 +15,6 @@
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
-#include <cstddef>
-#include <cstdint>
 
 namespace numkit::builtin {
 

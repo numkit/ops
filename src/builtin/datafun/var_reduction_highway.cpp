@@ -11,7 +11,6 @@
 #include <keel/math.h>
 #include "var_reduction.hpp"
 
-#include <cstddef>
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "builtin/datafun/var_reduction_highway.cpp"

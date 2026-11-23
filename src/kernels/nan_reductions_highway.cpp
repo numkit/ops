@@ -15,7 +15,6 @@
 #include <keel/math.h>
 #include <numkit/ops/nan_reductions.hpp>
 
-#include <cstddef>
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "nan_reductions_highway.cpp"

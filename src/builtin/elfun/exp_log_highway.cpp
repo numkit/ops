@@ -23,8 +23,6 @@
 
 #include <numkit/ops/helpers.hpp>
 
-#include <cstddef>
-#include <cstdint>
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "builtin/elfun/exp_log_highway.cpp"

@@ -16,7 +16,6 @@
 #include <numkit/value/value.hpp>   // numkit::Complex
 
 #include <algorithm>                // std::swap
-#include <cstddef>
 
 namespace numkit {
 

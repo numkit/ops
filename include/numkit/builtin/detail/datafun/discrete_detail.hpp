@@ -243,7 +243,7 @@ hashSetNoNaN(const Value &x, keel::Allocator *alloc)
 namespace {
 inline keel::usize histcBin(keel::f64 v, const keel::f64 *e, keel::usize nE)
 {
-    if (keel::is_nan(v) || v < e[0] || v > e[nE - 1]) return SIZE_MAX;
+    if (keel::is_nan(v) || v < e[0] || v > e[nE - 1]) return keel::Limits<keel::usize>::kMax;
     if (v == e[nE - 1]) return nE - 1;
     keel::usize lo = 0, hi = nE;
     while (lo < hi) {

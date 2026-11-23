@@ -19,8 +19,6 @@
 
 #include <algorithm>
 #include <keel/static_array.h>
-#include <cstddef>
-#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <numeric>

@@ -10,7 +10,6 @@
 #include <keel/ref.h>
 #include <numkit/value/value.hpp>
 
-#include <cstddef>
 
 namespace numkit::ops {
 struct SizeSpec;

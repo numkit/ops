@@ -27,8 +27,6 @@
 #include <numkit/ops/helpers.hpp>
 #include "sinpi_kernel.hpp"
 
-#include <cstddef>
-#include <cstdint>
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "builtin/elfun/trig_highway.cpp"

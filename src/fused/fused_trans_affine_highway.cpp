@@ -15,8 +15,6 @@
 #include <numkit/ops/fused/fused_kernels.hpp>
 #include <numkit/ops/parallel_for.hpp>
 
-#include <cstddef>
-#include <cstdint>
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "fused/fused_trans_affine_highway.cpp"

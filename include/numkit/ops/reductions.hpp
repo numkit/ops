@@ -31,7 +31,6 @@
 #include <numkit/value/value.hpp>
 
 #include <algorithm>
-#include <cstddef>
 
 namespace numkit::ops {
 

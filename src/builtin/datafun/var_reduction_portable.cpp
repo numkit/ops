@@ -9,7 +9,6 @@
 #include <keel/math.h>
 #include "var_reduction.hpp"
 
-#include <cstddef>
 
 namespace numkit::builtin {
 

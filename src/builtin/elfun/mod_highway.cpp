@@ -14,7 +14,6 @@
 #include <keel/math.h>
 #include "mod_simd.hpp"
 
-#include <cstddef>
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "builtin/elfun/mod_highway.cpp"

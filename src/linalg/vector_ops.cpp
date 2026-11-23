@@ -30,7 +30,7 @@ static Value narrowKronToInteger(const Value &d, ValueType vt,
     const keel::usize n = d.numel();
     const keel::f64 *src = d.doubleData();
     auto fill = [&](auto *dst) {
-        using T = std::remove_pointer_t<std::decay_t<decltype(dst)>>;
+        using T = keel::RemovePointer<keel::Decay<decltype(dst)>>;
         const keel::f64 lo = keel::as<keel::f64>(keel::Limits<T>::kMin);
         const keel::f64 hi = keel::as<keel::f64>(keel::Limits<T>::kMax);
         for (keel::usize i = 0; i < n; ++i) {

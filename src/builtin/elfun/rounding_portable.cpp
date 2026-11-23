@@ -7,7 +7,6 @@
 #include <keel/math.h>
 #include "rounding_detail.hpp"
 
-#include <cstddef>
 
 namespace numkit::builtin::detail {
 

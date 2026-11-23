@@ -8,8 +8,6 @@
 #include <keel/math.h>
 #include "isfinite.hpp"
 
-#include <cstddef>
-#include <cstdint>
 
 namespace numkit::builtin::detail {
 

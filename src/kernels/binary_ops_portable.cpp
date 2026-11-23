@@ -7,7 +7,6 @@
 #include <keel/core.h>
 #include <numkit/ops/binary_ops.hpp>
 
-#include <cstddef>
 
 namespace numkit::ops::detail {
 

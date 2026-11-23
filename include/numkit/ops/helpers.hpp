@@ -17,7 +17,6 @@
 #include <numkit/value/shape_ops.hpp>
 
 #include <algorithm>
-#include <type_traits>
 #include <utility>
 
 namespace numkit {
@@ -105,7 +104,7 @@ inline Value absIntegerSaturate(const Value &x, keel::Allocator *mr = nullptr)
     Value r = createLike(x, x.type(), mr);
     const keel::usize n = x.numel();
     auto fill = [&](auto *dst) {
-        using T = std::remove_pointer_t<std::decay_t<decltype(dst)>>;
+        using T = keel::RemovePointer<keel::Decay<decltype(dst)>>;
         const keel::f64 lo = keel::as<keel::f64>(keel::Limits<T>::kMin);
         const keel::f64 hi = keel::as<keel::f64>(keel::Limits<T>::kMax);
         for (keel::usize i = 0; i < n; ++i) {
@@ -141,7 +140,7 @@ inline Value doubleToIntegerExact(const Value &d, ValueType vt,
     Value r = createForDims(d.dims(), vt, mr);
     const keel::usize n = d.numel();
     auto fill = [&](auto *dst) {
-        using T = std::remove_pointer_t<std::decay_t<decltype(dst)>>;
+        using T = keel::RemovePointer<keel::Decay<decltype(dst)>>;
         const keel::f64 lo = keel::as<keel::f64>(keel::Limits<T>::kMin);
         const keel::f64 hi = keel::as<keel::f64>(keel::Limits<T>::kMax);
         for (keel::usize i = 0; i < n; ++i) {
@@ -743,9 +742,9 @@ inline Value createMatrixND(const keel::usize *dims, keel::usize nDims,
 template <typename T>
 inline T saturateAdd(T a, T b)
 {
-    if constexpr (std::is_floating_point_v<T>) {
+    if constexpr (keel::IsFloatingPoint<T>) {
         return a + b;
-    } else if constexpr (std::is_unsigned_v<T>) {
+    } else if constexpr (keel::IsUnsigned<T>) {
         T r = a + b;
         return (r < a) ? keel::Limits<T>::kMax : r;
     } else {
@@ -760,9 +759,9 @@ inline T saturateAdd(T a, T b)
 template <typename T>
 inline T saturateSub(T a, T b)
 {
-    if constexpr (std::is_floating_point_v<T>) {
+    if constexpr (keel::IsFloatingPoint<T>) {
         return a - b;
-    } else if constexpr (std::is_unsigned_v<T>) {
+    } else if constexpr (keel::IsUnsigned<T>) {
         return (b > a) ? T(0) : a - b;
     } else {
         using W = keel::i64;
@@ -776,9 +775,9 @@ inline T saturateSub(T a, T b)
 template <typename T>
 inline T saturateMul(T a, T b)
 {
-    if constexpr (std::is_floating_point_v<T>) {
+    if constexpr (keel::IsFloatingPoint<T>) {
         return a * b;
-    } else if constexpr (std::is_same_v<T, keel::i64> || std::is_same_v<T, keel::u64>) {
+    } else if constexpr (keel::IsSame<T, keel::i64> || keel::IsSame<T, keel::u64>) {
         keel::f64 r = keel::as<keel::f64>(a) * keel::as<keel::f64>(b);
         if (r > keel::as<keel::f64>(keel::Limits<T>::kMax)) return keel::Limits<T>::kMax;
         if (r < keel::as<keel::f64>(keel::Limits<T>::kMin)) return keel::Limits<T>::kMin;
@@ -795,18 +794,18 @@ inline T saturateMul(T a, T b)
 template <typename T>
 inline T saturateDiv(T a, T b)
 {
-    if constexpr (std::is_floating_point_v<T>) {
+    if constexpr (keel::IsFloatingPoint<T>) {
         return a / b;
     } else {
         if (b == 0) {
-            if constexpr (std::is_unsigned_v<T>)
+            if constexpr (keel::IsUnsigned<T>)
                 return (a == 0) ? T(0) : keel::Limits<T>::kMax;
             else
                 return (a > 0) ? keel::Limits<T>::kMax
                      : (a < 0) ? keel::Limits<T>::kMin
                                : T(0);
         }
-        if constexpr (!std::is_unsigned_v<T>) {
+        if constexpr (!keel::IsUnsigned<T>) {
             if (a == keel::Limits<T>::kMin && b == T(-1))
                 return keel::Limits<T>::kMax;
         }
@@ -822,9 +821,9 @@ inline T saturateDiv(T a, T b)
 template <typename T>
 inline T saturateNeg(T a)
 {
-    if constexpr (std::is_floating_point_v<T>) {
+    if constexpr (keel::IsFloatingPoint<T>) {
         return -a;
-    } else if constexpr (std::is_unsigned_v<T>) {
+    } else if constexpr (keel::IsUnsigned<T>) {
         return T(0);
     } else {
         if (a == keel::Limits<T>::kMin) return keel::Limits<T>::kMax;
@@ -847,7 +846,7 @@ Value elementwiseTyped(const Value &a, const Value &b, ValueType targetType, Op 
         keel::usize idx = c * v.dims().rows() + r; // column-major
         if (v.type() == tgt) return static_cast<const T *>(v.rawData())[idx];
         keel::f64 d = v.elemAsDouble(idx);
-        if constexpr (std::is_integral_v<T>)
+        if constexpr (keel::IsIntegral<T>)
             return static_cast<T>(std::clamp(keel::round(d),
                 keel::as<keel::f64>(keel::Limits<T>::kMin),
                 keel::as<keel::f64>(keel::Limits<T>::kMax)));
@@ -857,7 +856,7 @@ Value elementwiseTyped(const Value &a, const Value &b, ValueType targetType, Op 
     auto readLinearTyped = [](const Value &v, ValueType tgt, keel::usize i) -> T {
         if (v.type() == tgt) return static_cast<const T *>(v.rawData())[i];
         keel::f64 d = v.elemAsDouble(i);
-        if constexpr (std::is_integral_v<T>)
+        if constexpr (keel::IsIntegral<T>)
             return static_cast<T>(std::clamp(keel::round(d),
                 keel::as<keel::f64>(keel::Limits<T>::kMin),
                 keel::as<keel::f64>(keel::Limits<T>::kMax)));

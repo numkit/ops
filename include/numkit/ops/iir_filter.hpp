@@ -17,7 +17,6 @@
 #include <keel/complex.h>
 #include <numkit/value/value.hpp>    // numkit::Complex
 
-#include <cstddef>
 
 namespace numkit::ops {
 

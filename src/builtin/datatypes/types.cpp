@@ -16,8 +16,6 @@
 #include <numkit/ops/helpers.hpp>
 
 #include <algorithm>
-#include <cstdint>
-#include <type_traits>
 
 // Forward-declare the SIMD/portable cast backend (defined in
 // language/datatypes/casts_{highway,portable}.cpp).

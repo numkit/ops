@@ -15,8 +15,6 @@
 #include <numkit/ops/reductions.hpp>  // engine-free numkit::builtin::detail dim-infra (ops re-export)
 
 #include <algorithm>
-#include <cstddef>
-#include <cstdint>
 #include <numeric>
 #include <tuple>
 #include <utility>
@@ -106,7 +104,7 @@ inline T readSrcAsT(const Value &x, keel::usize i, bool typeMatch)
 {
     if (typeMatch)
         return static_cast<const T *>(x.rawData())[i];
-    if constexpr (std::is_floating_point_v<T>) {
+    if constexpr (keel::IsFloatingPoint<T>) {
         return static_cast<T>(x.elemAsDouble(i));
     } else {
         const keel::f64 d = x.elemAsDouble(i);
@@ -487,7 +485,7 @@ dispatchMinMaxAlongDim(const Value &x, keel::i32 dim, Cmp cmp, keel::Allocator *
 template <typename T>
 inline bool isElemNan(T v)
 {
-    if constexpr (std::is_floating_point_v<T>) return keel::is_nan(v);
+    if constexpr (keel::IsFloatingPoint<T>) return keel::is_nan(v);
     else                                       return false;
 }
 
@@ -506,20 +504,20 @@ void minMaxNanAlongDim(const Value &x, keel::i32 redDim, T *dst, keel::f64 *dstI
     if (sliceLen == 0) return;
 
     auto runSlice = [&](keel::usize outIdx, keel::usize baseOff, keel::usize stride) {
-        keel::usize firstValid = SIZE_MAX;
+        keel::usize firstValid = keel::Limits<keel::usize>::kMax;
         T best{};
         for (keel::usize k = 0; k < sliceLen; ++k) {
             const T v = readSrcAsT<T>(x, baseOff + k * stride, typeMatch);
             if (isElemNan(v)) continue;
-            if (firstValid == SIZE_MAX) {
+            if (firstValid == keel::Limits<keel::usize>::kMax) {
                 best = v; firstValid = k;
             } else if (cmp(v, best)) {
                 best = v; firstValid = k;
             }
         }
-        if (firstValid == SIZE_MAX) {
+        if (firstValid == keel::Limits<keel::usize>::kMax) {
             // All-NaN slice: NaN value, idx = 1 (MATLAB convention).
-            if constexpr (std::is_floating_point_v<T>)
+            if constexpr (keel::IsFloatingPoint<T>)
                 dst[outIdx] = keel::Limits<T>::quiet_nan();
             else
                 dst[outIdx] = T{};
@@ -546,16 +544,16 @@ reduceMinMaxNanAllT(const Value &x, Cmp cmp, ValueType outType, keel::Allocator 
         throw numkit::Error("min/max of empty array is not supported");
     const bool typeMatch = (x.type() == outType);
     if (x.isScalar() || x.dims().isVector()) {
-        keel::usize firstValid = SIZE_MAX;
+        keel::usize firstValid = keel::Limits<keel::usize>::kMax;
         T best{};
         for (keel::usize i = 0; i < x.numel(); ++i) {
             const T v = readSrcAsT<T>(x, i, typeMatch);
             if (isElemNan(v)) continue;
-            if (firstValid == SIZE_MAX) { best = v; firstValid = i; }
+            if (firstValid == keel::Limits<keel::usize>::kMax) { best = v; firstValid = i; }
             else if (cmp(v, best))      { best = v; firstValid = i; }
         }
-        if (firstValid == SIZE_MAX) {
-            if constexpr (std::is_floating_point_v<T>)
+        if (firstValid == keel::Limits<keel::usize>::kMax) {
+            if constexpr (keel::IsFloatingPoint<T>)
                 return std::make_tuple(makeScalarT<T>(keel::Limits<T>::quiet_nan(), outType, mr),
                                        Value::scalar(1.0, mr));
             else
@@ -611,17 +609,17 @@ reduceMinMaxComplexNanAll(const Value &x, keel::Allocator *mr, const char *fn)
     }
     auto findBest = [&](keel::usize baseOff, keel::usize stride, keel::usize n,
                         keel::c64 &best, keel::usize &bi) {
-        keel::usize firstValid = SIZE_MAX;
+        keel::usize firstValid = keel::Limits<keel::usize>::kMax;
         for (keel::usize k = 0; k < n; ++k) {
             const keel::c64 v = data[baseOff + k * stride];
             if (isNan(v)) continue;
-            if (firstValid == SIZE_MAX) {
+            if (firstValid == keel::Limits<keel::usize>::kMax) {
                 best = v; bi = k; firstValid = k;
             } else if (complexBetter<IsMax>(v, best, allReal)) {
                 best = v; bi = k; firstValid = k;
             }
         }
-        return firstValid != SIZE_MAX;
+        return firstValid != keel::Limits<keel::usize>::kMax;
     };
 
     if (x.isScalar() || x.dims().isVector()) {
@@ -696,16 +694,16 @@ reduceMinMaxComplexNanAlongDim(const Value &x, keel::i32 dim, keel::Allocator *m
     for (keel::i32 i = redAxis + 1; i < d.ndim(); ++i) O *= d.dim(i);
 
     auto runSlice = [&](keel::usize outOff, keel::usize baseOff, keel::usize stride) {
-        keel::usize firstValid = SIZE_MAX;
+        keel::usize firstValid = keel::Limits<keel::usize>::kMax;
         keel::c64 best;
         keel::usize bi = 0;
         for (keel::usize k = 0; k < sliceLen; ++k) {
             const keel::c64 v = data[baseOff + k * stride];
             if (isNan(v)) continue;
-            if (firstValid == SIZE_MAX) { best = v; bi = k; firstValid = k; }
+            if (firstValid == keel::Limits<keel::usize>::kMax) { best = v; bi = k; firstValid = k; }
             else if (complexBetter<IsMax>(v, best, allReal)) { best = v; bi = k; firstValid = k; }
         }
-        if (firstValid == SIZE_MAX) {
+        if (firstValid == keel::Limits<keel::usize>::kMax) {
             dst[outOff] = keel::c64(keel::kNaN, 0.0);
             dstI[outOff] = 1.0;
         } else {

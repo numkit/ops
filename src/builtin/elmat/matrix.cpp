@@ -27,8 +27,6 @@
 #include <numkit/builtin/ops.hpp>  // transposeNC()
 
 #include <algorithm>
-#include <cstdint>
-#include <type_traits>
 
 #include "matrix_detail.hpp"
 

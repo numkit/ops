@@ -8,8 +8,6 @@
 #include <keel/core.h>
 #include <keel/memory.h>
 #include <keel/string.h>
-#include <cstddef>
-#include <cstdint>
 #include <numkit/value/value.hpp>
 
 namespace numkit::image {

@@ -9,8 +9,6 @@
 
 #include <keel/array.h>
 #include <keel/core.h>
-#include <cstddef>
-#include <cstdint>
 
 namespace numkit::ops {
 

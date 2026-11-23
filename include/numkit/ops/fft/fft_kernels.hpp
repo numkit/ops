@@ -13,7 +13,6 @@
 #include <keel/complex.h>
 #include <numkit/value/value.hpp>   // Complex (numkit::Complex)   // Complex
 
-#include <cstddef>
 
 namespace numkit::ops::detail {
 

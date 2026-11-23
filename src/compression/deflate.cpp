@@ -10,8 +10,6 @@
 
 #include "keel/compress.h"
 
-#include <cstddef>
-#include <cstdint>
 #include <utility>
 
 namespace numkit::ops {

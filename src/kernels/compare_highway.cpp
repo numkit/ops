@@ -21,8 +21,6 @@
 #include <numkit/value/value.hpp>
 
 
-#include <cstddef>
-#include <cstdint>
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "compare_highway.cpp"

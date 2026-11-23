@@ -21,7 +21,6 @@
 #include <keel/math.h>
 #include <keel/core.h>
 #include <keel/ref.h>
-#include <cstddef>
 #include <algorithm>
 #include <utility>
 

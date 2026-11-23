@@ -12,8 +12,6 @@
 #include <keel/math.h>
 #include "isfinite.hpp"
 
-#include <cstddef>
-#include <cstdint>
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "builtin/datafun/isfinite_highway.cpp"

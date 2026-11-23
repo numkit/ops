@@ -13,7 +13,6 @@
 #include <keel/complex.h>
 #include <keel/math.h>
 #include <algorithm>
-#include <cstddef>
 #include <tuple>
 
 #include <numkit/value/value.hpp>

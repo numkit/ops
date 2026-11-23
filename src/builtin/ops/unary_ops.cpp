@@ -11,7 +11,6 @@
 
 #include <numkit/ops/helpers.hpp>
 
-#include <cstdint>
 
 #include "unary_ops_detail.hpp"
 

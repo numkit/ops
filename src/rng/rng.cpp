@@ -21,7 +21,6 @@
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
-#include <cstdint>
 #include <numeric>
 
 namespace numkit::ops {

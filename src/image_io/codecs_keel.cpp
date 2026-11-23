@@ -23,8 +23,6 @@
 #include "keel/imagefile.h"
 
 #include <algorithm>
-#include <cstddef>
-#include <cstdint>
 #include <utility>
 
 namespace numkit::image {

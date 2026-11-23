@@ -27,7 +27,6 @@
 #include "../elfun/_unary_hint.hpp"  // 3-arg sin/cos/exp/log/abs hint overloads
 
 #include <algorithm>
-#include <type_traits>
 
 #include "reductions_detail.hpp"
 
@@ -214,7 +213,7 @@ Value maxOmitNanBinary(const Value &a, const Value &b, keel::Allocator *mr)
         auto r = dispatchIntegerBinaryOp(a, b,
             [](auto x, auto y) {
                 using T = decltype(x);
-                if constexpr (std::is_floating_point_v<T>) {
+                if constexpr (keel::IsFloatingPoint<T>) {
                     if (keel::is_nan(x)) return y;
                     if (keel::is_nan(y)) return x;
                 }
@@ -237,7 +236,7 @@ Value minOmitNanBinary(const Value &a, const Value &b, keel::Allocator *mr)
         auto r = dispatchIntegerBinaryOp(a, b,
             [](auto x, auto y) {
                 using T = decltype(x);
-                if constexpr (std::is_floating_point_v<T>) {
+                if constexpr (keel::IsFloatingPoint<T>) {
                     if (keel::is_nan(x)) return y;
                     if (keel::is_nan(y)) return x;
                 }

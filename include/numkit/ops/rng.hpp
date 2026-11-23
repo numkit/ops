@@ -20,7 +20,6 @@
 
 #include <numkit/ops/rng_context.hpp>
 
-#include <cstdint>
 
 namespace numkit::ops {
 

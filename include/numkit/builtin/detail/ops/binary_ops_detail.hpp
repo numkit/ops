@@ -18,8 +18,6 @@
 #include <numkit/value/shape_ops.hpp>
 
 #include <algorithm>
-#include <cstddef>
-#include <cstdint>
 #include <numeric>
 #include <tuple>
 #include <utility>
@@ -642,7 +640,7 @@ template <> constexpr ValueType pagemtimesElemMType<keel::c64>() { return ValueT
 template <typename T>
 inline T readElemAsT(const Value &src, keel::usize i, bool typeMatches)
 {
-    if constexpr (std::is_same_v<T, keel::c64>) {
+    if constexpr (keel::IsSame<T, keel::c64>) {
         if (typeMatches) return src.complexData()[i];
         return keel::c64(src.elemAsDouble(i), 0.0);
     } else {
@@ -654,7 +652,7 @@ inline T readElemAsT(const Value &src, keel::usize i, bool typeMatches)
 template <typename T>
 inline T conjIfComplex(T v)
 {
-    if constexpr (std::is_same_v<T, keel::c64>) return keel::conj(v);
+    if constexpr (keel::IsSame<T, keel::c64>) return keel::conj(v);
     else return v;
 }
 

@@ -23,7 +23,6 @@
 #include <keel/math.h>
 #include "cumsum.hpp"
 
-#include <cstddef>
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "builtin/datafun/cumsum_highway.cpp"

@@ -18,8 +18,6 @@
 #include <numkit/ops/helpers.hpp>
 
 #include <algorithm>
-#include <cstddef>
-#include <cstdint>
 
 #include <hwy/cache_control.h>
 

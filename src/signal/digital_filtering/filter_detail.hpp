@@ -22,7 +22,6 @@
 #include <numkit/ops/iir_filter.hpp>
 #include <numkit/value/value.hpp>
 
-#include <cstddef>
 
 namespace numkit::signal {
 

@@ -28,8 +28,6 @@
 #include <numkit/ops/helpers.hpp>
 #include <numkit/ops/reductions.hpp>
 
-#include <cstddef>
-#include <cstdint>
 
 #undef HWY_TARGET_INCLUDE
 #define HWY_TARGET_INCLUDE "builtin/datafun/logical_reductions_highway.cpp"

@@ -9,8 +9,6 @@
 #include <numkit/ops/reductions.hpp>
 
 #include <algorithm>
-#include <cstddef>
-#include <cstdint>
 #include <numeric>
 #include <tuple>
 #include <utility>

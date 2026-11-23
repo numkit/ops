@@ -9,7 +9,6 @@
 #include <keel/core.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
-#include <cstdint>
 #include <numkit/value/value.hpp>
 #include <utility>
 

@@ -16,7 +16,6 @@
 #include <keel/quad.h>
 #include <numkit/value/value.hpp>
 
-#include <cstddef>
 
 namespace numkit::builtin::detail {
 
