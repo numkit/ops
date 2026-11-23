@@ -6,6 +6,7 @@
 // builtins (regexp/regexpi/regexprep) live in regex.cpp.
 
 #include <keel/core.h>
+#include <keel/algo.h>
 #include <keel/math.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
@@ -23,7 +24,6 @@
 
 #include <numkit/ops/helpers.hpp>
 
-#include <algorithm>
 #include <cerrno>
 #include <cstdio>
 #include <cstdlib>
@@ -66,7 +66,7 @@ static Value charMatrixFromLines(keel::StringRef s, keel::Allocator *mr)
     if (lines.size() <= 1)
         return Value::fromString(s, mr);
     keel::usize maxW = 0;
-    for (const auto &L : lines) maxW = std::max(maxW, L.size());
+    for (const auto &L : lines) maxW = keel::max(maxW, L.size());
     auto m = Value::matrix(lines.size(), maxW, ValueType::CHAR, mr);
     char *dst = static_cast<char *>(m.rawDataMut());
     for (keel::usize r = 0; r < lines.size(); ++r)
@@ -189,7 +189,7 @@ Value num2str(const Value &x, keel::StringRef fmt,
                         s.append(si.as_ref());
                         s.push_back('i');
                     }
-                    w[c] = std::max(w[c], s.size());
+                    w[c] = keel::max(w[c], s.size());
                     cells[r * cols + c] = keel::move(s);
                 }
             }
@@ -256,8 +256,8 @@ Value num2str(const Value &x, keel::StringRef fmt,
     // this reproduces the old find_first_not_of/find_last_not_of trim.
     keel::usize kLead = keel::kInvalidIndex, kTrail = keel::kInvalidIndex;
     for (const auto &s : rawRows) {
-        kLead  = std::min(kLead,  leadingWS(s.as_ref()));
-        kTrail = std::min(kTrail, trailingWS(s.as_ref()));
+        kLead  = keel::min(kLead,  leadingWS(s.as_ref()));
+        kTrail = keel::min(kTrail, trailingWS(s.as_ref()));
     }
     if (kLead == keel::kInvalidIndex) kLead = 0;
     if (kTrail == keel::kInvalidIndex) kTrail = 0;
@@ -272,7 +272,7 @@ Value num2str(const Value &x, keel::StringRef fmt,
             ? keel::StringRef("", 0)
             : s.as_ref().substr(kLead, len - kLead - kTrail);
         rows.push_back(trimmed);
-        maxW = std::max(maxW, trimmed.size());
+        maxW = keel::max(maxW, trimmed.size());
     }
 
     if (nrows == 1)
@@ -602,7 +602,7 @@ Value toChar(const Value &x, keel::Allocator *mr)
             if (!el.isChar() && !el.isString() && !el.isEmpty())
                 throw Error("Cannot convert to char", 0, 0, "char", "", "numkit:char:unsupportedType");
             rows[i] = el.isEmpty() ? keel::StringRef{} : el.asStringRef();
-            maxCols = std::max(maxCols, rows[i].size());
+            maxCols = keel::max(maxCols, rows[i].size());
         }
         if (n == 1)
             return Value::fromString(rows[0], p);
@@ -620,7 +620,7 @@ Value toChar(const Value &x, keel::Allocator *mr)
             return Value::fromString(x.asStringRef(), p);
         keel::usize maxCols = 0;
         for (keel::usize i = 0; i < n; ++i)
-            maxCols = std::max(maxCols, x.stringElemRef(i).size());
+            maxCols = keel::max(maxCols, x.stringElemRef(i).size());
         Value out = Value::matrix(n, maxCols, ValueType::CHAR, p);
         char *dst = out.charDataMut();
         keel::mem_set(dst, ' ', n * maxCols);
@@ -982,7 +982,7 @@ Value mat2str(const Value &x, keel::i32 precision, keel::Allocator *mr)
         return Value::fromString(out, mr);
     }
 
-    const keel::i32 prec = std::clamp(precision, 1, 99);
+    const keel::i32 prec = keel::clamp(precision, 1, 99);
     auto appendFmt = [prec](keel::String &dst, keel::f64 v) {
         if (v == 0.0) v = 0.0;   // normalize -0 → 0 (MATLAB never prints "-0")
         char buf[64];
@@ -1228,7 +1228,7 @@ Value reverse(const Value &s, keel::Allocator *mr)
 {
     auto op = [](keel::StringRef r) -> keel::String {
         keel::String out = keel::String::from(r);
-        std::reverse(out.begin(), out.end());
+        keel::reverse(out.begin(), out.end());
         return out;
     };
     return mapStringPreserveClass(s, op, mr);
@@ -1817,7 +1817,7 @@ Value rats(const Value &x, keel::i32 len, keel::Allocator *mr)
     auto appendOne = [&](keel::String &dst, keel::f64 v) {
         if (!keel::is_finite(v)) {
             const keel::StringRef s = keel::is_nan(v) ? "NaN" : (v > 0 ? "Inf" : "-Inf");
-            const keel::i32 slack = std::max(0, field_width - keel::as<keel::i32>(s.size()));
+            const keel::i32 slack = keel::max(0, field_width - keel::as<keel::i32>(s.size()));
             for (keel::i32 k = 0; k < slack; ++k) dst.push_back(' ');
             dst.append(s);
             return;
@@ -1827,15 +1827,15 @@ Value rats(const Value &x, keel::i32 len, keel::Allocator *mr)
         char nbuf[32];
         const keel::i32 nlen = std::snprintf(nbuf, sizeof(nbuf), "%lld", exp.p);
         if (exp.q == 1) {
-            const keel::i32 slack = std::max(0, field_width - nlen);
+            const keel::i32 slack = keel::max(0, field_width - nlen);
             for (keel::i32 k = 0; k < slack; ++k) dst.push_back(' ');
             dst.append(nbuf);
             return;
         }
         char dbuf[32];
         const keel::i32 dlen = std::snprintf(dbuf, sizeof(dbuf), "%lld", exp.q);
-        const keel::i32 n_pad = std::max(0, num_width - nlen);
-        const keel::i32 d_pad = std::max(0, den_width - dlen);
+        const keel::i32 n_pad = keel::max(0, num_width - nlen);
+        const keel::i32 d_pad = keel::max(0, den_width - dlen);
         for (keel::i32 k = 0; k < n_pad; ++k) dst.push_back(' ');
         dst.append(nbuf);
         dst.push_back('/');
@@ -1974,7 +1974,7 @@ Value compose(const Value &fmt, const Value &x, keel::Allocator *mr)
     // consuming M values per output element, so an R×C input yields an
     // R×ceil(C/M) result. A short trailing chunk leaves the unfilled specs
     // as literal text (e.g. compose('%d-%d',[1 2 3]) -> "1-2","3-%d").
-    const keel::usize M = std::max<keel::usize>(1, countFormatSpecs(fmtRef));
+    const keel::usize M = keel::max<keel::usize>(1, countFormatSpecs(fmtRef));
 
     const auto &dims = x.dims();
     const keel::usize R = dims.rows();

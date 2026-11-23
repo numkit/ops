@@ -3,6 +3,7 @@
 // Date conversions, calendar operations, and formatting for numkit::builtin.
 
 #include <keel/core.h>
+#include <keel/algo.h>
 #include <keel/math.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
@@ -16,7 +17,6 @@
 #include <numkit/value/error.hpp>
 #include <numkit/value/value.hpp>
 
-#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 
@@ -92,7 +92,7 @@ Value etime(const Value &t2, const Value &t1, keel::Allocator *mr) {
         throw numkit::Error("etime: date vectors must have 6 columns [Y M D H MI S]");
     if (r1 != r2 && r1 != 1 && r2 != 1)
         throw numkit::Error("etime: t2 and t1 must have the same number of rows (or one a single row)");
-    const keel::usize N = std::max(r1, r2);
+    const keel::usize N = keel::max(r1, r2);
 
     auto comp = [&](const Value &v, keel::usize nr, keel::usize row, keel::usize col) {
         return v.elemAsDouble(row + col * nr);
@@ -496,7 +496,7 @@ Value eomday(const Value &y, const Value &m, keel::Allocator *mr) {
         return Value::scalar(eomOne(y.toScalar(), m.toScalar()), mr);
     if (ny != nm && ny != 1 && nm != 1)
         throw numkit::Error("eomday: input dimensions must agree");
-    const keel::usize N = std::max(ny, nm);
+    const keel::usize N = keel::max(ny, nm);
     const keel::usize rows = ny > 1 ? y.dims().rows() : m.dims().rows();
     const keel::usize cols = ny > 1 ? y.dims().cols() : m.dims().cols();
     auto out = Value::matrix(rows, cols, ValueType::DOUBLE, mr);
@@ -538,7 +538,7 @@ Value calendar(keel::ArrayRef<Value> args, keel::Allocator *mr) {
 
     auto out = Value::matrix(6, 7, ValueType::DOUBLE, mr);
     keel::f64 *o = out.doubleDataMut();
-    std::fill(o, o + 42, 0.0);
+    keel::fill(o, o + 42, 0.0);
     keel::i32 day = 1;
     for (keel::i32 col = startCol; col < 7 && day <= daysInMonth; ++col) {
         o[0 + col * 6] = day++;

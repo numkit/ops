@@ -3,6 +3,7 @@
 // svdsketch & svdappend â€” Randomized low-rank SVD and Incremental SVD.
 
 #include <keel/core.h>
+#include <keel/algo.h>
 #include <keel/tuple.h>
 #include <keel/memory.h>
 #include <keel/random.h>
@@ -13,7 +14,6 @@
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
 
-#include <algorithm>
 
 namespace numkit::linalg {
 
@@ -28,7 +28,7 @@ Value matMulReal(const Value &A, const Value &B, keel::Allocator *mr)
 
     auto C = Value::matrix(m, n, ValueType::DOUBLE, mr);
     keel::f64 *cd = C.doubleDataMut();
-    std::fill(cd, cd + m * n, 0.0);
+    keel::fill(cd, cd + m * n, 0.0);
 
     const keel::f64 *ad = A.doubleData();
     const keel::f64 *bd = B.doubleData();
@@ -70,7 +70,7 @@ keel::Tuple<Value, Value, Value> svdsketch(const Value &A, keel::f64 tol, keel::
 
     const keel::usize m = keel::as<keel::usize>(A.dims().dim(0));
     const keel::usize n = keel::as<keel::usize>(A.dims().dim(1));
-    const keel::usize min_mn = std::min(m, n);
+    const keel::usize min_mn = keel::min(m, n);
 
     const bool wantSingle = A.type() == ValueType::SINGLE;
     const ValueType rtype = wantSingle ? ValueType::SINGLE : ValueType::DOUBLE;
@@ -83,7 +83,7 @@ keel::Tuple<Value, Value, Value> svdsketch(const Value &A, keel::f64 tol, keel::
     Value Aw = detail::widenSingleToDouble(A, mr);
 
     // Step 1: Draw Gaussian random test matrix Omega (n x l)
-    keel::usize l = std::min(min_mn, keel::as<keel::usize>(15));
+    keel::usize l = keel::min(min_mn, keel::as<keel::usize>(15));
     auto Omega = Value::matrix(n, l, ValueType::DOUBLE, mr);
     keel::f64 *od = Omega.doubleDataMut();
 
@@ -118,7 +118,7 @@ keel::Tuple<Value, Value, Value> svdsketch(const Value &A, keel::f64 tol, keel::
     const keel::f64 s0 = S.doubleData()[0];
     const keel::f64 cutoff = tol * s0;
     keel::usize rank = 0;
-    for (keel::usize i = 0; i < std::min(l, min_mn); ++i) {
+    for (keel::usize i = 0; i < keel::min(l, min_mn); ++i) {
         if (S.doubleData()[i + i * l] >= cutoff) {
             rank++;
         }
@@ -134,7 +134,7 @@ keel::Tuple<Value, Value, Value> svdsketch(const Value &A, keel::f64 tol, keel::
     keel::f64 *srd = Sr.doubleDataMut();
     keel::f64 *vrd = Vr.doubleDataMut();
 
-    std::fill(srd, srd + rank * rank, 0.0);
+    keel::fill(srd, srd + rank * rank, 0.0);
 
     const keel::f64 *ud = U.doubleData();
     const keel::f64 *sd = S.doubleData();
@@ -206,7 +206,7 @@ keel::Tuple<Value, Value, Value> svdappend(const Value &U, const Value &S, const
     const keel::usize dim = k + p;
     Value K = Value::matrix(dim, dim, ValueType::DOUBLE, mr);
     keel::f64 *kd = K.doubleDataMut();
-    std::fill(kd, kd + dim * dim, 0.0);
+    keel::fill(kd, kd + dim * dim, 0.0);
 
     const keel::f64 *sd = Sw.doubleData();
     const keel::f64 *mkd = m_k.doubleData();
@@ -248,7 +248,7 @@ keel::Tuple<Value, Value, Value> svdappend(const Value &U, const Value &S, const
     const keel::usize n_new = n + p;
     Value V_large = Value::matrix(n_new, dim, ValueType::DOUBLE, mr);
     keel::f64 *vld = V_large.doubleDataMut();
-    std::fill(vld, vld + n_new * dim, 0.0);
+    keel::fill(vld, vld + n_new * dim, 0.0);
 
     const keel::f64 *vd = Vw.doubleData();
     for (keel::usize j = 0; j < k; ++j) {

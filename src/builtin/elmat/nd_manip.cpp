@@ -8,6 +8,7 @@
 // general case (input strides differ per axis after permutation).
 
 #include <keel/core.h>
+#include <keel/algo.h>
 #include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
@@ -22,8 +23,6 @@
 
 #include <numkit/ops/helpers.hpp>
 
-#include <algorithm>
-#include <numeric>
 
 namespace numkit::builtin {
 
@@ -42,7 +41,7 @@ void validatePerm(const keel::i32 *perm, keel::usize N, const char *fn)
                      0, 0, fn, "", keel::format("numkit:{}:tooManyDims", fn));
     keel::i32 sorted[Dims::kMaxRank];
     for (keel::usize i = 0; i < N; ++i) sorted[i] = perm[i];
-    std::sort(sorted, sorted + N);
+    keel::sort(sorted, sorted + N);
     for (keel::usize i = 0; i < N; ++i) {
         if (sorted[i] != keel::as<keel::i32>(i + 1))
             throw Error(keel::format("{}: perm must be a permutation of 1..N", fn),
@@ -73,9 +72,9 @@ void transposePage(const keel::f64 *src, keel::f64 *dst, keel::usize inR, keel::
     // and require read-for-ownership per cache line, which is the
     // dominant cost in the unblocked transpose.
     for (keel::usize rBlk = 0; rBlk < inR; rBlk += TRANSPOSE_BLOCK) {
-        const keel::usize rEnd = std::min(rBlk + TRANSPOSE_BLOCK, inR);
+        const keel::usize rEnd = keel::min(rBlk + TRANSPOSE_BLOCK, inR);
         for (keel::usize cBlk = 0; cBlk < inC; cBlk += TRANSPOSE_BLOCK) {
-            const keel::usize cEnd = std::min(cBlk + TRANSPOSE_BLOCK, inC);
+            const keel::usize cEnd = keel::min(cBlk + TRANSPOSE_BLOCK, inC);
             // Inner block: dst column r holds input row r.
             // For fixed r, vary c: dst write is stride 1 in c.
             for (keel::usize r = rBlk; r < rEnd; ++r) {
@@ -104,7 +103,7 @@ Value permute(const Value &x, keel::ArrayRef<keel::i32> perm, keel::Allocator *m
     validatePerm(perm.data(), n, "permute");
 
     const auto &dd = x.dims();
-    const keel::i32 inNd = std::max<keel::i32>(dd.ndim(), keel::as<keel::i32>(n));
+    const keel::i32 inNd = keel::max<keel::i32>(dd.ndim(), keel::as<keel::i32>(n));
     if (inNd > Dims::kMaxRank)
         throw Error("permute: rank exceeds 32",
                      0, 0, "permute", "", "numkit:permute:tooManyDims");
@@ -409,7 +408,7 @@ Value catND(keel::i32 dim, const Value *values, keel::usize count, keel::Allocat
     for (keel::usize i = 0; i < count; ++i) {
         const auto &v = values[i];
         if (v.isEmpty() || v.numel() == 0) continue;
-        outNdim = std::max(outNdim, v.dims().ndim());
+        outNdim = keel::max(outNdim, v.dims().ndim());
     }
     constexpr keel::i32 kMaxNd = Dims::kMaxRank;
     if (outNdim > kMaxNd)

@@ -18,10 +18,10 @@
 // non-finite y is a gap; it is kept when it lands on a bucket endpoint.
 
 #include <keel/array.h>
+#include <keel/algo.h>
 #include <keel/math.h>
 #include <keel/core.h>
 #include <keel/ref.h>
-#include <algorithm>
 
 namespace numkit {
 
@@ -90,7 +90,7 @@ inline DecimatedSeries decimateM4(const keel::f64 *x, const keel::f64 *y, keel::
     auto flush = [&]() {
         if (curBucket < 0) return;
         keel::usize idxs[4] = { bFirst, bMinI, bMaxI, bLast };
-        std::sort(idxs, idxs + 4);
+        keel::sort(idxs, idxs + 4);
         keel::i64 prev = -1;
         for (keel::usize ii : idxs) {
             if (keel::as<keel::i64>(ii) != prev) {
@@ -144,7 +144,7 @@ inline DecimatedSeries decimateM2(const keel::f64 *x, const keel::f64 *y, keel::
     keel::f64 bMinY = 0.0, bMaxY = 0.0;
     auto flush = [&]() {
         if (curBucket < 0) return;
-        keel::usize a = std::min(bMinI, bMaxI), b = std::max(bMinI, bMaxI);
+        keel::usize a = keel::min(bMinI, bMaxI), b = keel::max(bMinI, bMaxI);
         out.x.push_back(x[a]); out.y.push_back(y[a]);
         if (b != a) { out.x.push_back(x[b]); out.y.push_back(y[b]); }
     };
@@ -238,7 +238,7 @@ inline keel::Array<DecimatedSeries> buildPyramid(const keel::f64 *x, const keel:
     const keel::f64 *cy = y;
     keel::usize s = n;
     while (s > baseTarget) {
-        const keel::i32 cols = keel::as<keel::i32>(std::max<keel::usize>(1, (s + 7) / 8));
+        const keel::i32 cols = keel::as<keel::i32>(keel::max<keel::usize>(1, (s + 7) / 8));
         DecimatedSeries d = decimateM4(cx, cy, s, cx[0], cx[s - 1], cols);
         if (d.x.size() >= s) break;            // no progress
         levels.push_back(keel::move(d));

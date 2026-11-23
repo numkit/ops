@@ -3,6 +3,7 @@
 // ordqz — Reorder Generalized Schur decomposition via keel::linalg::ordqz_complex.
 
 #include <keel/core.h>
+#include <keel/algo.h>
 #include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
@@ -16,7 +17,6 @@
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
 
-#include <algorithm>
 #include <keel/tuple.h>
 
 namespace numkit::linalg {
@@ -56,7 +56,7 @@ keel::Tuple<Value, Value, Value, Value> ordqz(const Value &AA, const Value &BB,
 
     auto copyToComplex = [&](const Value &src, keel::c64 *dst) {
         if (src.isComplex()) {
-            std::copy(src.complexData(), src.complexData() + n * n, dst);
+            keel::copy(src.complexData(), src.complexData() + n * n, dst);
         } else {
             for (keel::usize i = 0; i < n * n; ++i) dst[i] = keel::c64(src.elemAsDouble(i), 0.0);
         }

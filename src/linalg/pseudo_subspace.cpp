@@ -4,6 +4,7 @@
 // All four are SVD-based; migrated alongside the SVD kernel.
 
 #include <keel/core.h>
+#include <keel/algo.h>
 #include <keel/memory.h>
 #include <keel/arena.h>
 #include <keel/array.h>
@@ -18,7 +19,6 @@
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
 
-#include <algorithm>
 
 namespace numkit::linalg {
 
@@ -30,7 +30,7 @@ keel::f64 defaultRankTol(keel::usize m, keel::usize n, keel::f64 sigma_max, bool
     const keel::f64 eps = isSingle
         ? keel::as<keel::f64>(keel::Limits<keel::f32>::kEpsilon)
         : keel::Limits<keel::f64>::kEpsilon;
-    return keel::as<keel::f64>(std::max(m, n)) * sigma_max * eps;
+    return keel::as<keel::f64>(keel::max(m, n)) * sigma_max * eps;
 }
 
 } // anonymous namespace
@@ -44,7 +44,7 @@ Value pinv(const Value &A, keel::f64 tol, keel::Allocator *mr)
     auto [U, S, V] = svd_decompose(Aw, mr);
     const keel::usize m = keel::as<keel::usize>(Aw.dims().dim(0));
     const keel::usize n = keel::as<keel::usize>(Aw.dims().dim(1));
-    const keel::usize k = std::min(m, n);
+    const keel::usize k = keel::min(m, n);
 
     if (Aw.isComplex() || U.isComplex() || V.isComplex()) {
         keel::ArenaTemp scratch = keel::get_scratch(mr);
@@ -56,7 +56,7 @@ Value pinv(const Value &A, keel::f64 tol, keel::Allocator *mr)
 
         for (keel::usize i = 0; i < k; ++i) {
             keel::f64 sig = sd ? keel::abs(sd[i + i * Srows]) : sdd[i + i * Srows];
-            sigma_max = std::max(sigma_max, sig);
+            sigma_max = keel::max(sigma_max, sig);
         }
         const keel::f64 cutoff = (tol < 0.0) ? defaultRankTol(m, n, sigma_max, wantSingle) : tol;
 
@@ -67,7 +67,7 @@ Value pinv(const Value &A, keel::f64 tol, keel::Allocator *mr)
 
         auto out = Value::complexMatrix(n, m, mr);
         keel::c64 *P = out.complexDataMut();
-        std::fill(P, P + n * m, keel::c64(0.0, 0.0));
+        keel::fill(P, P + n * m, keel::c64(0.0, 0.0));
 
         const keel::c64 *Vd = V.isComplex() ? V.complexData() : nullptr;
         const keel::f64 *Vdd = V.isComplex() ? nullptr : V.doubleData();
@@ -96,7 +96,7 @@ Value pinv(const Value &A, keel::f64 tol, keel::Allocator *mr)
 
     keel::f64 sigma_max = 0.0;
     for (keel::usize i = 0; i < k; ++i)
-        sigma_max = std::max(sigma_max, S_data[i + i * Srows]);
+        sigma_max = keel::max(sigma_max, S_data[i + i * Srows]);
     const keel::f64 cutoff = (tol < 0.0) ? defaultRankTol(m, n, sigma_max, wantSingle) : tol;
 
     keel::ArenaTemp scratch = keel::get_scratch(mr);
@@ -110,7 +110,7 @@ Value pinv(const Value &A, keel::f64 tol, keel::Allocator *mr)
     // pinv(A) = V * S^+ * U' -- output is n × m.
     auto out = Value::matrix(n, m, ValueType::DOUBLE, mr);
     keel::f64 *P = out.doubleDataMut();
-    std::fill(P, P + n * m, 0.0);
+    keel::fill(P, P + n * m, 0.0);
 
     const keel::f64 *Vdata = V.doubleData();
     const keel::f64 *Udata = U.doubleData();
@@ -140,7 +140,7 @@ Value orth(const Value &A, keel::f64 tol, keel::Allocator *mr)
     auto [U, S, V] = svd_decompose(Aw, mr);
     const keel::usize m = keel::as<keel::usize>(Aw.dims().dim(0));
     const keel::usize n = keel::as<keel::usize>(Aw.dims().dim(1));
-    const keel::usize k = std::min(m, n);
+    const keel::usize k = keel::min(m, n);
 
     const keel::f64 *S_data = S.doubleData();
     const keel::usize Srows = keel::as<keel::usize>(S.dims().dim(0));
@@ -171,7 +171,7 @@ Value null_basis(const Value &A, keel::f64 tol, keel::Allocator *mr)
     auto [U, S, V] = svd_decompose(Aw, mr);
     const keel::usize m = keel::as<keel::usize>(Aw.dims().dim(0));
     const keel::usize n = keel::as<keel::usize>(Aw.dims().dim(1));
-    const keel::usize k = std::min(m, n);
+    const keel::usize k = keel::min(m, n);
 
     const keel::f64 *S_data = S.doubleData();
     const keel::usize Srows = keel::as<keel::usize>(S.dims().dim(0));

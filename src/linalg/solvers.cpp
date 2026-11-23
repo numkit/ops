@@ -3,6 +3,7 @@
 // linsolve / lsqminnorm / lsqnonneg — Value adapters over keel::linalg kernels.
 
 #include <keel/core.h>
+#include <keel/algo.h>
 #include <keel/memory.h>
 #include <keel/arena.h>
 #include <keel/array.h>
@@ -24,7 +25,6 @@
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
 
-#include <algorithm>
 
 namespace numkit::linalg {
 
@@ -57,13 +57,13 @@ Value linsolve(const Value &A, const Value &B, keel::Allocator *mr)
         keel::Array<keel::c64> B_buf(m * nrhs, scratch.allocator());
 
         if (Aw.isComplex()) {
-            std::copy(Aw.complexData(), Aw.complexData() + m * n, A_buf.begin());
+            keel::copy(Aw.complexData(), Aw.complexData() + m * n, A_buf.begin());
         } else {
             const keel::f64 *ad = Aw.doubleData();
             for (keel::usize i = 0; i < m * n; ++i) A_buf[i] = ad[i];
         }
         if (Bw.isComplex()) {
-            std::copy(Bw.complexData(), Bw.complexData() + m * nrhs, B_buf.begin());
+            keel::copy(Bw.complexData(), Bw.complexData() + m * nrhs, B_buf.begin());
         } else {
             const keel::f64 *bd = Bw.doubleData();
             for (keel::usize i = 0; i < m * nrhs; ++i) B_buf[i] = bd[i];

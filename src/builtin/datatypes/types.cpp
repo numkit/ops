@@ -1,4 +1,5 @@
 #include <keel/core.h>
+#include <keel/algo.h>
 #include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
@@ -15,7 +16,6 @@
 
 #include <numkit/ops/helpers.hpp>
 
-#include <algorithm>
 
 // Forward-declare the SIMD/portable cast backend (defined in
 // language/datatypes/casts_{highway,portable}.cpp).
@@ -222,7 +222,7 @@ Value ismissing(const Value &x, const Value &indicator,
                     out[i] = keel::is_nan(src[i]) ? 1u : 0u;
             }
         } else {
-            std::fill(out, out + n, keel::u8{0});
+            keel::fill(out, out + n, keel::u8{0});
         }
         return r;
     }
@@ -458,7 +458,7 @@ Value isuniform(const Value &x, keel::Allocator *mr)
     // Tolerance: 4 * eps(max-magnitude in vector or step), follows MATLAB
     // isuniform's "approximately uniform" semantics.
     keel::f64 scale = keel::abs(step);
-    for (keel::usize i = 0; i < n; ++i) scale = std::max(scale, keel::abs(p[i]));
+    for (keel::usize i = 0; i < n; ++i) scale = keel::max(scale, keel::abs(p[i]));
     const keel::f64 tol = 4 * keel::Limits<keel::f64>::kEpsilon * scale;
     for (keel::usize i = 1; i < n - 1; ++i) {
         const keel::f64 s = p[i + 1] - p[i];

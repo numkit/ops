@@ -14,7 +14,6 @@
 
 #include <numkit/ops/helpers.hpp>
 
-#include <algorithm>
 
 #include "interp_detail.hpp"
 

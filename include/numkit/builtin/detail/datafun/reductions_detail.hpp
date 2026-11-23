@@ -14,8 +14,6 @@
 #include <numkit/value/error.hpp>
 #include <numkit/ops/reductions.hpp>  // engine-free numkit::builtin::detail dim-infra (ops re-export)
 
-#include <algorithm>
-#include <numeric>
 #include <keel/tuple.h>
 
 
@@ -107,7 +105,7 @@ inline T readSrcAsT(const Value &x, keel::usize i, bool typeMatch)
         return static_cast<T>(x.elemAsDouble(i));
     } else {
         const keel::f64 d = x.elemAsDouble(i);
-        return static_cast<T>(std::clamp(keel::round(d),
+        return static_cast<T>(keel::clamp(keel::round(d),
             keel::as<keel::f64>(keel::Limits<T>::kLowest),
             keel::as<keel::f64>(keel::Limits<T>::kMax)));
     }

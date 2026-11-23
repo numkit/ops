@@ -15,7 +15,6 @@
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
 
-#include <algorithm>
 
 namespace numkit::linalg {
 
@@ -42,7 +41,7 @@ Value gsvd_values(const Value &A, const Value &B, keel::Allocator *mr)
     Ac = detail::widenSingleToDouble(Ac, mr);
     Bc = detail::widenSingleToDouble(Bc, mr);
 
-    const keel::usize num_vals = std::min(m, n);
+    const keel::usize num_vals = keel::min(m, n);
     Value sigmas = Value::matrix(num_vals, 1, ValueType::DOUBLE, mr);
 
     if (Ac.isComplex() || Bc.isComplex()) {

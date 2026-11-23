@@ -27,7 +27,6 @@
 #include <numkit/builtin/elmat.hpp>     // flip()
 #include <numkit/builtin/ops.hpp>  // transposeNC()
 
-#include <algorithm>
 
 #include "matrix_detail.hpp"
 
@@ -72,7 +71,7 @@ Value onesND(const keel::usize *dims, keel::usize nDims, keel::Allocator *mr)
 Value eye(keel::usize rows, keel::usize cols, keel::Allocator *mr)
 {
     auto m = Value::matrix(rows, cols, ValueType::DOUBLE, mr);
-    for (keel::usize i = 0; i < std::min(rows, cols); ++i)
+    for (keel::usize i = 0; i < keel::min(rows, cols); ++i)
         m.elem(i, i) = 1.0;
     return m;
 }
@@ -139,7 +138,7 @@ Value poly_of_matrix(const Value &A, keel::Allocator *mr)
         // Mnext = A * (M + c[k-1] * I)
         //       = A * M + c[k-1] * A
         // First: Mnext = A * M
-        std::fill(Mnext.begin(), Mnext.end(), 0.0);
+        keel::fill(Mnext.begin(), Mnext.end(), 0.0);
         for (keel::usize j = 0; j < n; ++j)
             for (keel::usize kk = 0; kk < n; ++kk) {
                 const keel::f64 mkj = M[kk + j * n];
@@ -185,7 +184,7 @@ Value topkrows_full(const Value &A, keel::usize k,
                     0, 0, "topkrows", "", "numkit:topkrows:notMatrix");
     const keel::usize m = keel::as<keel::usize>(A.dims().dim(0));
     const keel::usize n = keel::as<keel::usize>(A.dims().dim(1));
-    const keel::usize kk = std::min(k, m);
+    const keel::usize kk = keel::min(k, m);
 
     keel::ArenaTemp scratch = keel::get_scratch(mr);
 
@@ -221,7 +220,7 @@ Value topkrows_full(const Value &A, keel::usize k,
     auto elem = [&](keel::usize r, keel::usize c) {
         return A.elemAsDouble(r + c * m);
     };
-    std::stable_sort(idx.begin(), idx.end(),
+    keel::stable_sort(idx.begin(), idx.end(),
         [&](keel::usize a, keel::usize b) {
             for (keel::usize k2 = 0; k2 < cols.size(); ++k2) {
                 const keel::usize j = cols[k2];
@@ -650,7 +649,7 @@ Value size(const Value &x, keel::Allocator *mr)
     // Output ndim: at least 2 (MATLAB convention — a row vector reports
     // [1, n], not [n]). Otherwise the actual rank, including any extra
     // dims past 3.
-    const keel::i32 n = std::max(2, dims.ndim());
+    const keel::i32 n = keel::max(2, dims.ndim());
     auto sv = Value::matrix(1, n, ValueType::DOUBLE, mr);
     keel::f64 *out = sv.doubleDataMut();
     for (keel::i32 i = 0; i < n; ++i)
@@ -676,7 +675,7 @@ Value length(const Value &x, keel::Allocator *mr)
     if (x.isEmpty() || x.numel() == 0)
         return Value::scalar(0.0, mr);
     const auto &dims = x.dims();
-    const keel::f64 len = keel::as<keel::f64>(std::max({dims.rows(), dims.cols(), dims.pages()}));
+    const keel::f64 len = keel::as<keel::f64>(keel::max({dims.rows(), dims.cols(), dims.pages()}));
     return Value::scalar(len, mr);
 }
 
@@ -1018,7 +1017,7 @@ Value diag(const Value &x, keel::i32 k, keel::Allocator *mr)
     const keel::usize col0 = (k >= 0) ? ak : 0;
     keel::usize len = 0;
     if (row0 < R && col0 < C)
-        len = std::min(R - row0, C - col0);
+        len = keel::min(R - row0, C - col0);
     auto r = Value::matrix(len, 1, t, mr);
     const char *src = static_cast<const char *>(x.rawData());
     char *dst = static_cast<char *>(r.rawDataMut());
@@ -1045,7 +1044,7 @@ keel::Tuple<Value, Value> sortComplex(const Value &x, keel::i32 dim, bool descen
                                                        : (nanPlace == NanPlace::First);
     const keel::usize R = x.dims().rows(), C = x.dims().cols();
     const keel::usize P = x.dims().is3D() ? x.dims().pages() : 1;
-    const keel::i32 sortDim = (dim >= 1) ? std::min(dim - 1, 2)
+    const keel::i32 sortDim = (dim >= 1) ? keel::min(dim - 1, 2)
                                    : ((R > 1) ? 0 : (C > 1) ? 1 : 2);
     const keel::usize N = (sortDim == 0) ? R : (sortDim == 1) ? C : P;
 
@@ -1070,7 +1069,7 @@ keel::Tuple<Value, Value> sortComplex(const Value &x, keel::i32 dim, bool descen
                     const keel::usize pIdx = (sortDim == 2) ? k : pp;
                     buf[k] = {src[pIdx * R * C + cIdx * R + rIdx], k};
                 }
-                std::stable_sort(buf.begin(), buf.end(),
+                keel::stable_sort(buf.begin(), buf.end(),
                           [descend, nanFirst](const auto &a, const auto &b) {
                               const keel::f64 am = keel::abs(a.first), bm = keel::abs(b.first);
                               const bool an = keel::is_nan(am), bn = keel::is_nan(bm);
@@ -1112,7 +1111,7 @@ keel::Tuple<Value, Value> sort(const Value &x, keel::i32 dim, bool descend,
     const keel::usize P = x.dims().is3D() ? x.dims().pages() : 1;
     // dim<1 -> auto (first non-singleton, MATLAB convention). Explicit dim
     // is 1-based: 1=down columns, 2=along rows, 3=along pages.
-    const keel::i32 sortDim = (dim >= 1) ? std::min(dim - 1, 2)
+    const keel::i32 sortDim = (dim >= 1) ? keel::min(dim - 1, 2)
                                    : ((R > 1) ? 0 : (C > 1) ? 1 : 2);
     const keel::usize N = (sortDim == 0) ? R : (sortDim == 1) ? C : P;
 
@@ -1139,7 +1138,7 @@ keel::Tuple<Value, Value> sort(const Value &x, keel::i32 dim, bool descend,
                 // MATLAB sort: stable; NaN sorts LAST for ascend, FIRST
                 // for descend. std::stable_sort keeps the original index
                 // order for ties (matches MATLAB's [s,i]).
-                std::stable_sort(buf.begin(), buf.end(),
+                keel::stable_sort(buf.begin(), buf.end(),
                           [descend, nanFirst](const auto &a, const auto &b) {
                               const keel::f64 av = a.first, bv = b.first;
                               const bool an = keel::is_nan(av), bn = keel::is_nan(bv);
@@ -1533,7 +1532,7 @@ Value cummax(const Value &x, keel::i32 dim, keel::Allocator *mr)
     return cumScanDispatch(x, dim, numkit::builtin::cummaxScan, [](keel::f64 a, keel::f64 b) {
                                if (keel::is_nan(b)) return a;
                                if (keel::is_nan(a)) return b;
-                               return std::max(a, b);
+                               return keel::max(a, b);
                            }, "cummax", mr);
 }
 
@@ -1549,7 +1548,7 @@ Value cummin(const Value &x, keel::i32 dim, keel::Allocator *mr)
     return cumScanDispatch(x, dim, numkit::builtin::cumminScan, [](keel::f64 a, keel::f64 b) {
                                if (keel::is_nan(b)) return a;
                                if (keel::is_nan(a)) return b;
-                               return std::min(a, b);
+                               return keel::min(a, b);
                            }, "cummin", mr);
 }
 

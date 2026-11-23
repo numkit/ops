@@ -20,7 +20,6 @@
 
 #include <numkit/ops/io_helpers.hpp>
 
-#include <algorithm>
 #include <keel/static_array.h>
 #include <cstdlib>
 
@@ -131,7 +130,7 @@ ScanfOut scanfCycle(const keel::String &input, keel::StringRef fmt, keel::usize 
                 keel::usize tokenStart = inPos;
                 keel::usize maxEnd = (width < 0)
                                     ? input.size()
-                                    : std::min(inPos + keel::as<keel::usize>(width),
+                                    : keel::min(inPos + keel::as<keel::usize>(width),
                                                input.size());
                 while (inPos < maxEnd) {
                     bool m = member[keel::as<keel::u8>(input[inPos])];
@@ -164,7 +163,7 @@ ScanfOut scanfCycle(const keel::String &input, keel::StringRef fmt, keel::usize 
                 keel::usize tokenStart = inPos;
                 keel::usize maxEnd = (width < 0)
                                     ? input.size()
-                                    : std::min(inPos + keel::as<keel::usize>(width),
+                                    : keel::min(inPos + keel::as<keel::usize>(width),
                                                input.size());
                 while (inPos < maxEnd &&
                        !keel::is_ascii_space(input[inPos]))

@@ -3,6 +3,7 @@
 // ordschur — Reorder Schur decomposition A = U * T * U^H via keel::linalg::ordschur_complex.
 
 #include <keel/core.h>
+#include <keel/algo.h>
 #include <keel/tuple.h>
 #include <keel/format.h>
 #include <keel/memory.h>
@@ -17,7 +18,6 @@
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
 
-#include <algorithm>
 
 namespace numkit::linalg {
 
@@ -61,12 +61,12 @@ keel::Tuple<Value, Value> ordschur(const Value &U, const Value &T,
     keel::c64 *Tc = T_out.complexDataMut();
 
     if (T.isComplex()) {
-        std::copy(T.complexData(), T.complexData() + n * n, Tc);
+        keel::copy(T.complexData(), T.complexData() + n * n, Tc);
     } else {
         for (keel::usize i = 0; i < n * n; ++i) Tc[i] = keel::c64(T.elemAsDouble(i), 0.0);
     }
     if (U.isComplex()) {
-        std::copy(U.complexData(), U.complexData() + n * n, Uc);
+        keel::copy(U.complexData(), U.complexData() + n * n, Uc);
     } else {
         for (keel::usize i = 0; i < n * n; ++i) Uc[i] = keel::c64(U.elemAsDouble(i), 0.0);
     }

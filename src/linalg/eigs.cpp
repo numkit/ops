@@ -3,6 +3,7 @@
 // eigs & svds: Subset of eigenvalues / singular values.
 
 #include <keel/core.h>
+#include <keel/algo.h>
 #include <keel/tuple.h>
 #include <keel/format.h>
 #include <keel/memory.h>
@@ -21,8 +22,6 @@
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
 
-#include <algorithm>
-#include <numeric>
 
 namespace numkit::linalg {
 
@@ -65,7 +64,7 @@ void sortEigenPairsBySigma(keel::Array<EigenPair> &pairs, keel::usize k, const V
         }
     }
 
-    std::stable_sort(pairs.begin(), pairs.end(), [&](const EigenPair &a, const EigenPair &b) {
+    keel::stable_sort(pairs.begin(), pairs.end(), [&](const EigenPair &a, const EigenPair &b) {
         const bool fa = isFiniteComplex(a.val);
         const bool fb = isFiniteComplex(b.val);
         if (fa != fb) return fa; // finite always before Inf/NaN
@@ -131,7 +130,7 @@ keel::Tuple<Value, Value> eigs_from_VD(const Value &V, const Value &D, keel::usi
     auto Dk = Value::complexMatrix(k, k, mr);
     keel::c64 *vkd = Vk.complexDataMut();
     keel::c64 *dkd = Dk.complexDataMut();
-    std::fill(dkd, dkd + k * k, keel::c64(0.0, 0.0));
+    keel::fill(dkd, dkd + k * k, keel::c64(0.0, 0.0));
 
     for (keel::usize col = 0; col < k; ++col) {
         keel::usize orig_col = pairs[col].original_index;
@@ -282,7 +281,7 @@ Value svds_values(const Value &A, keel::usize k, keel::Allocator *mr)
         throw Error("svds: input must be a 2D matrix", 0, 0, "svds", "", "numkit:svds:notMatrix");
     const keel::usize m = keel::as<keel::usize>(A.dims().dim(0));
     const keel::usize n = keel::as<keel::usize>(A.dims().dim(1));
-    const keel::usize min_mn = std::min(m, n);
+    const keel::usize min_mn = keel::min(m, n);
 
     const bool wantSingle = A.type() == ValueType::SINGLE;
     if (min_mn == 0 || k == 0)
@@ -292,7 +291,7 @@ Value svds_values(const Value &A, keel::usize k, keel::Allocator *mr)
     Value Aw = detail::widenSingleToDouble(A, mr);
     Value sv = svd_values(Aw, mr);
     Value out = Value::matrix(k, 1, ValueType::DOUBLE, mr);
-    std::copy(sv.doubleData(), sv.doubleData() + k, out.doubleDataMut());
+    keel::copy(sv.doubleData(), sv.doubleData() + k, out.doubleDataMut());
 
     return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
@@ -304,7 +303,7 @@ keel::Tuple<Value, Value, Value> svds(const Value &A, keel::usize k, keel::Alloc
         throw Error("svds: input must be a 2D matrix", 0, 0, "svds", "", "numkit:svds:notMatrix");
     const keel::usize m = keel::as<keel::usize>(A.dims().dim(0));
     const keel::usize n = keel::as<keel::usize>(A.dims().dim(1));
-    const keel::usize min_mn = std::min(m, n);
+    const keel::usize min_mn = keel::min(m, n);
 
     const bool wantSingle = A.type() == ValueType::SINGLE;
     const ValueType rtype = wantSingle ? ValueType::SINGLE : ValueType::DOUBLE;
@@ -339,12 +338,12 @@ keel::Tuple<Value, Value, Value> svds(const Value &A, keel::usize k, keel::Alloc
     if (S.isComplex()) {
         const keel::c64 *sd = S.complexData();
         keel::c64 *skd = Sk.complexDataMut();
-        std::fill(skd, skd + k * k, keel::c64(0.0, 0.0));
+        keel::fill(skd, skd + k * k, keel::c64(0.0, 0.0));
         for (keel::usize i = 0; i < k; ++i) skd[i + i * k] = sd[i + i * m];
     } else {
         const keel::f64 *sd = S.doubleData();
         keel::f64 *skd = Sk.doubleDataMut();
-        std::fill(skd, skd + k * k, 0.0);
+        keel::fill(skd, skd + k * k, 0.0);
         for (keel::usize i = 0; i < k; ++i) skd[i + i * k] = sd[i + i * m];
     }
 

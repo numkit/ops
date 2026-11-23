@@ -16,7 +16,6 @@
 #include <numkit/value/error.hpp>
 #include <numkit/value/value.hpp>
 
-#include <algorithm>
 
 namespace numkit::builtin {
 
@@ -226,7 +225,7 @@ Value griddata(const Value &x, const Value &y, const Value &v,
 Value histcounts2(const Value &x, const Value &y, const Value &xedgesV,
                   const Value &yedgesV, keel::Allocator *mr)
 {
-    const keel::usize n = std::min(x.numel(), y.numel());
+    const keel::usize n = keel::min(x.numel(), y.numel());
     if (xedgesV.numel() < 2 || yedgesV.numel() < 2 || n == 0)
         return Value::matrix(0, 0, ValueType::DOUBLE, mr);
 

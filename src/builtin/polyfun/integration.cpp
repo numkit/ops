@@ -23,7 +23,6 @@
 #include <numkit/ops/helpers.hpp>
 #include <numkit/ops/callback_eval.hpp>
 
-#include <algorithm>
 
 namespace numkit::builtin {
 

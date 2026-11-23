@@ -17,7 +17,6 @@
 #include <numkit/ops/helpers.hpp>
 #include "filter_detail.hpp"
 
-#include <algorithm>
 
 namespace numkit::signal {
 
@@ -123,7 +122,7 @@ FilterPlan filter_argcheck(const Value &b, const Value &a, const Value &x,
                 || (hasZi && zi.isComplex());
     p.sigLen = (p.nx == 0) ? 0 : firstNonSingletonExtent(x);
     p.nSig = (p.sigLen > 0) ? p.nx / p.sigLen : 0;
-    p.stateLen = std::max(p.nb, p.na) - 1;
+    p.stateLen = keel::max(p.nb, p.na) - 1;
 
     if (hasZi) {
         const keel::usize ziLen = zi.numel();
@@ -307,7 +306,7 @@ Value filtfilt(const Value &b, const Value &a, const Value &x, keel::Allocator *
     for (keel::usize i = 0; i < na; ++i)
         an[i] = ad[i] / a0;
 
-    const keel::usize nfilt = std::max(nb, na);
+    const keel::usize nfilt = keel::max(nb, na);
     const keel::usize stateLen = (nfilt > 0) ? (nfilt - 1) : 0;
 
     // Steady-state step-response initial conditions zi: solve (I - A)*zi = rhs
@@ -358,14 +357,14 @@ Value filtfilt(const Value &b, const Value &a, const Value &x, keel::Allocator *
     }
     auto fwd = applyFilterDf2t(bn.data(), nb, an.data(), na, ext.data(), extLen,
                                stateLen > 0 ? ziScaled.data() : nullptr, stateLen, nullptr, scratch.allocator());
-    std::reverse(fwd.begin(), fwd.end());
+    keel::reverse(fwd.begin(), fwd.end());
     if (stateLen > 0 && !fwd.empty()) {
         for (keel::usize k = 0; k < stateLen; ++k)
             ziScaled[k] = zi[k] * fwd[0];
     }
     auto bwd = applyFilterDf2t(bn.data(), nb, an.data(), na, fwd.data(), fwd.size(),
                                stateLen > 0 ? ziScaled.data() : nullptr, stateLen, nullptr, scratch.allocator());
-    std::reverse(bwd.begin(), bwd.end());
+    keel::reverse(bwd.begin(), bwd.end());
 
     auto r = createLike(x, ValueType::DOUBLE, mr);
     keel::f64 *y = r.doubleDataMut();

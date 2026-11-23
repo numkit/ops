@@ -15,8 +15,6 @@
 #include <keel/complex.h>
 #include <numkit/value/value.hpp>   // numkit::Complex
 
-#include <algorithm>                // keel::swap
-
 namespace numkit {
 
 // Iterative radix-2 Cooley-Tukey FFT (in-place). N must be a power of 2.

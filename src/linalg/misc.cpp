@@ -3,6 +3,7 @@
 // Miscellaneous linalg utilities: rref (via keel::linalg::rref) + planerot.
 
 #include <keel/core.h>
+#include <keel/algo.h>
 #include <keel/memory.h>
 #include <keel/arena.h>
 #include <keel/array.h>
@@ -18,7 +19,6 @@
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
 
-#include <algorithm>
 
 namespace numkit::linalg {
 
@@ -38,7 +38,7 @@ keel::f64 single_rref_default_tol(const T *A, keel::usize M, keel::usize N)
     const keel::f64 eps_anorm = (anorm_f == 0.0f)
         ? keel::as<keel::f64>(eps_f)
         : keel::as<keel::f64>(keel::nextafter(anorm_f, keel::Limits<keel::f32>::infinity()) - anorm_f);
-    return keel::as<keel::f64>(std::max(M, N)) * eps_anorm;
+    return keel::as<keel::f64>(keel::max(M, N)) * eps_anorm;
 }
 
 } // namespace
@@ -63,11 +63,11 @@ rref(const Value &A, bool have_tol, keel::f64 tol_user, keel::Allocator *mr)
 
     const Value Aw = detail::widenSingleToDouble(A, mr);
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<keel::usize> piv_cols(std::min(M, N), scratch.allocator());
+    keel::Array<keel::usize> piv_cols(keel::min(M, N), scratch.allocator());
 
     if (Aw.isComplex()) {
         Value R = Value::complexMatrix(M, N, mr);
-        std::copy(Aw.complexData(), Aw.complexData() + M * N, R.complexDataMut());
+        keel::copy(Aw.complexData(), Aw.complexData() + M * N, R.complexDataMut());
         const keel::f64 tol = have_tol ? tol_user
             : (wantSingle ? single_rref_default_tol(R.complexData(), M, N) : -1.0);
         const keel::usize rank = keel::linalg::rref(R.complexDataMut(), M, N, tol, piv_cols.data());
@@ -80,7 +80,7 @@ rref(const Value &A, bool have_tol, keel::f64 tol_user, keel::Allocator *mr)
     }
 
     Value R = Value::matrix(M, N, ValueType::DOUBLE, mr);
-    std::copy(Aw.doubleData(), Aw.doubleData() + M * N, R.doubleDataMut());
+    keel::copy(Aw.doubleData(), Aw.doubleData() + M * N, R.doubleDataMut());
     const keel::f64 tol = have_tol ? tol_user
         : (wantSingle ? single_rref_default_tol(R.doubleData(), M, N) : -1.0);
     const keel::usize rank = keel::linalg::rref(R.doubleDataMut(), M, N, tol, piv_cols.data());

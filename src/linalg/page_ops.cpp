@@ -4,6 +4,7 @@
 // pages and dispatch to the 2-D variant.
 
 #include <keel/core.h>
+#include <keel/algo.h>
 #include <keel/tuple.h>
 #include <keel/math.h>
 #include <keel/format.h>
@@ -27,7 +28,6 @@
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
 
-#include <algorithm>
 
 namespace numkit::linalg {
 
@@ -35,7 +35,7 @@ namespace {
 
 void fillIdentity(keel::f64 *buf, keel::usize n)
 {
-    std::fill(buf, buf + n * n, 0.0);
+    keel::fill(buf, buf + n * n, 0.0);
     for (keel::usize i = 0; i < n; ++i)
         buf[i + i * n] = 1.0;
 }
@@ -49,7 +49,7 @@ Value pageView(const Value &A, keel::usize p, keel::usize m, keel::usize n,
     if (A.isComplex()) {
         auto out = Value::matrix(m, n, ValueType::COMPLEX, mr);
         const keel::c64 *src = A.complexData() + p * m * n;
-        std::copy(src, src + m * n, out.complexDataMut());
+        keel::copy(src, src + m * n, out.complexDataMut());
         return out;
     }
     auto out = Value::matrix(m, n, ValueType::DOUBLE, mr);
@@ -61,7 +61,7 @@ Value pageView(const Value &A, keel::usize p, keel::usize m, keel::usize n,
         return out;
     }
     const keel::f64 *src = A.doubleData() + p * m * n;
-    std::copy(src, src + m * n, out.doubleDataMut());
+    keel::copy(src, src + m * n, out.doubleDataMut());
     return out;
 }
 
@@ -110,7 +110,7 @@ Value pageinv(const Value &A, keel::Allocator *mr)
     const keel::usize stride = m * n;
 
     for (keel::usize p = 0; p < pages; ++p) {
-        std::copy(src + p * stride, src + (p + 1) * stride, A_buf.begin());
+        keel::copy(src + p * stride, src + (p + 1) * stride, A_buf.begin());
         fillIdentity(I_buf.data(), n);
         if (!numkit::ops::la_solve(A_buf.data(), m, n,
                                                 I_buf.data(), n,
@@ -145,7 +145,7 @@ Value pageeig_values(const Value &A, keel::Allocator *mr)
         if (evs.isComplex())
             throw Error("pageeig: page has complex eigenvalues (deferred)",
                         0, 0, "pageeig", "", "numkit:pageeig:complex");
-        std::copy(evs.doubleData(), evs.doubleData() + n, od + p * n);
+        keel::copy(evs.doubleData(), evs.doubleData() + n, od + p * n);
     }
     return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
@@ -179,8 +179,8 @@ pageeig_VD(const Value &A, keel::Allocator *mr)
             auto [v, d] = eig_general_VD(pg, mr);
             Vp = keel::move(v); Dp = keel::move(d);
         }
-        std::copy(Vp.doubleData(), Vp.doubleData() + stride, Vd + p * stride);
-        std::copy(Dp.doubleData(), Dp.doubleData() + stride, Dd + p * stride);
+        keel::copy(Vp.doubleData(), Vp.doubleData() + stride, Vd + p * stride);
+        keel::copy(Dp.doubleData(), Dp.doubleData() + stride, Dd + p * stride);
     }
     return keel::make_tuple(
         detail::narrowDoubleToSingleIf(V, wantSingle, mr),
@@ -191,7 +191,7 @@ Value pagesvd_values(const Value &A, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "pagesvd");
     auto [m, n, pages] = pageShape(A, "pagesvd");
-    const keel::usize k = std::min(m, n);
+    const keel::usize k = keel::min(m, n);
 
     const bool wantSingle = A.type() == ValueType::SINGLE;
     if (A.dims().ndim() == 2)
@@ -202,7 +202,7 @@ Value pagesvd_values(const Value &A, keel::Allocator *mr)
     for (keel::usize p = 0; p < pages; ++p) {
         auto pg = pageView(A, p, m, n, mr);
         auto sv = svd_values(pg, mr);
-        std::copy(sv.doubleData(), sv.doubleData() + k, od + p * k);
+        keel::copy(sv.doubleData(), sv.doubleData() + k, od + p * k);
     }
     return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
@@ -227,9 +227,9 @@ pagesvd_decompose(const Value &A, keel::Allocator *mr)
     for (keel::usize p = 0; p < pages; ++p) {
         auto pg = pageView(A, p, m, n, mr);
         auto [u, s, v] = svd_decompose(pg, mr);
-        std::copy(u.doubleData(), u.doubleData() + uStride, Ud + p * uStride);
-        std::copy(s.doubleData(), s.doubleData() + sStride, Sd + p * sStride);
-        std::copy(v.doubleData(), v.doubleData() + vStride, Vd + p * vStride);
+        keel::copy(u.doubleData(), u.doubleData() + uStride, Ud + p * uStride);
+        keel::copy(s.doubleData(), s.doubleData() + sStride, Sd + p * sStride);
+        keel::copy(v.doubleData(), v.doubleData() + vStride, Vd + p * vStride);
     }
     return keel::make_tuple(
         detail::narrowDoubleToSingleIf(U, wantSingle, mr),
@@ -255,7 +255,7 @@ Value pagepinv(const Value &A, keel::f64 tol, keel::Allocator *mr)
             pg = detail::narrowDoubleToSingle(pg, mr);
         }
         auto pi = detail::widenSingleToDouble(pinv(pg, tol, mr), mr);
-        std::copy(pi.doubleData(), pi.doubleData() + outStride, od + p * outStride);
+        keel::copy(pi.doubleData(), pi.doubleData() + outStride, od + p * outStride);
     }
     return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
@@ -354,7 +354,7 @@ Value pagemldivide(const Value &A, const Value &B, keel::Allocator *mr)
             keel::c64 *dst = out.complexDataMut() + p * outStride;
             if (xp.isComplex()) {
                 const keel::c64 *xs = xp.complexData();
-                std::copy(xs, xs + outStride, dst);
+                keel::copy(xs, xs + outStride, dst);
             } else {
                 const keel::f64 *xs = xp.doubleData();
                 for (keel::usize i = 0; i < outStride; ++i) dst[i] = xs[i];
@@ -362,7 +362,7 @@ Value pagemldivide(const Value &A, const Value &B, keel::Allocator *mr)
         } else {
             const keel::f64 *xs = xp.doubleData();
             keel::f64 *dst = out.doubleDataMut() + p * outStride;
-            std::copy(xs, xs + outStride, dst);
+            keel::copy(xs, xs + outStride, dst);
         }
     }
     return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
@@ -472,7 +472,7 @@ Value pagelsqminnorm(const Value &A, const Value &B, bool have_tol, keel::f64 to
             ap = detail::narrowDoubleToSingle(ap, mr);
         }
         auto xp = detail::widenSingleToDouble(lsqminnorm(ap, bp, have_tol, tol_user, mr), mr);
-        std::copy(xp.doubleData(), xp.doubleData() + outStride, od + p * outStride);
+        keel::copy(xp.doubleData(), xp.doubleData() + outStride, od + p * outStride);
     }
     return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }

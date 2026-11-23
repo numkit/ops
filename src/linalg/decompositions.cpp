@@ -4,6 +4,7 @@
 // Value adapters over keel::linalg kernels.
 
 #include <keel/core.h>
+#include <keel/algo.h>
 #include <keel/tuple.h>
 #include <keel/memory.h>
 #include <keel/arena.h>
@@ -22,7 +23,6 @@
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
 
-#include <algorithm>
 
 namespace numkit::linalg {
 
@@ -83,15 +83,15 @@ lu_decompose_impl(const Value &A, keel::Allocator *mr)
 {
     const keel::usize m = keel::as<keel::usize>(A.dims().dim(0));
     const keel::usize n = keel::as<keel::usize>(A.dims().dim(1));
-    const keel::usize k = std::min(m, n);
+    const keel::usize k = keel::min(m, n);
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     keel::Array<T> LU(m * n, scratch.allocator());
-    keel::Array<keel::i32> piv(std::max<keel::usize>(k, 1), scratch.allocator());
+    keel::Array<keel::i32> piv(keel::max<keel::usize>(k, 1), scratch.allocator());
     const T *src = detail::get_data<T>(A);
-    std::copy(src, src + m * n, LU.begin());
+    keel::copy(src, src + m * n, LU.begin());
     if (m >= n) {
         if (!keel::linalg::lu_factor(LU.data(), m, piv.data(), m, n)) {
-            std::copy(src, src + m * n, LU.begin());
+            keel::copy(src, src + m * n, LU.begin());
             (void)keel::linalg::lu_factor_general(LU.data(), m, n, piv.data());
         }
     } else {
@@ -104,9 +104,9 @@ lu_decompose_impl(const Value &A, keel::Allocator *mr)
     T *L = detail::get_data_mut<T>(Lout);
     T *U = detail::get_data_mut<T>(Uout);
     keel::f64 *P = Pout.doubleDataMut();
-    std::fill(L, L + m * k, T(0));
-    std::fill(U, U + k * n, T(0));
-    std::fill(P, P + m * m, 0.0);
+    keel::fill(L, L + m * k, T(0));
+    keel::fill(U, U + k * n, T(0));
+    keel::fill(P, P + m * m, 0.0);
 
     for (keel::usize j = 0; j < k; ++j) {
         L[j + j * m] = T(1);
@@ -114,7 +114,7 @@ lu_decompose_impl(const Value &A, keel::Allocator *mr)
             L[i + j * m] = LU[i + j * m];
     }
     for (keel::usize j = 0; j < n; ++j) {
-        const keel::usize i_max = std::min(j + 1, k);
+        const keel::usize i_max = keel::min(j + 1, k);
         for (keel::usize i = 0; i < i_max; ++i)
             U[i + j * k] = LU[i + j * m];
     }
@@ -133,16 +133,16 @@ Value lu_combined_impl(const Value &A, keel::Allocator *mr)
 {
     const keel::usize m = keel::as<keel::usize>(A.dims().dim(0));
     const keel::usize n = keel::as<keel::usize>(A.dims().dim(1));
-    const keel::usize k = std::min(m, n);
+    const keel::usize k = keel::min(m, n);
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<keel::i32> piv(std::max<keel::usize>(k, 1), scratch.allocator());
+    keel::Array<keel::i32> piv(keel::max<keel::usize>(k, 1), scratch.allocator());
     Value out = detail::make_matrix<T>(m, n, mr);
     T *LU = detail::get_data_mut<T>(out);
     const T *src = detail::get_data<T>(A);
-    std::copy(src, src + m * n, LU);
+    keel::copy(src, src + m * n, LU);
     if (m >= n) {
         if (!keel::linalg::lu_factor(LU, m, piv.data(), m, n)) {
-            std::copy(src, src + m * n, LU);
+            keel::copy(src, src + m * n, LU);
             (void)keel::linalg::lu_factor_general(LU, m, n, piv.data());
         }
     } else {
@@ -307,13 +307,13 @@ svd_decompose(const Value &A, keel::Allocator *mr)
     }
 
     const Value Aw = detail::widenSingleToDouble(A, mr);
-    const keel::usize k = std::min(m_in, n_in);
+    const keel::usize k = keel::min(m_in, n_in);
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     keel::Array<keel::f64> sigma(k, 0.0, scratch.allocator());
 
     auto Sout = Value::matrix(m_in, n_in, ValueType::DOUBLE, mr);
     keel::f64 *S = Sout.doubleDataMut();
-    std::fill(S, S + m_in * n_in, 0.0);
+    keel::fill(S, S + m_in * n_in, 0.0);
 
     if (Aw.isComplex()) {
         auto Uout = Value::complexMatrix(m_in, m_in, mr);
@@ -345,7 +345,7 @@ Value svd_values(const Value &A, keel::Allocator *mr)
     auto [U, S, V] = svd_decompose(detail::widenSingleToDouble(A, mr), mr);
     const keel::usize m = keel::as<keel::usize>(S.dims().dim(0));
     const keel::usize n = keel::as<keel::usize>(S.dims().dim(1));
-    const keel::usize k = std::min(m, n);
+    const keel::usize k = keel::min(m, n);
     auto sv = Value::matrix(k, 1, ValueType::DOUBLE, mr);
     const keel::f64 *S_data = S.doubleData();
     keel::f64 *out = sv.doubleDataMut();
@@ -383,8 +383,8 @@ qrupdate(const Value &Q, const Value &R, const Value &u, const Value &v,
 
     auto Q1 = Value::matrix(m, m, ValueType::DOUBLE, mr);
     auto R1 = Value::matrix(m, n, ValueType::DOUBLE, mr);
-    std::copy(Qw.doubleData(), Qw.doubleData() + m * m, Q1.doubleDataMut());
-    std::copy(Rw.doubleData(), Rw.doubleData() + m * n, R1.doubleDataMut());
+    keel::copy(Qw.doubleData(), Qw.doubleData() + m * m, Q1.doubleDataMut());
+    keel::copy(Rw.doubleData(), Rw.doubleData() + m * n, R1.doubleDataMut());
 
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     keel::Array<keel::f64> ub(m, scratch.allocator());
@@ -568,7 +568,7 @@ Value cholupdate(const Value &R, const Value &x, keel::i32 sign,
 
     const Value Rw = detail::widenSingleToDouble(R, mr);
     auto out = Value::matrix(n, n, ValueType::DOUBLE, mr);
-    std::copy(Rw.doubleData(), Rw.doubleData() + n * n, out.doubleDataMut());
+    keel::copy(Rw.doubleData(), Rw.doubleData() + n * n, out.doubleDataMut());
 
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     keel::Array<keel::f64> xb(n, scratch.allocator());

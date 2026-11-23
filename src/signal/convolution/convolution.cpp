@@ -23,7 +23,6 @@
 #include "../dsp_helpers.hpp"
 #include "../signal_detail.hpp"  // shared argcheck cores
 
-#include <algorithm>
 
 namespace numkit::signal {
 
@@ -131,7 +130,7 @@ Value conv(const Value &aIn, const Value &bIn, keel::StringRef shape, keel::Allo
         if (shape == "same") { outLenC = na; outStartC = nb / 2; }
         else if (shape == "valid") {
             outLenC = (na >= nb) ? na - nb + 1 : nb - na + 1;
-            outStartC = std::min(na, nb) - 1;
+            outStartC = keel::min(na, nb) - 1;
         }
         auto rc = convRowOut(a, b)
                       ? Value::matrix(1, outLenC, ValueType::COMPLEX, mr)
@@ -157,7 +156,7 @@ Value conv(const Value &aIn, const Value &bIn, keel::StringRef shape, keel::Allo
         outStart = nb / 2;
     } else if (shape == "valid") {
         outLen = (na >= nb) ? na - nb + 1 : nb - na + 1;
-        outStart = std::min(na, nb) - 1;
+        outStart = keel::min(na, nb) - 1;
     }
 
     auto r = convRowOut(a, b)
@@ -233,7 +232,7 @@ xcorr(const Value &xIn, const Value &yIn, keel::Allocator *mr)
 {
     if (xIn.isComplex() || yIn.isComplex()) {
         const keel::usize nx = xIn.numel(), ny = yIn.numel();
-        const keel::usize maxLen = std::max(nx, ny);
+        const keel::usize maxLen = keel::max(nx, ny);
         const keel::usize nc = (maxLen > 0) ? (2 * maxLen - 1) : 0;
         const keel::i32 maxLag = keel::as<keel::i32>(maxLen) - 1;
         const bool colOut = (xIn.dims().rows() > 1 && xIn.dims().cols() == 1);
@@ -267,7 +266,7 @@ xcorr(const Value &xIn, const Value &yIn, keel::Allocator *mr)
     const keel::f64 *yd = y.doubleData();
     const keel::usize ny = y.numel();
 
-    const keel::usize maxLen = std::max(nx, ny);
+    const keel::usize maxLen = keel::max(nx, ny);
     const keel::usize nc = (maxLen > 0) ? (2 * maxLen - 1) : 0;
     const keel::i32 maxLag = keel::as<keel::i32>(maxLen) - 1;
     const bool colOut = (x.dims().rows() > 1 && x.dims().cols() == 1);
@@ -351,7 +350,7 @@ xcov(const Value &x, const Value &y, keel::i32 maxlag,
     Value xc = center(x);
     Value yc = center(y);
     const keel::usize nx = xc.numel(), ny = yc.numel();
-    const keel::usize N  = std::max(nx, ny);
+    const keel::usize N  = keel::max(nx, ny);
 
     auto [cfull, lagsfull] = xcorr(xc, yc, mr);
     const keel::usize nc = cfull.numel();
@@ -491,7 +490,7 @@ static Value extractPartValue(const Value &v, bool imagPart, keel::Allocator *mr
         for (keel::usize i = 0; i < n; ++i)
             od[i] = imagPart ? cd[i].imag() : cd[i].real();
     } else if (imagPart) {
-        std::fill(od, od + n, 0.0);
+        keel::fill(od, od + n, 0.0);
     } else {
         for (keel::usize i = 0; i < n; ++i)
             od[i] = v.elemAsDouble(i);
@@ -618,7 +617,7 @@ Value convn(const Value &A, const Value &B, keel::StringRef shape, keel::Allocat
         return out;
     }
     const keel::i32 da = a.dims().ndim(), db = b.dims().ndim();
-    const keel::i32 nd = std::max(da, db);
+    const keel::i32 nd = keel::max(da, db);
     if (nd <= 1) {
         return detail::narrowDoubleToSingleIf(conv(a, b, shape, mr), wantSingle, mr);
     }
@@ -726,7 +725,7 @@ Value convn(const Value &A, const Value &B, keel::StringRef shape, keel::Allocat
     const keel::usize pageStrideB   = P * Q;
     const keel::f64 *Ad = a.doubleData();
     const keel::f64 *Bd = b.doubleData();
-    std::fill_n(out, outR * outC * outP, 0.0);
+    keel::fill_n(out, outR * outC * outP, 0.0);
 
     for (keel::usize bp = 0; bp < Pp; ++bp) {
         for (keel::usize ap = 0; ap < Mp; ++ap) {

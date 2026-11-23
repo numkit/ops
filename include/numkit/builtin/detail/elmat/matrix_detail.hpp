@@ -20,8 +20,6 @@
 #include <numkit/value/error.hpp>
 #include <numkit/ops/reductions.hpp>  // engine-free numkit::builtin::detail dim-infra (ops re-export)
 
-#include <algorithm>
-#include <numeric>
 #include <keel/tuple.h>
 
 
@@ -327,9 +325,9 @@ Value pagemtimesImpl(const Value &x, TranspOp tx, const Value &y, TranspOp ty, k
     const keel::usize K = Kx;
 
     constexpr keel::i32 kMaxNd = Dims::kMaxRank;
-    const keel::i32 xb = std::max(0, xnd - 2);
-    const keel::i32 yb = std::max(0, ynd - 2);
-    const keel::i32 outBatchNd = std::max(xb, yb);
+    const keel::i32 xb = keel::max(0, xnd - 2);
+    const keel::i32 yb = keel::max(0, ynd - 2);
+    const keel::i32 outBatchNd = keel::max(xb, yb);
     keel::usize xBatch[kMaxNd], yBatch[kMaxNd], outBatch[kMaxNd];
     for (keel::i32 i = 0; i < outBatchNd; ++i) {
         xBatch[i] = (i < xb) ? xd.dim(2 + i) : 1;
@@ -338,7 +336,7 @@ Value pagemtimesImpl(const Value &x, TranspOp tx, const Value &y, TranspOp ty, k
             throw Error("pagemtimes: batch dimensions must broadcast "
                          "(each axis must match or be 1)",
                          0, 0, "pagemtimes", "", "numkit:pagemtimes:dimagree");
-        outBatch[i] = std::max(xBatch[i], yBatch[i]);
+        outBatch[i] = keel::max(xBatch[i], yBatch[i]);
     }
 
     keel::usize batchN = 1;
@@ -489,7 +487,7 @@ sortRowsComplex(const Value &x, const keel::i32 *cols, keel::usize nCols,
     const keel::c64 *src = x.complexData();
     auto perm = keel::Array<keel::usize>(R, scratch.allocator());
     for (keel::usize i = 0; i < R; ++i) perm[i] = i;
-    std::stable_sort(perm.begin(), perm.end(),
+    keel::stable_sort(perm.begin(), perm.end(),
         [&](keel::usize a, keel::usize b) {
             for (keel::i32 key : sortKeys) {
                 const bool desc = key < 0;
@@ -550,7 +548,7 @@ sortRowsImpl(const Value &x, const keel::i32 *cols, keel::usize nCols, keel::All
     for (keel::usize i = 0; i < R; ++i) perm[i] = i;
 
     const keel::f64 *src = m.doubleData();
-    std::stable_sort(perm.begin(), perm.end(),
+    keel::stable_sort(perm.begin(), perm.end(),
         [&](keel::usize a, keel::usize b) {
             return numkit::ops::rowLexCmpByCols(src, C, R, a, b,
                                             sortKeys.data(), sortKeys.size()) < 0;

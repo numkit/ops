@@ -11,8 +11,6 @@
 #include <numkit/ops/helpers.hpp>
 #include <numkit/ops/reductions.hpp>  // engine-free numkit::builtin::detail dim-infra (ops re-export)
 
-#include <algorithm>
-#include <numeric>
 
 
 namespace numkit::builtin {

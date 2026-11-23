@@ -8,6 +8,7 @@
 // kernel still living in toolboxes/builtin.
 
 #include <keel/core.h>
+#include <keel/algo.h>
 #include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/arena.h>
@@ -28,7 +29,6 @@
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
 
-#include <algorithm>
 
 namespace numkit::linalg {
 
@@ -50,7 +50,7 @@ keel::f64 defaultRankTol(keel::usize m, keel::usize n, keel::f64 sigma_max, bool
     const keel::f64 eps = isSingle
         ? keel::as<keel::f64>(keel::Limits<keel::f32>::kEpsilon)
         : keel::Limits<keel::f64>::kEpsilon;
-    return keel::as<keel::f64>(std::max(m, n)) * sigma_max * eps;
+    return keel::as<keel::f64>(keel::max(m, n)) * sigma_max * eps;
 }
 
 // 1-norm of a column-major M×N matrix: max column sum of |a_ij|.
@@ -114,7 +114,7 @@ Value inv(const Value &A, keel::Allocator *mr)
     Value out = Value::matrix(n, n, ValueType::DOUBLE, mr);
     if (!numkit::ops::la_solve(Aw.doubleData(), n, n, I_buf.data(), n, out.doubleDataMut(), mr)) {
         const keel::f64 inf = keel::Limits<keel::f64>::infinity();
-        std::fill(out.doubleDataMut(), out.doubleDataMut() + n * n, inf);
+        keel::fill(out.doubleDataMut(), out.doubleDataMut() + n * n, inf);
     }
     return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
@@ -134,7 +134,7 @@ Value trace(const Value &A, keel::Allocator *mr)
                     0, 0, "trace", "", "numkit:trace:notMatrix");
     const keel::usize m = keel::as<keel::usize>(A.dims().dim(0));
     const keel::usize n = keel::as<keel::usize>(A.dims().dim(1));
-    const keel::usize k = std::min(m, n);
+    const keel::usize k = keel::min(m, n);
     if (A.isComplex()) {
         keel::c64 s{0.0, 0.0};
         const keel::c64 *p = A.complexData();
@@ -172,7 +172,7 @@ Value det(const Value &A, keel::Allocator *mr)
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     if (A.isComplex()) {
         keel::Array<keel::c64> A_buf(m * n, scratch.allocator());
-        std::copy(A.complexData(), A.complexData() + m * n, A_buf.begin());
+        keel::copy(A.complexData(), A.complexData() + m * n, A_buf.begin());
         keel::Array<keel::i32> piv(n, scratch.allocator());
         if (!numkit::ops::lu_factor_inplace(A_buf.data(), n, piv.data(), n, n))
             return Value::scalar(0.0, mr);
@@ -192,7 +192,7 @@ Value det(const Value &A, keel::Allocator *mr)
 
     Value Aw = detail::widenSingleToDouble(A, mr);
     keel::Array<keel::f64> A_buf(m * n, scratch.allocator());
-    std::copy(Aw.doubleData(), Aw.doubleData() + m * n, A_buf.begin());
+    keel::copy(Aw.doubleData(), Aw.doubleData() + m * n, A_buf.begin());
     keel::Array<keel::i32> piv(n, scratch.allocator());
     if (!numkit::ops::lu_factor_inplace(A_buf.data(), n, piv.data(), n, n))
         return detail::narrowDoubleToSingleIf(Value::scalar(0.0, mr), wantSingle, mr);
@@ -395,7 +395,7 @@ Value condeig(const Value &A, keel::Allocator *mr)
             for (keel::usize i = 0; i < n; ++i)
                 for (keel::usize j = i + 1; j < n; ++j) {
                     const keel::f64 d = keel::abs(p[i + j * n] - p[j + i * n]);
-                    const keel::f64 s = std::max(keel::abs(p[i + j * n]),
+                    const keel::f64 s = keel::max(keel::abs(p[i + j * n]),
                                                keel::abs(p[j + i * n]));
                     if (d > tol * (1.0 + s)) return false;
                 }
@@ -418,7 +418,7 @@ Value condeig(const Value &A, keel::Allocator *mr)
     if (V.isComplex()) {
         keel::Array<keel::c64> V_buf(n * n, scratch.allocator());
         keel::Array<keel::c64> I_buf(n * n, keel::c64(0.0, 0.0), scratch.allocator());
-        std::copy(V.complexData(), V.complexData() + n * n, V_buf.begin());
+        keel::copy(V.complexData(), V.complexData() + n * n, V_buf.begin());
         for (keel::usize i = 0; i < n; ++i) I_buf[i + i * n] = keel::c64(1.0, 0.0);
 
         keel::Array<keel::c64> Vinv(n * n, scratch.allocator());
@@ -455,7 +455,7 @@ Value condeig(const Value &A, keel::Allocator *mr)
 
     keel::Array<keel::f64> V_buf(n * n, scratch.allocator());
     keel::Array<keel::f64> I_buf(n * n, 0.0, scratch.allocator());
-    std::copy(V.doubleData(), V.doubleData() + n * n, V_buf.begin());
+    keel::copy(V.doubleData(), V.doubleData() + n * n, V_buf.begin());
     for (keel::usize i = 0; i < n; ++i) I_buf[i + i * n] = 1.0;
 
     keel::Array<keel::f64> Vinv(n * n, scratch.allocator());

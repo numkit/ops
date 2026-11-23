@@ -8,7 +8,6 @@
 #include <numkit/value/value.hpp>
 #include <numkit/ops/fft/fft_radix2.hpp>   // numkit::fftRadix2(buf,N,W) base butterfly (ops-layer)
 
-#include <algorithm>
 
 
 namespace numkit {

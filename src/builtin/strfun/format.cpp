@@ -13,7 +13,6 @@
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
 
-#include <algorithm>
 #include <cstdio>
 
 namespace numkit::builtin {
@@ -373,7 +372,7 @@ keel::String formatCyclic(keel::StringRef fmt, keel::ArrayRef<Value> args, keel:
     keel::String out;
     keel::usize pos = 0;
     while (pos < stream.size()) {
-        keel::usize end = std::min(pos + nSpecs, stream.size());
+        keel::usize end = keel::min(pos + nSpecs, stream.size());
         out.append(formatOnce(fmt, keel::ArrayRef<Value>{stream.data() + pos, end - pos}, 0));
         pos = end;
     }

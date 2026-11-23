@@ -4,6 +4,7 @@
 #pragma once
 
 #include <keel/core.h>
+#include <keel/algo.h>
 #include <keel/memory.h>
 #include <keel/complex.h>
 #include <numkit/value/value.hpp>
@@ -18,8 +19,6 @@
 #include <keel/math.h>
 #include <keel/ref.h>
 
-#include <algorithm>
-#include <numeric>
 #include <keel/tuple.h>
 
 
@@ -60,7 +59,7 @@ inline Value rowFromVec(const keel::f64 *data, keel::usize n, keel::Allocator *a
 {
     auto r = Value::matrix(1, n, ValueType::DOUBLE, alloc);
     if (n > 0)
-        std::copy(data, data + n, r.doubleDataMut());
+        keel::copy(data, data + n, r.doubleDataMut());
     return r;
 }
 
@@ -104,7 +103,7 @@ uniqueComplexFull(const Value &x, keel::Allocator *alloc, bool stable,
     keel::Array<keel::usize> perm(u, scratch.allocator());
     for (keel::usize k = 0; k < u; ++k) perm[k] = k;
     if (!stable)
-        std::stable_sort(perm.begin(), perm.end(),
+        keel::stable_sort(perm.begin(), perm.end(),
                          [&](keel::usize a, keel::usize b) { return cxUniqLess(uniq[a].v, uniq[b].v); });
     keel::Array<keel::usize> newRank(u, scratch.allocator());
     for (keel::usize k = 0; k < u; ++k) newRank[perm[k]] = k;
@@ -316,8 +315,8 @@ inline bool nearlyEqualTol(keel::f64 x, keel::f64 y, keel::f64 tol)
 {
     if (x == y) return true;
     if (keel::is_nan(x) || keel::is_nan(y)) return false;
-    const keel::f64 s = std::max(keel::abs(x), keel::abs(y));
-    return keel::abs(x - y) <= tol * std::max(1.0, s);
+    const keel::f64 s = keel::max(keel::abs(x), keel::abs(y));
+    return keel::abs(x - y) <= tol * keel::max(1.0, s);
 }
 } // anon
 

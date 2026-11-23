@@ -1,6 +1,7 @@
 // src/builtin/src/ops/binary_ops.cpp
 
 #include <keel/core.h>
+#include <keel/algo.h>
 #include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/arena.h>
@@ -19,7 +20,6 @@
 #include <numkit/ops/compare.hpp>
 #include <numkit/linalg/eig.hpp>
 
-#include <algorithm>
 
 #include "binary_ops_detail.hpp"
 
@@ -189,7 +189,7 @@ Value mtimes(const Value &a, const Value &b, keel::Allocator *mr)
         if (M == 0 || N == 0)
             return r;
         if (K == 0) {
-            std::fill(rd, rd + M * N, 0.0f);
+            keel::fill(rd, rd + M * N, 0.0f);
             return r;
         }
         keel::ArenaTemp scratch = keel::get_scratch(p);
@@ -402,7 +402,7 @@ Value power(const Value &a, const Value &b, keel::Allocator *mr)
                 if (a.type() == ValueType::SINGLE && !a.isComplex()) {
                     auto I = Value::matrix(R, R, ValueType::SINGLE, p);
                     keel::f32 *id = static_cast<keel::f32 *>(I.rawDataMut());
-                    std::fill(id, id + R * R, 0.0f);
+                    keel::fill(id, id + R * R, 0.0f);
                     for (keel::usize i = 0; i < R; ++i) id[i * R + i] = 1.0f;
                     return I;
                 }
@@ -447,7 +447,7 @@ Value power(const Value &a, const Value &b, keel::Allocator *mr)
         if (isDiag) {
             Value outC = Value::matrix(R, R, ValueType::COMPLEX, p);
             keel::c64 *od = outC.complexDataMut();
-            std::fill(od, od + R * R, keel::c64(0.0, 0.0));
+            keel::fill(od, od + R * R, keel::c64(0.0, 0.0));
             bool anyImag = false;
             for (keel::usize i = 0; i < R; ++i) {
                 keel::c64 d = aCplx ? a.complexElem(i + i * R) : keel::c64(a.elemAsDouble(i + i * R), 0.0);
@@ -487,10 +487,10 @@ Value power(const Value &a, const Value &b, keel::Allocator *mr)
             const keel::c64 *rc = res.complexData();
             keel::f64 maxRe = 0.0, maxIm = 0.0;
             for (keel::usize k = 0; k < R * R; ++k) {
-                maxRe = std::max(maxRe, keel::abs(rc[k].real()));
-                maxIm = std::max(maxIm, keel::abs(rc[k].imag()));
+                maxRe = keel::max(maxRe, keel::abs(rc[k].real()));
+                maxIm = keel::max(maxIm, keel::abs(rc[k].imag()));
             }
-            if (maxIm <= 1e-12 * std::max(1.0, maxRe)) {
+            if (maxIm <= 1e-12 * keel::max(1.0, maxRe)) {
                 Value outR = Value::matrix(R, R, ValueType::DOUBLE, p);
                 keel::f64 *rd = outR.doubleDataMut();
                 for (keel::usize k = 0; k < R * R; ++k) rd[k] = rc[k].real();

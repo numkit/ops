@@ -14,7 +14,6 @@
 #include <numkit/value/value_type.hpp>
 #include <numkit/value/error.hpp>
 
-#include <algorithm>
 
 namespace numkit::builtin {
 
@@ -85,7 +84,7 @@ keel::Array<keel::usize> resolveOutShape(const Value &subs, const keel::usize *u
     keel::Array<keel::usize> shape(D, mr);
     if (N == 0) {
         // Empty subs + no sz -> 0x0 (matches MATLAB).
-        return keel::Array<keel::usize>(std::max<keel::usize>(D, 1), 0, mr);
+        return keel::Array<keel::usize>(keel::max<keel::usize>(D, 1), 0, mr);
     }
     const keel::f64 *p = subs.doubleData();
     for (keel::usize c = 0; c < D; ++c) {

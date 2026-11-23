@@ -7,6 +7,7 @@
 // Migrated 2026-05-25 from toolboxes/builtin/src/language/arrays/ldl.cpp.
 
 #include <keel/core.h>
+#include <keel/algo.h>
 #include <keel/tuple.h>
 #include <keel/memory.h>
 #include <keel/arena.h>
@@ -23,7 +24,6 @@
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
 
-#include <algorithm>
 
 namespace numkit::linalg {
 
@@ -69,17 +69,17 @@ ldl(const Value &A, bool upper_form, bool p_as_vector, keel::Allocator *mr)
         Value L = Value::complexMatrix(n, n, mr);
         keel::c64 *Ld = L.complexDataMut();
         if (upper_form) {
-            std::fill(Ld, Ld + n * n, keel::c64(0.0, 0.0));
+            keel::fill(Ld, Ld + n * n, keel::c64(0.0, 0.0));
             for (keel::usize j = 0; j < n; ++j)
                 for (keel::usize i = 0; i <= j; ++i)
                     Ld[i + j * n] = keel::conj(L_buf[j + i * n]);
         } else {
-            std::copy(L_buf.begin(), L_buf.end(), Ld);
+            keel::copy(L_buf.begin(), L_buf.end(), Ld);
         }
 
         Value D = Value::complexMatrix(n, n, mr);
         keel::c64 *Dd = D.complexDataMut();
-        std::fill(Dd, Dd + n * n, keel::c64(0.0, 0.0));
+        keel::fill(Dd, Dd + n * n, keel::c64(0.0, 0.0));
         for (keel::usize k = 0; k < n; ++k) Dd[k + k * n] = keel::c64(D_buf[k], 0.0);
 
         Value P;
@@ -90,7 +90,7 @@ ldl(const Value &A, bool upper_form, bool p_as_vector, keel::Allocator *mr)
         } else {
             P = Value::matrix(n, n, ValueType::DOUBLE, mr);
             keel::f64 *pd = P.doubleDataMut();
-            std::fill(pd, pd + n * n, 0.0);
+            keel::fill(pd, pd + n * n, 0.0);
             for (keel::usize k = 0; k < n; ++k) pd[k + k * n] = 1.0;
         }
         return {L, D, P};
@@ -106,17 +106,17 @@ ldl(const Value &A, bool upper_form, bool p_as_vector, keel::Allocator *mr)
     Value L = Value::matrix(n, n, ValueType::DOUBLE, mr);
     keel::f64 *Ld = L.doubleDataMut();
     if (upper_form) {
-        std::fill(Ld, Ld + n * n, 0.0);
+        keel::fill(Ld, Ld + n * n, 0.0);
         for (keel::usize j = 0; j < n; ++j)
             for (keel::usize i = 0; i <= j; ++i)
                 Ld[i + j * n] = L_buf[j + i * n];
     } else {
-        std::copy(L_buf.begin(), L_buf.end(), Ld);
+        keel::copy(L_buf.begin(), L_buf.end(), Ld);
     }
 
     Value D = Value::matrix(n, n, ValueType::DOUBLE, mr);
     keel::f64 *Dd = D.doubleDataMut();
-    std::fill(Dd, Dd + n * n, 0.0);
+    keel::fill(Dd, Dd + n * n, 0.0);
     for (keel::usize k = 0; k < n; ++k) Dd[k + k * n] = D_buf[k];
 
     Value P;
@@ -127,7 +127,7 @@ ldl(const Value &A, bool upper_form, bool p_as_vector, keel::Allocator *mr)
     } else {
         P = Value::matrix(n, n, ValueType::DOUBLE, mr);
         keel::f64 *pd = P.doubleDataMut();
-        std::fill(pd, pd + n * n, 0.0);
+        keel::fill(pd, pd + n * n, 0.0);
         for (keel::usize k = 0; k < n; ++k) pd[k + k * n] = 1.0;
         P = detail::narrowDoubleToSingleIf(P, wantSingle, mr);
     }

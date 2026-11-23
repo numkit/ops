@@ -4,6 +4,7 @@
 // Value adapters over keel::linalg kernels.
 
 #include <keel/core.h>
+#include <keel/algo.h>
 #include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
@@ -21,7 +22,6 @@
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
 
-#include <algorithm>
 
 namespace numkit::linalg {
 
@@ -30,7 +30,7 @@ namespace {
 void copyValueToComplex(const Value &V, keel::usize count, keel::c64 *out)
 {
     if (V.isComplex()) {
-        std::copy(V.complexData(), V.complexData() + count, out);
+        keel::copy(V.complexData(), V.complexData() + count, out);
     } else {
         const keel::f64 *vd = V.doubleData();
         for (keel::usize i = 0; i < count; ++i) out[i] = keel::c64(vd[i], 0.0);

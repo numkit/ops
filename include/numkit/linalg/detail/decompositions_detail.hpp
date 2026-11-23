@@ -8,11 +8,11 @@
 #pragma once
 
 #include <keel/core.h>
+#include <keel/algo.h>
 #include <keel/memory.h>
 #include <keel/array.h>
 #include <keel/complex.h>
 #include <keel/math.h>
-#include <algorithm>
 #include <keel/tuple.h>
 
 #include <numkit/value/value.hpp>
@@ -26,7 +26,7 @@ namespace numkit::linalg {
 // factorization broke down (non-positive pivot), or 0 on success.
 template <typename T>
 keel::usize cholUpperFactor(const T *a, T *r, keel::usize n) {
-    std::fill(r, r + n * n, T(0));
+    keel::fill(r, r + n * n, T(0));
     for (keel::usize j = 0; j < n; ++j) {
         T s = a[j + j * n];
         for (keel::usize k = 0; k < j; ++k) {

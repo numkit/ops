@@ -8,8 +8,6 @@
 #include <numkit/value/error.hpp>
 #include <numkit/ops/reductions.hpp>
 
-#include <algorithm>
-#include <numeric>
 
 
 namespace numkit::builtin {

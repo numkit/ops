@@ -17,7 +17,6 @@
 
 #include <numkit/ops/helpers.hpp>
 
-#include <algorithm>
 
 #include <hwy/cache_control.h>
 
@@ -51,7 +50,7 @@ void AbsLoop(const keel::f64 *HWY_RESTRICT in, keel::f64 *HWY_RESTRICT out, keel
     const auto addr = reinterpret_cast<keel::usize>(out);
     const auto rem  = addr % align_bytes;
     const keel::usize head = (rem == 0) ? 0
-                                        : std::min<keel::usize>((align_bytes - rem) / sizeof(keel::f64), n);
+                                        : keel::min<keel::usize>((align_bytes - rem) / sizeof(keel::f64), n);
     for (keel::usize k = 0; k < head; ++k, ++i)
         out[i] = keel::abs(in[i]);
 

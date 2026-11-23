@@ -4,6 +4,7 @@
 #pragma once
 
 #include <keel/core.h>
+#include <keel/algo.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
 #include <keel/arena.h>
@@ -17,11 +18,9 @@
 #include <numkit/value/error.hpp>
 #include <numkit/ops/reductions.hpp>  // engine-free numkit::builtin::detail dim-infra (ops re-export)
 
-#include <algorithm>
 #include <keel/static_array.h>
 #include <cstdio>
 #include <cstring>
-#include <numeric>
 
 
 namespace numkit::builtin {
@@ -40,7 +39,7 @@ keel::String num2strComplexScalar(keel::c64 z, keel::i32 precOverride,
     const keel::f64 re = z.real(), im = z.imag();
     keel::i32 prec = precOverride;
     if (prec < 1) {
-        const keel::f64 M = std::max(keel::abs(re), keel::abs(im));
+        const keel::f64 M = keel::max(keel::abs(re), keel::abs(im));
         prec = 5;
         if (M != 0.0) {
             const keel::i32 e = keel::as<keel::i32>(keel::floor(keel::log10(M)));
@@ -93,7 +92,7 @@ inline keel::String num2strComplexArray(const Value &x, keel::i32 precOverride,
     for (keel::usize i = 0; i < rows * cols; ++i) {
         if (d[i].imag() != 0.0) anyImag = true;
         if (d[i].real() != keel::floor(d[i].real())) allInt = false;
-        maxAbs = std::max(maxAbs, std::max(keel::abs(d[i].real()), keel::abs(d[i].imag())));
+        maxAbs = keel::max(maxAbs, keel::max(keel::abs(d[i].real()), keel::abs(d[i].imag())));
     }
     if (!anyImag) {
         keel::ArenaTemp scratch = keel::get_scratch(alloc);
@@ -103,11 +102,11 @@ inline keel::String num2strComplexArray(const Value &x, keel::i32 precOverride,
         keel::usize wmax = 0;
         for (keel::usize i = 0; i < rows * cols; ++i) {
             keel::String s = num2strComplexScalar(d[i], precOverride, salloc);
-            wmax = std::max(wmax, s.size());
+            wmax = keel::max(wmax, s.size());
             cells.push_back(keel::move(s));
         }
         const keel::usize W = allInt ? wmax + 2
-                                     : (keel::as<keel::usize>(std::max(0, keel::as<keel::i32>(keel::floor(keel::log10(maxAbs > 0 ? maxAbs : 1.0))))) + 5 + 7);
+                                     : (keel::as<keel::usize>(keel::max(0, keel::as<keel::i32>(keel::floor(keel::log10(maxAbs > 0 ? maxAbs : 1.0))))) + 5 + 7);
         keel::String out(salloc);
         for (keel::usize r = 0; r < rows; ++r) {
             if (r) out.push_back('\n');
@@ -142,12 +141,12 @@ inline keel::String num2strComplexArray(const Value &x, keel::i32 precOverride,
         for (const auto &L : lines) {
             keel::usize a = 0;
             while (a < L.size() && L[a] == ' ') ++a;
-            commonLead = std::min(commonLead, a);
+            commonLead = keel::min(commonLead, a);
             keel::usize b = 0;
             if (a < L.size()) {
                 while (b < L.size() && L[L.size() - 1 - b] == ' ') ++b;
             }
-            commonTrail = std::min(commonTrail, b);
+            commonTrail = keel::min(commonTrail, b);
         }
         keel::String stripped(alloc);
         for (keel::usize i = 0; i < lines.size(); ++i) {
@@ -570,7 +569,7 @@ keel::String toBaseString(keel::u64 v, keel::i32 base, keel::i32 minWidth,
 {
     keel::String out(alloc);
     if (v == 0) {
-        const keel::i32 w = std::max(1, minWidth);
+        const keel::i32 w = keel::max(1, minWidth);
         out.reserve(w);
         for (keel::i32 i = 0; i < w; ++i) out.push_back('0');
         return out;
@@ -581,7 +580,7 @@ keel::String toBaseString(keel::u64 v, keel::i32 base, keel::i32 minWidth,
         v /= keel::as<keel::u64>(base);
     }
     while (keel::as<keel::i32>(out.size()) < minWidth) out.push_back('0');
-    std::reverse(out.begin(), out.end());
+    keel::reverse(out.begin(), out.end());
     return out;
 }
 
@@ -629,7 +628,7 @@ keel::String toBaseString(keel::u64 v, keel::i32 base, keel::i32 minWidth,
         if (v < 0) throw Error("dec2*: value must be non-negative",
                                 0, 0, "dec2", "", "numkit:dec2:negative");
         rows.push_back(toBaseString(keel::as<keel::u64>(v), base, 0, salloc));
-        maxW = std::max<keel::i32>(maxW, keel::as<keel::i32>(rows.back().size()));
+        maxW = keel::max<keel::i32>(maxW, keel::as<keel::i32>(rows.back().size()));
     }
     // Build a CHAR matrix n × maxW, column-major, left-padded with leading zeros.
     auto m = Value::matrix(n, maxW, ValueType::CHAR, mr);
@@ -778,7 +777,7 @@ RatExpansion ratExpansion(keel::f64 x, keel::f64 tol)
 // terminates (the loop hits frac == 0 at i=0 anyway, but keep safe).
 inline keel::f64 defaultRatTol(keel::f64 x)
 {
-    return 1e-6 * std::max(1.0, keel::abs(x));
+    return 1e-6 * keel::max(1.0, keel::abs(x));
 }
 
 } // anonymous

@@ -12,7 +12,6 @@
 
 #include <numkit/ops/parallel_for.hpp>
 
-#include <algorithm>
 
 #include <hwy/cache_control.h>  // hwy::FlushStream() — sfence on x86
 
@@ -79,7 +78,7 @@ HWY_INLINE keel::usize alignmentLead(const keel::f64 *out,
         const keel::usize align_bytes = N * sizeof(keel::f64);                               \
                                                                                           \
         keel::usize i = 0;                                                                \
-        const keel::usize head = std::min(alignmentLead(out, i, align_bytes), n);         \
+        const keel::usize head = keel::min(alignmentLead(out, i, align_bytes), n);         \
         for (keel::usize k = 0; k < head; ++k, ++i) out[i] = a[i] SCALAR_OP b[i];         \
                                                                                           \
         const keel::usize step4 = 4 * N;                                                  \

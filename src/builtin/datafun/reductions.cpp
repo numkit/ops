@@ -9,6 +9,7 @@
 // math/random/rng.cpp.
 
 #include <keel/core.h>
+#include <keel/algo.h>
 #include <keel/tuple.h>
 #include <keel/math.h>
 #include <keel/memory.h>
@@ -27,7 +28,6 @@
 #include "var_reduction.hpp"  // for sumScan + addInto
 #include "../elfun/_unary_hint.hpp"  // 3-arg sin/cos/exp/log/abs hint overloads
 
-#include <algorithm>
 
 #include "reductions_detail.hpp"
 
@@ -60,7 +60,7 @@ Value sum(const Value &x, keel::i32 dim, keel::Allocator *mr)
         const keel::usize R = x.dims().rows(), C = x.dims().cols();
         auto r = Value::matrix(R, 1, ValueType::DOUBLE, mr);
         keel::f64 *totals = r.doubleDataMut();
-        std::fill(totals, totals + R, 0.0);
+        keel::fill(totals, totals + R, 0.0);
         const keel::f64 *src = x.doubleData();
         for (keel::usize c = 0; c < C; ++c)
             addInto(totals, src + c * R, R);
@@ -225,7 +225,7 @@ Value maxOmitNanBinary(const Value &a, const Value &b, keel::Allocator *mr)
     return elementwiseDouble(a, b, [](keel::f64 aa, keel::f64 bb) {
         if (keel::is_nan(aa)) return bb;
         if (keel::is_nan(bb)) return aa;
-        return std::max(aa, bb);
+        return keel::max(aa, bb);
     }, p);
 }
 
@@ -248,7 +248,7 @@ Value minOmitNanBinary(const Value &a, const Value &b, keel::Allocator *mr)
     return elementwiseDouble(a, b, [](keel::f64 aa, keel::f64 bb) {
         if (keel::is_nan(aa)) return bb;
         if (keel::is_nan(bb)) return aa;
-        return std::min(aa, bb);
+        return keel::min(aa, bb);
     }, p);
 }
 

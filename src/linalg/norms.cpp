@@ -19,7 +19,6 @@
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
 
-#include <algorithm>
 
 namespace numkit::linalg {
 
@@ -101,7 +100,7 @@ Value norm_value(const Value &x, keel::f64 p, keel::Allocator *mr)
         for (keel::usize j = 0; j < n; ++j) {
             keel::f64 s = 0.0;
             for (keel::usize i = 0; i < m; ++i) s += absLin(x, i + j * m);
-            mx = std::max(mx, s);
+            mx = keel::max(mx, s);
         }
         return detail::narrowDoubleToSingleIf(Value::scalar(mx, mr), wantSingle, mr);
     }
@@ -119,7 +118,7 @@ Value norm_inf(const Value &x, keel::Allocator *mr)
         const keel::usize n = x.numel();
         keel::f64 mx = 0.0;
         for (keel::usize i = 0; i < n; ++i)
-            mx = std::max(mx, absLin(x, i));
+            mx = keel::max(mx, absLin(x, i));
         return detail::narrowDoubleToSingleIf(Value::scalar(mx, mr), wantSingle, mr);
     }
     // Matrix inf-norm: max row sum.
@@ -132,7 +131,7 @@ Value norm_inf(const Value &x, keel::Allocator *mr)
     for (keel::usize i = 0; i < m; ++i) {
         keel::f64 s = 0.0;
         for (keel::usize j = 0; j < n; ++j) s += absLin(x, i + j * m);
-        mx = std::max(mx, s);
+        mx = keel::max(mx, s);
     }
     return detail::narrowDoubleToSingleIf(Value::scalar(mx, mr), wantSingle, mr);
 }

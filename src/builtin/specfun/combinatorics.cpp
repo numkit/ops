@@ -1,6 +1,7 @@
 // src/builtin/src/specfun/combinatorics.cpp
 
 #include <keel/core.h>
+#include <keel/algo.h>
 #include <keel/math.h>
 #include <keel/memory.h>
 #include <keel/arena.h>
@@ -11,8 +12,6 @@
 #include <numkit/value/error.hpp>
 #include <numkit/ops/helpers.hpp>
 
-#include <algorithm>
-#include <numeric>
 
 #include "discrete_detail.hpp"
 
@@ -97,7 +96,7 @@ Value perms(const Value &v, keel::Allocator *mr)
         vals[i] = v.elemAsDouble(i);
 
     keel::Array<keel::f64> cur(vals, scratch.allocator());
-    std::sort(cur.begin(), cur.end(), [](keel::f64 a, keel::f64 b) { return a > b; });
+    keel::sort(cur.begin(), cur.end(), [](keel::f64 a, keel::f64 b) { return a > b; });
 
     const keel::usize totalRows = keel::as<keel::usize>(permFactorial(keel::as<keel::i32>(n)));
     auto out = Value::matrix(totalRows, n, ValueType::DOUBLE, mr);
@@ -108,7 +107,7 @@ Value perms(const Value &v, keel::Allocator *mr)
         for (keel::usize c = 0; c < n; ++c)
             dst[c * totalRows + row] = cur[c];
         ++row;
-    } while (std::prev_permutation(cur.begin(), cur.end()));
+    } while (keel::prev_permutation(cur.begin(), cur.end()));
 
     return out;
 }
@@ -225,7 +224,7 @@ Value colperm(const Value &s, keel::Allocator *mr)
         counts.push_back({ c + 1, nonzeros });
     }
 
-    std::stable_sort(counts.begin(), counts.end(), [](const ColCount &a, const ColCount &b) {
+    keel::stable_sort(counts.begin(), counts.end(), [](const ColCount &a, const ColCount &b) {
         return a.nnz < b.nnz;
     });
 
@@ -269,7 +268,7 @@ Value symrcm(const Value &s, keel::Allocator *mr)
 
     // Sort adj[i] by degree (ascending), tie-break by node index
     for (keel::usize i = 0; i < n; ++i) {
-        std::sort(adj[i].begin(), adj[i].end(), [&](keel::usize u, keel::usize v) {
+        keel::sort(adj[i].begin(), adj[i].end(), [&](keel::usize u, keel::usize v) {
             if (adj[u].size() != adj[v].size())
                 return adj[u].size() < adj[v].size();
             return u < v;
@@ -310,7 +309,7 @@ Value symrcm(const Value &s, keel::Allocator *mr)
         }
 
         // Reverse the component BFS order
-        std::reverse(comp.begin(), comp.end());
+        keel::reverse(comp.begin(), comp.end());
         for (keel::usize node : comp)
             order.push_back(node);
     }

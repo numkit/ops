@@ -27,7 +27,6 @@
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
 
-#include <algorithm>
 
 namespace numkit::linalg {
 
@@ -132,8 +131,8 @@ keel::Pair<keel::i64, keel::i64> bandwidthImpl(const Value &A)
                 keel::c64 z = A.complexElem(keel::as<keel::usize>(i), keel::as<keel::usize>(j));
                 if (z.real() == 0.0 && z.imag() == 0.0) continue;
                 keel::i64 d = i - j;
-                if (d > 0) lower = std::max(lower, d);
-                else        upper = std::max(upper, -d);
+                if (d > 0) lower = keel::max(lower, d);
+                else        upper = keel::max(upper, -d);
             }
     } else {
         for (keel::i64 j = 0; j < C; ++j)
@@ -142,8 +141,8 @@ keel::Pair<keel::i64, keel::i64> bandwidthImpl(const Value &A)
                                        keel::as<keel::usize>(j), Rs)) == 0.0)
                     continue;
                 keel::i64 d = i - j;
-                if (d > 0) lower = std::max(lower, d);
-                else        upper = std::max(upper, -d);
+                if (d > 0) lower = keel::max(lower, d);
+                else        upper = keel::max(upper, -d);
             }
     }
     return {lower, upper};

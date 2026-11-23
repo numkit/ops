@@ -16,7 +16,6 @@
 #include <numkit/value/error.hpp>
 #include <numkit/value/value.hpp>
 
-#include <algorithm>
 
 namespace numkit::builtin {
 
@@ -86,7 +85,7 @@ Value betainc(const Value &x, const Value &a, const Value &b, keel::Allocator *m
         return Value::scalar(keel::specfun::betainc(x.toScalar(), a.toScalar(), b.toScalar()), mr);
     }
     const keel::usize nx = x.numel(), na = a.numel(), nb = b.numel();
-    const keel::usize n = std::max({nx, na, nb});
+    const keel::usize n = keel::max({nx, na, nb});
     auto pickShape = [&]() -> const Value & {
         if (nx == n) return x;
         if (na == n) return a;
@@ -197,7 +196,7 @@ Value betaincinv(const Value &P, const Value &a, const Value &b, keel::Allocator
         return Value::scalar(keel::specfun::betaincinv(P.toScalar(), a.toScalar(), b.toScalar()), mr);
     }
     const keel::usize np = P.numel(), na = a.numel(), nb = b.numel();
-    const keel::usize n = std::max({np, na, nb});
+    const keel::usize n = keel::max({np, na, nb});
     auto pickShape = [&]() -> const Value & {
         if (np == n) return P;
         if (na == n) return a;
@@ -220,7 +219,7 @@ EllipJ ellipj(const Value &u, const Value &m, keel::Allocator *mr)
         return {Value::scalar(ej.sn, mr), Value::scalar(ej.cn, mr), Value::scalar(ej.dn, mr)};
     }
     const keel::usize nu = u.numel(), nm = m.numel();
-    const keel::usize n = std::max(nu, nm);
+    const keel::usize n = keel::max(nu, nm);
     const Value &shape = (nu == n) ? u : m;
     auto sn = createLike(shape, ValueType::DOUBLE, mr);
     auto cn = createLike(shape, ValueType::DOUBLE, mr);
@@ -240,7 +239,7 @@ Value marcumq(const Value &a_v, const Value &b_v, keel::i32 m, keel::Allocator *
 {
     if (m < 1) m = 1;
     const keel::usize Na = a_v.numel(), Nb = b_v.numel();
-    const keel::usize N = std::max(Na, Nb);
+    const keel::usize N = keel::max(Na, Nb);
     Value out = Value::matrix((Na > Nb) ? Na : Nb, 1, ValueType::DOUBLE, mr);
     if (N == 0) return out;
     keel::f64 *od = out.doubleDataMut();

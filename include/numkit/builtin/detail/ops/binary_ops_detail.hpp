@@ -2,6 +2,7 @@
 #pragma once
 
 #include <keel/core.h>
+#include <keel/algo.h>
 #include <keel/memory.h>
 #include <keel/arena.h>
 #include <keel/array.h>
@@ -17,8 +18,6 @@
 #include <numkit/value/error.hpp>
 #include <numkit/value/shape_ops.hpp>
 
-#include <algorithm>
-#include <numeric>
 
 
 namespace numkit::builtin {
@@ -62,7 +61,7 @@ void copyColumnMajorDouble(const Value &v, keel::f64 *dst)
     const keel::usize n = v.numel();
     if (v.type() == ValueType::DOUBLE) {
         const keel::f64 *src = v.doubleData();
-        std::copy(src, src + n, dst);
+        keel::copy(src, src + n, dst);
     } else {
         for (keel::usize i = 0; i < n; ++i) dst[i] = v.elemAsDouble(i);
     }
@@ -197,12 +196,12 @@ void singularSquareSolve(T *A_lu, keel::usize n, T *B_work, keel::usize nrhs, T 
 keel::Array<keel::c64> A_buf(m * n, arena.allocator());
         keel::Array<keel::c64> B_buf(m * k, arena.allocator());
         if (A.isComplex()) {
-            std::copy(A.complexData(), A.complexData() + m * n, A_buf.begin());
+            keel::copy(A.complexData(), A.complexData() + m * n, A_buf.begin());
         } else {
             for (keel::usize i = 0; i < m * n; ++i) A_buf[i] = keel::c64(A.elemAsDouble(i), 0.0);
         }
         if (B.isComplex()) {
-            std::copy(B.complexData(), B.complexData() + m * k, B_buf.begin());
+            keel::copy(B.complexData(), B.complexData() + m * k, B_buf.begin());
         } else {
             for (keel::usize i = 0; i < m * k; ++i) B_buf[i] = keel::c64(B.elemAsDouble(i), 0.0);
         }
@@ -302,7 +301,7 @@ inline bool applyCmp(Cmp c, keel::f64 x, keel::f64 y)
                          0, 0, "compare", "", "numkit:compare:stringType");
         };
         keel::String sa = toStr(a), sb = toStr(b);
-        const keel::usize minLen = std::min(sa.size(), sb.size());
+        const keel::usize minLen = keel::min(sa.size(), sb.size());
         keel::i32 cmpRes = (minLen > 0) ? keel::mem_cmp(sa.data(), sb.data(), minLen) : 0;
         if (cmpRes == 0)
             cmpRes = (sa.size() < sb.size()) ? -1 : (sa.size() > sb.size() ? 1 : 0);
@@ -707,9 +706,9 @@ Value pagemtimesImpl(const Value &x, TranspOp tx, const Value &y, TranspOp ty, k
     const keel::usize K = Kx;
 
     constexpr keel::i32 kMaxNd = Dims::kMaxRank;
-    const keel::i32 xb = std::max(0, xnd - 2);
-    const keel::i32 yb = std::max(0, ynd - 2);
-    const keel::i32 outBatchNd = std::max(xb, yb);
+    const keel::i32 xb = keel::max(0, xnd - 2);
+    const keel::i32 yb = keel::max(0, ynd - 2);
+    const keel::i32 outBatchNd = keel::max(xb, yb);
     keel::usize xBatch[kMaxNd], yBatch[kMaxNd], outBatch[kMaxNd];
     for (keel::i32 i = 0; i < outBatchNd; ++i) {
         xBatch[i] = (i < xb) ? xd.dim(2 + i) : 1;
@@ -718,7 +717,7 @@ Value pagemtimesImpl(const Value &x, TranspOp tx, const Value &y, TranspOp ty, k
             throw Error("pagemtimes: batch dimensions must broadcast "
                          "(each axis must match or be 1)",
                          0, 0, "pagemtimes", "", "numkit:pagemtimes:dimagree");
-        outBatch[i] = std::max(xBatch[i], yBatch[i]);
+        outBatch[i] = keel::max(xBatch[i], yBatch[i]);
     }
 
     keel::usize batchN = 1;

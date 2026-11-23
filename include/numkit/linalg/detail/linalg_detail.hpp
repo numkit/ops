@@ -12,7 +12,6 @@
 #include <keel/string.h>
 #include <keel/complex.h>
 #include <keel/math.h>
-#include <algorithm>
 
 #include <numkit/value/error.hpp>
 #include <numkit/value/value.hpp>
@@ -162,12 +161,12 @@ inline void require2DMatrix(const Value &A, keel::StringRef fn,
                 keel::format("numkit:{}:notMatrix", fn));
 }
 
-// Helper to determine if type is std::complex<T>
+// Helper to determine if type is keel::Complex<T>
 template <typename T>
-struct is_complex : std::false_type {};
+struct is_complex { static constexpr bool value = false; };
 
 template <typename T>
-struct is_complex<keel::Complex<T>> : std::true_type {};
+struct is_complex<keel::Complex<T>> { static constexpr bool value = true; };
 
 template <typename T>
 inline constexpr bool is_complex_v = is_complex<T>::value;

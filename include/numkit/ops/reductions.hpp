@@ -20,6 +20,7 @@
 #pragma once
 
 #include <keel/core.h>
+#include <keel/algo.h>
 #include <keel/math.h>
 #include <keel/memory.h>
 #include <keel/arena.h>
@@ -30,7 +31,6 @@
 #include <numkit/value/error.hpp>
 #include <numkit/value/value.hpp>
 
-#include <algorithm>
 
 namespace numkit::ops {
 
@@ -125,7 +125,7 @@ void forEachSlice(const Value &x, keel::i32 dim, F &&f,
             for (keel::usize c = 0; c < C; ++c) {
                 const keel::usize base = pp * R * C + c * R;
                 if (fastDouble) {
-                    std::copy(src + base, src + base + N, scratch.data());
+                    keel::copy(src + base, src + base + N, scratch.data());
                 } else {
                     for (keel::usize k = 0; k < N; ++k)
                         scratch[k] = x.elemAsDouble(base + k);
@@ -212,7 +212,7 @@ void forEachSliceND(const Value &x, keel::i32 dim, keel::f64 *dst, F &&f,
         if (fastDouble) {
             for (keel::usize o = 0; o < O; ++o) {
                 const keel::f64 *base = src + o * sliceLen;
-                std::copy(base, base + sliceLen, scratch.data());
+                keel::copy(base, base + sliceLen, scratch.data());
                 dst[o] = f(o, scratch.data(), sliceLen);
             }
         } else {
@@ -258,7 +258,7 @@ Value applyAlongDim(const Value &x, keel::i32 dim, F &&f, keel::Allocator *mr = 
     if (x.isScalar() || (x.dims().isVector() && (dim <= 0 || dim == firstNonSingletonDim(x)))) {
         auto buf = keel::Array<keel::f64>(x.numel(), scratch.allocator());
         if (x.type() == ValueType::DOUBLE)
-            std::copy(x.doubleData(), x.doubleData() + x.numel(), buf.data());
+            keel::copy(x.doubleData(), x.doubleData() + x.numel(), buf.data());
         else
             for (keel::usize i = 0; i < x.numel(); ++i)
                 buf[i] = x.elemAsDouble(i);
@@ -319,7 +319,7 @@ applyAlongDimWithIndex(const Value &x, keel::i32 dim, F &&f, keel::Allocator *mr
     if (x.isScalar() || (x.dims().isVector() && (dim <= 0 || dim == firstNonSingletonDim(x)))) {
         auto buf = keel::Array<keel::f64>(x.numel(), scratch.allocator());
         if (x.type() == ValueType::DOUBLE)
-            std::copy(x.doubleData(), x.doubleData() + x.numel(), buf.data());
+            keel::copy(x.doubleData(), x.doubleData() + x.numel(), buf.data());
         else
             for (keel::usize i = 0; i < x.numel(); ++i)
                 buf[i] = x.elemAsDouble(i);

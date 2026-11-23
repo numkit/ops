@@ -4,6 +4,7 @@
 // Parlett-Reinsch (1969) algorithm via keel::linalg::balance_matrix.
 
 #include <keel/core.h>
+#include <keel/algo.h>
 #include <keel/memory.h>
 #include <keel/arena.h>
 #include <keel/array.h>
@@ -15,7 +16,6 @@
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
 
-#include <algorithm>
 
 namespace numkit::linalg {
 
@@ -50,10 +50,10 @@ balance_impl(const Value &A, bool noperm, keel::Allocator *mr)
     keel::Array<keel::usize> perm(n, scratch.allocator());
 
     if (Aw.isComplex()) {
-        std::copy(Aw.complexData(), Aw.complexData() + n * n, R.B.complexDataMut());
+        keel::copy(Aw.complexData(), Aw.complexData() + n * n, R.B.complexDataMut());
         keel::linalg::balance_matrix(R.B.complexDataMut(), n, !noperm, d.data(), perm.data());
     } else {
-        std::copy(Aw.doubleData(), Aw.doubleData() + n * n, R.B.doubleDataMut());
+        keel::copy(Aw.doubleData(), Aw.doubleData() + n * n, R.B.doubleDataMut());
         keel::linalg::balance_matrix(R.B.doubleDataMut(), n, !noperm, d.data(), perm.data());
     }
 

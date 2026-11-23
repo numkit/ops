@@ -18,7 +18,6 @@
 #include <numkit/value/error.hpp>
 #include <numkit/value/value.hpp>
 
-#include <algorithm>
 
 namespace numkit::builtin {
 
@@ -49,15 +48,15 @@ void groupOf(const Value &g, keel::Array<keel::usize> &out_groups,
     sorted.reserve(n);
     for (keel::f64 v : vals)
         if (!keel::is_nan(v)) sorted.push_back(v);
-    std::sort(sorted.begin(), sorted.end());
-    auto newEnd = std::unique(sorted.begin(), sorted.end(),
+    keel::sort(sorted.begin(), sorted.end());
+    auto newEnd = keel::unique(sorted.begin(), sorted.end(),
                               [](keel::f64 a, keel::f64 b) {
                                   return a == b;
                               });
     sorted.resize(newEnd - sorted.begin());
     for (keel::usize i = 0; i < n; ++i) {
         if (keel::is_nan(vals[i])) { out_groups[i] = 0; continue; }
-        const auto it = std::lower_bound(sorted.begin(), sorted.end(), vals[i]);
+        const auto it = keel::lower_bound(sorted.begin(), sorted.end(), vals[i]);
         out_groups[i] = (keel::usize)(it - sorted.begin()) + 1;   // 1-based
     }
     out_unique = keel::move(sorted);
@@ -185,7 +184,7 @@ GroupsummaryResult groupsummary(const Value &A, const Value &G,
             } else if (method == "median") {
                 keel::Array<keel::f64> v(scratch.allocator()); v.reserve(kn);
                 for (auto r : rows) v.push_back(Aget(r, c));
-                std::sort(v.begin(), v.end());
+                keel::sort(v.begin(), v.end());
                 out = (kn == 0)            ? keel::Limits<keel::f64>::quiet_nan()
                     : (kn % 2 == 1)        ? v[kn / 2]
                                             : 0.5 * (v[kn / 2 - 1] + v[kn / 2]);
@@ -210,14 +209,14 @@ GroupsummaryResult groupsummary(const Value &A, const Value &G,
                     for (auto r : rows) { keel::f64 v = Aget(r, c); s += v; ss += v*v; }
                     const keel::f64 m = s / keel::f64(kn);
                     const keel::f64 v = (ss - keel::f64(kn) * m * m) / keel::f64(kn - 1);
-                    out = (method == "var") ? std::max(0.0, v)
-                                             : keel::sqrt(std::max(0.0, v));
+                    out = (method == "var") ? keel::max(0.0, v)
+                                             : keel::sqrt(keel::max(0.0, v));
                 }
             } else if (method == "numunique") {
                 keel::Array<keel::f64> v(scratch.allocator()); v.reserve(kn);
                 for (auto r : rows) v.push_back(Aget(r, c));
-                std::sort(v.begin(), v.end());
-                auto newEnd = std::unique(v.begin(), v.end());
+                keel::sort(v.begin(), v.end());
+                auto newEnd = keel::unique(v.begin(), v.end());
                 out = keel::f64(newEnd - v.begin());
             } else if (method == "nnz") {
                 keel::usize k = 0;
@@ -226,7 +225,7 @@ GroupsummaryResult groupsummary(const Value &A, const Value &G,
             } else if (method == "mode") {
                 keel::Array<keel::f64> v(scratch.allocator()); v.reserve(kn);
                 for (auto r : rows) v.push_back(Aget(r, c));
-                std::sort(v.begin(), v.end());
+                keel::sort(v.begin(), v.end());
                 keel::usize best_run = 0, cur_run = 0;
                 keel::f64 best_val = keel::Limits<keel::f64>::quiet_nan();
                 for (keel::usize i = 0; i < v.size(); ++i) {
@@ -339,7 +338,7 @@ Value grouptransform(const Value &A, const Value &G,
                     const keel::f64 var = (k > 1)
                         ? (sq - keel::f64(k) * mean * mean) / keel::f64(k - 1)
                         : 0.0;
-                    const keel::f64 sd  = keel::sqrt(std::max(0.0, var));
+                    const keel::f64 sd  = keel::sqrt(keel::max(0.0, var));
                     for (auto r : rows)
                         bd[r + c * nRows] = (sd > 0.0)
                             ? (Aget(r, c) - mean) / sd

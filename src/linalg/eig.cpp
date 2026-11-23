@@ -4,6 +4,7 @@
 // Value adapters over keel::linalg kernels.
 
 #include <keel/core.h>
+#include <keel/algo.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
 #include <keel/arena.h>
@@ -25,7 +26,6 @@
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
 
-#include <algorithm>
 #include <keel/tuple.h>
 
 namespace numkit::linalg {
@@ -114,7 +114,7 @@ bool cleanRealSpectrum(keel::c64 *Vd, keel::c64 *Dd, keel::usize n, keel::f64 im
         const keel::c64 dkk = Dd[k + k * n];
         const bool isRealEig =
             (allowNonFinite && !keel::is_finite(dkk.real())) ||
-            (keel::abs(dkk.imag()) <= imagTol * (allowNonFinite ? std::max(1.0, keel::abs(dkk.real())) : 1.0));
+            (keel::abs(dkk.imag()) <= imagTol * (allowNonFinite ? keel::max(1.0, keel::abs(dkk.real())) : 1.0));
         if (isRealEig) {
             Dd[k + k * n] = keel::c64(dkk.real(), 0.0);
             keel::usize iMax = 0;
@@ -129,7 +129,7 @@ bool cleanRealSpectrum(keel::c64 *Vd, keel::c64 *Dd, keel::usize n, keel::f64 im
                 for (keel::usize i = 0; i < n; ++i) {
                     const keel::c64 rotated = Vd[i + k * n] * phase;
                     Vd[i + k * n] = rotated;
-                    colImax = std::max(colImax, keel::abs(rotated.imag()));
+                    colImax = keel::max(colImax, keel::abs(rotated.imag()));
                 }
                 if (colImax <= 1e3 * imagTol) {
                     keel::f64 rNormSq = 0.0;
@@ -151,7 +151,7 @@ bool cleanRealSpectrum(keel::c64 *Vd, keel::c64 *Dd, keel::usize n, keel::f64 im
     }
     keel::f64 vImax = 0.0;
     for (keel::usize i = 0; i < n * n; ++i)
-        vImax = std::max(vImax, keel::abs(Vd[i].imag()));
+        vImax = keel::max(vImax, keel::abs(Vd[i].imag()));
     return realSpectrum && vImax <= 1e3 * imagTol;
 }
 
@@ -184,7 +184,7 @@ Value eig_general_values(const Value &A, keel::Allocator *mr)
             const keel::f64 *td = T.doubleData();
             for (keel::usize i = 0; i < n; ++i) od[i] = td[i + i * n];
         }
-        std::sort(od, od + n);
+        keel::sort(od, od + n);
         return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
     }
 
@@ -207,7 +207,7 @@ Value eig_general_values(const Value &A, keel::Allocator *mr)
                 keel::f64 det = a * d - b * c;
                 keel::f64 disc = tr * tr - 4.0 * det;
                 keel::f64 re = 0.5 * tr;
-                keel::f64 im = 0.5 * keel::sqrt(std::max(0.0, -disc));
+                keel::f64 im = 0.5 * keel::sqrt(keel::max(0.0, -disc));
                 o[i] = keel::c64(re, im);
                 o[i + 1] = keel::c64(re, -im);
                 i += 2;
@@ -243,7 +243,7 @@ eig_general_VD(const Value &A, keel::Allocator *mr)
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     keel::Array<keel::c64> Ac(n * n, scratch.allocator());
     if (Aw.isComplex()) {
-        std::copy(Aw.complexData(), Aw.complexData() + n * n, Ac.begin());
+        keel::copy(Aw.complexData(), Aw.complexData() + n * n, Ac.begin());
     } else {
         const keel::f64 *ad = Aw.doubleData();
         for (keel::usize i = 0; i < n * n; ++i) Ac[i] = keel::c64(ad[i], 0.0);
@@ -259,14 +259,14 @@ eig_general_VD(const Value &A, keel::Allocator *mr)
     if (isHermitianComplexApprox(Aw)) {
         keel::Array<keel::usize> order(n, scratch.allocator());
         for (keel::usize i = 0; i < n; ++i) order[i] = i;
-        std::sort(order.begin(), order.end(), [&](keel::usize a, keel::usize b) {
+        keel::sort(order.begin(), order.end(), [&](keel::usize a, keel::usize b) {
             return Tc[a + a * n].real() < Tc[b + b * n].real();
         });
         auto Vout = Value::complexMatrix(n, n, mr);
         auto Dout = Value::matrix(n, n, ValueType::DOUBLE, mr);
         keel::c64 *Vd = Vout.complexDataMut();
         keel::f64 *Dd = Dout.doubleDataMut();
-        std::fill(Dd, Dd + n * n, 0.0);
+        keel::fill(Dd, Dd + n * n, 0.0);
         for (keel::usize k = 0; k < n; ++k) {
             const keel::usize src = order[k];
             Dd[k + k * n] = Tc[src + src * n].real();
@@ -282,7 +282,7 @@ eig_general_VD(const Value &A, keel::Allocator *mr)
     auto Dout = Value::complexMatrix(n, n, mr);
     keel::c64 *Vd = Vout.complexDataMut();
     keel::c64 *Dd = Dout.complexDataMut();
-    std::fill(Dd, Dd + n * n, keel::c64(0.0, 0.0));
+    keel::fill(Dd, Dd + n * n, keel::c64(0.0, 0.0));
 
     keel::Array<keel::c64> evals(n, scratch.allocator());
     keel::linalg::schur_eigenvectors(Uc.data(), Tc.data(), n, Vd, evals.data(), mr);
@@ -291,7 +291,7 @@ eig_general_VD(const Value &A, keel::Allocator *mr)
     if (!Aw.isComplex()) {
         keel::f64 aMax = 0.0;
         for (keel::usize i = 0; i < n * n; ++i)
-            aMax = std::max(aMax, keel::abs(Ac[i].real()));
+            aMax = keel::max(aMax, keel::abs(Ac[i].real()));
         const keel::f64 tol = 64.0 * keel::as<keel::f64>(n) *
                            keel::Limits<keel::f64>::kEpsilon * (1.0 + aMax);
         if (cleanRealSpectrum(Vd, Dd, n, tol, false)) {
@@ -373,7 +373,7 @@ eig_symmetric(const Value &A, keel::Allocator *mr)
     keel::linalg::eig_sym(Aw.doubleData(), n, Vout.doubleDataMut(), evals.data(), mr);
 
     keel::f64 *D = Dout.doubleDataMut();
-    std::fill(D, D + n * n, 0.0);
+    keel::fill(D, D + n * n, 0.0);
     for (keel::usize k = 0; k < n; ++k) D[k + k * n] = evals[k];
 
     return keel::make_tuple(
@@ -430,7 +430,7 @@ eig_generalized_VD(const Value &A, const Value &B, keel::Allocator *mr)
                                       V.doubleDataMut(), evals.data(), mr)) {
             auto D = Value::matrix(n, n, ValueType::DOUBLE, mr);
             keel::f64 *dd = D.doubleDataMut();
-            std::fill(dd, dd + n * n, 0.0);
+            keel::fill(dd, dd + n * n, 0.0);
             for (keel::usize k = 0; k < n; ++k) dd[k + k * n] = evals[k];
             return keel::make_tuple(
                 detail::narrowDoubleToSingleIf(V, wantSingle, mr),
@@ -442,12 +442,12 @@ eig_generalized_VD(const Value &A, const Value &B, keel::Allocator *mr)
     keel::Array<keel::c64> Ac(n * n, scratch.allocator());
     keel::Array<keel::c64> Bc(n * n, scratch.allocator());
     if (Aw.isComplex()) {
-        std::copy(Aw.complexData(), Aw.complexData() + n * n, Ac.begin());
+        keel::copy(Aw.complexData(), Aw.complexData() + n * n, Ac.begin());
     } else {
         for (keel::usize i = 0; i < n * n; ++i) Ac[i] = keel::c64(Aw.doubleData()[i], 0.0);
     }
     if (Bw.isComplex()) {
-        std::copy(Bw.complexData(), Bw.complexData() + n * n, Bc.begin());
+        keel::copy(Bw.complexData(), Bw.complexData() + n * n, Bc.begin());
     } else {
         for (keel::usize i = 0; i < n * n; ++i) Bc[i] = keel::c64(Bw.doubleData()[i], 0.0);
     }
@@ -464,7 +464,7 @@ eig_generalized_VD(const Value &A, const Value &B, keel::Allocator *mr)
     auto Dout = Value::complexMatrix(n, n, mr);
     keel::c64 *Vd = Vout.complexDataMut();
     keel::c64 *Dd = Dout.complexDataMut();
-    std::fill(Dd, Dd + n * n, keel::c64(0.0, 0.0));
+    keel::fill(Dd, Dd + n * n, keel::c64(0.0, 0.0));
 
     keel::Array<keel::c64> evals(n, scratch.allocator());
     keel::linalg::qz_eigenvectors(AAc.data(), BBc.data(), Zc.data(), n, Vd, evals.data(), mr);
@@ -473,10 +473,10 @@ eig_generalized_VD(const Value &A, const Value &B, keel::Allocator *mr)
     if (!Aw.isComplex() && !Bw.isComplex()) {
         keel::f64 aMax = 0.0, bMax = 0.0;
         for (keel::usize i = 0; i < n * n; ++i) {
-            aMax = std::max(aMax, keel::abs(AAc[i]));
-            bMax = std::max(bMax, keel::abs(BBc[i]));
+            aMax = keel::max(aMax, keel::abs(AAc[i]));
+            bMax = keel::max(bMax, keel::abs(BBc[i]));
         }
-        const keel::f64 abScale = std::max(1.0, std::max(aMax, bMax));
+        const keel::f64 abScale = keel::max(1.0, keel::max(aMax, bMax));
         const keel::f64 imagTol = 64.0 * keel::as<keel::f64>(n) *
                                keel::Limits<keel::f64>::kEpsilon * (1.0 + abScale);
         if (cleanRealSpectrum(Vd, Dd, n, imagTol, true)) {
@@ -546,7 +546,7 @@ bool try_eigs_generalized_smallestabs(const Value &A, const Value &B, keel::usiz
 
     auto D = Value::matrix(k, k, ValueType::DOUBLE, mr);
     keel::f64 *dd = D.doubleDataMut();
-    std::fill(dd, dd + k * k, 0.0);
+    keel::fill(dd, dd + k * k, 0.0);
     for (keel::usize col = 0; col < k; ++col) dd[col + col * k] = evals[col];
 
     Vout = detail::narrowDoubleToSingleIf(V, wantSingle, mr);
@@ -574,7 +574,7 @@ hess(const Value &A, keel::Allocator *mr)
         auto Hout = Value::complexMatrix(n, n, mr);
         auto Pout = Value::complexMatrix(n, n, mr);
         if (n == 0) return keel::make_tuple(keel::move(Pout), keel::move(Hout));
-        std::copy(A.complexData(), A.complexData() + n * n, Hout.complexDataMut());
+        keel::copy(A.complexData(), A.complexData() + n * n, Hout.complexDataMut());
         keel::linalg::hess_reduce(Hout.complexDataMut(), n, Pout.complexDataMut(), mr);
         return keel::make_tuple(detail::narrow_if_real(Pout, mr), detail::narrow_if_real(Hout, mr));
     }
@@ -587,7 +587,7 @@ hess(const Value &A, keel::Allocator *mr)
     Value Aw = detail::widenSingleToDouble(A, mr);
     auto Hout = Value::matrix(n, n, ValueType::DOUBLE, mr);
     auto Pout = Value::matrix(n, n, ValueType::DOUBLE, mr);
-    std::copy(Aw.doubleData(), Aw.doubleData() + n * n, Hout.doubleDataMut());
+    keel::copy(Aw.doubleData(), Aw.doubleData() + n * n, Hout.doubleDataMut());
     keel::linalg::hess_reduce(Hout.doubleDataMut(), n, Pout.doubleDataMut(), mr);
     return keel::make_tuple(
         detail::narrowDoubleToSingleIf(Pout, wantSingle, mr),
@@ -736,7 +736,7 @@ Value buildCompanion(keel::ArrayRef<Value> coeffs, keel::Allocator *mr)
 
     auto L = Value::matrix(N, N, ValueType::DOUBLE, mr);
     keel::f64 *Ld = L.doubleDataMut();
-    std::fill(Ld, Ld + N * N, 0.0);
+    keel::fill(Ld, Ld + N * N, 0.0);
 
     for (keel::usize i = 0; i + 1 < k; ++i) {
         for (keel::usize r = 0; r < n; ++r) {

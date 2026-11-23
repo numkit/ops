@@ -20,7 +20,6 @@
 #include <numkit/value/error.hpp>
 #include <numkit/value/value.hpp>
 
-#include <algorithm>
 #include <keel/tuple.h>
 
 #include "polynomials_detail.hpp"
@@ -185,7 +184,7 @@ Value polyvalm(const Value &p, const Value &A, keel::Allocator *mr)
 
     if (k == 0) {
         Value z = Value::matrix(n, n, ValueType::DOUBLE, mr);
-        std::fill(z.doubleDataMut(), z.doubleDataMut() + n * n, 0.0);
+        keel::fill(z.doubleDataMut(), z.doubleDataMut() + n * n, 0.0);
         return z;
     }
 
@@ -207,7 +206,7 @@ Value polyvalm(const Value &p, const Value &A, keel::Allocator *mr)
         if (c.imag() != 0.0) { anyImag = true; break; }
     if (anyImag) {
         auto out = Value::complexMatrix(n, n, mr);
-        std::copy(result.begin(), result.end(), out.complexDataMut());
+        keel::copy(result.begin(), result.end(), out.complexDataMut());
         return out;
     }
     if (wantSingle) {

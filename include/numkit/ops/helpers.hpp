@@ -4,6 +4,7 @@
 // factories, never Engine/CallContext. Keeping it off <nk/core/engine.hpp>
 // is what lets toolbox compute files include it without dragging in the engine.
 #include <keel/core.h>
+#include <keel/algo.h>
 #include <keel/math.h>
 #include <keel/format.h>
 #include <keel/memory.h>
@@ -16,7 +17,6 @@
 #include <numkit/ops/value_factory.hpp>   // DimsArg/createMatrix/createForDims/createLike (now in numkit::ops)
 #include <numkit/value/shape_ops.hpp>
 
-#include <algorithm>
 
 namespace numkit {
 
@@ -43,8 +43,8 @@ inline bool broadcastDims(keel::usize ar, keel::usize ac, keel::usize br, keel::
 {
     if (ar != br && ar != 1 && br != 1) return false;
     if (ac != bc && ac != 1 && bc != 1) return false;
-    outR = std::max(ar, br);
-    outC = std::max(ac, bc);
+    outR = keel::max(ar, br);
+    outC = keel::max(ac, bc);
     return true;
 }
 
@@ -57,9 +57,9 @@ inline bool broadcastDims3D(keel::usize ar, keel::usize ac, keel::usize ap,
     if (ar != br && ar != 1 && br != 1) return false;
     if (ac != bc && ac != 1 && bc != 1) return false;
     if (ap != bp && ap != 1 && bp != 1) return false;
-    outR = std::max(ar, br);
-    outC = std::max(ac, bc);
-    outP = std::max(ap, bp);
+    outR = keel::max(ar, br);
+    outC = keel::max(ac, bc);
+    outP = keel::max(ap, bp);
     return true;
 }
 
@@ -186,14 +186,14 @@ inline Value copyIntegerSameClass(const Value &x, keel::Allocator *mr = nullptr)
     Value r = createLike(x, x.type(), mr);
     const keel::usize n = x.numel();
     switch (x.type()) {
-    case ValueType::INT8:   std::copy(x.int8Data(),   x.int8Data()   + n, r.int8DataMut());   break;
-    case ValueType::INT16:  std::copy(x.int16Data(),  x.int16Data()  + n, r.int16DataMut());  break;
-    case ValueType::INT32:  std::copy(x.int32Data(),  x.int32Data()  + n, r.int32DataMut());  break;
-    case ValueType::INT64:  std::copy(x.int64Data(),  x.int64Data()  + n, r.int64DataMut());  break;
-    case ValueType::UINT8:  std::copy(x.uint8Data(),  x.uint8Data()  + n, r.uint8DataMut());  break;
-    case ValueType::UINT16: std::copy(x.uint16Data(), x.uint16Data() + n, r.uint16DataMut()); break;
-    case ValueType::UINT32: std::copy(x.uint32Data(), x.uint32Data() + n, r.uint32DataMut()); break;
-    case ValueType::UINT64: std::copy(x.uint64Data(), x.uint64Data() + n, r.uint64DataMut()); break;
+    case ValueType::INT8:   keel::copy(x.int8Data(),   x.int8Data()   + n, r.int8DataMut());   break;
+    case ValueType::INT16:  keel::copy(x.int16Data(),  x.int16Data()  + n, r.int16DataMut());  break;
+    case ValueType::INT32:  keel::copy(x.int32Data(),  x.int32Data()  + n, r.int32DataMut());  break;
+    case ValueType::INT64:  keel::copy(x.int64Data(),  x.int64Data()  + n, r.int64DataMut());  break;
+    case ValueType::UINT8:  keel::copy(x.uint8Data(),  x.uint8Data()  + n, r.uint8DataMut());  break;
+    case ValueType::UINT16: keel::copy(x.uint16Data(), x.uint16Data() + n, r.uint16DataMut()); break;
+    case ValueType::UINT32: keel::copy(x.uint32Data(), x.uint32Data() + n, r.uint32DataMut()); break;
+    case ValueType::UINT64: keel::copy(x.uint64Data(), x.uint64Data() + n, r.uint64DataMut()); break;
     default: break;
     }
     return r;
@@ -846,7 +846,7 @@ Value elementwiseTyped(const Value &a, const Value &b, ValueType targetType, Op 
         if (v.type() == tgt) return static_cast<const T *>(v.rawData())[idx];
         keel::f64 d = v.elemAsDouble(idx);
         if constexpr (keel::IsIntegral<T>)
-            return static_cast<T>(std::clamp(keel::round(d),
+            return static_cast<T>(keel::clamp(keel::round(d),
                 keel::as<keel::f64>(keel::Limits<T>::kMin),
                 keel::as<keel::f64>(keel::Limits<T>::kMax)));
         else
@@ -856,7 +856,7 @@ Value elementwiseTyped(const Value &a, const Value &b, ValueType targetType, Op 
         if (v.type() == tgt) return static_cast<const T *>(v.rawData())[i];
         keel::f64 d = v.elemAsDouble(i);
         if constexpr (keel::IsIntegral<T>)
-            return static_cast<T>(std::clamp(keel::round(d),
+            return static_cast<T>(keel::clamp(keel::round(d),
                 keel::as<keel::f64>(keel::Limits<T>::kMin),
                 keel::as<keel::f64>(keel::Limits<T>::kMax)));
         else

@@ -87,7 +87,7 @@ Value subplus(const Value &x, keel::Allocator *mr)
 {
     return unaryDouble(x,
                        [](keel::f64 v) {
-                           return keel::is_nan(v) ? v : std::max(v, 0.0);
+                           return keel::is_nan(v) ? v : keel::max(v, 0.0);
                        },
                        mr);
 }

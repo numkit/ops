@@ -22,7 +22,6 @@
 
 #include "keel/imagefile.h"
 
-#include <algorithm>
 
 namespace numkit::image {
 

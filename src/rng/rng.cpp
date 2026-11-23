@@ -6,6 +6,7 @@
 // R2025b's rng()+rand()+randn()+randperm() under 'twister' and legacy v4.
 
 #include <keel/core.h>
+#include <keel/algo.h>
 #include <keel/format.h>
 #include <keel/hash_map.h>
 #include <keel/memory.h>
@@ -20,8 +21,6 @@
 
 #include <numkit/value/error.hpp>
 
-#include <algorithm>
-#include <numeric>
 
 namespace numkit::ops {
 
@@ -350,7 +349,7 @@ Value randperm(RngContext &rng, keel::usize n, keel::Allocator *mr)
         u[i] = rng.nextUniform();
         idx[i] = i;
     }
-    std::stable_sort(idx.begin(), idx.end(), [&](keel::usize a, keel::usize b) {
+    keel::stable_sort(idx.begin(), idx.end(), [&](keel::usize a, keel::usize b) {
         return u[a] < u[b];
     });
 

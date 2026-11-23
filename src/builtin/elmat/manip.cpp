@@ -21,7 +21,6 @@
 
 #include <numkit/ops/helpers.hpp>
 
-#include <algorithm>
 
 #include "manip_detail.hpp"
 
@@ -99,7 +98,7 @@ Value repmatND(const Value &x, keel::ArrayRef<keel::usize> tiles, keel::Allocato
     const auto &inDims = x.dims();
     constexpr keel::i32 kMaxNd = Dims::kMaxRank;
     const keel::i32 ntiles = keel::as<keel::i32>(tiles.size());
-    keel::i32 outNdim = std::max(inDims.ndim(), ntiles);
+    keel::i32 outNdim = keel::max(inDims.ndim(), ntiles);
     if (outNdim > kMaxNd)
         throw Error("repmat: rank exceeds 32",
                      0, 0, "repmat", "", "numkit:repmat:tooManyDims");
@@ -1048,7 +1047,7 @@ Value head(const Value &x, keel::usize k, keel::Allocator *mr)
     const auto &d = x.dims();
     const keel::usize R = d.rows();
     const keel::usize C = d.cols();
-    const keel::usize r = std::min(k, R);
+    const keel::usize r = keel::min(k, R);
     if (r == R) return x;
     const keel::usize totalElems = x.numel();
     const keel::usize elemSize = totalElems > 0 ? (x.rawBytes() / totalElems) : sizeof(keel::f64);
@@ -1069,7 +1068,7 @@ Value tail(const Value &x, keel::usize k, keel::Allocator *mr)
     const auto &d = x.dims();
     const keel::usize R = d.rows();
     const keel::usize C = d.cols();
-    const keel::usize r = std::min(k, R);
+    const keel::usize r = keel::min(k, R);
     if (r == R) return x;
     const keel::usize startRow = R - r;
     const keel::usize totalElems = x.numel();
