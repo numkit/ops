@@ -13,7 +13,6 @@
 
 #include <algorithm>
 #include <numeric>
-#include <utility>
 
 #include "discrete_detail.hpp"
 

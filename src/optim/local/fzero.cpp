@@ -17,7 +17,6 @@
 #include <numkit/ops/root_solve.hpp>
 #include <numkit/value/error.hpp>
 
-#include <utility>
 
 namespace numkit::optim {
 
@@ -27,7 +26,7 @@ Value fzero(FnHandle fn, keel::f64 x0, keel::Allocator *mr)
         throw Error("fzero: x0 must be finite", 0, 0, "fzero", "", "numkit:fzero:badX0");
     auto [a, b] = ops::findBracket(fn, x0, mr);
     if (a == b) return Value::scalar(a, mr);
-    if (a > b) std::swap(a, b);
+    if (a > b) keel::swap(a, b);
     return Value::scalar(ops::brent(fn, a, b, mr), mr);
 }
 

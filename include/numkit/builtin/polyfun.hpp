@@ -8,7 +8,7 @@
 #include <keel/core.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
-#include <tuple>
+#include <keel/tuple.h>
 #include <numkit/value/value.hpp>
 #include <numkit/value/fn_handle.hpp>
 
@@ -54,7 +54,7 @@ Value polyder(const Value &p, keel::Allocator *mr = nullptr);
 /// @param a Denominator polynomial coefficients.
 /// @param mr Memory resource.
 /// @return Tuple containing numerator and denominator polynomial coefficients `{q, d}`.
-std::tuple<Value, Value> polyder(const Value &b, const Value &a, keel::Allocator *mr = nullptr);
+keel::Tuple<Value, Value> polyder(const Value &b, const Value &a, keel::Allocator *mr = nullptr);
 
 /// @brief Computes polynomial integral (`polyint(p, k)`).
 /// @param p Vector of polynomial coefficients.
@@ -132,7 +132,7 @@ PolyDiv polydiv(const Value &b, const Value &a, keel::Allocator *mr = nullptr);
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Tuple containing zeros `z`, poles `p`, and gain `k`.
 /// @see zp2tf, residue
-std::tuple<Value, Value, Value> tf2zp(const Value &b, const Value &a, keel::Allocator *mr = nullptr);
+keel::Tuple<Value, Value, Value> tf2zp(const Value &b, const Value &a, keel::Allocator *mr = nullptr);
 
 /// @brief Zero-pole-gain to transfer function conversion (`[b, a] = zp2tf(z, p, k)`).
 ///
@@ -142,7 +142,7 @@ std::tuple<Value, Value, Value> tf2zp(const Value &b, const Value &a, keel::Allo
 /// @param mr Memory resource for allocations (nullptr for default).
 /// @return Tuple containing numerator `b` and denominator `a` polynomials.
 /// @see tf2zp, residue
-std::tuple<Value, Value> zp2tf(const Value &z, const Value &p, keel::f64 k, keel::Allocator *mr = nullptr);
+keel::Tuple<Value, Value> zp2tf(const Value &z, const Value &p, keel::f64 k, keel::Allocator *mr = nullptr);
 
 /// @brief Result of partial fraction expansion (residues, poles, direct term).
 struct ResidueResult {
@@ -305,7 +305,7 @@ Value gradient(const Value &f, keel::f64 h = 1.0, keel::Allocator *mr = nullptr)
 /// @param hy Grid spacing along Y.
 /// @param mr Memory resource.
 /// @return Tuple containing `{fx, fy}` partial derivatives.
-std::tuple<Value, Value> gradient2(const Value &f, keel::f64 hx = 1.0, keel::f64 hy = 1.0, keel::Allocator *mr = nullptr);
+keel::Tuple<Value, Value> gradient2(const Value &f, keel::f64 hx = 1.0, keel::f64 hy = 1.0, keel::Allocator *mr = nullptr);
 
 /// @brief Five-point discrete Laplacian / Laplace operator (`del2(u, h)`).
 /// @param u Input array.

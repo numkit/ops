@@ -240,7 +240,7 @@ Value unaryRealDouble(const Value &x, Value *hint, LoopDispatch loop, ScalarOp s
     Value r;
     if (hint && hint->isHeapDouble() && hint->heapRefCount() == 1
         && hint->dims() == x.dims()) {
-        r = std::move(*hint);
+        r = keel::move(*hint);
     } else {
         r = createLike(x, ValueType::DOUBLE, mr);
     }
@@ -317,7 +317,7 @@ Value log(const Value &x, Value *hint, keel::Allocator *mr)
     Value r;
     if (hint && hint->isHeapDouble() && hint->heapRefCount() == 1
         && hint->dims() == x.dims()) {
-        r = std::move(*hint);
+        r = keel::move(*hint);
     } else {
         r = createLike(x, ValueType::DOUBLE, mr);
     }

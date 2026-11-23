@@ -3,6 +3,7 @@
 // eigs & svds: Subset of eigenvalues / singular values.
 
 #include <keel/core.h>
+#include <keel/tuple.h>
 #include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
@@ -104,14 +105,14 @@ void sortEigenPairsBySigma(keel::Array<EigenPair> &pairs, keel::usize k, const V
     }
 }
 
-std::tuple<Value, Value> eig_auto(const Value &A, keel::Allocator *mr) {
+keel::Tuple<Value, Value> eig_auto(const Value &A, keel::Allocator *mr) {
     if (!A.isComplex() && isSymmetricApprox(A, 1e-10)) {
         return eig_symmetric(A, mr);
     }
     return eig_general_VD(A, mr);
 }
 
-std::tuple<Value, Value> eigs_from_VD(const Value &V, const Value &D, keel::usize n,
+keel::Tuple<Value, Value> eigs_from_VD(const Value &V, const Value &D, keel::usize n,
                                       keel::usize k, const Value &sigma, bool wantSingle,
                                       keel::Allocator *mr)
 {
@@ -190,7 +191,7 @@ Value eigs_values(const Value &A, keel::usize k, keel::Allocator *mr)
     return eigs_values(A, k, Value(), mr);
 }
 
-std::tuple<Value, Value> eigs(const Value &A, keel::usize k, const Value &sigma, keel::Allocator *mr)
+keel::Tuple<Value, Value> eigs(const Value &A, keel::usize k, const Value &sigma, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "eigs");
     if (A.dims().ndim() != 2)
@@ -212,12 +213,12 @@ std::tuple<Value, Value> eigs(const Value &A, keel::usize k, const Value &sigma,
     return eigs_from_VD(V, D, n, k, sigma, wantSingle, mr);
 }
 
-std::tuple<Value, Value> eigs(const Value &A, keel::usize k, keel::Allocator *mr)
+keel::Tuple<Value, Value> eigs(const Value &A, keel::usize k, keel::Allocator *mr)
 {
     return eigs(A, k, Value(), mr);
 }
 
-std::tuple<Value, Value> eigs_generalized(const Value &A, const Value &B, keel::usize k,
+keel::Tuple<Value, Value> eigs_generalized(const Value &A, const Value &B, keel::usize k,
                                           const Value &sigma, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "eigs");
@@ -245,7 +246,7 @@ std::tuple<Value, Value> eigs_generalized(const Value &A, const Value &B, keel::
         if (sr.equals_ignore_ascii_case("smallestabs") || sr.equals_ignore_ascii_case("sm")) {
             Value Vk, Dk;
             if (try_eigs_generalized_smallestabs(A, B, k, Vk, Dk, mr)) {
-                return {std::move(Vk), std::move(Dk)};
+                return {keel::move(Vk), keel::move(Dk)};
             }
         }
     }
@@ -296,7 +297,7 @@ Value svds_values(const Value &A, keel::usize k, keel::Allocator *mr)
     return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
 
-std::tuple<Value, Value, Value> svds(const Value &A, keel::usize k, keel::Allocator *mr)
+keel::Tuple<Value, Value, Value> svds(const Value &A, keel::usize k, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "svds");
     if (A.dims().ndim() != 2)

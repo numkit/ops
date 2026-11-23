@@ -201,7 +201,7 @@ Value sylvester(const Value &A, const Value &B, const Value &C, keel::Allocator 
     if (!keel::linalg::sylvester(Ac.data(), m, Bc.data(), n, Cc.data(), out.complexDataMut(), mr))
         throw Error("sylvester: Schur iteration failed to converge", 0, 0, "sylvester", "", "numkit:sylvester:noConverge");
 
-    Value res = detail::narrow_if_real(std::move(out), mr);
+    Value res = detail::narrow_if_real(keel::move(out), mr);
     if (!A.isComplex() && !B.isComplex() && !C.isComplex()
         && res.isComplex()) {
         Value r = Value::matrix(m, n, ValueType::DOUBLE, mr);
@@ -209,7 +209,7 @@ Value sylvester(const Value &A, const Value &B, const Value &C, keel::Allocator 
         keel::f64 *rd = r.doubleDataMut();
         for (keel::usize i = 0; i < m * n; ++i)
             rd[i] = cd[i].real();
-        res = std::move(r);
+        res = keel::move(r);
     }
     if (wantSingle && !res.isComplex()) {
         return detail::narrowDoubleToSingle(res, mr);

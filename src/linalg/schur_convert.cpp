@@ -3,6 +3,7 @@
 // cdf2rdf / rsf2csf — Value adapters over keel::linalg::cdf2rdf / keel::linalg::rsf2csf.
 
 #include <keel/core.h>
+#include <keel/tuple.h>
 #include <keel/memory.h>
 #include <keel/arena.h>
 #include <keel/array.h>
@@ -19,7 +20,7 @@
 
 namespace numkit::linalg {
 
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 cdf2rdf(const Value &V, const Value &D, keel::Allocator *mr)
 {
     if (V.dims().ndim() != 2 || D.dims().ndim() != 2)
@@ -34,7 +35,7 @@ cdf2rdf(const Value &V, const Value &D, keel::Allocator *mr)
         throw Error("cdf2rdf: V and D shape mismatch",
                     0, 0, "cdf2rdf", "", "numkit:cdf2rdf:shapeMismatch");
     if (n == 0)
-        return std::make_tuple(
+        return keel::make_tuple(
             Value::matrix(0, 0, ValueType::DOUBLE, mr),
             Value::matrix(0, 0, ValueType::DOUBLE, mr));
 
@@ -52,10 +53,10 @@ cdf2rdf(const Value &V, const Value &D, keel::Allocator *mr)
         throw Error("cdf2rdf: complex eigenvalues must come in conjugate pairs",
                     0, 0, "cdf2rdf", "", "numkit:cdf2rdf:badPair");
     }
-    return std::make_tuple(std::move(VRout), std::move(DRout));
+    return keel::make_tuple(keel::move(VRout), keel::move(DRout));
 }
 
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 rsf2csf(const Value &UR, const Value &TR, keel::Allocator *mr)
 {
     if (UR.dims().ndim() != 2 || TR.dims().ndim() != 2)
@@ -70,7 +71,7 @@ rsf2csf(const Value &UR, const Value &TR, keel::Allocator *mr)
         throw Error("rsf2csf: UR and TR shape mismatch",
                     0, 0, "rsf2csf", "", "numkit:rsf2csf:shapeMismatch");
     if (n == 0)
-        return std::make_tuple(
+        return keel::make_tuple(
             Value::matrix(0, 0, ValueType::COMPLEX, mr),
             Value::matrix(0, 0, ValueType::COMPLEX, mr));
 
@@ -85,7 +86,7 @@ rsf2csf(const Value &UR, const Value &TR, keel::Allocator *mr)
     auto Uout = Value::matrix(n, n, ValueType::COMPLEX, mr);
     auto Tout = Value::matrix(n, n, ValueType::COMPLEX, mr);
     keel::linalg::rsf2csf(Ur.data(), Tr.data(), n, Uout.complexDataMut(), Tout.complexDataMut());
-    return std::make_tuple(std::move(Uout), std::move(Tout));
+    return keel::make_tuple(keel::move(Uout), keel::move(Tout));
 }
 
 } // namespace numkit::linalg

@@ -23,7 +23,6 @@
 #include <algorithm>
 #include <keel/static_array.h>
 #include <cstdlib>
-#include <utility>
 
 namespace numkit::builtin {
 using detail::scanfEmit;   // shared core; definition below + runtime fscanf shim
@@ -115,7 +114,7 @@ ScanfOut scanfCycle(const keel::String &input, keel::StringRef fmt, keel::usize 
                         && fmt[fmtPos + 2] != ']') {
                         keel::u32 lo = keel::as<keel::u8>(c);
                         keel::u32 hi = keel::as<keel::u8>(fmt[fmtPos + 2]);
-                        if (lo > hi) std::swap(lo, hi);
+                        if (lo > hi) keel::swap(lo, hi);
                         for (keel::u32 ch = lo; ch <= hi; ++ch)
                             member[ch] = true;
                         fmtPos += 3;

@@ -22,8 +22,7 @@
 
 #include <algorithm>
 #include <numeric>
-#include <tuple>
-#include <utility>
+#include <keel/tuple.h>
 
 
 namespace numkit::builtin {
@@ -100,7 +99,7 @@ void magicOdd(keel::f64 *p, keel::usize N)
     // only; right side has K-1=0 cols, none.)
     auto swapRowsAtCol = [&](keel::usize col) {
         for (keel::usize r = 0; r < P; ++r)
-            std::swap(p[r * N + col], p[(r + P) * N + col]);
+            keel::swap(p[r * N + col], p[(r + P) * N + col]);
     };
     for (keel::usize c = 0; c < K; ++c)
         swapRowsAtCol(c);
@@ -111,8 +110,8 @@ void magicOdd(keel::f64 *p, keel::usize N)
     // and apply column-K swap instead. (MATLAB: i=k+1, j=[1, i].)
     const keel::usize mid = K;
     if (mid < P) {
-        std::swap(p[mid * N + 0], p[(mid + P) * N + 0]);  // undo
-        std::swap(p[mid * N + K], p[(mid + P) * N + K]);  // apply
+        keel::swap(p[mid * N + 0], p[(mid + P) * N + 0]);  // undo
+        keel::swap(p[mid * N + K], p[(mid + P) * N + K]);  // apply
     }
 }
 
@@ -460,7 +459,7 @@ inline bool cxRowLess(keel::c64 a, keel::c64 b)
     return keel::arg(a) < keel::arg(b);
 }
 
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 sortRowsComplex(const Value &x, const keel::i32 *cols, keel::usize nCols,
                 keel::Allocator *mr)
 {
@@ -470,7 +469,7 @@ sortRowsComplex(const Value &x, const keel::i32 *cols, keel::usize nCols,
     const keel::usize R = x.dims().rows();
     const keel::usize C = x.dims().cols();
     if (R == 0)
-        return std::make_tuple(x, Value::matrix(0, 1, ValueType::DOUBLE, mr));
+        return keel::make_tuple(x, Value::matrix(0, 1, ValueType::DOUBLE, mr));
 
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     keel::Array<keel::i32> sortKeys(scratch.allocator());
@@ -511,10 +510,10 @@ sortRowsComplex(const Value &x, const keel::i32 *cols, keel::usize nCols,
     keel::f64 *idxP = idx.doubleDataMut();
     for (keel::usize i = 0; i < R; ++i)
         idxP[i] = keel::as<keel::f64>(perm[i] + 1);
-    return std::make_tuple(std::move(out), std::move(idx));
+    return keel::make_tuple(keel::move(out), keel::move(idx));
 }
 
-[[maybe_unused]] std::tuple<Value, Value>
+[[maybe_unused]] keel::Tuple<Value, Value>
 sortRowsImpl(const Value &x, const keel::i32 *cols, keel::usize nCols, keel::Allocator *mr)
 {
     if (x.type() == ValueType::COMPLEX)
@@ -526,7 +525,7 @@ sortRowsImpl(const Value &x, const keel::i32 *cols, keel::usize nCols, keel::All
     if (R == 0) {
         // Empty rows — return as-is and an empty 0×1 idx column.
         auto idx = Value::matrix(0, 1, ValueType::DOUBLE, mr);
-        return std::make_tuple(std::move(m), std::move(idx));
+        return keel::make_tuple(keel::move(m), keel::move(idx));
     }
 
     keel::ArenaTemp scratch = keel::get_scratch(mr);
@@ -562,7 +561,7 @@ sortRowsImpl(const Value &x, const keel::i32 *cols, keel::usize nCols, keel::All
     keel::f64 *idxP = idx.doubleDataMut();
     for (keel::usize i = 0; i < R; ++i)
         idxP[i] = keel::as<keel::f64>(perm[i] + 1);
-    return std::make_tuple(std::move(sorted), std::move(idx));
+    return keel::make_tuple(keel::move(sorted), keel::move(idx));
 }
 
 } // namespace
@@ -1224,7 +1223,7 @@ void diffOnceIntegerT(const T *src, T *dst, const Dims &srcDims, keel::i32 d)
         case ValueType::UINT64: diffOnceIntegerT<keel::u64>(cur.uint64Data(), out.uint64DataMut(), curDims, d); break;
         default: break;
         }
-        cur = std::move(out);
+        cur = keel::move(out);
     }
     return cur;
 }

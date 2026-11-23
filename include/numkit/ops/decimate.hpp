@@ -22,7 +22,6 @@
 #include <keel/core.h>
 #include <keel/ref.h>
 #include <algorithm>
-#include <utility>
 
 namespace numkit {
 
@@ -242,7 +241,7 @@ inline keel::Array<DecimatedSeries> buildPyramid(const keel::f64 *x, const keel:
         const keel::i32 cols = keel::as<keel::i32>(std::max<keel::usize>(1, (s + 7) / 8));
         DecimatedSeries d = decimateM4(cx, cy, s, cx[0], cx[s - 1], cols);
         if (d.x.size() >= s) break;            // no progress
-        levels.push_back(std::move(d));
+        levels.push_back(keel::move(d));
         const DecimatedSeries &last = levels[levels.size() - 1];
         cx = last.x.data();
         cy = last.y.data();

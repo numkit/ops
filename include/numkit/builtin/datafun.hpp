@@ -6,7 +6,7 @@
 #include <keel/core.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
-#include <tuple>
+#include <keel/tuple.h>
 #include <numkit/value/value.hpp>
 #include <numkit/ops/rng.hpp>
 
@@ -85,14 +85,14 @@ Value mean(const Value &x, keel::i32 dim, keel::Allocator *mr = nullptr);
 /// @param mr Memory resource.
 /// @return Tuple containing `{max_values, max_indices}`.
 /// @see min, maxOmitNan
-std::tuple<Value, Value> max(const Value &x, keel::Allocator *mr = nullptr);
+keel::Tuple<Value, Value> max(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Largest elements in array along specified dimension (`[M, I] = max(x, [], dim)`).
 /// @param x Input array.
 /// @param dim Operating dimension.
 /// @param mr Memory resource.
 /// @return Tuple containing `{max_values, max_indices}`.
-std::tuple<Value, Value> max(const Value &x, keel::i32 dim, keel::Allocator *mr = nullptr);
+keel::Tuple<Value, Value> max(const Value &x, keel::i32 dim, keel::Allocator *mr = nullptr);
 
 /// @brief Element-wise maximum of two arrays (`max(a, b)`).
 /// @param a First array.
@@ -106,7 +106,7 @@ Value max(const Value &a, const Value &b, keel::Allocator *mr = nullptr);
 /// @param dim Operating dimension.
 /// @param mr Memory resource.
 /// @return Tuple containing `{max_values, max_indices}`.
-std::tuple<Value, Value> maxOmitNan(const Value &x, keel::i32 dim, keel::Allocator *mr = nullptr);
+keel::Tuple<Value, Value> maxOmitNan(const Value &x, keel::i32 dim, keel::Allocator *mr = nullptr);
 
 /// @brief Element-wise maximum of two arrays omitting NaNs (`max(a, b, 'omitnan')`).
 /// @param a First array.
@@ -120,14 +120,14 @@ Value maxOmitNanBinary(const Value &a, const Value &b, keel::Allocator *mr = nul
 /// @param mr Memory resource.
 /// @return Tuple containing `{min_values, min_indices}`.
 /// @see max, minOmitNan
-std::tuple<Value, Value> min(const Value &x, keel::Allocator *mr = nullptr);
+keel::Tuple<Value, Value> min(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Smallest elements in array along dimension (`[M, I] = min(x, [], dim)`).
 /// @param x Input array.
 /// @param dim Operating dimension.
 /// @param mr Memory resource.
 /// @return Tuple containing `{min_values, min_indices}`.
-std::tuple<Value, Value> min(const Value &x, keel::i32 dim, keel::Allocator *mr = nullptr);
+keel::Tuple<Value, Value> min(const Value &x, keel::i32 dim, keel::Allocator *mr = nullptr);
 
 /// @brief Element-wise minimum of two arrays (`min(a, b)`).
 /// @param a First array.
@@ -141,7 +141,7 @@ Value min(const Value &a, const Value &b, keel::Allocator *mr = nullptr);
 /// @param dim Operating dimension.
 /// @param mr Memory resource.
 /// @return Tuple containing `{min_values, min_indices}`.
-std::tuple<Value, Value> minOmitNan(const Value &x, keel::i32 dim, keel::Allocator *mr = nullptr);
+keel::Tuple<Value, Value> minOmitNan(const Value &x, keel::i32 dim, keel::Allocator *mr = nullptr);
 
 /// @brief Element-wise minimum of two arrays omitting NaNs (`min(a, b, 'omitnan')`).
 /// @param a First array.
@@ -292,7 +292,7 @@ Value uniqueRows(const Value &x, bool stable = false, keel::Allocator *mr = null
 /// @param last True to return last occurrence index instead of first.
 /// @param mr Memory resource.
 /// @return Tuple containing `{C, ia, ic}`.
-std::tuple<Value, Value, Value> uniqueWithIndices(const Value &x, bool stable = false, bool last = false, keel::Allocator *mr = nullptr);
+keel::Tuple<Value, Value, Value> uniqueWithIndices(const Value &x, bool stable = false, bool last = false, keel::Allocator *mr = nullptr);
 
 /// @brief Unique rows with index mappings (`[C, ia, ic] = unique(x, 'rows')`).
 /// @param x 2-D matrix.
@@ -300,7 +300,7 @@ std::tuple<Value, Value, Value> uniqueWithIndices(const Value &x, bool stable = 
 /// @param last True to return last occurrence index.
 /// @param mr Memory resource.
 /// @return Tuple containing `{C, ia, ic}`.
-std::tuple<Value, Value, Value> uniqueRowsWithIndices(const Value &x, bool stable = false, bool last = false, keel::Allocator *mr = nullptr);
+keel::Tuple<Value, Value, Value> uniqueRowsWithIndices(const Value &x, bool stable = false, bool last = false, keel::Allocator *mr = nullptr);
 
 /// @brief Tests if array elements are members of set (`ismember(a, b)`).
 /// @param a Query array.
@@ -316,7 +316,7 @@ Value ismember(const Value &a, const Value &b, keel::Allocator *mr = nullptr);
 /// @param wantLoc True to return matched index locations.
 /// @param mr Memory resource.
 /// @return Pair `{lia, loc}`.
-std::pair<Value, Value> ismemberComplex(const Value &a, const Value &b, bool wantLoc, keel::Allocator *mr = nullptr);
+keel::Pair<Value, Value> ismemberComplex(const Value &a, const Value &b, bool wantLoc, keel::Allocator *mr = nullptr);
 
 /// @brief Set union of two arrays (`union(a, b)`).
 /// @param a First set array.

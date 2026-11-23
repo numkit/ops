@@ -35,7 +35,7 @@ Value unaryRealDoubleHint(const Value &x, Value *hint, ScalarOp scalarOp, Comple
 
     if (hint && hint->isHeapDouble() && hint->heapRefCount() == 1
         && hint->dims() == x.dims()) {
-        Value r = std::move(*hint);
+        Value r = keel::move(*hint);
         const keel::f64 *in  = x.doubleData();
         keel::f64       *out = r.doubleDataMut();
         for (keel::usize i = 0; i < x.numel(); ++i)

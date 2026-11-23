@@ -23,7 +23,6 @@
 #include "keel/imagefile.h"
 
 #include <algorithm>
-#include <utility>
 
 namespace numkit::image {
 
@@ -370,7 +369,7 @@ keel::Array<keel::u8> loadFileBytes(keel::StringRef path, const char *who) {
         throw Error(keel::format("{}: cannot open '{}'", who, path),
                     0, 0, who, "", keel::format("numkit:{}:open", who));
     }
-    return std::move(res.value());
+    return keel::move(res.value());
 }
 
 keel::imagefile::TiffCompression parseTiffCompression(keel::StringRef s) {
@@ -400,7 +399,7 @@ bool fillPeekInfo(const keel::Result<keel::imagefile::ImageInfo> &res,
 // PNG
 // ============================================================================
 
-std::pair<Value, Value> readPngWithMap(const keel::u8 *data, keel::usize len,
+keel::Pair<Value, Value> readPngWithMap(const keel::u8 *data, keel::usize len,
                                        keel::Allocator *mr) {
     keel::imagefile::ImageDecodeOptions opts;
     opts.expand_indexed = false;
@@ -587,7 +586,7 @@ bool isTiffBytes(keel::StringRef b) {
     return isTiffBytes(reinterpret_cast<const keel::u8 *>(b.data()), b.size());
 }
 
-std::pair<Value, Value> readTiffWithMap(keel::ArrayRef<keel::u8> buf, keel::u32 page,
+keel::Pair<Value, Value> readTiffWithMap(keel::ArrayRef<keel::u8> buf, keel::u32 page,
                                         keel::Allocator *mr) {
     if (page == 0) {
         throw Error("imread: page index must be >= 1",
@@ -612,7 +611,7 @@ std::pair<Value, Value> readTiffWithMap(keel::ArrayRef<keel::u8> buf, keel::u32 
     };
 }
 
-std::pair<Value, Value> readTiffWithMap(keel::StringRef path, keel::u32 page,
+keel::Pair<Value, Value> readTiffWithMap(keel::StringRef path, keel::u32 page,
                                         keel::Allocator *mr) {
     const auto buf = loadFileBytes(path, "imread");
     return readTiffWithMap(buf, page, mr);
@@ -674,7 +673,7 @@ keel::Array<keel::u8> writeTiffToBytes(const Value &A, keel::StringRef compressi
         throw Error("imwrite TIFF: failed to encode TIFF",
                     0, 0, "imwrite", "", "numkit:imwrite:tiff");
     }
-    return std::move(res.value());
+    return keel::move(res.value());
 }
 
 void writeTiff(const Value &A, keel::StringRef path,

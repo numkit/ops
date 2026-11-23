@@ -17,7 +17,6 @@
 #include <numkit/value/value.hpp>
 
 #include <algorithm>
-#include <utility>
 
 namespace numkit::builtin {
 
@@ -174,7 +173,7 @@ EllipKE ellipke(const Value &m, keel::Allocator *mr)
         K.doubleDataMut()[i] = ke.k;
         E.doubleDataMut()[i] = ke.e;
     }
-    return {std::move(K), std::move(E)};
+    return {keel::move(K), keel::move(E)};
 }
 
 Value airy(keel::i32 k, const Value &x, keel::Allocator *mr)
@@ -234,7 +233,7 @@ EllipJ ellipj(const Value &u, const Value &m, keel::Allocator *mr)
         cn.doubleDataMut()[i] = ej.cn;
         dn.doubleDataMut()[i] = ej.dn;
     }
-    return {std::move(sn), std::move(cn), std::move(dn)};
+    return {keel::move(sn), keel::move(cn), keel::move(dn)};
 }
 
 Value marcumq(const Value &a_v, const Value &b_v, keel::i32 m, keel::Allocator *mr)

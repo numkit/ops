@@ -14,7 +14,7 @@
 #include <keel/array.h>
 #include <keel/complex.h>
 #include <keel/math.h>
-#include <tuple>
+#include <keel/tuple.h>
 #include <numkit/builtin/polyfun.hpp>
 #include "integration_detail.hpp"
 
@@ -24,7 +24,6 @@
 #include <numkit/ops/callback_eval.hpp>
 
 #include <algorithm>
-#include <utility>
 
 namespace numkit::builtin {
 
@@ -207,7 +206,7 @@ Value del2(const Value &u, keel::f64 h, keel::Allocator *mr)
     return out;
 }
 
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 gradient2(const Value &f, keel::f64 hx, keel::f64 hy, keel::Allocator *mr)
 {
     if (hx <= 0 || hy <= 0)
@@ -217,7 +216,7 @@ gradient2(const Value &f, keel::f64 hx, keel::f64 hy, keel::Allocator *mr)
     if (f.type() == ValueType::COMPLEX) {
         auto [grx, gry] = gradient2(realPartCopy(f, mr), hx, hy, mr);
         auto [gix, giy] = gradient2(imagPartCopy(f, mr), hx, hy, mr);
-        return std::make_tuple(combineComplexParts(grx, gix, mr),
+        return keel::make_tuple(combineComplexParts(grx, gix, mr),
                                combineComplexParts(gry, giy, mr));
     }
     const auto &d = f.dims();
@@ -232,13 +231,13 @@ gradient2(const Value &f, keel::f64 hx, keel::f64 hy, keel::Allocator *mr)
     if (f.dims().isVector() || f.isScalar()) {
         gradient1D(src.doubleData(), fx.doubleDataMut(), f.numel(), hx);
         gradient1D(src.doubleData(), fy.doubleDataMut(), f.numel(), hy);
-        return std::make_tuple(std::move(fx), std::move(fy));
+        return keel::make_tuple(keel::move(fx), keel::move(fy));
     }
     gradientAlongCols(src.doubleData(), fx.doubleDataMut(),
                       d.rows(), d.cols(), hx);
     gradientAlongRows(src.doubleData(), fy.doubleDataMut(),
                       d.rows(), d.cols(), hy);
-    return std::make_tuple(std::move(fx), std::move(fy));
+    return keel::make_tuple(keel::move(fx), keel::move(fy));
 }
 
 namespace detail {
@@ -277,7 +276,7 @@ keel::Array<Value> gradientND(const Value &f, const keel::f64 *hs, keel::usize n
                         0, 0, "gradient", "", "numkit:gradient:badSpacing");
         Value out = createLike(f, ValueType::DOUBLE, mr);
         gradientAlongDim(src.doubleData(), out.doubleDataMut(), shape, dim, h);
-        outs.push_back(std::move(out));
+        outs.push_back(keel::move(out));
     }
     return outs;
 }
@@ -500,7 +499,7 @@ Value integral2(FnHandle fn, keel::f64 a, keel::f64 b, keel::f64 c, keel::f64 d,
             Value Y = Value::matrix(15, 15, ValueType::DOUBLE, mr);
             keel::copy_n(X.doubleDataMut(), xs.data(), 225);
             keel::copy_n(Y.doubleDataMut(), ys.data(), 225);
-            Value xy[2] = {std::move(X), std::move(Y)};
+            Value xy[2] = {keel::move(X), keel::move(Y)};
             Value out[1];
             fn(keel::ArrayRef<Value>(xy, 2), keel::MutArrayRef<Value>(out, 1), mr);
             if (out[0].numel() == 225) {
@@ -556,7 +555,7 @@ Value integral3(FnHandle fn, keel::f64 a, keel::f64 b, keel::f64 c, keel::f64 d,
             Value X = Value::matrix(ayz[0].dims().rows(), ayz[0].dims().cols(), ValueType::DOUBLE, m);
             keel::f64 *xd = X.doubleDataMut();
             for (keel::usize k = 0; k < X.numel(); ++k) xd[k] = xval;
-            Value xyz[3] = { std::move(X), ayz[0], ayz[1] };
+            Value xyz[3] = { keel::move(X), ayz[0], ayz[1] };
             fn(keel::ArrayRef<Value>(xyz, 3), oyz, m);
         } else {
             Value xyz[3] = { Value::scalar(xval, m), ayz[0], ayz[1] };

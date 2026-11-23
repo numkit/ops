@@ -17,14 +17,13 @@
 #include <numkit/value/shape_ops.hpp>
 
 #include <algorithm>
-#include <utility>
 
 namespace numkit {
 
 // ============================================================
 // Helper: promote pair to complex if needed
 // ============================================================
-inline std::pair<Value, Value> promoteToComplex(const Value &a, const Value &b, keel::Allocator *mr = nullptr)
+inline keel::Pair<Value, Value> promoteToComplex(const Value &a, const Value &b, keel::Allocator *mr = nullptr)
 {
     Value ca = a, cb = b;
     if (a.isComplex() && !b.isComplex())
@@ -393,7 +392,7 @@ Value elementwiseComplexImpl(const Value &a, const Value &b, Op op, keel::Alloca
                            b.isSingleComplex() || b.type() == ValueType::SINGLE;
     auto finalize = [&](Value &&r) -> Value {
         if (outSingle && r.isComplex()) r.setSingleComplex(true);
-        return std::move(r);
+        return keel::move(r);
     };
     if (a.isEmpty() || b.isEmpty())
         return finalize(emptyResultForBinary(a, b, ValueType::COMPLEX, mr));
@@ -409,7 +408,7 @@ Value elementwiseComplexImpl(const Value &a, const Value &b, Op op, keel::Alloca
             const keel::c64 *db = cb.complexData();
             keel::c64 *dst = r.complexDataMut();
             for (keel::usize i = 0; i < cb.numel(); ++i) dst[i] = op(s, db[i]);
-            return finalize(std::move(r));
+            return finalize(keel::move(r));
         }
         if (cb.isScalar()) {
             auto r = createLike(ca, ValueType::COMPLEX, mr);
@@ -417,7 +416,7 @@ Value elementwiseComplexImpl(const Value &a, const Value &b, Op op, keel::Alloca
             const keel::c64 *da = ca.complexData();
             keel::c64 *dst = r.complexDataMut();
             for (keel::usize i = 0; i < ca.numel(); ++i) dst[i] = op(da[i], s);
-            return finalize(std::move(r));
+            return finalize(keel::move(r));
         }
         Dims outD;
         if (!broadcastDimsND(ca.dims(), cb.dims(), outD))
@@ -429,7 +428,7 @@ Value elementwiseComplexImpl(const Value &a, const Value &b, Op op, keel::Alloca
             [&](keel::usize outIdx, keel::usize aOff, keel::usize bOff) {
                 dst[outIdx] = op(da[aOff], db[bOff]);
             });
-        return finalize(std::move(r));
+        return finalize(keel::move(r));
     }
 
     if (ca.dims().is3D() || cb.dims().is3D()) {
@@ -438,14 +437,14 @@ Value elementwiseComplexImpl(const Value &a, const Value &b, Op op, keel::Alloca
             keel::c64 s = ca.toComplex();
             for (keel::usize i = 0; i < cb.numel(); ++i)
                 r.complexDataMut()[i] = op(s, cb.complexData()[i]);
-            return finalize(std::move(r));
+            return finalize(keel::move(r));
         }
         if (cb.isScalar()) {
             auto r = createLike(ca, ValueType::COMPLEX, mr);
             keel::c64 s = cb.toComplex();
             for (keel::usize i = 0; i < ca.numel(); ++i)
                 r.complexDataMut()[i] = op(ca.complexData()[i], s);
-            return finalize(std::move(r));
+            return finalize(keel::move(r));
         }
         const keel::usize aR = ca.dims().rows(), aC = ca.dims().cols();
         const keel::usize aP = ca.dims().is3D() ? ca.dims().pages() : 1;
@@ -460,7 +459,7 @@ Value elementwiseComplexImpl(const Value &a, const Value &b, Op op, keel::Alloca
             auto r = createLike(ca, ValueType::COMPLEX, mr);
             for (keel::usize i = 0; i < ca.numel(); ++i)
                 r.complexDataMut()[i] = op(ca.complexData()[i], cb.complexData()[i]);
-            return finalize(std::move(r));
+            return finalize(keel::move(r));
         }
         auto r = (outP > 1) ? Value::matrix3d(outR, outC, outP, ValueType::COMPLEX, mr)
                             : Value::matrix(outR, outC, ValueType::COMPLEX, mr);
@@ -473,7 +472,7 @@ Value elementwiseComplexImpl(const Value &a, const Value &b, Op op, keel::Alloca
                     const keel::usize bOff = broadcastOffset3D(rr, cc, pp, bR, bC, bP);
                     dst[pp * outR * outC + cc * outR + rr] = op(da[aOff], db[bOff]);
                 }
-        return finalize(std::move(r));
+        return finalize(keel::move(r));
     }
 
     keel::usize ar = ca.dims().rows(), ac = ca.dims().cols();
@@ -489,7 +488,7 @@ Value elementwiseComplexImpl(const Value &a, const Value &b, Op op, keel::Alloca
         auto r = Value::complexMatrix(outR, outC, mr);
         for (keel::usize i = 0; i < ca.numel(); ++i)
             r.complexDataMut()[i] = op(ca.complexData()[i], cb.complexData()[i]);
-        return finalize(std::move(r));
+        return finalize(keel::move(r));
     }
 
     auto r = Value::complexMatrix(outR, outC, mr);
@@ -504,7 +503,7 @@ Value elementwiseComplexImpl(const Value &a, const Value &b, Op op, keel::Alloca
             dst[c * outR + row] = op(da[cca * ar + ra], db[ccb * br + rb]);
         }
     }
-    return finalize(std::move(r));
+    return finalize(keel::move(r));
 }
 
 // Public entry: raw complex elementwise op, then narrow an all-real result to
@@ -512,7 +511,7 @@ Value elementwiseComplexImpl(const Value &a, const Value &b, Op op, keel::Alloca
 template<typename Op>
 Value elementwiseComplex(const Value &a, const Value &b, Op op, keel::Allocator *mr = nullptr)
 {
-    return narrowComplex(elementwiseComplexImpl(a, b, std::move(op), mr), mr);
+    return narrowComplex(elementwiseComplexImpl(a, b, keel::move(op), mr), mr);
 }
 
 // ============================================================
@@ -566,7 +565,7 @@ Value unaryComplexImpl(const Value &a, Op op, keel::Allocator *mr = nullptr)
 template<typename Op>
 Value unaryComplex(const Value &a, Op op, keel::Allocator *mr = nullptr)
 {
-    return narrowComplex(unaryComplexImpl(a, std::move(op), mr), mr);
+    return narrowComplex(unaryComplexImpl(a, keel::move(op), mr), mr);
 }
 
 // ============================================================

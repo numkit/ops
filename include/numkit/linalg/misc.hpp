@@ -10,7 +10,6 @@
 
 #include <keel/core.h>
 #include <keel/memory.h>
-#include <utility>
 #include <numkit/value/value.hpp>
 
 namespace numkit::linalg {
@@ -22,7 +21,7 @@ namespace numkit::linalg {
 /// @brief Reduced row echelon form (`[R, jb] = rref(A, have_tol, tol)`).
 ///
 /// `jb` is the 1-based pivot-column indices. Real-only in v1.
-std::pair<Value, Value>
+keel::Pair<Value, Value>
 rref(const Value &A, bool have_tol, keel::f64 tol_user,
      keel::Allocator *mr = nullptr);
 
@@ -30,7 +29,7 @@ rref(const Value &A, bool have_tol, keel::f64 tol_user,
 ///
 /// Returns `G` such that `G Â· [x; y] = [r; 0]` where `r = hypot(x, y)`.
 /// Real-only.
-std::pair<Value, Value>
+keel::Pair<Value, Value>
 planerot(const Value &xy, keel::Allocator *mr = nullptr);
 
 

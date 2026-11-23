@@ -7,7 +7,7 @@
 #pragma once
 
 #include <keel/memory.h>
-#include <tuple>
+#include <keel/tuple.h>
 #include <numkit/value/value.hpp>
 
 namespace numkit::linalg {
@@ -27,7 +27,7 @@ namespace numkit::linalg {
 /// `Re(v)`, `Im(v)` in `VR`.
 ///
 /// Real eigenvalues pass through unchanged.
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 cdf2rdf(const Value &V, const Value &D, keel::Allocator *mr = nullptr);
 
 /// @brief Real Schur â†’ complex Schur form (`[U, T] = rsf2csf(UR, TR)`).
@@ -41,7 +41,7 @@ cdf2rdf(const Value &V, const Value &D, keel::Allocator *mr = nullptr);
 /// rotation that brings its complex-conjugate eigenvalues onto the
 /// diagonal of `T`; the corresponding two columns of `U` get the
 /// same rotation applied.
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 rsf2csf(const Value &UR, const Value &TR, keel::Allocator *mr = nullptr);
 
 

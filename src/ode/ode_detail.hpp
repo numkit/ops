@@ -18,8 +18,7 @@
 #include <numkit/value/fn_handle.hpp>
 #include <numkit/value/value.hpp>
 
-#include <tuple>
-#include <utility>
+#include <keel/tuple.h>
 
 namespace numkit::ode {
 
@@ -88,7 +87,7 @@ using KeelOdeSolverFn = keel::ode::Solution (*)(keel::ode::RhsFn, keel::ArrayRef
                                                 keel::ArrayRef<keel::f64>, const keel::ode::Options &,
                                                 keel::Allocator *);
 
-inline std::tuple<Value, Value>
+inline keel::Tuple<Value, Value>
 runKeelOde(KeelOdeSolverFn solver_fn, const char *solver, keel::i32 refine_default,
            FnHandle rhs, const Value &tspan, const Value &y0,
            const Value &opts, keel::Allocator *mr)
@@ -171,7 +170,7 @@ runKeelOde(KeelOdeSolverFn solver_fn, const char *solver, keel::i32 refine_defau
     if (m > 0) keel::copy_n(t_val.doubleDataMut(), sol.t.data(), m);
     Value y_val = Value::matrix(m, d, ValueType::DOUBLE, mr);
     if (m * d > 0) keel::copy_n(y_val.doubleDataMut(), sol.y_colmajor.data(), m * d);
-    return {std::move(t_val), std::move(y_val)};
+    return {keel::move(t_val), keel::move(y_val)};
 }
 
 } // namespace numkit::ode

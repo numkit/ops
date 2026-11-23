@@ -630,7 +630,7 @@ ShiftDimAuto shiftdimAuto(const Value &x, keel::Allocator *mr)
         for (keel::i32 i = 0; i < newN; ++i) trimmed[i] = yd.dim(i);
         y = reshape(y, keel::ArrayRef<keel::usize>(trimmed, keel::as<keel::usize>(newN)), mr);
     }
-    return { std::move(y), k };
+    return { keel::move(y), k };
 }
 
 } // namespace numkit::builtin

@@ -7,7 +7,7 @@
 #pragma once
 
 #include <keel/memory.h>
-#include <tuple>
+#include <keel/tuple.h>
 #include <numkit/value/value.hpp>
 
 namespace numkit::linalg {
@@ -20,9 +20,9 @@ namespace numkit::linalg {
 Value gsvd_values(const Value &A, const Value &B, keel::Allocator *mr = nullptr);
 
 /// @brief Full generalized SVD decomposition of matrix pair (A, B).
-/// Returns std::tuple<Value, Value, Value, Value, Value>{U, V, X, C, S}
+/// Returns keel::Tuple<Value, Value, Value, Value, Value>{U, V, X, C, S}
 /// such that A = U * C * X^H and B = V * S * X^H.
-std::tuple<Value, Value, Value, Value, Value> gsvd(const Value &A, const Value &B,
+keel::Tuple<Value, Value, Value, Value, Value> gsvd(const Value &A, const Value &B,
                                                    keel::Allocator *mr = nullptr);
 
 

@@ -3,6 +3,7 @@
 // qz — Generalized Schur decomposition [AA, BB, Q, Z] = qz(A, B) via keel::linalg::qz_factor.
 
 #include <keel/core.h>
+#include <keel/tuple.h>
 #include <keel/memory.h>
 #include <keel/arena.h>
 #include <keel/array.h>
@@ -18,7 +19,7 @@
 
 namespace numkit::linalg {
 
-std::tuple<Value, Value, Value, Value> qz(const Value &A, const Value &B,
+keel::Tuple<Value, Value, Value, Value> qz(const Value &A, const Value &B,
                                            keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "qz", "A", 1);

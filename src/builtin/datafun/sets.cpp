@@ -1,6 +1,7 @@
 // src/builtin/src/datafun/sets.cpp
 
 #include <keel/core.h>
+#include <keel/tuple.h>
 #include <keel/memory.h>
 #include <keel/complex.h>
 #include <numkit/builtin/datafun.hpp>
@@ -17,7 +18,6 @@
 
 #include <algorithm>
 #include <numeric>
-#include <utility>
 
 #include "discrete_detail.hpp"
 
@@ -31,7 +31,7 @@ Value unique(const Value &x, bool stable, keel::Allocator *alloc)
     const keel::usize n = x.numel();
     if (n == 0) return emptyRow(alloc);
     if (x.type() == ValueType::COMPLEX)
-        return std::get<0>(uniqueComplexFull(x, stable, false, alloc));
+        return keel::get<0>(uniqueComplexFull(x, stable, false, alloc));
 
     keel::ArenaTemp scratch = keel::get_scratch(alloc);
     const keel::f64 *p = x.doubleData();
@@ -67,13 +67,13 @@ Value unique(const Value &x, bool stable, keel::Allocator *alloc)
     return rowFromVec(out.data(), out.size(), alloc);
 }
 
-std::tuple<Value, Value, Value>
+keel::Tuple<Value, Value, Value>
 uniqueWithIndices(const Value &x, bool stable, bool last,
                   keel::Allocator *alloc)
 {
     const keel::usize n = x.numel();
     if (n == 0) {
-        return std::make_tuple(emptyRow(alloc), emptyRow(alloc),
+        return keel::make_tuple(emptyRow(alloc), emptyRow(alloc),
                                emptyRow(alloc));
     }
     if (x.type() == ValueType::COMPLEX)
@@ -140,7 +140,7 @@ uniqueWithIndices(const Value &x, bool stable, bool last,
         std::copy(iaVec.begin(), iaVec.end(), iaRow.doubleDataMut());
         auto icRow = Value::matrix(1, n, ValueType::DOUBLE, alloc);
         std::copy(ic.begin(), ic.end(), icRow.doubleDataMut());
-        return std::make_tuple(std::move(cOut), std::move(iaRow), std::move(icRow));
+        return keel::make_tuple(keel::move(cOut), keel::move(iaRow), keel::move(icRow));
     }
 
     keel::ArenaTemp scratch = keel::get_scratch(alloc);
@@ -195,7 +195,7 @@ uniqueWithIndices(const Value &x, bool stable, bool last,
     auto icRow = Value::matrix(1, n, ValueType::DOUBLE, alloc);
     std::copy(ic.begin(), ic.end(), icRow.doubleDataMut());
 
-    return std::make_tuple(std::move(cOut), std::move(iaRow), std::move(icRow));
+    return keel::make_tuple(keel::move(cOut), keel::move(iaRow), keel::move(icRow));
 }
 
 // ── unique with 'rows' flag ────────────────────────────────────────
@@ -247,7 +247,7 @@ Value uniqueRows(const Value &x, bool stable, keel::Allocator *alloc)
     return numkit::ops::collectRowsByIndex(x, uniqRows.data(), uniqRows.size(), alloc);
 }
 
-std::tuple<Value, Value, Value>
+keel::Tuple<Value, Value, Value>
 uniqueRowsWithIndices(const Value &x, bool stable, bool last,
                       keel::Allocator *alloc)
 {
@@ -255,7 +255,7 @@ uniqueRowsWithIndices(const Value &x, bool stable, bool last,
     const keel::usize rows = x.dims().rows();
     const keel::usize cols = x.dims().cols();
     if (rows == 0) {
-        return std::make_tuple(emptyRowsResult(cols, alloc),
+        return keel::make_tuple(emptyRowsResult(cols, alloc),
                                emptyRow(alloc), emptyRow(alloc));
     }
 
@@ -291,9 +291,9 @@ uniqueRowsWithIndices(const Value &x, bool stable, bool last,
         for (keel::usize i = 0; i < uniqRows.size(); ++i)
             ia[i] = keel::as<keel::f64>(uniqRows[i] + 1);
 
-        return std::make_tuple(
+        return keel::make_tuple(
             numkit::ops::collectRowsByIndex(x, uniqRows.data(), uniqRows.size(), alloc),
-            std::move(iaCol), std::move(icRow));
+            keel::move(iaCol), keel::move(icRow));
     }
 
     keel::HashMap<RowKey, keel::usize, RowKeyHash, RowKeyEq> firstIdx(scratch.allocator());
@@ -341,8 +341,8 @@ uniqueRowsWithIndices(const Value &x, bool stable, bool last,
     for (keel::usize i = 0; i < uniqRows.size(); ++i)
         ia[i] = keel::as<keel::f64>(uniqRows[i] + 1);
 
-    return std::make_tuple(numkit::ops::collectRowsByIndex(x, uniqRows.data(), uniqRows.size(), alloc),
-                           std::move(iaCol), std::move(icRow));
+    return keel::make_tuple(numkit::ops::collectRowsByIndex(x, uniqRows.data(), uniqRows.size(), alloc),
+                           keel::move(iaCol), keel::move(icRow));
 }
 
 // ── ismember ───────────────────────────────────────────────────────
@@ -353,7 +353,7 @@ inline keel::c64 elemAsComplex(const Value &v, keel::usize k)
                                             : keel::c64(v.elemAsDouble(k), 0.0);
 }
 
-std::pair<Value, Value>
+keel::Pair<Value, Value>
 ismemberComplex(const Value &a, const Value &b, bool wantLoc, keel::Allocator *alloc)
 {
     const keel::usize na = a.numel(), nb = b.numel();
@@ -361,7 +361,7 @@ ismemberComplex(const Value &a, const Value &b, bool wantLoc, keel::Allocator *a
     Value loc;
     keel::f64 *lo = nullptr;
     if (wantLoc) { loc = createLike(a, ValueType::DOUBLE, alloc); lo = loc.doubleDataMut(); }
-    if (na == 0) return {std::move(tf), std::move(loc)};
+    if (na == 0) return {keel::move(tf), keel::move(loc)};
     keel::u8 *out = tf.logicalDataMut();
 
     keel::ArenaTemp scratch = keel::get_scratch(alloc);
@@ -379,7 +379,7 @@ ismemberComplex(const Value &a, const Value &b, bool wantLoc, keel::Allocator *a
         out[i] = hit ? 1 : 0;
         if (lo) lo[i] = hit ? *hit : 0.0;
     }
-    return {std::move(tf), std::move(loc)};
+    return {keel::move(tf), keel::move(loc)};
 }
 
 enum class CxSetOp { Intersect, Union, Diff };

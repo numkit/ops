@@ -15,7 +15,6 @@
 #include "../dsp_helpers.hpp"  // Complex typedef
 #include <numkit/ops/helpers.hpp>         // createLike
 
-#include <utility>
 
 namespace numkit::signal {
 
@@ -69,9 +68,9 @@ Value cyclicShiftAll(const Value &x, keel::i32 mode, keel::Allocator *mr)
         keel::Array<keel::c64> buf(R * C * P, mr);
         keel::mem_copy(buf.data(), src, sizeof(keel::c64) * R * C * P);
         keel::c64 *cur = buf.data(), *nxt = dst;
-        if (dR) { shiftAlongDim<keel::c64>(cur, nxt, R, C, P, 1, mode); std::swap(cur, nxt); }
-        if (dC) { shiftAlongDim<keel::c64>(cur, nxt, R, C, P, 2, mode); std::swap(cur, nxt); }
-        if (dP) { shiftAlongDim<keel::c64>(cur, nxt, R, C, P, 3, mode); std::swap(cur, nxt); }
+        if (dR) { shiftAlongDim<keel::c64>(cur, nxt, R, C, P, 1, mode); keel::swap(cur, nxt); }
+        if (dC) { shiftAlongDim<keel::c64>(cur, nxt, R, C, P, 2, mode); keel::swap(cur, nxt); }
+        if (dP) { shiftAlongDim<keel::c64>(cur, nxt, R, C, P, 3, mode); keel::swap(cur, nxt); }
         if (cur != dst) keel::mem_copy(dst, cur, sizeof(keel::c64) * R * C * P);
     } else {
         const keel::f64 *src = x.doubleData();
@@ -79,9 +78,9 @@ Value cyclicShiftAll(const Value &x, keel::i32 mode, keel::Allocator *mr)
         keel::Array<keel::f64> buf(R * C * P, mr);
         keel::mem_copy(buf.data(), src, sizeof(keel::f64) * R * C * P);
         keel::f64 *cur = buf.data(), *nxt = dst;
-        if (dR) { shiftAlongDim<keel::f64>(cur, nxt, R, C, P, 1, mode); std::swap(cur, nxt); }
-        if (dC) { shiftAlongDim<keel::f64>(cur, nxt, R, C, P, 2, mode); std::swap(cur, nxt); }
-        if (dP) { shiftAlongDim<keel::f64>(cur, nxt, R, C, P, 3, mode); std::swap(cur, nxt); }
+        if (dR) { shiftAlongDim<keel::f64>(cur, nxt, R, C, P, 1, mode); keel::swap(cur, nxt); }
+        if (dC) { shiftAlongDim<keel::f64>(cur, nxt, R, C, P, 2, mode); keel::swap(cur, nxt); }
+        if (dP) { shiftAlongDim<keel::f64>(cur, nxt, R, C, P, 3, mode); keel::swap(cur, nxt); }
         if (cur != dst) keel::mem_copy(dst, cur, sizeof(keel::f64) * R * C * P);
     }
     return r;

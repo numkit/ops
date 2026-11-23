@@ -3,6 +3,7 @@
 // ordschur — Reorder Schur decomposition A = U * T * U^H via keel::linalg::ordschur_complex.
 
 #include <keel/core.h>
+#include <keel/tuple.h>
 #include <keel/format.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
@@ -20,7 +21,7 @@
 
 namespace numkit::linalg {
 
-std::tuple<Value, Value> ordschur(const Value &U, const Value &T,
+keel::Tuple<Value, Value> ordschur(const Value &U, const Value &T,
                                   const Value &select,
                                   keel::Allocator *mr)
 {
@@ -85,7 +86,7 @@ std::tuple<Value, Value> ordschur(const Value &U, const Value &T,
             detail::narrowDoubleToSingleIf(detail::narrow_if_real(T_out, mr), wantSingle, mr)};
 }
 
-std::tuple<Value, Value> ordschur(const Value &U, const Value &T,
+keel::Tuple<Value, Value> ordschur(const Value &U, const Value &T,
                                   keel::StringRef domain,
                                   keel::Allocator *mr)
 {

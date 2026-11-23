@@ -22,8 +22,6 @@
 #include <cstdio>
 #include <cstring>
 #include <numeric>
-#include <tuple>
-#include <utility>
 
 
 namespace numkit::builtin {
@@ -106,7 +104,7 @@ inline keel::String num2strComplexArray(const Value &x, keel::i32 precOverride,
         for (keel::usize i = 0; i < rows * cols; ++i) {
             keel::String s = num2strComplexScalar(d[i], precOverride, salloc);
             wmax = std::max(wmax, s.size());
-            cells.push_back(std::move(s));
+            cells.push_back(keel::move(s));
         }
         const keel::usize W = allInt ? wmax + 2
                                      : (keel::as<keel::usize>(std::max(0, keel::as<keel::i32>(keel::floor(keel::log10(maxAbs > 0 ? maxAbs : 1.0))))) + 5 + 7);
@@ -342,7 +340,7 @@ Value strsplitImpl(keel::StringRef s,
     while (i < n) {
         keel::usize mlen = matchDelimAt(s, i, delims);
         if (mlen > 0) {
-            parts.push_back(std::move(current));
+            parts.push_back(keel::move(current));
             current = keel::String(salloc);
             const keel::usize matchStart = i;
             i += mlen;
@@ -358,7 +356,7 @@ Value strsplitImpl(keel::StringRef s,
             current.push_back(s[i++]);
         }
     }
-    parts.push_back(std::move(current));
+    parts.push_back(keel::move(current));
     auto c = Value::cell(1, parts.size());
     for (keel::usize k = 0; k < parts.size(); ++k)
         c.cellAt(k) = Value::fromString(parts[k], mr);
@@ -770,7 +768,7 @@ RatExpansion ratExpansion(keel::f64 x, keel::f64 tol)
         next.append(" + 1/(");
         next.append(s.as_ref());
         next.push_back(')');
-        s = std::move(next);
+        s = keel::move(next);
     }
     return s;
 }

@@ -19,8 +19,6 @@
 
 #include <algorithm>
 #include <numeric>
-#include <tuple>
-#include <utility>
 
 
 namespace numkit::builtin {
@@ -123,9 +121,9 @@ void singularSquareSolve(T *A_lu, keel::usize n, T *B_work, keel::usize nrhs, T 
         }
         if (piv != j) {
             for (keel::usize c = 0; c < n; ++c)
-                std::swap(A_lu[j + c * n], A_lu[piv + c * n]);
+                keel::swap(A_lu[j + c * n], A_lu[piv + c * n]);
             for (keel::usize r = 0; r < nrhs; ++r)
-                std::swap(B_work[j + r * n], B_work[piv + r * n]);
+                keel::swap(B_work[j + r * n], B_work[piv + r * n]);
         }
         const T ajj = A_lu[j + j * n];
         if (ajj != T(0)) {

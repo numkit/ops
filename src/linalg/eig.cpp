@@ -26,7 +26,7 @@
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
-#include <tuple>
+#include <keel/tuple.h>
 
 namespace numkit::linalg {
 
@@ -220,7 +220,7 @@ Value eig_general_values(const Value &A, keel::Allocator *mr)
     return detail::narrowDoubleToSingleIf(detail::narrow_if_real(out, mr), wantSingle, mr);
 }
 
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 eig_general_VD(const Value &A, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "eig");
@@ -232,7 +232,7 @@ eig_general_VD(const Value &A, keel::Allocator *mr)
         throw Error("eig: matrix must be square",
                     0, 0, "eig", "", "numkit:eig:notSquare");
     if (n == 0) {
-        return std::make_tuple(
+        return keel::make_tuple(
             Value::matrix(0, 0, A.type(), mr),
             Value::matrix(0, 0, A.type(), mr));
     }
@@ -273,7 +273,7 @@ eig_general_VD(const Value &A, keel::Allocator *mr)
             for (keel::usize i = 0; i < n; ++i)
                 Vd[i + k * n] = Uc[i + src * n];
         }
-        return std::make_tuple(
+        return keel::make_tuple(
             detail::narrowDoubleToSingleIf(detail::narrow_if_real(Vout, mr), wantSingle, mr),
             detail::narrowDoubleToSingleIf(Dout, wantSingle, mr));
     }
@@ -301,13 +301,13 @@ eig_general_VD(const Value &A, keel::Allocator *mr)
                 Vr.doubleDataMut()[i] = Vd[i].real();
                 Dr.doubleDataMut()[i] = Dd[i].real();
             }
-            return std::make_tuple(
+            return keel::make_tuple(
                 detail::narrowDoubleToSingleIf(Vr, wantSingle, mr),
                 detail::narrowDoubleToSingleIf(Dr, wantSingle, mr));
         }
     }
 
-    return std::make_tuple(
+    return keel::make_tuple(
         detail::narrowDoubleToSingleIf(detail::narrow_if_real(Vout, mr), wantSingle, mr),
         detail::narrowDoubleToSingleIf(detail::narrow_if_real(Dout, mr), wantSingle, mr));
 }
@@ -340,7 +340,7 @@ bool isSymmetricApprox(const Value &A, keel::f64 tol)
     return true;
 }
 
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 eig_symmetric(const Value &A, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "eig");
@@ -357,7 +357,7 @@ eig_symmetric(const Value &A, keel::Allocator *mr)
                     "(general eig via Hessenberg + Francis QR is deferred to Phase 2b)",
                     0, 0, "eig", "", "numkit:eig:notSymmetric");
     if (n == 0) {
-        return std::make_tuple(
+        return keel::make_tuple(
             Value::matrix(0, 0, A.type(), mr),
             Value::matrix(0, 0, A.type(), mr));
     }
@@ -376,7 +376,7 @@ eig_symmetric(const Value &A, keel::Allocator *mr)
     std::fill(D, D + n * n, 0.0);
     for (keel::usize k = 0; k < n; ++k) D[k + k * n] = evals[k];
 
-    return std::make_tuple(
+    return keel::make_tuple(
         detail::narrowDoubleToSingleIf(Vout, wantSingle, mr),
         detail::narrowDoubleToSingleIf(Dout, wantSingle, mr));
 }
@@ -398,7 +398,7 @@ Value eig_values(const Value &A, keel::Allocator *mr)
 // Generalized eig (symmetric Cholesky fast path + QZ general path)
 // ────────────────────────────────────────────────────────────────────────
 
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 eig_generalized_VD(const Value &A, const Value &B, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "eig");
@@ -415,7 +415,7 @@ eig_generalized_VD(const Value &A, const Value &B, keel::Allocator *mr)
     const bool wantSingle = (A.type() == ValueType::SINGLE || B.type() == ValueType::SINGLE);
     const ValueType rtype = wantSingle ? ValueType::SINGLE : ValueType::DOUBLE;
     if (n == 0) {
-        return std::make_tuple(Value::matrix(0, 0, rtype, mr), Value::matrix(0, 0, rtype, mr));
+        return keel::make_tuple(Value::matrix(0, 0, rtype, mr), Value::matrix(0, 0, rtype, mr));
     }
 
     Value Aw = detail::widenSingleToDouble(A, mr);
@@ -432,7 +432,7 @@ eig_generalized_VD(const Value &A, const Value &B, keel::Allocator *mr)
             keel::f64 *dd = D.doubleDataMut();
             std::fill(dd, dd + n * n, 0.0);
             for (keel::usize k = 0; k < n; ++k) dd[k + k * n] = evals[k];
-            return std::make_tuple(
+            return keel::make_tuple(
                 detail::narrowDoubleToSingleIf(V, wantSingle, mr),
                 detail::narrowDoubleToSingleIf(D, wantSingle, mr));
         }
@@ -486,13 +486,13 @@ eig_generalized_VD(const Value &A, const Value &B, keel::Allocator *mr)
                 Vr.doubleDataMut()[i] = Vd[i].real();
                 Dr.doubleDataMut()[i] = Dd[i].real();
             }
-            return std::make_tuple(
+            return keel::make_tuple(
                 detail::narrowDoubleToSingleIf(Vr, wantSingle, mr),
                 detail::narrowDoubleToSingleIf(Dr, wantSingle, mr));
         }
     }
 
-    return std::make_tuple(
+    return keel::make_tuple(
         detail::narrowDoubleToSingleIf(detail::narrow_if_real(Vout, mr), wantSingle, mr),
         detail::narrowDoubleToSingleIf(detail::narrow_if_real(Dout, mr), wantSingle, mr));
 }
@@ -558,7 +558,7 @@ bool try_eigs_generalized_smallestabs(const Value &A, const Value &B, keel::usiz
 // Hessenberg reduction (via keel::linalg::hess_reduce)
 // ────────────────────────────────────────────────────────────────────────
 
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 hess(const Value &A, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "hess");
@@ -573,14 +573,14 @@ hess(const Value &A, keel::Allocator *mr)
     if (A.isComplex()) {
         auto Hout = Value::complexMatrix(n, n, mr);
         auto Pout = Value::complexMatrix(n, n, mr);
-        if (n == 0) return std::make_tuple(std::move(Pout), std::move(Hout));
+        if (n == 0) return keel::make_tuple(keel::move(Pout), keel::move(Hout));
         std::copy(A.complexData(), A.complexData() + n * n, Hout.complexDataMut());
         keel::linalg::hess_reduce(Hout.complexDataMut(), n, Pout.complexDataMut(), mr);
-        return std::make_tuple(detail::narrow_if_real(Pout, mr), detail::narrow_if_real(Hout, mr));
+        return keel::make_tuple(detail::narrow_if_real(Pout, mr), detail::narrow_if_real(Hout, mr));
     }
     const bool wantSingle = (A.type() == ValueType::SINGLE);
     if (n == 0) {
-        return std::make_tuple(
+        return keel::make_tuple(
             Value::matrix(0, 0, A.type(), mr),
             Value::matrix(0, 0, A.type(), mr));
     }
@@ -589,7 +589,7 @@ hess(const Value &A, keel::Allocator *mr)
     auto Pout = Value::matrix(n, n, ValueType::DOUBLE, mr);
     std::copy(Aw.doubleData(), Aw.doubleData() + n * n, Hout.doubleDataMut());
     keel::linalg::hess_reduce(Hout.doubleDataMut(), n, Pout.doubleDataMut(), mr);
-    return std::make_tuple(
+    return keel::make_tuple(
         detail::narrowDoubleToSingleIf(Pout, wantSingle, mr),
         detail::narrowDoubleToSingleIf(Hout, wantSingle, mr));
 }
@@ -604,7 +604,7 @@ Value hess_H_only(const Value &A, keel::Allocator *mr)
 // Schur & Sylvester (symmetric A, B)
 // ────────────────────────────────────────────────────────────────────────
 
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 schur_sym(const Value &A, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "schur");
@@ -618,7 +618,7 @@ schur_sym(const Value &A, keel::Allocator *mr)
     return eig_symmetric(A, mr);
 }
 
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 schur_general(const Value &A, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "schur");
@@ -632,17 +632,17 @@ schur_general(const Value &A, keel::Allocator *mr)
     if (A.isComplex()) {
         auto U = Value::complexMatrix(n, n, mr);
         auto T = Value::complexMatrix(n, n, mr);
-        if (n == 0) return std::make_tuple(std::move(U), std::move(T));
+        if (n == 0) return keel::make_tuple(keel::move(U), keel::move(T));
         if (!keel::linalg::schur_complex(A.complexData(), n, U.complexDataMut(), T.complexDataMut(), mr)) {
             throw Error("eig: QR iteration failed to converge",
                         0, 0, "eig", "", "numkit:eig:qrNoConverge");
         }
-        return std::make_tuple(detail::narrow_if_real(U, mr), detail::narrow_if_real(T, mr));
+        return keel::make_tuple(detail::narrow_if_real(U, mr), detail::narrow_if_real(T, mr));
     }
 
     const bool wantSingle = (A.type() == ValueType::SINGLE);
     if (n == 0) {
-        return std::make_tuple(
+        return keel::make_tuple(
             Value::matrix(0, 0, A.type(), mr),
             Value::matrix(0, 0, A.type(), mr));
     }
@@ -650,7 +650,7 @@ schur_general(const Value &A, keel::Allocator *mr)
     auto U = Value::matrix(n, n, ValueType::DOUBLE, mr);
     auto T = Value::matrix(n, n, ValueType::DOUBLE, mr);
     keel::linalg::schur_real(Aw.doubleData(), n, U.doubleDataMut(), T.doubleDataMut(), mr);
-    return std::make_tuple(
+    return keel::make_tuple(
         detail::narrowDoubleToSingleIf(U, wantSingle, mr),
         detail::narrowDoubleToSingleIf(T, wantSingle, mr));
 }
@@ -788,7 +788,7 @@ Value polyeig_values(keel::ArrayRef<Value> coeffs, keel::Allocator *mr)
     return detail::narrowDoubleToSingleIf(eig_general_values(L, mr), anySingleCoeffs(coeffs), mr);
 }
 
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 polyeig_VE(keel::ArrayRef<Value> coeffs, keel::Allocator *mr)
 {
     validatePolyeigCoeffs(coeffs);
@@ -812,7 +812,7 @@ polyeig_VE(keel::ArrayRef<Value> coeffs, keel::Allocator *mr)
             Vd[r + j * n] = Vbd[r + j * N];
     }
     const bool wantSingle = anySingleCoeffs(coeffs);
-    return std::make_tuple(
+    return keel::make_tuple(
         detail::narrowDoubleToSingleIf(V, wantSingle, mr),
         detail::narrowDoubleToSingleIf(e, wantSingle, mr));
 }

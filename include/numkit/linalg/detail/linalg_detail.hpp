@@ -13,7 +13,6 @@
 #include <keel/complex.h>
 #include <keel/math.h>
 #include <algorithm>
-#include <utility>
 
 #include <numkit/value/error.hpp>
 #include <numkit/value/value.hpp>
@@ -159,7 +158,7 @@ inline void require2DMatrix(const Value &A, keel::StringRef fn,
     if (!pageHint.empty())
         keel::format_into(msg, "; use {} to compute each N-D page separately", pageHint);
     msg.push_back('.');
-    throw Error(std::move(msg), 0, 0, fn, "",
+    throw Error(keel::move(msg), 0, 0, fn, "",
                 keel::format("numkit:{}:notMatrix", fn));
 }
 

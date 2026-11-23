@@ -17,11 +17,11 @@
 #include <numkit/value/error.hpp>
 
 #include <algorithm>
-#include <tuple>
+#include <keel/tuple.h>
 
 namespace numkit::linalg {
 
-std::tuple<Value, Value, Value, Value> ordqz(const Value &AA, const Value &BB,
+keel::Tuple<Value, Value, Value, Value> ordqz(const Value &AA, const Value &BB,
                                               const Value &Q, const Value &Z,
                                               const Value &select,
                                               keel::Allocator *mr)
@@ -82,7 +82,7 @@ std::tuple<Value, Value, Value, Value> ordqz(const Value &AA, const Value &BB,
             detail::narrowDoubleToSingleIf(detail::narrow_if_real(Zout, mr), wantSingle, mr)};
 }
 
-std::tuple<Value, Value, Value, Value> ordqz(const Value &AA, const Value &BB,
+keel::Tuple<Value, Value, Value, Value> ordqz(const Value &AA, const Value &BB,
                                               const Value &Q, const Value &Z,
                                               keel::StringRef domain,
                                               keel::Allocator *mr)

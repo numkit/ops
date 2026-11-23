@@ -4,6 +4,7 @@
 // pages and dispatch to the 2-D variant.
 
 #include <keel/core.h>
+#include <keel/tuple.h>
 #include <keel/math.h>
 #include <keel/format.h>
 #include <keel/memory.h>
@@ -64,7 +65,7 @@ Value pageView(const Value &A, keel::usize p, keel::usize m, keel::usize n,
     return out;
 }
 
-std::tuple<keel::usize, keel::usize, keel::usize>
+keel::Tuple<keel::usize, keel::usize, keel::usize>
 pageShape(const Value &A, const char *who)
 {
     const keel::i32 nd = A.dims().ndim();
@@ -149,7 +150,7 @@ Value pageeig_values(const Value &A, keel::Allocator *mr)
     return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
 
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 pageeig_VD(const Value &A, keel::Allocator *mr)
 {
     auto [m, n, pages] = pageShape(A, "pageeig");
@@ -173,15 +174,15 @@ pageeig_VD(const Value &A, keel::Allocator *mr)
         Value Vp, Dp;
         try {
             auto [v, d] = eig_symmetric(pg, mr);
-            Vp = std::move(v); Dp = std::move(d);
+            Vp = keel::move(v); Dp = keel::move(d);
         } catch (const Error &) {
             auto [v, d] = eig_general_VD(pg, mr);
-            Vp = std::move(v); Dp = std::move(d);
+            Vp = keel::move(v); Dp = keel::move(d);
         }
         std::copy(Vp.doubleData(), Vp.doubleData() + stride, Vd + p * stride);
         std::copy(Dp.doubleData(), Dp.doubleData() + stride, Dd + p * stride);
     }
-    return std::make_tuple(
+    return keel::make_tuple(
         detail::narrowDoubleToSingleIf(V, wantSingle, mr),
         detail::narrowDoubleToSingleIf(D, wantSingle, mr));
 }
@@ -206,7 +207,7 @@ Value pagesvd_values(const Value &A, keel::Allocator *mr)
     return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
 }
 
-std::tuple<Value, Value, Value>
+keel::Tuple<Value, Value, Value>
 pagesvd_decompose(const Value &A, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "pagesvd");
@@ -230,7 +231,7 @@ pagesvd_decompose(const Value &A, keel::Allocator *mr)
         std::copy(s.doubleData(), s.doubleData() + sStride, Sd + p * sStride);
         std::copy(v.doubleData(), v.doubleData() + vStride, Vd + p * vStride);
     }
-    return std::make_tuple(
+    return keel::make_tuple(
         detail::narrowDoubleToSingleIf(U, wantSingle, mr),
         detail::narrowDoubleToSingleIf(S, wantSingle, mr),
         detail::narrowDoubleToSingleIf(V, wantSingle, mr));

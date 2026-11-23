@@ -11,7 +11,7 @@
 #include <keel/core.h>
 #include <keel/memory.h>
 #include <keel/ref.h>
-#include <tuple>
+#include <keel/tuple.h>
 #include <numkit/value/value.hpp>
 
 namespace numkit::linalg {
@@ -25,7 +25,7 @@ namespace numkit::linalg {
 /// Classical Jacobi rotations. Returns `(V, D)` such that `AÂ·V == VÂ·D`,
 /// `V` orthogonal, `D` diagonal (ascending real eigenvalues). Throws if
 /// `A` is not symmetric within tolerance.
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 eig_symmetric(const Value &A, keel::Allocator *mr = nullptr);
 
 /// @brief Eigenvalues only (`e = eig(A)` single-output form, symmetric).
@@ -53,7 +53,7 @@ Value eig_general_values(const Value &A, keel::Allocator *mr = nullptr);
 ///
 /// Throws if any eigenvalue has non-zero imaginary part (Francis QR
 /// for complex eigvec extraction is deferred).
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 eig_general_VD(const Value &A, keel::Allocator *mr = nullptr);
 
 /// @brief Generalized eigenvalues `e = eig(A, B)` as a column vector.
@@ -61,7 +61,7 @@ Value eig_generalized_values(const Value &A, const Value &B,
                              keel::Allocator *mr = nullptr);
 
 /// @brief Generalized eigendecomposition `[V, D] = eig(A, B)` solving `A*V = B*V*D`.
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 eig_generalized_VD(const Value &A, const Value &B,
                    keel::Allocator *mr = nullptr);
 
@@ -74,7 +74,7 @@ bool try_eigs_generalized_smallestabs(const Value &A, const Value &B, keel::usiz
 /// @brief Hessenberg reduction (`[P, H] = hess(A)`).
 ///
 /// `A = PÂ·HÂ·P'`, `P` orthogonal, `H` upper-Hessenberg.
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 hess(const Value &A, keel::Allocator *mr = nullptr);
 
 /// @brief Hessenberg-only output (`H = hess(A)` single-output form).
@@ -83,7 +83,7 @@ Value hess_H_only(const Value &A, keel::Allocator *mr = nullptr);
 /// @brief Schur decomposition for symmetric A (`[U, T] = schur(A)`).
 ///
 /// Equivalent to eigendecomposition: `A = UÂ·TÂ·U'`, `T` diagonal.
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 schur_sym(const Value &A, keel::Allocator *mr = nullptr);
 
 /// @brief Real Schur decomposition for general (nonsymmetric) A
@@ -94,7 +94,7 @@ schur_sym(const Value &A, keel::Allocator *mr = nullptr);
 /// blocks for complex-conjugate pairs. Hessenberg reduction + Francis
 /// double-shift QR. (The Schur form is not unique; eigenvalues + `UÂ·TÂ·Uáµ€`
 /// are the invariants.)
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 schur_general(const Value &A, keel::Allocator *mr = nullptr);
 
 /// @brief Sylvester equation for symmetric A and B (`X = sylvester_sym(A, B, C)`).
@@ -132,7 +132,7 @@ Value polyeig_values(keel::ArrayRef<Value> coeffs, keel::Allocator *mr = nullptr
 /// (`[V, e] = polyeig(A0, ..., Ak)`).
 ///
 /// Throws if any eigenvalue is complex (needs Francis QR).
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 polyeig_VE(keel::ArrayRef<Value> coeffs, keel::Allocator *mr = nullptr);
 
 /// @brief Eigenvalues from a (quasi-)triangular Schur factor

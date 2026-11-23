@@ -18,8 +18,6 @@
 
 #include <algorithm>
 #include <numeric>
-#include <tuple>
-#include <utility>
 
 
 namespace numkit::builtin {
@@ -46,7 +44,7 @@ namespace {
 // character classes are honoured so `\(` and `[(]` are not miscounted.
 struct NamedGroups {
     keel::String cleaned;
-    keel::Array<std::pair<keel::String, keel::usize>> names;  // name → group #
+    keel::Array<keel::Pair<keel::String, keel::usize>> names;  // name → group #
     explicit NamedGroups(keel::Allocator *alloc = keel::default_allocator())
         : cleaned(alloc), names(alloc) {}
 };
@@ -83,7 +81,7 @@ struct NamedGroups {
                 keel::String name(alloc);
                 while (j < pat.size() && pat[j] != '>') name.push_back(pat[j++]);
                 ++group;
-                ng.names.emplace_back(std::move(name), group);
+                ng.names.emplace_back(keel::move(name), group);
                 ng.cleaned.push_back('(');          // plain capture group
                 i = (j < pat.size()) ? j + 1 : j;   // skip past '>'
                 continue;

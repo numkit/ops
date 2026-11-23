@@ -20,8 +20,7 @@
 
 #include <algorithm>
 #include <numeric>
-#include <tuple>
-#include <utility>
+#include <keel/tuple.h>
 
 #include <numkit/builtin/datafun.hpp>
 
@@ -81,7 +80,7 @@ inline bool cxUniqEqual(keel::c64 a, keel::c64 b)
     return a.real() == b.real() && a.imag() == b.imag();        // NaN never equal
 }
 
-[[maybe_unused]] std::tuple<Value, Value, Value>
+[[maybe_unused]] keel::Tuple<Value, Value, Value>
 uniqueComplexFull(const Value &x, bool stable, bool last = false,
                   keel::Allocator *alloc = nullptr)
 {
@@ -124,7 +123,7 @@ uniqueComplexFull(const Value &x, bool stable, bool last = false,
     }
     for (keel::usize i = 0; i < n; ++i)
         ici[i] = keel::as<keel::f64>(newRank[ic0[i]] + 1);
-    return std::make_tuple(std::move(cOut), std::move(iaRow), std::move(icRow));
+    return keel::make_tuple(keel::move(cOut), keel::move(iaRow), keel::move(icRow));
 }
 
 // ── 'rows' helpers ─────────────────────────────────────────────
@@ -325,7 +324,7 @@ inline bool nearlyEqualTol(keel::f64 x, keel::f64 y, keel::f64 tol)
 } // anon
 
 // file-scope workers used by the reg (defs in discrete.cpp, external).
-std::pair<Value, Value> ismemberComplex(const Value &a, const Value &b, bool wantLoc, keel::Allocator *mr);
+keel::Pair<Value, Value> ismemberComplex(const Value &a, const Value &b, bool wantLoc, keel::Allocator *mr);
 Value nchoosekCombinations(const Value &v, keel::f64 kd, keel::Allocator *mr);
 
 } // namespace numkit::builtin

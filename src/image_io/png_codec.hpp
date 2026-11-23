@@ -9,7 +9,6 @@
 #include <keel/memory.h>
 #include <keel/string.h>
 #include <numkit/value/value.hpp>
-#include <utility>
 
 namespace numkit::image {
 
@@ -20,7 +19,7 @@ Value readPng(const keel::u8 *data, keel::usize len,
 
 /// Two-output form for palette PNG images (`[A, map] = imread(...)`).
 /// If image is not indexed, colormap will be empty.
-std::pair<Value, Value>
+keel::Pair<Value, Value>
 readPngWithMap(const keel::u8 *data, keel::usize len,
                keel::Allocator *mr = nullptr);
 

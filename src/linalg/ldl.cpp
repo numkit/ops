@@ -7,6 +7,7 @@
 // Migrated 2026-05-25 from toolboxes/builtin/src/language/arrays/ldl.cpp.
 
 #include <keel/core.h>
+#include <keel/tuple.h>
 #include <keel/memory.h>
 #include <keel/arena.h>
 #include <keel/array.h>
@@ -26,7 +27,7 @@
 
 namespace numkit::linalg {
 
-std::tuple<Value, Value, Value>
+keel::Tuple<Value, Value, Value>
 ldl(const Value &A, bool upper_form, bool p_as_vector, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "ldl");

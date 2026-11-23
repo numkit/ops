@@ -83,13 +83,13 @@ PolarPair cart2pol(const Value &x, const Value &y, keel::Allocator *mr)
 {
     Value theta = atan2(y, x, mr);
     Value rho   = hypot(x, y, mr);
-    return { std::move(theta), std::move(rho) };
+    return { keel::move(theta), keel::move(rho) };
 }
 
 CylTriple cart2pol(const Value &x, const Value &y, const Value &z, keel::Allocator *mr)
 {
     auto [theta, rho] = cart2pol(x, y, mr);
-    return { std::move(theta), std::move(rho), z };
+    return { keel::move(theta), keel::move(rho), z };
 }
 
 CartPair pol2cart(const Value &theta, const Value &rho, keel::Allocator *mr)
@@ -98,13 +98,13 @@ CartPair pol2cart(const Value &theta, const Value &rho, keel::Allocator *mr)
         [](keel::f64 r, keel::f64 t) { return r * keel::cos(t); }, mr);
     Value yv = elementwiseDouble(rho, theta,
         [](keel::f64 r, keel::f64 t) { return r * keel::sin(t); }, mr);
-    return { std::move(xv), std::move(yv) };
+    return { keel::move(xv), keel::move(yv) };
 }
 
 CartTriple pol2cart(const Value &theta, const Value &rho, const Value &z, keel::Allocator *mr)
 {
     auto [xv, yv] = pol2cart(theta, rho, mr);
-    return { std::move(xv), std::move(yv), z };
+    return { keel::move(xv), keel::move(yv), z };
 }
 
 SphTriple cart2sph(const Value &x, const Value &y, const Value &z, keel::Allocator *mr)
@@ -117,7 +117,7 @@ SphTriple cart2sph(const Value &x, const Value &y, const Value &z, keel::Allocat
         [](keel::f64 zz, keel::f64 rr) { return keel::atan2(zz + 0.0, rr + 0.0); }, mr);
     Value r = elementwiseDouble(rxy, z,
         [](keel::f64 rxy_v, keel::f64 zz) { return keel::hypot(rxy_v, zz); }, mr);
-    return { std::move(az), std::move(el), std::move(r) };
+    return { keel::move(az), keel::move(el), keel::move(r) };
 }
 
 CartTriple sph2cart(const Value &az, const Value &el, const Value &r, keel::Allocator *mr)
@@ -130,7 +130,7 @@ CartTriple sph2cart(const Value &az, const Value &el, const Value &r, keel::Allo
         [](keel::f64 rce, keel::f64 aa) { return rce * keel::sin(aa); }, mr);
     Value zv = elementwiseDouble(r, el,
         [](keel::f64 rr, keel::f64 ee) { return rr * keel::sin(ee); }, mr);
-    return { std::move(xv), std::move(yv), std::move(zv) };
+    return { keel::move(xv), keel::move(yv), keel::move(zv) };
 }
 
 Value cart2pol(keel::ArrayRef<Value> args, keel::Allocator *mr)

@@ -17,7 +17,7 @@
 #include <numkit/ops/conv.hpp>
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
-#include <tuple>
+#include <keel/tuple.h>
 #include <numkit/value/value_type.hpp>
 
 #include "../dsp_helpers.hpp"
@@ -169,7 +169,7 @@ Value conv(const Value &aIn, const Value &bIn, keel::StringRef shape, keel::Allo
 }
 
 // ── deconv ────────────────────────────────────────────────────────────
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 deconv(const Value &bIn, const Value &aIn, keel::Allocator *mr)
 {
     // MATLAB deconv promotes integer/logical inputs to double — quotient and
@@ -195,7 +195,7 @@ deconv(const Value &bIn, const Value &aIn, keel::Allocator *mr)
         auto rv = Value::matrix(1, nb, ValueType::DOUBLE, mr);
         const keel::f64 *bd = b.doubleData();
         for (keel::usize i = 0; i < nb; ++i) rv.doubleDataMut()[i] = bd[i];
-        return std::make_tuple(std::move(qv), std::move(rv));
+        return keel::make_tuple(keel::move(qv), keel::move(rv));
     }
 
     keel::ArenaTemp scratch = keel::get_scratch(mr);
@@ -224,11 +224,11 @@ deconv(const Value &bIn, const Value &aIn, keel::Allocator *mr)
     for (keel::usize i = 0; i < nb; ++i)
         rv.doubleDataMut()[i] = rem[i];
 
-    return std::make_tuple(std::move(qv), std::move(rv));
+    return keel::make_tuple(keel::move(qv), keel::move(rv));
 }
 
 // ── xcorr ─────────────────────────────────────────────────────────────
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 xcorr(const Value &xIn, const Value &yIn, keel::Allocator *mr)
 {
     if (xIn.isComplex() || yIn.isComplex()) {
@@ -257,7 +257,7 @@ xcorr(const Value &xIn, const Value &yIn, keel::Allocator *mr)
         auto lags = Value::matrix(1, nc, ValueType::DOUBLE, mr);
         for (keel::usize i = 0; i < nc; ++i)
             lags.doubleDataMut()[i] = keel::as<keel::f64>(keel::as<keel::i32>(i) - maxLag);
-        return std::make_tuple(std::move(r), std::move(lags));
+        return keel::make_tuple(keel::move(r), keel::move(lags));
     }
     Value xHold, yHold;
     const Value &x = (xIn.type() == ValueType::DOUBLE) ? xIn : (xHold = convPromoteToDouble(xIn, mr));
@@ -320,7 +320,7 @@ xcorr(const Value &xIn, const Value &yIn, keel::Allocator *mr)
     for (keel::usize i = 0; i < nc; ++i)
         lags.doubleDataMut()[i] = keel::as<keel::f64>(keel::as<keel::i32>(i) - maxLag);
 
-    return std::make_tuple(std::move(r), std::move(lags));
+    return keel::make_tuple(keel::move(r), keel::move(lags));
 }
 
 // ── Pack 36: xcov ────────────────────────────────────────────────────
@@ -332,7 +332,7 @@ xcorr(const Value &xIn, const Value &yIn, keel::Allocator *mr)
 //   'coeff'    divide by sqrt(Cxx(0)*Cyy(0)) so the auto-cov peak is 1
 // where N = max(numel(x), numel(y)). maxlag < 0 means "full" (N-1);
 // otherwise the result is cropped (or zero-padded) to lags -maxlag..maxlag.
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 xcov(const Value &x, const Value &y, keel::i32 maxlag,
      keel::StringRef scaleopt, keel::Allocator *mr)
 {
@@ -385,7 +385,7 @@ xcov(const Value &x, const Value &y, keel::i32 maxlag,
     const keel::i32 fullMaxLag = (N > 0) ? keel::as<keel::i32>(N) - 1 : 0;
     if (maxlag < 0) maxlag = fullMaxLag;
     if (maxlag == fullMaxLag)
-        return std::make_tuple(std::move(cfull), std::move(lagsfull));
+        return keel::make_tuple(keel::move(cfull), keel::move(lagsfull));
 
     // Crop (maxlag < full) or zero-pad (maxlag > full) about lag 0, which
     // sits at index fullMaxLag in the full vector.
@@ -401,7 +401,7 @@ xcov(const Value &x, const Value &y, keel::i32 maxlag,
         lo[dst] = keel::as<keel::f64>(m);
         co[dst] = (src >= 0 && src < keel::as<keel::i32>(nc)) ? cd[src] : 0.0;
     }
-    return std::make_tuple(std::move(cOut), std::move(lOut));
+    return keel::make_tuple(keel::move(cOut), keel::move(lOut));
 }
 
 // ── Pack 36: conv2 / filter2 / convn ─────────────────────────────────

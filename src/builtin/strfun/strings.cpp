@@ -28,7 +28,6 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <utility>
 
 #include "strings_detail.hpp"
 
@@ -191,7 +190,7 @@ Value num2str(const Value &x, keel::StringRef fmt,
                         s.push_back('i');
                     }
                     w[c] = std::max(w[c], s.size());
-                    cells[r * cols + c] = std::move(s);
+                    cells[r * cols + c] = keel::move(s);
                 }
             }
             keel::String out(salloc);
@@ -1176,7 +1175,7 @@ Value erase(const Value &s, const Value &pat, keel::Allocator *mr)
                 next.append(curRef.substr(pos, rel));
                 pos += rel + pp.size();
             }
-            cur = std::move(next);
+            cur = keel::move(next);
         }
         return cur;
     };
@@ -1245,12 +1244,12 @@ Value splitlines(const Value &s, keel::Allocator *mr)
     for (keel::usize i = 0; i < ss.size(); ++i) {
         const char c = ss[i];
         if (c == '\r') {
-            parts.push_back(std::move(cur));
+            parts.push_back(keel::move(cur));
             cur = keel::String(salloc);
             // Skip a following \n to handle CRLF as one separator.
             if (i + 1 < ss.size() && ss[i + 1] == '\n') ++i;
         } else if (c == '\n') {
-            parts.push_back(std::move(cur));
+            parts.push_back(keel::move(cur));
             cur = keel::String(salloc);
         } else {
             cur.push_back(c);
@@ -1258,7 +1257,7 @@ Value splitlines(const Value &s, keel::Allocator *mr)
     }
     // Always push the final segment, even if empty (matches MATLAB:
     // splitlines("a\nb") returns 2 entries; splitlines("a\n") returns 2).
-    parts.push_back(std::move(cur));
+    parts.push_back(keel::move(cur));
     auto out = Value::cell(parts.size(), 1, mr);
     for (keel::usize i = 0; i < parts.size(); ++i)
         out.cellAt(i) = Value::fromString(parts[i], mr);
@@ -2178,7 +2177,7 @@ Value stringsND(keel::ArrayRef<keel::usize> dims, keel::Allocator *mr)
 }
 
 // strtok: first token + remainder. See language/strings/strings.hpp.
-std::pair<Value, Value> strtok(const Value &str, keel::StringRef delim,
+keel::Pair<Value, Value> strtok(const Value &str, keel::StringRef delim,
                                keel::Allocator *mr)
 {
     const keel::StringRef s = str.asStringRef();
@@ -2195,7 +2194,7 @@ std::pair<Value, Value> strtok(const Value &str, keel::StringRef delim,
     Value rem = Value::fromString(
         end < s.size() ? s.substr(end, s.size() - end) : keel::StringRef("", 0),
         mr);
-    return {std::move(tok), std::move(rem)};
+    return {keel::move(tok), keel::move(rem)};
 }
 
 Value convertContainedStringsToChars(const Value &v, keel::Allocator *mr)

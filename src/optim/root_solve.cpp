@@ -13,11 +13,10 @@
 #include <numkit/ops/callback_eval.hpp>
 #include <numkit/value/error.hpp>
 
-#include <utility>
 
 namespace numkit::ops {
 
-std::pair<keel::f64, keel::f64> findBracket(FnHandle fn, keel::f64 x0, keel::Allocator *mr)
+keel::Pair<keel::f64, keel::f64> findBracket(FnHandle fn, keel::f64 x0, keel::Allocator *mr)
 {
     auto eval = [&](keel::f64 x) -> keel::f64 { return evalScalar(fn, x, mr); };
     const auto res = keel::optim::find_bracket(eval, x0, 60);
@@ -55,7 +54,7 @@ keel::Array<keel::f64> nelderMead(FnHandle fn, const keel::f64 *x0, keel::usize 
         return evalVecToScalar(fn, x.data(), x.size(), mr);
     };
     auto res = keel::optim::nelder_mead(eval, keel::ArrayRef<keel::f64>(x0, n), tol, 500, mr);
-    return std::move(res.x);
+    return keel::move(res.x);
 }
 
 } // namespace numkit::ops

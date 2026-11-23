@@ -3,6 +3,7 @@
 // Explicit Dormand-Prince 5(4) Runge-Kutta integrator — thin Value/FnHandle
 // adapter delegating numerical integration to keel::ode::ode45.
 
+#include <keel/tuple.h>
 #include <numkit/ode/options.hpp>
 #include <numkit/ode/solvers.hpp>
 
@@ -10,7 +11,7 @@
 
 namespace numkit::ode {
 
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 ode45(FnHandle rhs, const Value &tspan, const Value &y0,
       const Value &opts, keel::Allocator *mr)
 {

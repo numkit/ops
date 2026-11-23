@@ -17,7 +17,6 @@
 #include <numkit/value/error.hpp>
 #include <numkit/value/value.hpp>
 
-#include <utility>
 
 namespace numkit::builtin {
 
@@ -213,7 +212,7 @@ void validateMonotonicAscending(const keel::f64 *g, keel::usize n, const char *a
         if (dim == 2 && !g.dims().is3D()) continue;
         auto v = extractAlong(dim);
         if (!isConst(v)) {
-            out = std::move(v);
+            out = keel::move(v);
             return;
         }
     }

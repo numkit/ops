@@ -18,7 +18,7 @@
 #include <numkit/value/fn_handle.hpp>
 #include <numkit/value/value.hpp>
 
-#include <tuple>
+#include <keel/tuple.h>
 
 namespace numkit::ode {
 
@@ -53,7 +53,7 @@ namespace numkit::ode {
 /// @param mr     Memory resource.
 /// @return       `{t, y}` â€” `t` is an `m Ã— 1` column of accepted/sampled
 ///               times; `y` is an `m Ã— d` matrix with each row a state.
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 ode45(FnHandle rhs, const Value &tspan, const Value &y0,
       const Value &opts, keel::Allocator *mr = nullptr);
 
@@ -82,7 +82,7 @@ ode45(FnHandle rhs, const Value &tspan, const Value &y0,
 /// @param mr     Memory resource.
 /// @return       `{t, y}` â€” `t` is an `m Ã— 1` column of accepted/sampled
 ///               times; `y` is an `m Ã— d` matrix with each row a state.
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 ode23(FnHandle rhs, const Value &tspan, const Value &y0,
       const Value &opts, keel::Allocator *mr = nullptr);
 

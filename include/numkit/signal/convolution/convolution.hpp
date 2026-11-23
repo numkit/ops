@@ -7,7 +7,7 @@
 #include <keel/ref.h>
 #include <numkit/value/value.hpp>
 
-#include <tuple>
+#include <keel/tuple.h>
 
 namespace numkit::signal {
 
@@ -57,7 +57,7 @@ Value conv(const Value &                a,
 /// @throws    numkit::Error  if `a` is longer than `b`, or `a[0] == 0`.
 ///
 /// @see conv
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 deconv(const Value &                b,
        const Value &                a,
        keel::Allocator *  mr = nullptr);
@@ -82,7 +82,7 @@ deconv(const Value &                b,
 /// @endcode
 ///
 /// @see xcov, finddelay
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 xcorr(const Value &                x,
       const Value &                y,
       keel::Allocator *  mr = nullptr);
@@ -94,7 +94,7 @@ xcorr(const Value &                x,
 /// @return    Tuple `(c, lags)` — same shape as the two-arg form;
 ///            `c` has length `2 · numel(x) - 1`.
 /// @see xcorr(const Value &, const Value &, std::pmr::memory_resource *)
-inline std::tuple<Value, Value>
+inline keel::Tuple<Value, Value>
 xcorr(const Value &x, keel::Allocator *mr = nullptr)
 {
     return xcorr(x, x, mr);
@@ -117,7 +117,7 @@ xcorr(const Value &x, keel::Allocator *mr = nullptr)
 /// @return          Tuple `(c, lags)`.
 ///
 /// @see xcorr
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 xcov(const Value &                x,
      const Value &                y,
      keel::i32                          maxlag,
@@ -125,7 +125,7 @@ xcov(const Value &                x,
      keel::Allocator *  mr = nullptr);
 
 /// @brief Cross-covariance with full lags and `"none"` scaling.
-inline std::tuple<Value, Value>
+inline keel::Tuple<Value, Value>
 xcov(const Value &x, const Value &y, keel::Allocator *mr = nullptr)
 {
     return xcov(x, y, -1, "none", mr);
@@ -138,7 +138,7 @@ xcov(const Value &x, const Value &y, keel::Allocator *mr = nullptr)
 /// @return    Tuple `(c, lags)` — DC-removed auto-correlation; same
 ///            shape as the two-arg form.
 /// @see xcov(const Value &, const Value &, std::pmr::memory_resource *)
-inline std::tuple<Value, Value>
+inline keel::Tuple<Value, Value>
 xcov(const Value &x, keel::Allocator *mr = nullptr)
 {
     return xcov(x, x, mr);

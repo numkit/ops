@@ -3,6 +3,7 @@
 // Explicit Bogacki-Shampine 3(2) Runge-Kutta integrator — thin Value/FnHandle
 // adapter delegating numerical integration to keel::ode::ode23.
 
+#include <keel/tuple.h>
 #include <numkit/ode/options.hpp>
 #include <numkit/ode/solvers.hpp>
 
@@ -10,7 +11,7 @@
 
 namespace numkit::ode {
 
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 ode23(FnHandle rhs, const Value &tspan, const Value &y0,
       const Value &opts, keel::Allocator *mr)
 {

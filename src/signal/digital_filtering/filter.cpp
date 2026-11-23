@@ -192,7 +192,7 @@ static FilterState runFilter(const FilterPlan &p, const Value &b,
                 for (keel::usize i = 0; i < p.stateLen; ++i)
                     zfData[s * p.stateLen + i] = zf[i];
         }
-        return {std::move(rc), std::move(zfv)};
+        return {keel::move(rc), keel::move(zfv)};
     }
 
     keel::ArenaTemp scratch = keel::get_scratch(mr);
@@ -253,7 +253,7 @@ static FilterState runFilter(const FilterPlan &p, const Value &b,
         if (p.stateLen)
             keel::copy_n(zfData + s * p.stateLen, zf.data(), p.stateLen);
     }
-    return {std::move(r), std::move(zfv)};
+    return {keel::move(r), keel::move(zfv)};
 }
 
 Value filter(const Value &b, const Value &a, const Value &x,

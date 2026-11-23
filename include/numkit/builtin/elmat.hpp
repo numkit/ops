@@ -7,7 +7,7 @@
 #include <keel/memory.h>
 #include <keel/ref.h>
 #include <keel/array.h>
-#include <tuple>
+#include <keel/tuple.h>
 #include <numkit/value/value.hpp>
 
 namespace numkit::builtin {
@@ -26,10 +26,10 @@ namespace numkit::builtin {
 // ── Multi-value Return Types ───────────────────────────────────────────────
 
 /// @brief Result of 2D grid generation via meshgrid/ndgrid.
-using Meshgrid2D = std::tuple<Value, Value>;
+using Meshgrid2D = keel::Tuple<Value, Value>;
 
 /// @brief Result of 3D grid generation via meshgrid/ndgrid.
-using Meshgrid3D = std::tuple<Value, Value, Value>;
+using Meshgrid3D = keel::Tuple<Value, Value, Value>;
 
 // ── Array Creation ──────────────────────────────────────────────────────────
 
@@ -653,21 +653,21 @@ enum class NanPlace {
 /// @param mr Memory resource.
 /// @return Tuple containing `{sorted_values, sort_indices}`.
 /// @see sortrows, issorted
-std::tuple<Value, Value> sort(const Value &x, keel::i32 dim = 0, bool descend = false, NanPlace nanPlace = NanPlace::Auto, keel::Allocator *mr = nullptr);
+keel::Tuple<Value, Value> sort(const Value &x, keel::i32 dim = 0, bool descend = false, NanPlace nanPlace = NanPlace::Auto, keel::Allocator *mr = nullptr);
 
 /// @brief Sorts rows of 2-D matrix in ascending order (`[B, I] = sortrows(x)`).
 /// @param x Input 2-D matrix.
 /// @param mr Memory resource.
 /// @return Tuple containing `{sorted_matrix, sort_indices}`.
 /// @see sort
-std::tuple<Value, Value> sortrows(const Value &x, keel::Allocator *mr = nullptr);
+keel::Tuple<Value, Value> sortrows(const Value &x, keel::Allocator *mr = nullptr);
 
 /// @brief Sorts rows of 2-D matrix based on specified columns (`[B, I] = sortrows(x, cols)`).
 /// @param x Input 2-D matrix.
 /// @param cols 1-based column indices.
 /// @param mr Memory resource.
 /// @return Tuple containing `{sorted_matrix, sort_indices}`.
-std::tuple<Value, Value> sortrows(const Value &x, keel::ArrayRef<keel::i32> cols, keel::Allocator *mr = nullptr);
+keel::Tuple<Value, Value> sortrows(const Value &x, keel::ArrayRef<keel::i32> cols, keel::Allocator *mr = nullptr);
 
 /// @brief Sorts rows based on columns and directions (`[B, I] = sortrows(x, cols, direction)`).
 /// @param x Input 2-D matrix.
@@ -675,7 +675,7 @@ std::tuple<Value, Value> sortrows(const Value &x, keel::ArrayRef<keel::i32> cols
 /// @param desc Descending flags per column.
 /// @param mr Memory resource.
 /// @return Tuple containing `{sorted_matrix, sort_indices}`.
-std::tuple<Value, Value> sortrows(const Value &x, keel::ArrayRef<keel::i32> cols, keel::ArrayRef<bool> desc, keel::Allocator *mr = nullptr);
+keel::Tuple<Value, Value> sortrows(const Value &x, keel::ArrayRef<keel::i32> cols, keel::ArrayRef<bool> desc, keel::Allocator *mr = nullptr);
 
 /// @brief Tests if array is sorted (`issorted(x, dim, direction)`).
 /// @param x Input array.
@@ -706,7 +706,7 @@ Value issortedrows(const Value &x, keel::ArrayRef<keel::i32> cols, keel::ArrayRe
 /// @param desc Descending flags.
 /// @param mr Memory resource.
 /// @return Tuple containing `{top_k_rows, indices}`.
-std::tuple<Value, Value> topkrows(const Value &x, keel::usize k, keel::ArrayRef<keel::i32> cols = {}, keel::ArrayRef<bool> desc = {}, keel::Allocator *mr = nullptr);
+keel::Tuple<Value, Value> topkrows(const Value &x, keel::usize k, keel::ArrayRef<keel::i32> cols = {}, keel::ArrayRef<bool> desc = {}, keel::Allocator *mr = nullptr);
 
 /// @brief Finds indices of non-zero array elements (`find(x)`).
 /// @param x Input array.

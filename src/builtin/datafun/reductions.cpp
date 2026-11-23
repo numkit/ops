@@ -9,6 +9,7 @@
 // math/random/rng.cpp.
 
 #include <keel/core.h>
+#include <keel/tuple.h>
 #include <keel/math.h>
 #include <keel/memory.h>
 #include <keel/complex.h>
@@ -119,24 +120,24 @@ Value mean(const Value &x, keel::i32 dim, keel::Allocator *mr)
 // LOGICAL (storage = uint8) and CHAR (storage = char).
 
 
-std::tuple<Value, Value> max(const Value &x, keel::Allocator *mr)
+keel::Tuple<Value, Value> max(const Value &x, keel::Allocator *mr)
 {
     return dispatchMinMaxAll<true>(x, [](auto v, auto best) { return v > best; }, mr, "max");
 }
 
-std::tuple<Value, Value> min(const Value &x, keel::Allocator *mr)
+keel::Tuple<Value, Value> min(const Value &x, keel::Allocator *mr)
 {
     return dispatchMinMaxAll<false>(x, [](auto v, auto best) { return v < best; }, mr, "min");
 }
 
-std::tuple<Value, Value> max(const Value &x, keel::i32 dim, keel::Allocator *mr)
+keel::Tuple<Value, Value> max(const Value &x, keel::i32 dim, keel::Allocator *mr)
 {
     if (dim <= 0) return max(x, mr);
     const keel::i32 d = numkit::ops::resolveDim(x, dim, "max");
     return dispatchMinMaxAlongDim<true>(x, d, [](auto v, auto best) { return v > best; }, mr, "max");
 }
 
-std::tuple<Value, Value> maxOmitNan(const Value &x, keel::i32 dim, keel::Allocator *mr)
+keel::Tuple<Value, Value> maxOmitNan(const Value &x, keel::i32 dim, keel::Allocator *mr)
 {
     if (dim <= 0)
         return dispatchMinMaxNanAll<true>(x, [](auto v, auto best) { return v > best; }, mr, "max");
@@ -144,7 +145,7 @@ std::tuple<Value, Value> maxOmitNan(const Value &x, keel::i32 dim, keel::Allocat
     return dispatchMinMaxNanAlongDim<true>(x, d, [](auto v, auto best) { return v > best; }, mr, "max");
 }
 
-std::tuple<Value, Value> minOmitNan(const Value &x, keel::i32 dim, keel::Allocator *mr)
+keel::Tuple<Value, Value> minOmitNan(const Value &x, keel::i32 dim, keel::Allocator *mr)
 {
     if (dim <= 0)
         return dispatchMinMaxNanAll<false>(x, [](auto v, auto best) { return v < best; }, mr, "min");
@@ -152,7 +153,7 @@ std::tuple<Value, Value> minOmitNan(const Value &x, keel::i32 dim, keel::Allocat
     return dispatchMinMaxNanAlongDim<false>(x, d, [](auto v, auto best) { return v < best; }, mr, "min");
 }
 
-std::tuple<Value, Value> min(const Value &x, keel::i32 dim, keel::Allocator *mr)
+keel::Tuple<Value, Value> min(const Value &x, keel::i32 dim, keel::Allocator *mr)
 {
     if (dim <= 0) return min(x, mr);
     const keel::i32 d = numkit::ops::resolveDim(x, dim, "min");

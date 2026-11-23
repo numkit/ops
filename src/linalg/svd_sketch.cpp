@@ -3,6 +3,7 @@
 // svdsketch & svdappend â€” Randomized low-rank SVD and Incremental SVD.
 
 #include <keel/core.h>
+#include <keel/tuple.h>
 #include <keel/memory.h>
 #include <keel/random.h>
 #include <numkit/linalg/svd_sketch.hpp>
@@ -62,7 +63,7 @@ Value matTranspose(const Value &A, keel::Allocator *mr)
 
 } // anonymous namespace
 
-std::tuple<Value, Value, Value> svdsketch(const Value &A, keel::f64 tol, keel::Allocator *mr)
+keel::Tuple<Value, Value, Value> svdsketch(const Value &A, keel::f64 tol, keel::Allocator *mr)
 {
     if (A.dims().ndim() != 2)
         throw Error("svdsketch: input A must be a 2D matrix", 0, 0, "svdsketch", "", "numkit:svdsketch:notMatrix");
@@ -150,7 +151,7 @@ std::tuple<Value, Value, Value> svdsketch(const Value &A, keel::f64 tol, keel::A
             detail::narrowDoubleToSingleIf(detail::narrow_if_real(Vr, mr), wantSingle, mr)};
 }
 
-std::tuple<Value, Value, Value> svdappend(const Value &U, const Value &S, const Value &V,
+keel::Tuple<Value, Value, Value> svdappend(const Value &U, const Value &S, const Value &V,
                                           const Value &A_new, keel::Allocator *mr)
 {
     if (U.dims().ndim() != 2 || S.dims().ndim() != 2 || V.dims().ndim() != 2 || A_new.dims().ndim() != 2)

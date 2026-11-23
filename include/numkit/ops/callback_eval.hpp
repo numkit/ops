@@ -14,7 +14,6 @@
 #include <numkit/value/error.hpp>
 #include <numkit/value/fn_handle.hpp>
 #include <numkit/value/value.hpp>
-#include <utility>
 
 namespace numkit::ops {
 
@@ -44,7 +43,7 @@ inline keel::f64 evalVecToScalar(FnHandle fn, const keel::f64 *x, keel::usize n,
         for (keel::usize i = 0; i < n; ++i) d[i] = x[i];
     }
     Value out;
-    Value args[1] = {std::move(v)};
+    Value args[1] = {keel::move(v)};
     fn(keel::ArrayRef<Value>(args, 1), keel::MutArrayRef<Value>(&out, 1), mr);
     return out.toScalar();
 }

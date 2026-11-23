@@ -15,7 +15,7 @@
 #include <keel/complex.h>
 #include <numkit/value/value.hpp>   // numkit::Complex
 
-#include <algorithm>                // std::swap
+#include <algorithm>                // keel::swap
 
 namespace numkit {
 
@@ -36,7 +36,7 @@ inline void fftRadix2(keel::c64 *buf, keel::usize N, const keel::c64 *W)
             j ^= bit;
         j ^= bit;
         if (i < j)
-            std::swap(buf[i], buf[j]);
+            keel::swap(buf[i], buf[j]);
     }
 
     // Butterfly stages — look up twiddles from the precomputed table.

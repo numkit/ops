@@ -8,7 +8,7 @@
 #pragma once
 
 #include <keel/memory.h>
-#include <tuple>
+#include <keel/tuple.h>
 #include <numkit/value/value.hpp>
 
 namespace numkit::linalg {
@@ -28,7 +28,7 @@ namespace numkit::linalg {
 /// @param p_as_vector   When `true`, return `P` as a `1 Ã— n` perm vector.
 /// @param mr            Memory resource (nullptr â†’ process default).
 /// @return              `(L, D, P)` triple.
-std::tuple<Value, Value, Value>
+keel::Tuple<Value, Value, Value>
 ldl(const Value &A, bool upper_form, bool p_as_vector,
     keel::Allocator *mr = nullptr);
 

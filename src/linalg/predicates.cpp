@@ -118,7 +118,7 @@ bool ishermitianImpl(const Value &A, bool skew)
     return issymmetricImpl(A, skew);
 }
 
-std::pair<keel::i64, keel::i64> bandwidthImpl(const Value &A)
+keel::Pair<keel::i64, keel::i64> bandwidthImpl(const Value &A)
 {
     const keel::i64 R = keel::as<keel::i64>(A.dims().rows());
     const keel::i64 C = keel::as<keel::i64>(A.dims().cols());
@@ -204,7 +204,7 @@ Value ishermitian(const Value &A, bool skew, keel::Allocator *mr)
     return Value::logicalScalar(ishermitianImpl(A, skew), mr);
 }
 
-std::pair<Value, Value>
+keel::Pair<Value, Value>
 bandwidth(const Value &A, keel::Allocator *mr)
 {
     detail::requireFloatOrLogicalInput(A, "bandwidth");

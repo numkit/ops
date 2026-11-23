@@ -10,7 +10,6 @@
 #include <keel/memory.h>
 #include <keel/ref.h>
 #include <numkit/value/value.hpp>
-#include <utility>
 
 namespace numkit::image {
 
@@ -24,8 +23,8 @@ Value readTiff(keel::StringRef path, keel::u32 page, keel::Allocator *mr);
 Value readTiff(keel::ArrayRef<keel::u8> buf, keel::u32 page, keel::Allocator *mr);
 
 /// Two-output form `[A, map] = readTiffWithMap(...)` for indexed/palette TIFFs.
-std::pair<Value, Value> readTiffWithMap(keel::StringRef path, keel::u32 page, keel::Allocator *mr);
-std::pair<Value, Value> readTiffWithMap(keel::ArrayRef<keel::u8> buf, keel::u32 page, keel::Allocator *mr);
+keel::Pair<Value, Value> readTiffWithMap(keel::StringRef path, keel::u32 page, keel::Allocator *mr);
+keel::Pair<Value, Value> readTiffWithMap(keel::ArrayRef<keel::u8> buf, keel::u32 page, keel::Allocator *mr);
 
 /// Peek TIFF first-IFD metadata without decoding raster data.
 void peekTiff(keel::StringRef path, keel::u32 &W, keel::u32 &H, keel::u16 &bits, keel::u16 &channels);

@@ -7,7 +7,6 @@
 #include <keel/memory.h>
 #include <keel/ref.h>
 #include <keel/string.h>
-#include <utility>
 #include <numkit/value/value.hpp>
 
 namespace numkit::builtin {
@@ -611,7 +610,7 @@ Value rats(const Value &x, keel::i32 len = 13, keel::Allocator *mr = nullptr);
 /// @param delim Delimiter characters (default: `" \t\n\r"`).
 /// @param mr Memory resource.
 /// @return Pair of `{token, remainder}` character vectors.
-std::pair<Value, Value> strtok(const Value &str, keel::StringRef delim = " \t\n\r", keel::Allocator *mr = nullptr);
+keel::Pair<Value, Value> strtok(const Value &str, keel::StringRef delim = " \t\n\r", keel::Allocator *mr = nullptr);
 
 // ── Regular Expressions ─────────────────────────────────────────────────────
 

@@ -21,8 +21,7 @@
 #include <numkit/value/value.hpp>
 
 #include <algorithm>
-#include <tuple>
-#include <utility>
+#include <keel/tuple.h>
 
 #include "polynomials_detail.hpp"
 
@@ -76,7 +75,7 @@ Value polyder(const Value &p, keel::Allocator *mr)
     return rowFromVec(deriv.data(), deriv.size(), mr);
 }
 
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 polyder(const Value &b, const Value &a, keel::Allocator *mr)
 {
     keel::ArenaTemp scratch = keel::get_scratch(mr);
@@ -85,7 +84,7 @@ polyder(const Value &b, const Value &a, keel::Allocator *mr)
     auto res = keel::poly::deriv_ratio(keel::ArrayRef<keel::f64>(bv.data(), bv.size()),
                                        keel::ArrayRef<keel::f64>(av.data(), av.size()),
                                        scratch.allocator());
-    return std::make_tuple(rowFromVec(res.num.data(), res.num.size(), mr),
+    return keel::make_tuple(rowFromVec(res.num.data(), res.num.size(), mr),
                            rowFromVec(res.den.data(), res.den.size(), mr));
 }
 
@@ -98,7 +97,7 @@ Value polyint(const Value &p, keel::f64 k, keel::Allocator *mr)
 }
 
 // ── tf2zp / zp2tf ───────────────────────────────────────────────────
-std::tuple<Value, Value, Value>
+keel::Tuple<Value, Value, Value>
 tf2zp(const Value &b, const Value &a, keel::Allocator *mr)
 {
     keel::ArenaTemp scratch = keel::get_scratch(mr);
@@ -114,18 +113,18 @@ tf2zp(const Value &b, const Value &a, keel::Allocator *mr)
         auto pRoots = keel::poly::roots(keel::ArrayRef<keel::f64>(av.data(), av.size()), scratch.allocator());
         auto p = realColIfFlat(pRoots.data(), pRoots.size(), mr);
         auto k = Value::scalar(0.0, mr);
-        return std::make_tuple(std::move(z), std::move(p), std::move(k));
+        return keel::make_tuple(keel::move(z), keel::move(p), keel::move(k));
     }
     auto zRoots = keel::poly::roots(keel::ArrayRef<keel::f64>(bv.data(), bv.size()), scratch.allocator());
     auto pRoots = keel::poly::roots(keel::ArrayRef<keel::f64>(av.data(), av.size()), scratch.allocator());
     const keel::f64 k = bv[bnz] / av[0];
 
-    return std::make_tuple(realColIfFlat(zRoots.data(), zRoots.size(), mr),
+    return keel::make_tuple(realColIfFlat(zRoots.data(), zRoots.size(), mr),
                            realColIfFlat(pRoots.data(), pRoots.size(), mr),
                            Value::scalar(k, mr));
 }
 
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 zp2tf(const Value &z, const Value &p, keel::f64 k, keel::Allocator *mr)
 {
     keel::ArenaTemp scratch = keel::get_scratch(mr);
@@ -139,10 +138,10 @@ zp2tf(const Value &z, const Value &p, keel::f64 k, keel::Allocator *mr)
         keel::Array<keel::f64> bPad(aRaw.size(), scratch.allocator());
         for (keel::usize i = 0; i < aRaw.size(); ++i) bPad[i] = 0.0;
         for (keel::usize i = 0; i < bRaw.size(); ++i) bPad[off + i] = bRaw[i];
-        return std::make_tuple(rowFromVec(bPad.data(), bPad.size(), mr),
+        return keel::make_tuple(rowFromVec(bPad.data(), bPad.size(), mr),
                                rowFromVec(aRaw.data(), aRaw.size(), mr));
     }
-    return std::make_tuple(rowFromVec(bRaw.data(), bRaw.size(), mr),
+    return keel::make_tuple(rowFromVec(bRaw.data(), bRaw.size(), mr),
                            rowFromVec(aRaw.data(), aRaw.size(), mr));
 }
 
@@ -260,7 +259,7 @@ PolyDiv polydiv(const Value &b, const Value &a, keel::Allocator *mr)
     if (nb < aEff) {
         auto q = Value::matrix(1, 1, ValueType::DOUBLE, mr);
         q.doubleDataMut()[0] = 0.0;
-        return { std::move(q), b };
+        return { keel::move(q), b };
     }
 
     keel::ArenaTemp scratch = keel::get_scratch(mr);

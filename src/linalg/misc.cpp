@@ -44,7 +44,7 @@ keel::f64 single_rref_default_tol(const T *A, keel::usize M, keel::usize N)
 } // namespace
 
 // rref: Gauss-Jordan elimination with partial pivoting and tolerance gate.
-std::pair<Value, Value>
+keel::Pair<Value, Value>
 rref(const Value &A, bool have_tol, keel::f64 tol_user, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "rref");
@@ -92,7 +92,7 @@ rref(const Value &A, bool have_tol, keel::f64 tol_user, keel::Allocator *mr)
 }
 
 // planerot: G * [x; y] = [r; 0] where r = hypot(x, y).
-std::pair<Value, Value>
+keel::Pair<Value, Value>
 planerot(const Value &xy, keel::Allocator *mr)
 {
     if (xy.dims().is3D() || xy.numel() != 2)

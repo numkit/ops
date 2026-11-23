@@ -3,6 +3,7 @@
 // gsvd — Generalized Singular Value Decomposition via keel::gsvd_*.
 
 #include <keel/core.h>
+#include <keel/tuple.h>
 #include <keel/memory.h>
 #include <keel/arena.h>
 #include <keel/array.h>
@@ -60,7 +61,7 @@ Value gsvd_values(const Value &A, const Value &B, keel::Allocator *mr)
     return detail::narrowDoubleToSingleIf(sigmas, wantSingle, mr);
 }
 
-std::tuple<Value, Value, Value, Value, Value> gsvd(const Value &A, const Value &B,
+keel::Tuple<Value, Value, Value, Value, Value> gsvd(const Value &A, const Value &B,
                                                    keel::Allocator *mr)
 {
     Value Ac = (A.type() == ValueType::LOGICAL)

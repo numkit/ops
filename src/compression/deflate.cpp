@@ -10,7 +10,6 @@
 
 #include "keel/compress.h"
 
-#include <utility>
 
 namespace numkit::ops {
 
@@ -57,7 +56,7 @@ keel::Array<keel::u8> inflateRaw(const keel::u8 *src, keel::usize len,
     if (!res) {
         throwInflateError(res.error());
     }
-    return std::move(res.value());
+    return keel::move(res.value());
 }
 
 keel::Array<keel::u8> deflateRaw(const keel::u8 *src, keel::usize len, keel::i32 level,
@@ -111,7 +110,7 @@ keel::Array<keel::u8> zlibDecompress(const keel::u8 *src, keel::usize len,
                     0, 0, "zlibDecompress", "", "numkit:zlib:adlerMismatch");
     }
 
-    return std::move(payload);
+    return keel::move(payload);
 }
 
 keel::Array<keel::u8> zlibCompress(const keel::u8 *src, keel::usize len, keel::i32 level,

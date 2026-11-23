@@ -60,7 +60,7 @@ void groupOf(const Value &g, keel::Array<keel::usize> &out_groups,
         const auto it = std::lower_bound(sorted.begin(), sorted.end(), vals[i]);
         out_groups[i] = (keel::usize)(it - sorted.begin()) + 1;   // 1-based
     }
-    out_unique = std::move(sorted);
+    out_unique = keel::move(sorted);
 }
 
 } // namespace
@@ -82,7 +82,7 @@ FindgroupsResult findgroups(const Value &g, keel::Allocator *mr)
     auto ID = Value::matrix(uniqueVals.size(), 1, ValueType::DOUBLE, mr);
     if (!uniqueVals.empty())
         keel::copy_n(ID.doubleDataMut(), uniqueVals.data(), uniqueVals.size());
-    return {std::move(G), std::move(ID)};
+    return {keel::move(G), keel::move(ID)};
 }
 
 GroupcountsResult groupcounts(const Value &g, keel::Allocator *mr)
@@ -253,7 +253,7 @@ GroupsummaryResult groupsummary(const Value &A, const Value &G,
     }
 
     GroupsummaryResult R;
-    R.B = std::move(B);
+    R.B = keel::move(B);
     R.BG = Value::matrix(nGroups, 1, ValueType::DOUBLE, mr);
     {
         keel::f64 *gd = R.BG.doubleDataMut();

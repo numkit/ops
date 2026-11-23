@@ -9,7 +9,7 @@
 
 #include <keel/core.h>
 #include <keel/memory.h>
-#include <tuple>
+#include <keel/tuple.h>
 #include <numkit/value/value.hpp>
 
 namespace numkit::linalg {
@@ -32,7 +32,7 @@ Value chol(const Value &A, keel::Allocator *mr = nullptr);
 ///
 /// `P Â· A == L Â· U` where `L` is unit-lower-triangular, `U` is
 /// upper-triangular, `P` is a permutation matrix.
-std::tuple<Value, Value, Value>
+keel::Tuple<Value, Value, Value>
 lu_decompose(const Value &A, keel::Allocator *mr = nullptr);
 
 /// @brief Combined L+U output (`LU = lu(A)` single-output form).
@@ -42,7 +42,7 @@ Value lu_combined(const Value &A, keel::Allocator *mr = nullptr);
 ///
 /// Full-size form (not `"econ"`). `A == Q Â· R`. `Q` is `m Ã— m`
 /// orthogonal, `R` is `m Ã— n` upper-triangular.
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 qr_decompose(const Value &A, keel::Allocator *mr = nullptr);
 
 /// @brief R-only QR output (`R = qr(A)` single-output form).
@@ -51,7 +51,7 @@ Value qr_R_only(const Value &A, keel::Allocator *mr = nullptr);
 /// @brief Singular value decomposition (`[U, S, V] = svd_decompose(A)`).
 ///
 /// `A = U Â· S Â· V'`. One-sided Jacobi rotations.
-std::tuple<Value, Value, Value>
+keel::Tuple<Value, Value, Value>
 svd_decompose(const Value &A, keel::Allocator *mr = nullptr);
 
 /// @brief Singular values only (`s = svd(A)` single-output form).
@@ -62,27 +62,27 @@ Value svd_values(const Value &A, keel::Allocator *mr = nullptr);
 /// Given `A = Q * R`, returns `(Q1, R1)` such that
 /// `Q1 * R1 == A + u * v'`. Standard Givens-rotation algorithm
 /// (Daniel/Gragg/Kaufman/Stewart 1976), O(mÂ·n).
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 qrupdate(const Value &Q, const Value &R, const Value &u, const Value &v,
          keel::Allocator *mr = nullptr);
 
 /// @brief Insert column into QR (`[Q1, R1] = qrinsert(Q, R, k, x)`).
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 qrinsert(const Value &Q, const Value &R, keel::usize k_1based, const Value &x,
          keel::Allocator *mr = nullptr);
 
 /// @brief Insert row into QR (`[Q1, R1] = qrinsert(Q, R, k, x, 'row')`).
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 qrinsert_row(const Value &Q, const Value &R, keel::usize k_1based, const Value &x,
              keel::Allocator *mr = nullptr);
 
 /// @brief Delete column from QR (`[Q1, R1] = qrdelete(Q, R, k)`).
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 qrdelete(const Value &Q, const Value &R, keel::usize k_1based,
          keel::Allocator *mr = nullptr);
 
 /// @brief Delete row from QR (`[Q1, R1] = qrdelete(Q, R, k, 'row')`).
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 qrdelete_row(const Value &Q, const Value &R, keel::usize k_1based,
              keel::Allocator *mr = nullptr);
 

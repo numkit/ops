@@ -1,6 +1,7 @@
 // toolboxes/builtin/src/lang/arrays/matrix.cpp
 
 #include <keel/core.h>
+#include <keel/tuple.h>
 #include <keel/algo.h>
 #include <keel/format.h>
 #include <keel/memory.h>
@@ -156,7 +157,7 @@ Value poly_of_matrix(const Value &A, keel::Allocator *mr)
         for (keel::usize i = 0; i < n; ++i) tr += Mnext[i + i * n];
         c[k] = -tr / keel::as<keel::f64>(k);
 
-        std::swap(M, Mnext);
+        keel::swap(M, Mnext);
     }
     return out;
 }
@@ -662,10 +663,10 @@ Value size(const Value &x, keel::i32 dim, keel::Allocator *mr)
     return Value::scalar(keel::as<keel::f64>(x.dims().dimSize(dim - 1)), mr);
 }
 
-std::tuple<Value, Value> sizePair(const Value &x, keel::Allocator *mr)
+keel::Tuple<Value, Value> sizePair(const Value &x, keel::Allocator *mr)
 {
     const auto &dims = x.dims();
-    return std::make_tuple(
+    return keel::make_tuple(
         Value::scalar(keel::as<keel::f64>(dims.rows()), mr),
         Value::scalar(keel::as<keel::f64>(dims.cols()), mr));
 }
@@ -821,7 +822,7 @@ Surface3 sphere(keel::usize n, keel::Allocator *mr)
     keel::f64 *yd = Y.doubleDataMut();
     keel::f64 *zd = Z.doubleDataMut();
 
-    if (n == 0) return { std::move(X), std::move(Y), std::move(Z) };
+    if (n == 0) return { keel::move(X), keel::move(Y), keel::move(Z) };
 
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     keel::Array<keel::f64> cosPhi(m, scratch.allocator());
@@ -854,7 +855,7 @@ Surface3 sphere(keel::usize n, keel::Allocator *mr)
             zd[k] = sinPhi[i] + 0.0;
         }
     }
-    return { std::move(X), std::move(Y), std::move(Z) };
+    return { keel::move(X), keel::move(Y), keel::move(Z) };
 }
 
 Surface3 cylinder(const Value &R, keel::usize n, keel::Allocator *mr)
@@ -888,7 +889,7 @@ Surface3 cylinder(const Value &R, keel::usize n, keel::Allocator *mr)
                                  : keel::as<keel::f64>(i) / keel::as<keel::f64>(rows - 1);
         }
     }
-    return { std::move(X), std::move(Y), std::move(Z) };
+    return { keel::move(X), keel::move(Y), keel::move(Z) };
 }
 
 Surface3 ellipsoid(keel::f64 xc, keel::f64 yc, keel::f64 zc, keel::f64 xr, keel::f64 yr, keel::f64 zr, keel::usize n, keel::Allocator *mr)
@@ -1034,7 +1035,7 @@ Value diag(const Value &x, keel::i32 k, keel::Allocator *mr)
 // sorts LAST for ascending, FIRST for descending. 'descend' fully reverses
 // both keys. Unlike min/max there is NO all-real fast path — a COMPLEX-typed
 // all-real input still sorts by |z|+angle (so sort([2 -2]+0i) = [2 -2]).
-std::tuple<Value, Value> sortComplex(const Value &x, keel::i32 dim, bool descend,
+keel::Tuple<Value, Value> sortComplex(const Value &x, keel::i32 dim, bool descend,
                                      NanPlace nanPlace,
                                      keel::Allocator *mr)
 {
@@ -1058,7 +1059,7 @@ std::tuple<Value, Value> sortComplex(const Value &x, keel::i32 dim, bool descend
     const keel::usize slice2 = (sortDim == 2) ? 1 : P;
     const keel::c64 *src = x.complexData();
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<std::pair<keel::c64, keel::usize>> buf(N, scratch.allocator());
+    keel::Array<keel::Pair<keel::c64, keel::usize>> buf(N, scratch.allocator());
 
     for (keel::usize pp = 0; pp < slice2; ++pp)
         for (keel::usize c = 0; c < slice1; ++c)
@@ -1091,14 +1092,14 @@ std::tuple<Value, Value> sortComplex(const Value &x, keel::i32 dim, bool descend
                     idx.doubleDataMut()[lin] = keel::as<keel::f64>(buf[k].second + 1);
                 }
             }
-    return std::make_tuple(std::move(r), std::move(idx));
+    return keel::make_tuple(keel::move(r), keel::move(idx));
 }
 
-std::tuple<Value, Value> sort(const Value &x, keel::i32 dim, bool descend,
+keel::Tuple<Value, Value> sort(const Value &x, keel::i32 dim, bool descend,
                               NanPlace nanPlace, keel::Allocator *mr)
 {
     if (x.isScalar())
-        return std::make_tuple(x, Value::scalar(1.0, mr));
+        return keel::make_tuple(x, Value::scalar(1.0, mr));
     if (x.type() == ValueType::COMPLEX)
         return sortComplex(x, dim, descend, nanPlace, mr);
 
@@ -1124,7 +1125,7 @@ std::tuple<Value, Value> sort(const Value &x, keel::i32 dim, bool descend,
     const keel::usize slice1 = (sortDim == 1) ? 1 : C;
     const keel::usize slice2 = (sortDim == 2) ? 1 : P;
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<std::pair<keel::f64, keel::usize>> buf(N, scratch.allocator());
+    keel::Array<keel::Pair<keel::f64, keel::usize>> buf(N, scratch.allocator());
 
     for (keel::usize pp = 0; pp < slice2; ++pp)
         for (keel::usize c = 0; c < slice1; ++c)
@@ -1157,17 +1158,17 @@ std::tuple<Value, Value> sort(const Value &x, keel::i32 dim, bool descend,
                     idx.doubleDataMut()[lin] = keel::as<keel::f64>(buf[k].second + 1);
                 }
             }
-    return std::make_tuple(std::move(r), std::move(idx));
+    return keel::make_tuple(keel::move(r), keel::move(idx));
 }
 
 // ── sortrows ─────────────────────────────────────────────────────────
 
-std::tuple<Value, Value> sortrows(const Value &x, keel::Allocator *mr)
+keel::Tuple<Value, Value> sortrows(const Value &x, keel::Allocator *mr)
 {
     return sortRowsImpl(x, nullptr, 0, mr);
 }
 
-std::tuple<Value, Value> sortrows(const Value &x, keel::ArrayRef<keel::i32> cols, keel::Allocator *mr)
+keel::Tuple<Value, Value> sortrows(const Value &x, keel::ArrayRef<keel::i32> cols, keel::Allocator *mr)
 {
     return sortRowsImpl(x, cols.data(), cols.size(), mr);
 }
@@ -1284,7 +1285,7 @@ Value vertcat(keel::ArrayRef<Value> values, keel::Allocator *mr)
 }
 
 // ── Grids ────────────────────────────────────────────────────────────
-std::tuple<Value, Value> meshgrid(const Value &x, const Value &y, keel::Allocator *mr)
+keel::Tuple<Value, Value> meshgrid(const Value &x, const Value &y, keel::Allocator *mr)
 {
     const keel::usize nx = x.numel(), ny = y.numel();
     auto X = Value::matrix(ny, nx, ValueType::DOUBLE, mr);
@@ -1294,11 +1295,11 @@ std::tuple<Value, Value> meshgrid(const Value &x, const Value &y, keel::Allocato
             X.elem(r, c) = x.doubleData()[c];
             Y.elem(r, c) = y.doubleData()[r];
         }
-    return std::make_tuple(std::move(X), std::move(Y));
+    return keel::make_tuple(keel::move(X), keel::move(Y));
 }
 
 // 3-arg meshgrid: returns three [ny, nx, nz] 3-D arrays. See BUGS.md #23.
-std::tuple<Value, Value, Value>
+keel::Tuple<Value, Value, Value>
 meshgrid(const Value &x, const Value &y, const Value &z, keel::Allocator *mr)
 {
     const keel::usize nx = x.numel(), ny = y.numel(), nz = z.numel();
@@ -1320,11 +1321,11 @@ meshgrid(const Value &x, const Value &y, const Value &z, keel::Allocator *mr)
             }
         }
     }
-    return std::make_tuple(std::move(X), std::move(Y), std::move(Z));
+    return keel::make_tuple(keel::move(X), keel::move(Y), keel::move(Z));
 }
 
 // ── ndgrid ──────────────────────────────────────────────────────────
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 ndgrid(const Value &x, const Value &y, keel::Allocator *mr)
 {
     const keel::usize nx = x.numel(), ny = y.numel();
@@ -1336,10 +1337,10 @@ ndgrid(const Value &x, const Value &y, keel::Allocator *mr)
             X.elem(r, c) = x.elemAsDouble(r);
             Y.elem(r, c) = y.elemAsDouble(c);
         }
-    return std::make_tuple(std::move(X), std::move(Y));
+    return keel::make_tuple(keel::move(X), keel::move(Y));
 }
 
-std::tuple<Value, Value, Value>
+keel::Tuple<Value, Value, Value>
 ndgrid(const Value &x, const Value &y, const Value &z, keel::Allocator *mr)
 {
     const keel::usize nx = x.numel(), ny = y.numel(), nz = z.numel();
@@ -1353,7 +1354,7 @@ ndgrid(const Value &x, const Value &y, const Value &z, keel::Allocator *mr)
                 Y.elem(r, c, p) = y.elemAsDouble(c);
                 Z.elem(r, c, p) = z.elemAsDouble(p);
             }
-    return std::make_tuple(std::move(X), std::move(Y), std::move(Z));
+    return keel::make_tuple(keel::move(X), keel::move(Y), keel::move(Z));
 }
 
 // ── kron ────────────────────────────────────────────────────────────
@@ -1598,7 +1599,7 @@ Value diff(const Value &x, keel::i32 n, keel::i32 dim, keel::Allocator *mr)
             const auto &curDims = cur.dims();
             auto out = makeDiffOutput(curDims, d, 1, ValueType::COMPLEX, mr);
             diffOnceComplex(cur.complexData(), out.complexDataMut(), curDims, d);
-            cur = std::move(out);
+            cur = keel::move(out);
         }
         return cur;
     }
@@ -1610,7 +1611,7 @@ Value diff(const Value &x, keel::i32 n, keel::i32 dim, keel::Allocator *mr)
         const auto &curDims = cur.dims();
         auto out = makeDiffOutput(curDims, d, 1, ValueType::DOUBLE, mr);
         diffOnceDouble(cur.doubleData(), out.doubleDataMut(), curDims, d);
-        cur = std::move(out);
+        cur = keel::move(out);
     }
     return cur;
 }

@@ -14,7 +14,6 @@
 #include <numkit/value/value.hpp>
 #include <numkit/value/error.hpp>
 #include <regex>
-#include <utility>
 
 #include "regex_detail.hpp"
 
@@ -125,7 +124,7 @@ Value regexpFind(const Value &s, const Value &pat, keel::StringRef option, bool 
             keel::Array<keel::StringRef> grp(salloc);
             for (keel::usize g = 1; g < it->size(); ++g)
                 grp.push_back(subMatchRef(*it, g));
-            all.push_back(std::move(grp));
+            all.push_back(keel::move(grp));
         }
         auto out = Value::cell(1, all.size());
         for (keel::usize i = 0; i < all.size(); ++i)

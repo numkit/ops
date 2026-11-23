@@ -4,6 +4,7 @@
 // Value adapters over keel::linalg kernels.
 
 #include <keel/core.h>
+#include <keel/tuple.h>
 #include <keel/memory.h>
 #include <keel/arena.h>
 #include <keel/array.h>
@@ -77,7 +78,7 @@ Value chol(const Value &A, keel::Allocator *mr)
 namespace {
 
 template <typename T>
-std::tuple<Value, Value, Value>
+keel::Tuple<Value, Value, Value>
 lu_decompose_impl(const Value &A, keel::Allocator *mr)
 {
     const keel::usize m = keel::as<keel::usize>(A.dims().dim(0));
@@ -120,11 +121,11 @@ lu_decompose_impl(const Value &A, keel::Allocator *mr)
     keel::Array<keel::usize> perm(m, scratch.allocator());
     for (keel::usize i = 0; i < m; ++i) perm[i] = i;
     for (keel::usize j = 0; j < k; ++j)
-        std::swap(perm[j], perm[piv[j]]);
+        keel::swap(perm[j], perm[piv[j]]);
     for (keel::usize i = 0; i < m; ++i)
         P[i + perm[i] * m] = 1.0;
 
-    return std::make_tuple(detail::narrow_if_real(Lout), detail::narrow_if_real(Uout), std::move(Pout));
+    return keel::make_tuple(detail::narrow_if_real(Lout), detail::narrow_if_real(Uout), keel::move(Pout));
 }
 
 template <typename T>
@@ -152,7 +153,7 @@ Value lu_combined_impl(const Value &A, keel::Allocator *mr)
 
 } // anonymous namespace
 
-std::tuple<Value, Value, Value>
+keel::Tuple<Value, Value, Value>
 lu_decompose(const Value &A, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "lu");
@@ -171,7 +172,7 @@ lu_decompose(const Value &A, keel::Allocator *mr)
         U = detail::narrowDoubleToSingle(U, mr);
         P = detail::narrowDoubleToSingle(P, mr);
     }
-    return std::make_tuple(std::move(L), std::move(U), std::move(P));
+    return keel::make_tuple(keel::move(L), keel::move(U), keel::move(P));
 }
 
 Value lu_combined(const Value &A, keel::Allocator *mr)
@@ -194,7 +195,7 @@ Value lu_combined(const Value &A, keel::Allocator *mr)
 // QR (Householder, full Q)
 // ────────────────────────────────────────────────────────────────────────
 
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 qr_decompose(const Value &A, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "qr");
@@ -213,14 +214,14 @@ qr_decompose(const Value &A, keel::Allocator *mr)
         auto Q = Value::complexMatrix(m, m, mr);
         auto R = Value::complexMatrix(m, n, mr);
         keel::linalg::qr_householder(Aw.complexData(), m, n, Q.complexDataMut(), R.complexDataMut(), mr);
-        return std::make_tuple(
+        return keel::make_tuple(
             detail::narrowDoubleToSingleIf(detail::narrow_if_real(Q, mr), wantSingle, mr),
             detail::narrowDoubleToSingleIf(detail::narrow_if_real(R, mr), wantSingle, mr));
     }
     auto Q = Value::matrix(m, m, ValueType::DOUBLE, mr);
     auto R = Value::matrix(m, n, ValueType::DOUBLE, mr);
     keel::linalg::qr_householder(Aw.doubleData(), m, n, Q.doubleDataMut(), R.doubleDataMut(), mr);
-    return std::make_tuple(
+    return keel::make_tuple(
         detail::narrowDoubleToSingleIf(Q, wantSingle, mr),
         detail::narrowDoubleToSingleIf(R, wantSingle, mr));
 }
@@ -248,7 +249,7 @@ Value qr_R_only(const Value &A, keel::Allocator *mr)
     return detail::narrowDoubleToSingleIf(R, wantSingle, mr);
 }
 
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 qr_pivoted(const Value &A, keel::Array<keel::usize> &perm,
            keel::Allocator *mr)
 {
@@ -270,7 +271,7 @@ qr_pivoted(const Value &A, keel::Array<keel::usize> &perm,
         auto R = Value::complexMatrix(m, n, mr);
         keel::linalg::qr_pivoted(Aw.complexData(), m, n,
                          Q.complexDataMut(), R.complexDataMut(), perm.data(), mr);
-        return std::make_tuple(
+        return keel::make_tuple(
             detail::narrowDoubleToSingleIf(detail::narrow_if_real(Q, mr), wantSingle, mr),
             detail::narrowDoubleToSingleIf(detail::narrow_if_real(R, mr), wantSingle, mr));
     }
@@ -278,7 +279,7 @@ qr_pivoted(const Value &A, keel::Array<keel::usize> &perm,
     auto R = Value::matrix(m, n, ValueType::DOUBLE, mr);
     keel::linalg::qr_pivoted(Aw.doubleData(), m, n,
                      Q.doubleDataMut(), R.doubleDataMut(), perm.data(), mr);
-    return std::make_tuple(
+    return keel::make_tuple(
         detail::narrowDoubleToSingleIf(Q, wantSingle, mr),
         detail::narrowDoubleToSingleIf(R, wantSingle, mr));
 }
@@ -287,7 +288,7 @@ qr_pivoted(const Value &A, keel::Array<keel::usize> &perm,
 // SVD (one-sided Jacobi via keel::linalg::svd_full)
 // ────────────────────────────────────────────────────────────────────────
 
-std::tuple<Value, Value, Value>
+keel::Tuple<Value, Value, Value>
 svd_decompose(const Value &A, keel::Allocator *mr)
 {
     detail::requireDoubleInput(A, "svd");
@@ -299,7 +300,7 @@ svd_decompose(const Value &A, keel::Allocator *mr)
     const bool wantSingle = (A.type() == ValueType::SINGLE);
 
     if (m_in == 0 || n_in == 0) {
-        return std::make_tuple(
+        return keel::make_tuple(
             detail::narrowDoubleToSingleIf(detail::make_matrix<keel::f64>(m_in, m_in, mr), wantSingle, mr),
             detail::narrowDoubleToSingleIf(detail::make_matrix<keel::f64>(m_in, n_in, mr), wantSingle, mr),
             detail::narrowDoubleToSingleIf(detail::make_matrix<keel::f64>(n_in, n_in, mr), wantSingle, mr));
@@ -320,7 +321,7 @@ svd_decompose(const Value &A, keel::Allocator *mr)
         keel::linalg::svd_full(Aw.complexData(), m_in, n_in,
                        Uout.complexDataMut(), sigma.data(), Vout.complexDataMut(), mr);
         for (keel::usize i = 0; i < k; ++i) S[i + i * m_in] = sigma[i];
-        return std::make_tuple(
+        return keel::make_tuple(
             detail::narrowDoubleToSingleIf(detail::narrow_if_real(Uout, mr), wantSingle, mr),
             detail::narrowDoubleToSingleIf(Sout, wantSingle, mr),
             detail::narrowDoubleToSingleIf(detail::narrow_if_real(Vout, mr), wantSingle, mr));
@@ -331,7 +332,7 @@ svd_decompose(const Value &A, keel::Allocator *mr)
     keel::linalg::svd_full(Aw.doubleData(), m_in, n_in,
                    Uout.doubleDataMut(), sigma.data(), Vout.doubleDataMut(), mr);
     for (keel::usize i = 0; i < k; ++i) S[i + i * m_in] = sigma[i];
-    return std::make_tuple(
+    return keel::make_tuple(
         detail::narrowDoubleToSingleIf(Uout, wantSingle, mr),
         detail::narrowDoubleToSingleIf(Sout, wantSingle, mr),
         detail::narrowDoubleToSingleIf(Vout, wantSingle, mr));
@@ -357,7 +358,7 @@ Value svd_values(const Value &A, keel::Allocator *mr)
 // QR rank-1 update / column & row insert / delete (via keel::qr_*)
 // ────────────────────────────────────────────────────────────────────────
 
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 qrupdate(const Value &Q, const Value &R, const Value &u, const Value &v,
          keel::Allocator *mr)
 {
@@ -392,12 +393,12 @@ qrupdate(const Value &Q, const Value &R, const Value &u, const Value &v,
     for (keel::usize j = 0; j < n; ++j) vb[j] = v.elemAsDouble(j);
 
     keel::linalg::qr_update(Q1.doubleDataMut(), R1.doubleDataMut(), m, n, ub.data(), vb.data(), mr);
-    return std::make_tuple(
+    return keel::make_tuple(
         detail::narrowDoubleToSingleIf(Q1, wantSingle, mr),
         detail::narrowDoubleToSingleIf(R1, wantSingle, mr));
 }
 
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 qrinsert(const Value &Q, const Value &R, keel::usize k_1based, const Value &x,
          keel::Allocator *mr)
 {
@@ -430,12 +431,12 @@ qrinsert(const Value &Q, const Value &R, keel::usize k_1based, const Value &x,
     auto R1 = Value::matrix(m, n + 1, ValueType::DOUBLE, mr);
     keel::linalg::qr_insert_col(Qw.doubleData(), Rw.doubleData(), m, n, k_1based - 1,
                         xb.data(), Q1.doubleDataMut(), R1.doubleDataMut(), mr);
-    return std::make_tuple(
+    return keel::make_tuple(
         detail::narrowDoubleToSingleIf(Q1, wantSingle, mr),
         detail::narrowDoubleToSingleIf(R1, wantSingle, mr));
 }
 
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 qrdelete(const Value &Q, const Value &R, keel::usize k_1based,
          keel::Allocator *mr)
 {
@@ -463,12 +464,12 @@ qrdelete(const Value &Q, const Value &R, keel::usize k_1based,
     auto R1 = Value::matrix(m, n - 1, ValueType::DOUBLE, mr);
     keel::linalg::qr_delete_col(Qw.doubleData(), Rw.doubleData(), m, n, k_1based - 1,
                         Q1.doubleDataMut(), R1.doubleDataMut());
-    return std::make_tuple(
+    return keel::make_tuple(
         detail::narrowDoubleToSingleIf(Q1, wantSingle, mr),
         detail::narrowDoubleToSingleIf(R1, wantSingle, mr));
 }
 
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 qrinsert_row(const Value &Q, const Value &R, keel::usize k_1based, const Value &x,
              keel::Allocator *mr)
 {
@@ -501,12 +502,12 @@ qrinsert_row(const Value &Q, const Value &R, keel::usize k_1based, const Value &
     auto R1 = Value::matrix(m + 1, n, ValueType::DOUBLE, mr);
     keel::linalg::qr_insert_row(Qw.doubleData(), Rw.doubleData(), m, n, k_1based - 1,
                         xb.data(), Q1.doubleDataMut(), R1.doubleDataMut());
-    return std::make_tuple(
+    return keel::make_tuple(
         detail::narrowDoubleToSingleIf(Q1, wantSingle, mr),
         detail::narrowDoubleToSingleIf(R1, wantSingle, mr));
 }
 
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 qrdelete_row(const Value &Q, const Value &R, keel::usize k_1based,
              keel::Allocator *mr)
 {
@@ -534,7 +535,7 @@ qrdelete_row(const Value &Q, const Value &R, keel::usize k_1based,
     auto R1 = Value::matrix(m - 1, n, ValueType::DOUBLE, mr);
     keel::linalg::qr_delete_row(Qw.doubleData(), Rw.doubleData(), m, n, k_1based - 1,
                         Q1.doubleDataMut(), R1.doubleDataMut(), mr);
-    return std::make_tuple(
+    return keel::make_tuple(
         detail::narrowDoubleToSingleIf(Q1, wantSingle, mr),
         detail::narrowDoubleToSingleIf(R1, wantSingle, mr));
 }

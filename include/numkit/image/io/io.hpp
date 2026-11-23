@@ -16,7 +16,6 @@
 #include <keel/ref.h>
 #include <keel/string.h>
 #include <numkit/value/value.hpp>
-#include <utility>
 
 namespace numkit::image {
 
@@ -130,7 +129,7 @@ Value readTiff(keel::StringRef path, keel::u32 page,
 /// these from the VFS so reads work on the virtual + real filesystem).
 Value readTiff(keel::ArrayRef<keel::u8> buf, keel::u32 page,
                keel::Allocator *mr = nullptr);
-std::pair<Value, Value>
+keel::Pair<Value, Value>
 readTiffWithMap(keel::ArrayRef<keel::u8> buf, keel::u32 page,
                 keel::Allocator *mr = nullptr);
 
@@ -139,7 +138,7 @@ readTiffWithMap(keel::ArrayRef<keel::u8> buf, keel::u32 page,
 /// KÃ—3 DOUBLE in [0, 1] for palette files (Photometric = 3), or empty
 /// for non-palette files. K = 2^BitsPerSample. Matches MATLAB's
 /// `[A, map] = imread(file)` for indexed images.
-std::pair<Value, Value>
+keel::Pair<Value, Value>
 readTiffWithMap(keel::StringRef path, keel::u32 page,
                 keel::Allocator *mr = nullptr);
 

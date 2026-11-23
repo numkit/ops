@@ -7,7 +7,7 @@
 #pragma once
 
 #include <keel/memory.h>
-#include <tuple>
+#include <keel/tuple.h>
 #include <numkit/value/value.hpp>
 
 namespace numkit::linalg {
@@ -17,10 +17,10 @@ namespace numkit::linalg {
 
 
 /// @brief Generalized Schur decomposition of matrix pair (A, B).
-/// Returns std::tuple<Value, Value, Value, Value>{AA, BB, Q, Z}
+/// Returns keel::Tuple<Value, Value, Value, Value>{AA, BB, Q, Z}
 /// such that Q * A * Z = AA and Q * B * Z = BB, where AA is upper quasi-triangular,
 /// BB is upper triangular, and Q, Z are unitary.
-std::tuple<Value, Value, Value, Value> qz(const Value &A, const Value &B,
+keel::Tuple<Value, Value, Value, Value> qz(const Value &A, const Value &B,
                                            keel::Allocator *mr = nullptr);
 
 

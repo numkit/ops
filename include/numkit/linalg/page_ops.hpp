@@ -11,7 +11,7 @@
 
 #include <keel/core.h>
 #include <keel/memory.h>
-#include <tuple>
+#include <keel/tuple.h>
 #include <numkit/value/value.hpp>
 
 namespace numkit::linalg {
@@ -35,14 +35,14 @@ Value pageeig_values(const Value &A, keel::Allocator *mr = nullptr);
 /// @brief Page-wise eigendecomposition (`[V, D] = pageeig(A)`).
 ///
 /// Returns `(V_pages, D_pages)`, each shaped `n Ã— n Ã— pages`.
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 pageeig_VD(const Value &A, keel::Allocator *mr = nullptr);
 
 /// @brief Page-wise singular values (`s = pagesvd(A)`).
 Value pagesvd_values(const Value &A, keel::Allocator *mr = nullptr);
 
 /// @brief Page-wise full SVD (`[U, S, V] = pagesvd(A)`).
-std::tuple<Value, Value, Value>
+keel::Tuple<Value, Value, Value>
 pagesvd_decompose(const Value &A, keel::Allocator *mr = nullptr);
 
 /// @brief Page-wise pseudo-inverse (`B = pagepinv(A[, tol])`).

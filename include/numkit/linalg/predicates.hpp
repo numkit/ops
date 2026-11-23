@@ -9,7 +9,6 @@
 
 #include <keel/memory.h>
 #include <keel/ref.h>
-#include <utility>
 #include <numkit/value/value.hpp>
 
 namespace numkit::linalg {
@@ -43,7 +42,7 @@ Value issymmetric(const Value &A, bool skew = false, keel::Allocator *mr = nullp
 Value ishermitian(const Value &A, bool skew = false, keel::Allocator *mr = nullptr);
 
 /// @brief Bandwidth pair (`[lower, upper] = bandwidth(A)`).
-std::pair<Value, Value>
+keel::Pair<Value, Value>
 bandwidth(const Value &A, keel::Allocator *mr = nullptr);
 
 /// @brief Single-output bandwidth selector (`x = bandwidth(A, which)`).

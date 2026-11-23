@@ -293,7 +293,7 @@ Value applyAlongDim(const Value &x, keel::i32 dim, F &&f, keel::Allocator *mr = 
                                       keel::as<keel::i32>(shape.size()),
                                       ValueType::DOUBLE, mr);
         keel::f64 *dst = out.doubleDataMut();
-        forEachSliceND(x, dim, dst, std::forward<F>(f), scratch.allocator());
+        forEachSliceND(x, dim, dst, keel::forward<F>(f), scratch.allocator());
         return out;
     }
     auto outShape = outShapeForDim(x, dim);
@@ -308,7 +308,7 @@ Value applyAlongDim(const Value &x, keel::i32 dim, F &&f, keel::Allocator *mr = 
 // Index-aware variant: F writes (value, 1-based index of source element)
 // per slice. Used by min/max with dim. Returns (values, indices).
 template <typename F>
-std::pair<Value, Value>
+keel::Pair<Value, Value>
 applyAlongDimWithIndex(const Value &x, keel::i32 dim, F &&f, keel::Allocator *mr = nullptr)
 {
     if (x.isEmpty() && x.dims().ndim() < 4) {
@@ -354,7 +354,7 @@ applyAlongDimWithIndex(const Value &x, keel::i32 dim, F &&f, keel::Allocator *mr
             dst[i]  = rv;
             dstI[i] = keel::as<keel::f64>(ridx + 1);
         }
-        return {std::move(out), std::move(outIdx)};
+        return {keel::move(out), keel::move(outIdx)};
     }
     // ND fallback (rank ≥ 4)
     if (x.dims().ndim() >= 4 && dim >= 1 && dim <= x.dims().ndim()) {
@@ -374,7 +374,7 @@ applyAlongDimWithIndex(const Value &x, keel::i32 dim, F &&f, keel::Allocator *mr
                 dstI[outOff] = keel::as<keel::f64>(idx + 1);
                 return v;
             }, scratch.allocator());
-        return {std::move(out), std::move(outIdx)};
+        return {keel::move(out), keel::move(outIdx)};
     }
     auto outShape = outShapeForDim(x, dim);
     Value out = createMatrix(outShape, ValueType::DOUBLE, mr);
@@ -388,7 +388,7 @@ applyAlongDimWithIndex(const Value &x, keel::i32 dim, F &&f, keel::Allocator *mr
         dst[outOff] = v;
         dstI[outOff] = keel::as<keel::f64>(idx + 1);
     }, scratch.allocator());
-    return {std::move(out), std::move(outIdx)};
+    return {keel::move(out), keel::move(outIdx)};
 }
 
 // Resolve effective dim: explicit user-supplied if provided, else the

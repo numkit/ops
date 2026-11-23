@@ -13,7 +13,7 @@
 #include <keel/complex.h>
 #include <keel/math.h>
 #include <algorithm>
-#include <tuple>
+#include <keel/tuple.h>
 
 #include <numkit/value/value.hpp>
 #include <numkit/ops/blas.hpp>
@@ -77,7 +77,7 @@ Value transposeSquare(const T *src, keel::usize k, keel::Allocator *mr) {
 }
 
 // Column-pivoted QR (the [Q,R,P] form).
-std::tuple<Value, Value>
+keel::Tuple<Value, Value>
 qr_pivoted(const Value &A, keel::Array<keel::usize> &perm,
            keel::Allocator *mr = nullptr);
 
