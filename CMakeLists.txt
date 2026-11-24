@@ -216,7 +216,7 @@ if(NOT TARGET keel::interp)
     FetchContent_Declare(
         keel_interp
         GIT_REPOSITORY https://github.com/keelcpp/interp.git
-        GIT_TAG        6d56cfb3e6c5d133593583d3b07a141ee0b545b8
+        GIT_TAG        09d9f6c437c25f0ee2aa52ef6c43d3a652f237a3
     )
     FetchContent_MakeAvailable(keel_interp)
 endif()
