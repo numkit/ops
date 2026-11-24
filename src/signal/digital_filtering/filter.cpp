@@ -8,6 +8,7 @@
 #include <keel/array.h>
 #include <keel/complex.h>
 #include <keel/math.h>
+#include <keel/signal.h>
 #include <numkit/signal/digital_filtering/filter.hpp>
 
 #include <numkit/value/value.hpp>
@@ -293,83 +294,18 @@ Value filtfilt(const Value &b, const Value &a, const Value &x, keel::Allocator *
     const keel::f64 *ad = a.doubleData();
     const keel::f64 *xd = x.doubleData();
 
-    const keel::f64 a0 = ad[0];
-    if (a0 == 0.0)
+    if (na == 0 || ad[0] == 0.0)
         throw Error("filtfilt: a(1) must be nonzero",
                      0, 0, "filtfilt", "", "numkit:filtfilt:zeroLead");
 
-    keel::ArenaTemp scratch = keel::get_scratch(mr);
-    auto bn = keel::Array<keel::f64>(nb, scratch.allocator());
-    auto an = keel::Array<keel::f64>(na, scratch.allocator());
-    for (keel::usize i = 0; i < nb; ++i)
-        bn[i] = bd[i] / a0;
-    for (keel::usize i = 0; i < na; ++i)
-        an[i] = ad[i] / a0;
-
-    const keel::usize nfilt = keel::max(nb, na);
-    const keel::usize stateLen = (nfilt > 0) ? (nfilt - 1) : 0;
-
-    // Steady-state step-response initial conditions zi: solve (I - A)*zi = rhs
-    // where rhs[k] = b[k+1] - b[0]*a[k+1]. The companion/DF2T system telescopes:
-    //   (1 + sum_{k=1..m} a[k]) * zi[0] = sum_{k=0..m-1} rhs[k]
-    //   zi[k+1] = zi[k] + a[k+1]*zi[0] - rhs[k].
-    auto zi = keel::Array<keel::f64>(stateLen, scratch.allocator());
-    if (stateLen > 0) {
-        auto rhs = keel::Array<keel::f64>(stateLen, scratch.allocator());
-        keel::f64 sumRhs = 0.0;
-        keel::f64 sumA = 1.0;
-        for (keel::usize k = 0; k < stateLen; ++k) {
-            const keel::f64 bk1 = (k + 1 < nb) ? bn[k + 1] : 0.0;
-            const keel::f64 ak1 = (k + 1 < na) ? an[k + 1] : 0.0;
-            rhs[k] = bk1 - bn[0] * ak1;
-            sumRhs += rhs[k];
-            sumA += ak1;
-        }
-        if (keel::abs(sumA) > 1e-14) {
-            zi[0] = sumRhs / sumA;
-            for (keel::usize k = 0; k + 1 < stateLen; ++k) {
-                const keel::f64 ak1 = (k + 1 < na) ? an[k + 1] : 0.0;
-                zi[k + 1] = zi[k] + ak1 * zi[0] - rhs[k];
-            }
-        }
-    }
-
-    // Edge-reflect padding, length 3 * (nfilt - 1) on each side (capped at nx - 1)
-    keel::usize nEdge = 3 * stateLen;
-    if (nx > 0 && nEdge >= nx)
-        nEdge = nx - 1;
-    else if (nx == 0)
-        nEdge = 0;
-
-    const keel::usize extLen = nx + 2 * nEdge;
-    auto ext = keel::Array<keel::f64>(extLen, scratch.allocator());
-    for (keel::usize i = 0; i < nEdge; ++i)
-        ext[i] = 2.0 * xd[0] - xd[nEdge - i];
-    for (keel::usize i = 0; i < nx; ++i)
-        ext[nEdge + i] = xd[i];
-    for (keel::usize i = 0; i < nEdge; ++i)
-        ext[nEdge + nx + i] = 2.0 * xd[nx - 1] - xd[nx - 2 - i];
-
-    auto ziScaled = keel::Array<keel::f64>(stateLen, scratch.allocator());
-    if (stateLen > 0 && extLen > 0) {
-        for (keel::usize k = 0; k < stateLen; ++k)
-            ziScaled[k] = zi[k] * ext[0];
-    }
-    auto fwd = applyFilterDf2t(bn.data(), nb, an.data(), na, ext.data(), extLen,
-                               stateLen > 0 ? ziScaled.data() : nullptr, stateLen, nullptr, scratch.allocator());
-    keel::reverse(fwd.begin(), fwd.end());
-    if (stateLen > 0 && !fwd.empty()) {
-        for (keel::usize k = 0; k < stateLen; ++k)
-            ziScaled[k] = zi[k] * fwd[0];
-    }
-    auto bwd = applyFilterDf2t(bn.data(), nb, an.data(), na, fwd.data(), fwd.size(),
-                               stateLen > 0 ? ziScaled.data() : nullptr, stateLen, nullptr, scratch.allocator());
-    keel::reverse(bwd.begin(), bwd.end());
-
     auto r = createLike(x, ValueType::DOUBLE, mr);
-    keel::f64 *y = r.doubleDataMut();
-    if (nx > 0)
-        keel::copy_n(y, bwd.data() + nEdge, nx);
+    if (nx == 0) return r;
+    const keel::signal::SignalStatus st = keel::signal::filtfilt(
+        keel::ArrayRef<keel::f64>(bd, nb), keel::ArrayRef<keel::f64>(ad, na),
+        keel::ArrayRef<keel::f64>(xd, nx), keel::MutArrayRef<keel::f64>(r.doubleDataMut(), nx), mr);
+    if (st == keel::signal::SignalStatus::kZeroLeadingCoeff)
+        throw Error("filtfilt: a(1) must be nonzero",
+                     0, 0, "filtfilt", "", "numkit:filtfilt:zeroLead");
     return r;
 }
 

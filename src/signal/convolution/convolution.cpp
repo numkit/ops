@@ -12,6 +12,7 @@
 #include <keel/array.h>
 #include <keel/complex.h>
 #include <keel/math.h>
+#include <keel/signal.h>
 #include <numkit/signal/convolution/convolution.hpp>
 
 #include <numkit/ops/conv.hpp>
@@ -186,43 +187,19 @@ deconv(const Value &bIn, const Value &aIn, keel::Allocator *mr)
     const Value &a = aProm ? aHold : aIn;
 
     const keel::usize nb = b.numel(), na = a.numel();
-    if (na > nb) {
-        // MATLAB: a divisor longer than the dividend can't be divided once —
-        // quotient is the scalar 0, remainder is the numerator unchanged.
-        auto qv = Value::matrix(1, 1, ValueType::DOUBLE, mr);
-        qv.doubleDataMut()[0] = 0.0;
-        auto rv = Value::matrix(1, nb, ValueType::DOUBLE, mr);
-        const keel::f64 *bd = b.doubleData();
-        for (keel::usize i = 0; i < nb; ++i) rv.doubleDataMut()[i] = bd[i];
-        return keel::make_tuple(keel::move(qv), keel::move(rv));
-    }
-
     keel::ArenaTemp scratch = keel::get_scratch(mr);
-    keel::Array<keel::f64> rem(keel::ArrayRef<keel::f64>(b.doubleData(), nb), scratch.allocator());
-    const keel::f64 *ad = a.doubleData();
-
-    const keel::usize nq = nb - na + 1;
-    auto q = keel::Array<keel::f64>(nq, scratch.allocator());
-
-    const keel::f64 a0 = ad[0];
-    if (a0 == 0.0)
+    keel::Array<keel::f64> q(scratch.allocator()), rem(scratch.allocator());
+    const keel::signal::SignalStatus st = keel::signal::deconv(
+        keel::ArrayRef<keel::f64>(b.doubleData(), nb),
+        keel::ArrayRef<keel::f64>(a.doubleData(), na), q, rem, scratch.allocator());
+    if (st == keel::signal::SignalStatus::kZeroLeadingCoeff)
         throw Error("deconv: leading coefficient is zero",
                      0, 0, "deconv", "", "numkit:deconv:zeroLead");
 
-    for (keel::usize i = 0; i < nq; ++i) {
-        q[i] = rem[i] / a0;
-        for (keel::usize j = 0; j < na; ++j)
-            rem[i + j] -= q[i] * ad[j];
-    }
-
-    auto qv = Value::matrix(1, nq, ValueType::DOUBLE, mr);
-    for (keel::usize i = 0; i < nq; ++i)
-        qv.doubleDataMut()[i] = q[i];
-
-    auto rv = Value::matrix(1, nb, ValueType::DOUBLE, mr);
-    for (keel::usize i = 0; i < nb; ++i)
-        rv.doubleDataMut()[i] = rem[i];
-
+    auto qv = Value::matrix(1, q.size(), ValueType::DOUBLE, mr);
+    if (!q.empty()) keel::copy_n(qv.doubleDataMut(), q.data(), q.size());
+    auto rv = Value::matrix(1, rem.size(), ValueType::DOUBLE, mr);
+    if (!rem.empty()) keel::copy_n(rv.doubleDataMut(), rem.data(), rem.size());
     return keel::make_tuple(keel::move(qv), keel::move(rv));
 }
 
@@ -234,173 +211,79 @@ xcorr(const Value &xIn, const Value &yIn, keel::Allocator *mr)
         const keel::usize nx = xIn.numel(), ny = yIn.numel();
         const keel::usize maxLen = keel::max(nx, ny);
         const keel::usize nc = (maxLen > 0) ? (2 * maxLen - 1) : 0;
-        const keel::i32 maxLag = keel::as<keel::i32>(maxLen) - 1;
         const bool colOut = (xIn.dims().rows() > 1 && xIn.dims().cols() == 1);
         auto r = colOut ? Value::matrix(nc, 1, ValueType::COMPLEX, mr)
                         : Value::matrix(1, nc, ValueType::COMPLEX, mr);
-        keel::c64 *rd = r.complexDataMut();
-        auto getC = [](const Value &v, keel::usize i) -> keel::c64 {
-            if (v.isComplex()) return v.complexData()[i];
-            return keel::c64(v.elemAsDouble(i), 0.0);
-        };
-        for (keel::i32 m = -maxLag; m <= maxLag; ++m) {
-            keel::c64 acc(0.0, 0.0);
-            for (keel::usize n = 0; n < maxLen; ++n) {
-                keel::i64 idxX = keel::as<keel::i64>(n) + m;
-                if (idxX >= 0 && keel::as<keel::usize>(idxX) < nx && n < ny) {
-                    acc += getC(xIn, keel::as<keel::usize>(idxX)) * keel::conj(getC(yIn, n));
-                }
-            }
-            rd[m + maxLag] = acc;
-        }
         auto lags = Value::matrix(1, nc, ValueType::DOUBLE, mr);
-        for (keel::usize i = 0; i < nc; ++i)
-            lags.doubleDataMut()[i] = keel::as<keel::f64>(keel::as<keel::i32>(i) - maxLag);
+        if (nc == 0) return keel::make_tuple(keel::move(r), keel::move(lags));
+
+        keel::ArenaTemp scratch = keel::get_scratch(mr);
+        keel::Array<keel::c64> xc(nx, scratch.allocator()), yc(ny, scratch.allocator());
+        if (xIn.isComplex()) keel::copy_n(xc.data(), xIn.complexData(), nx);
+        else for (keel::usize i = 0; i < nx; ++i) xc[i] = keel::c64(xIn.elemAsDouble(i), 0.0);
+        if (yIn.isComplex()) keel::copy_n(yc.data(), yIn.complexData(), ny);
+        else for (keel::usize i = 0; i < ny; ++i) yc[i] = keel::c64(yIn.elemAsDouble(i), 0.0);
+
+        (void)keel::signal::xcorr_c64(
+            xc.as_ref(), yc.as_ref(),
+            keel::MutArrayRef<keel::c64>(r.complexDataMut(), nc),
+            keel::MutArrayRef<keel::f64>(lags.doubleDataMut(), nc),
+            scratch.allocator());
         return keel::make_tuple(keel::move(r), keel::move(lags));
     }
     Value xHold, yHold;
     const Value &x = (xIn.type() == ValueType::DOUBLE) ? xIn : (xHold = convPromoteToDouble(xIn, mr));
     const Value &y = (yIn.type() == ValueType::DOUBLE) ? yIn : (yHold = convPromoteToDouble(yIn, mr));
-    const keel::f64 *xd = x.doubleData();
-    const keel::usize nx = x.numel();
-    const keel::f64 *yd = y.doubleData();
-    const keel::usize ny = y.numel();
-
+    const keel::usize nx = x.numel(), ny = y.numel();
     const keel::usize maxLen = keel::max(nx, ny);
     const keel::usize nc = (maxLen > 0) ? (2 * maxLen - 1) : 0;
-    const keel::i32 maxLag = keel::as<keel::i32>(maxLen) - 1;
     const bool colOut = (x.dims().rows() > 1 && x.dims().cols() == 1);
 
-    keel::ArenaTemp scratch = keel::get_scratch(mr);
     auto r = colOut ? Value::matrix(nc, 1, ValueType::DOUBLE, mr)
                     : Value::matrix(1, nc, ValueType::DOUBLE, mr);
-    keel::f64 *rd = r.doubleDataMut();
-
-    if (nc > 0 && conv_use_fft(maxLen, maxLen)) {
-        const keel::usize fftLen = nextPow2(nc);
-        keel::Array<keel::c64> fx(fftLen, scratch.allocator());
-        keel::Array<keel::c64> fy(fftLen, scratch.allocator());
-        for (keel::usize i = 0; i < nx; ++i) fx[i] = keel::c64(xd[i], 0.0);
-        for (keel::usize i = 0; i < ny; ++i) fy[i] = keel::c64(yd[i], 0.0);
-
-        keel::Array<keel::c64> W_fwd(fftLen / 2, scratch.allocator());
-        keel::Array<keel::c64> W_inv(fftLen / 2, scratch.allocator());
-        fillFftTwiddles(W_fwd.data(), fftLen, +1);
-        fillFftTwiddles(W_inv.data(), fftLen, -1);
-
-        fftRadix2(fx.data(), fftLen, W_fwd.data());
-        fftRadix2(fy.data(), fftLen, W_fwd.data());
-
-        for (keel::usize i = 0; i < fftLen; ++i)
-            fx[i] *= keel::conj(fy[i]);
-
-        fftRadix2(fx.data(), fftLen, W_inv.data());
-
-        const keel::f64 invN = 1.0 / keel::as<keel::f64>(fftLen);
-        const keel::usize negLags = keel::as<keel::usize>(maxLag);
-        for (keel::usize i = 0; i < negLags; ++i)
-            rd[i] = fx[fftLen - negLags + i].real() * invN;
-        for (keel::usize i = 0; i <= negLags; ++i)
-            rd[negLags + i] = fx[i].real() * invN;
-    } else if (nc > 0) {
-        auto xPad = keel::Array<keel::f64>(maxLen, scratch.allocator());
-        auto yRev = keel::Array<keel::f64>(maxLen, scratch.allocator());
-        for (keel::usize i = 0; i < maxLen; ++i) {
-            xPad[i] = (i < nx) ? xd[i] : 0.0;
-            const keel::usize yIdx = maxLen - 1 - i;
-            yRev[i] = (yIdx < ny) ? yd[yIdx] : 0.0;
-        }
-        auto c = ops::convDirect(xPad.data(), maxLen, yRev.data(), maxLen, scratch.allocator());
-        for (keel::usize i = 0; i < nc; ++i)
-            rd[i] = c[i];
-    }
-
     auto lags = Value::matrix(1, nc, ValueType::DOUBLE, mr);
-    for (keel::usize i = 0; i < nc; ++i)
-        lags.doubleDataMut()[i] = keel::as<keel::f64>(keel::as<keel::i32>(i) - maxLag);
-
+    if (nc > 0) {
+        (void)keel::signal::xcorr(
+            keel::ArrayRef<keel::f64>(x.doubleData(), nx),
+            keel::ArrayRef<keel::f64>(y.doubleData(), ny),
+            keel::MutArrayRef<keel::f64>(r.doubleDataMut(), nc),
+            keel::MutArrayRef<keel::f64>(lags.doubleDataMut(), nc), mr);
+    }
     return keel::make_tuple(keel::move(r), keel::move(lags));
 }
 
 // ── Pack 36: xcov ────────────────────────────────────────────────────
-// Cross-covariance = xcorr of the mean-removed signals, with MATLAB's
-// scaleopt and maxlag handling:
-//   'none'     (default) raw sum
-//   'biased'   divide every lag by N
-//   'unbiased' divide lag m by (N - |m|)
-//   'coeff'    divide by sqrt(Cxx(0)*Cyy(0)) so the auto-cov peak is 1
-// where N = max(numel(x), numel(y)). maxlag < 0 means "full" (N-1);
-// otherwise the result is cropped (or zero-padded) to lags -maxlag..maxlag.
 keel::Tuple<Value, Value>
 xcov(const Value &x, const Value &y, keel::i32 maxlag,
      keel::StringRef scaleopt, keel::Allocator *mr)
 {
-    auto center = [mr](const Value &v) -> Value {
-        const keel::usize n = v.numel();
-        Value c = Value::matrix(1, n, ValueType::DOUBLE, mr);
-        if (n == 0) return c;
-        const keel::f64 *vd = v.doubleData();
-        keel::f64 sum = 0.0;
-        for (keel::usize i = 0; i < n; ++i) sum += vd[i];
-        const keel::f64 m = sum / keel::as<keel::f64>(n);
-        keel::f64 *cd = c.doubleDataMut();
-        for (keel::usize i = 0; i < n; ++i) cd[i] = vd[i] - m;
-        return c;
-    };
-    Value xc = center(x);
-    Value yc = center(y);
-    const keel::usize nx = xc.numel(), ny = yc.numel();
-    const keel::usize N  = keel::max(nx, ny);
-
-    auto [cfull, lagsfull] = xcorr(xc, yc, mr);
-    const keel::usize nc = cfull.numel();
-    keel::f64 *cd = cfull.doubleDataMut();
-    const keel::f64 *ld = lagsfull.doubleData();
-
-    // Case-insensitive scaleopt.
+    keel::signal::XcorrScale sc = keel::signal::XcorrScale::kNone;
     if (scaleopt.equals_ignore_ascii_case("biased")) {
-        const keel::f64 inv = (N > 0) ? 1.0 / keel::as<keel::f64>(N) : 0.0;
-        for (keel::usize i = 0; i < nc; ++i) cd[i] *= inv;
+        sc = keel::signal::XcorrScale::kBiased;
     } else if (scaleopt.equals_ignore_ascii_case("unbiased")) {
-        for (keel::usize i = 0; i < nc; ++i) {
-            const keel::f64 div = keel::as<keel::f64>(N) - keel::abs(ld[i]);
-            cd[i] = (div > 0.0) ? cd[i] / div : 0.0;
-        }
+        sc = keel::signal::XcorrScale::kUnbiased;
     } else if (scaleopt.equals_ignore_ascii_case("coeff") ||
                scaleopt.equals_ignore_ascii_case("normalized")) {
-        keel::f64 c0x = 0.0, c0y = 0.0;
-        const keel::f64 *xd = xc.doubleData();
-        const keel::f64 *yd = yc.doubleData();
-        for (keel::usize i = 0; i < nx; ++i) c0x += xd[i] * xd[i];
-        for (keel::usize i = 0; i < ny; ++i) c0y += yd[i] * yd[i];
-        const keel::f64 denom = keel::sqrt(c0x * c0y);
-        if (denom > 0.0)
-            for (keel::usize i = 0; i < nc; ++i) cd[i] /= denom;
+        sc = keel::signal::XcorrScale::kCoeff;
     } else if (!(scaleopt.empty() || scaleopt.equals_ignore_ascii_case("none"))) {
         throw Error("xcov: scaleopt must be 'none', 'biased', 'unbiased', or 'coeff'",
                      0, 0, "xcov", "", "numkit:xcov:badScaleopt");
     }
 
-    const keel::i32 fullMaxLag = (N > 0) ? keel::as<keel::i32>(N) - 1 : 0;
-    if (maxlag < 0) maxlag = fullMaxLag;
-    if (maxlag == fullMaxLag)
-        return keel::make_tuple(keel::move(cfull), keel::move(lagsfull));
+    keel::ArenaTemp scratch = keel::get_scratch(mr);
+    keel::Array<keel::f64> cOut(scratch.allocator()), lOut(scratch.allocator());
+    (void)keel::signal::xcov(
+        keel::ArrayRef<keel::f64>(x.doubleData(), x.numel()),
+        keel::ArrayRef<keel::f64>(y.doubleData(), y.numel()),
+        maxlag, sc, cOut, lOut, scratch.allocator());
 
-    // Crop (maxlag < full) or zero-pad (maxlag > full) about lag 0, which
-    // sits at index fullMaxLag in the full vector.
-    const keel::i32 center0 = fullMaxLag;
-    const keel::i32 outLen = 2 * maxlag + 1;
-    Value cOut = Value::matrix(1, outLen, ValueType::DOUBLE, mr);
-    Value lOut = Value::matrix(1, outLen, ValueType::DOUBLE, mr);
-    keel::f64 *co = cOut.doubleDataMut();
-    keel::f64 *lo = lOut.doubleDataMut();
-    for (keel::i32 m = -maxlag; m <= maxlag; ++m) {
-        const keel::i32 src = center0 + m;
-        const keel::i32 dst = m + maxlag;
-        lo[dst] = keel::as<keel::f64>(m);
-        co[dst] = (src >= 0 && src < keel::as<keel::i32>(nc)) ? cd[src] : 0.0;
-    }
-    return keel::make_tuple(keel::move(cOut), keel::move(lOut));
+    const bool colOut = (x.dims().rows() > 1 && x.dims().cols() == 1) && (maxlag < 0);
+    Value cv = colOut ? Value::matrix(cOut.size(), 1, ValueType::DOUBLE, mr)
+                      : Value::matrix(1, cOut.size(), ValueType::DOUBLE, mr);
+    Value lv = Value::matrix(1, lOut.size(), ValueType::DOUBLE, mr);
+    if (!cOut.empty()) keel::copy_n(cv.doubleDataMut(), cOut.data(), cOut.size());
+    if (!lOut.empty()) keel::copy_n(lv.doubleDataMut(), lOut.data(), lOut.size());
+    return keel::make_tuple(keel::move(cv), keel::move(lv));
 }
 
 // ── Pack 36: conv2 / filter2 / convn ─────────────────────────────────

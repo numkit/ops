@@ -19,6 +19,7 @@
 #include "../signal_detail.hpp"
 
 #include "keel/fft.h"
+#include "keel/signal.h"
 
 
 // ── Low-level kernel forwarders to keel::fft::fft_kernels ───────────────────
@@ -325,61 +326,11 @@ Value ifftn(const Value &X, keel::ArrayRef<keel::usize> sz,
 
 static Value cztVector(const keel::c64 *xData, keel::usize N, keel::i32 m, keel::c64 w, keel::c64 a, keel::Allocator *mr)
 {
-if (m <= 0) return Value::complexMatrix(0, 0, mr);
+    if (m <= 0 || N == 0) return Value::complexMatrix(0, 0, mr);
     const keel::usize M = keel::as<keel::usize>(m);
-    if (N == 0) {
-        return Value::complexMatrix(0, 0, mr);
-    }
-
-    keel::usize L = 1;
-    while (L < N + M - 1) L <<= 1;
-
-    Value g = Value::complexMatrix(L, 1, mr);
-    keel::c64 *gd = g.complexDataMut();
-    for (keel::usize n = 0; n < N; ++n) {
-        const keel::f64 n2_half = 0.5 * keel::as<keel::f64>(n) * keel::as<keel::f64>(n);
-        const keel::c64 a_negn = keel::pow(a, -keel::as<keel::f64>(n));
-        const keel::c64 w_n2   = keel::pow(w,  n2_half);
-        gd[n] = xData[n] * a_negn * w_n2;
-    }
-    for (keel::usize n = N; n < L; ++n) gd[n] = keel::c64(0, 0);
-
-    Value h = Value::complexMatrix(L, 1, mr);
-    keel::c64 *hd = h.complexDataMut();
-    for (keel::usize k = 0; k < M; ++k) {
-        const keel::f64 k2_half = 0.5 * keel::as<keel::f64>(k) * keel::as<keel::f64>(k);
-        hd[k] = keel::pow(w, -k2_half);
-    }
-    for (keel::usize n = M; n < L; ++n) hd[n] = keel::c64(0, 0);
-    for (keel::usize n = 1; n < N; ++n) {
-        const keel::f64 n2_half = 0.5 * keel::as<keel::f64>(n) * keel::as<keel::f64>(n);
-        hd[L - n] = keel::pow(w, -n2_half);
-    }
-
-    Value G = fft(g, keel::as<keel::i32>(L), 1, mr);
-    Value H = fft(h, keel::as<keel::i32>(L), 1, mr);
-    const keel::c64 *Gd = G.complexData();
-    const keel::c64 *Hd = H.complexData();
-    Value P = Value::complexMatrix(L, 1, mr);
-    keel::c64 *Pd = P.complexDataMut();
-    for (keel::usize i = 0; i < L; ++i) Pd[i] = Gd[i] * Hd[i];
-    Value yL = ifft(P, keel::as<keel::i32>(L), 1, mr);
-
     Value Y = Value::complexMatrix(1, M, mr);
-    keel::c64 *Yd = Y.complexDataMut();
-    if (yL.isComplex()) {
-        const keel::c64 *yd = yL.complexData();
-        for (keel::usize k = 0; k < M; ++k) {
-            const keel::f64 k2_half = 0.5 * keel::as<keel::f64>(k) * keel::as<keel::f64>(k);
-            Yd[k] = yd[k] * keel::pow(w, k2_half);
-        }
-    } else {
-        const keel::f64 *yd = yL.doubleData();
-        for (keel::usize k = 0; k < M; ++k) {
-            const keel::f64 k2_half = 0.5 * keel::as<keel::f64>(k) * keel::as<keel::f64>(k);
-            Yd[k] = keel::c64(yd[k], 0.0) * keel::pow(w, k2_half);
-        }
-    }
+    (void)keel::signal::czt(keel::ArrayRef<keel::c64>(xData, N), M, w, a,
+                            keel::MutArrayRef<keel::c64>(Y.complexDataMut(), M), mr);
     return Y;
 }
 
