@@ -410,4 +410,15 @@ Value regexptranslate(keel::StringRef op, const Value &str, keel::Allocator *mr)
     return regexptranslate(op, str.toString(), mr);
 }
 
+void regexValidate(keel::StringRef pattern, bool ignoreCase)
+{
+    (void)compileRegex(pattern, ignoreCase);
+}
+
+bool regexSearch(keel::StringRef text, keel::StringRef pattern, bool ignoreCase)
+{
+    const std::regex re = compileRegex(pattern, ignoreCase);
+    return std::regex_search(text.data(), text.data() + text.size(), re);
+}
+
 } // namespace numkit::builtin

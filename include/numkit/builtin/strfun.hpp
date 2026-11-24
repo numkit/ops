@@ -674,6 +674,12 @@ Value regexptranslate(keel::StringRef type, keel::StringRef str, keel::Allocator
 /// @return Regex pattern Value.
 Value regexptranslate(keel::StringRef type, const Value &str, keel::Allocator *mr = nullptr);
 
+/// @brief Validates a regular expression pattern, throwing Error on syntax failure.
+void regexValidate(keel::StringRef pattern, bool ignoreCase = false);
+
+/// @brief Returns true if `pattern` matches anywhere in `text`.
+bool regexSearch(keel::StringRef text, keel::StringRef pattern, bool ignoreCase = false);
+
 /// @brief Formats data into string array (`compose(fmt, x)`).
 /// @param fmt Format string.
 /// @param x Input arguments.

@@ -20,7 +20,6 @@
 
 #include <keel/static_array.h>
 #include <cstdio>
-#include <cstring>
 
 
 namespace numkit::builtin {
@@ -762,7 +761,7 @@ RatExpansion ratExpansion(keel::f64 x, keel::f64 tol)
     for (keel::i32 i = r.n_coeffs - 2; i >= 0; --i) {
         std::snprintf(buf, sizeof(buf), "%lld", r.coeffs[i]);
         keel::String next;
-        next.reserve(std::strlen(buf) + 6 + s.size() + 1);
+        next.reserve(keel::StringRef(buf).size() + 6 + s.size() + 1);
         next.append(buf);
         next.append(" + 1/(");
         next.append(s.as_ref());

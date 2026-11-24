@@ -236,9 +236,7 @@ keel::String formatOnce(keel::StringRef fmt, keel::ArrayRef<Value> args, keel::u
                                  ? keel::as<keel::i64>(args[ai].toScalar())
                                  : 0;
                     if (ai < args.size()) ++ai;
-                    char wbuf[32];
-                    std::snprintf(wbuf, sizeof(wbuf), "%ld", w);
-                    spec.append(wbuf);
+                    spec.append(keel::format("{}", w));
                 } else {
                     spec.push_back(literalSpec[k]);
                 }

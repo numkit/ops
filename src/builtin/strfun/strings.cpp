@@ -6,6 +6,7 @@
 // builtins (regexp/regexpi/regexprep) live in regex.cpp.
 
 #include <keel/core.h>
+#include <keel/number.h>
 #include <keel/algo.h>
 #include <keel/math.h>
 #include <keel/memory.h>
@@ -24,10 +25,7 @@
 
 #include <numkit/ops/helpers.hpp>
 
-#include <cerrno>
 #include <cstdio>
-#include <cstdlib>
-#include <cstring>
 
 #include "strings_detail.hpp"
 
@@ -396,27 +394,23 @@ Value validatestring(const Value &str, const Value &valid,
 Value str2num(const Value &s, keel::Allocator *mr)
 {
     const keel::String str = s.toString();
-    const char *cs = str.c_str();
-    errno = 0;
-    char *end = nullptr;
-    const keel::f64 v = std::strtod(cs, &end);
-    if (end == cs || errno == ERANGE)
+    keel::StringRef ref = str.as_ref();
+    while (!ref.empty() && keel::is_ascii_space(ref.front())) ref = ref.substr(1);
+    while (!ref.empty() && keel::is_ascii_space(ref.back())) ref = ref.substr(0, ref.size() - 1);
+    auto parsed = keel::parse_f64(ref);
+    if (!parsed.is_ok())
         return Value();
-    return Value::scalar(v, mr);
+    return Value::scalar(parsed.value(), mr);
 }
 
-// Parse a numeric substring with strtod; the ENTIRE string must be consumed
-// (else NaN). Empty -> defVal. ('42abc' / '42 7' -> NaN; 'Inf'/'-Inf'/'NaN'
-// parse.) strtod parses leading "inf"/"nan" case-insensitively.
+// Parse a numeric substring with keel::parse_f64; the ENTIRE string must be consumed
+// (else NaN). Empty -> defVal. ('42abc' / '42 7' -> NaN; 'Inf'/'-Inf'/'NaN' parse.)
 static keel::f64 strtodFull(keel::StringRef t, keel::f64 defVal)
 {
     if (t.empty()) return defVal;
-    const keel::String tmp = keel::String::from(t);
-    const char *cs = tmp.c_str();
-    char *end = nullptr;
-    const keel::f64 v = std::strtod(cs, &end);
-    if (end != cs + tmp.size()) return keel::Limits<keel::f64>::quiet_nan();
-    return v;
+    auto parsed = keel::parse_f64(t);
+    if (!parsed.is_ok()) return keel::Limits<keel::f64>::quiet_nan();
+    return parsed.value();
 }
 
 // Parse ONE token the way MATLAB str2double does: strip ALL commas (thousands

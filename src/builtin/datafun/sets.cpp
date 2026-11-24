@@ -782,7 +782,7 @@ keel::Array<keel::f64> binpickerbl(keel::f64 dmin, keel::f64 dmax,
     const keel::f64 xrange = dmax - dmin;
     binwidth = keel::max(binwidth, matlabEps(xscale));
     if (xrange > keel::max(kSqrtEps * xscale, keel::Limits<keel::f64>::kMin)) {
-        const keel::i64 nbins = keel::max(1L,
+        const keel::i64 nbins = keel::max(keel::i64{1},
             keel::as<keel::i64>(keel::ceil((maxlimit - minlimit) / binwidth)));
         return linspaceEdges(minlimit, maxlimit, nbins, alloc);
     }
@@ -857,14 +857,14 @@ keel::Array<keel::f64> applyMethod(HistBinMethod m, keel::ArrayRef<keel::f64> xc
                     : binpicker(minx, maxx, false, 0.0, bw, alloc);
     }
     case HistBinMethod::Sturges: {
-        const keel::i64 nb = keel::max(1L, keel::as<keel::i64>(keel::ceil(keel::log2(n) + 1.0)));
+        const keel::i64 nb = keel::max(keel::i64{1}, keel::as<keel::i64>(keel::ceil(keel::log2(n) + 1.0)));
         if (hard) return linspaceEdges(minx, maxx, nb, alloc);
         const keel::f64 bw = (maxx - minx) / keel::as<keel::f64>(nb);
         return keel::is_finite(bw) ? binpicker(minx, maxx, false, 0.0, bw, alloc)
                                  : binpicker(minx, maxx, true, keel::as<keel::f64>(nb), bw, alloc);
     }
     case HistBinMethod::Sqrt: {
-        const keel::i64 nb = keel::max(1L, keel::as<keel::i64>(keel::ceil(keel::sqrt(n))));
+        const keel::i64 nb = keel::max(keel::i64{1}, keel::as<keel::i64>(keel::ceil(keel::sqrt(n))));
         if (hard) return linspaceEdges(minx, maxx, nb, alloc);
         const keel::f64 bw = (maxx - minx) / keel::as<keel::f64>(nb);
         return keel::is_finite(bw) ? binpicker(minx, maxx, false, 0.0, bw, alloc)
@@ -902,7 +902,7 @@ Value histcountsAutoEdges(const Value &x, const HistBinSpec &spec,
     if (spec.hasBinLimits) {
         const keel::f64 lo = spec.limLo, hi = spec.limHi;
         if (spec.hasNumBins) {
-            const keel::i64 n = keel::max(1L, keel::as<keel::i64>(spec.numBins));
+            const keel::i64 n = keel::max(keel::i64{1}, keel::as<keel::i64>(spec.numBins));
             edges.resize(keel::as<keel::usize>(n) + 1);
             const keel::f64 w = (hi - lo) / keel::as<keel::f64>(n);
             for (keel::i64 i = 0; i < n; ++i) edges[i] = lo + keel::as<keel::f64>(i) * w;
@@ -922,7 +922,7 @@ Value histcountsAutoEdges(const Value &x, const HistBinSpec &spec,
             edges = applyMethod(spec.method, xr, lo, hi, true, rmin, rmax, alloc);
         }
     } else if (spec.hasNumBins) {
-        const keel::i64 n = keel::max(1L, keel::as<keel::i64>(spec.numBins));
+        const keel::i64 n = keel::max(keel::i64{1}, keel::as<keel::i64>(spec.numBins));
         if (!any) { edges.resize(keel::as<keel::usize>(n) + 1);
                     for (keel::i64 i = 0; i <= n; ++i) edges[i] = keel::as<keel::f64>(i); }
         else edges = binpicker(dmin, dmax, true, keel::as<keel::f64>(n),
@@ -934,7 +934,7 @@ Value histcountsAutoEdges(const Value &x, const HistBinSpec &spec,
             const keel::f64 xrange = dmax - dmin;
             keel::f64 binWidth = bw;
             keel::f64 leftEdge = binWidth * keel::floor(dmin / binWidth);
-            keel::i64 nbins = keel::max(1L, keel::as<keel::i64>(keel::ceil((dmax - leftEdge) / binWidth)));
+            keel::i64 nbins = keel::max(keel::i64{1}, keel::as<keel::i64>(keel::ceil((dmax - leftEdge) / binWidth)));
             const keel::f64 maxbins = 65536.0;
             if (keel::as<keel::f64>(nbins) > maxbins) {
                 nbins = keel::as<keel::i64>(maxbins);
