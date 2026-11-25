@@ -99,7 +99,7 @@ if(NOT TARGET keel::compress)
     FetchContent_Declare(
         keel_compress
         GIT_REPOSITORY https://github.com/keelcpp/compress.git
-        GIT_TAG        1b0dc6aec5f64773de5c54662ff32b4229fa6980
+        GIT_TAG        d2aba25325316d13e1ab620cb6ae0a4d8f8e5192
     )
     FetchContent_MakeAvailable(keel_compress)
 endif()
@@ -114,7 +114,7 @@ if(NOT TARGET keel::imagefile)
     FetchContent_Declare(
         keel_imagefile
         GIT_REPOSITORY https://github.com/keelcpp/imagefile.git
-        GIT_TAG        81751baeb333937d8269a75df0fbe330791d94e2
+        GIT_TAG        b7d94310d27eb46b1df8e8bf8d8fe40757f99e3d
     )
     FetchContent_MakeAvailable(keel_imagefile)
 endif()
@@ -129,7 +129,7 @@ if(NOT TARGET keel::fft)
     FetchContent_Declare(
         keel_fft
         GIT_REPOSITORY https://github.com/keelcpp/fft.git
-        GIT_TAG        740bed99088ffb27d58fa2aa8e70b9d66f59100f
+        GIT_TAG        74ff59ee47a560a6c6ec90447f29807b32a1a09c
     )
     FetchContent_MakeAvailable(keel_fft)
 endif()
@@ -144,7 +144,7 @@ if(NOT TARGET keel::random)
     FetchContent_Declare(
         keel_random
         GIT_REPOSITORY https://github.com/keelcpp/random.git
-        GIT_TAG        4d2b805928c8cb2cdf36aaf7411f8b08a816c2ab
+        GIT_TAG        435819de0c88181a7f4e9bfa3c6578790d0defe3
     )
     FetchContent_MakeAvailable(keel_random)
 endif()
@@ -159,7 +159,7 @@ if(NOT TARGET keel::linalg)
     FetchContent_Declare(
         keel_linalg
         GIT_REPOSITORY https://github.com/keelcpp/linalg.git
-        GIT_TAG        33c5027db12fe6c7de73abcc8a22278694a021cb
+        GIT_TAG        00ef4a339dabc811f5fb2ec452bc87c0d112fe5a
     )
     FetchContent_MakeAvailable(keel_linalg)
 endif()
@@ -178,7 +178,7 @@ if(NOT TARGET keel::specfun)
     FetchContent_Declare(
         keel_specfun
         GIT_REPOSITORY https://github.com/keelcpp/specfun.git
-        GIT_TAG        243bfb4da65004dc0a8bc76e20eed6f16f08d470
+        GIT_TAG        a8b1375a4df16314752e8be408febc5cd2232faf
     )
     FetchContent_MakeAvailable(keel_specfun)
 endif()
@@ -216,7 +216,7 @@ if(NOT TARGET keel::interp)
     FetchContent_Declare(
         keel_interp
         GIT_REPOSITORY https://github.com/keelcpp/interp.git
-        GIT_TAG        09d9f6c437c25f0ee2aa52ef6c43d3a652f237a3
+        GIT_TAG        38316f1a7f899245a4a5de67a9268699c9a6113d
     )
     FetchContent_MakeAvailable(keel_interp)
 endif()
@@ -235,7 +235,7 @@ if(NOT TARGET keel::ode)
     FetchContent_Declare(
         keel_ode
         GIT_REPOSITORY https://github.com/keelcpp/ode.git
-        GIT_TAG        9eb2ff49d5737863873bb49929087b7fbcf21dd6
+        GIT_TAG        ba3e5e981940c91896053858e48c4ea149e86414
     )
     FetchContent_MakeAvailable(keel_ode)
 endif()
@@ -254,7 +254,7 @@ if(NOT TARGET keel::quad)
     FetchContent_Declare(
         keel_quad
         GIT_REPOSITORY https://github.com/keelcpp/quad.git
-        GIT_TAG        d17118196cebc40e63b23b876ad8268abf877098
+        GIT_TAG        4f99edb6891abad2c76fd08d3fd381b9cd42ce92
     )
     FetchContent_MakeAvailable(keel_quad)
 endif()
@@ -273,7 +273,7 @@ if(NOT TARGET keel::optim)
     FetchContent_Declare(
         keel_optim
         GIT_REPOSITORY https://github.com/keelcpp/optim.git
-        GIT_TAG        d76704f92313b5f7132de937710b2214a088eb48
+        GIT_TAG        62724dd6639140e0ff38241b4c513a109cd636bf
     )
     FetchContent_MakeAvailable(keel_optim)
 endif()
@@ -292,7 +292,7 @@ if(NOT TARGET keel::poly)
     FetchContent_Declare(
         keel_poly
         GIT_REPOSITORY https://github.com/keelcpp/poly.git
-        GIT_TAG        87429cfe8d8a3353b24ffdfa7385baba42c049ee
+        GIT_TAG        a68dde3374259efddf5df5709b0a0fa3a4617466
     )
     FetchContent_MakeAvailable(keel_poly)
 endif()
@@ -311,7 +311,7 @@ if(NOT TARGET keel::signal)
     FetchContent_Declare(
         keel_signal
         GIT_REPOSITORY https://github.com/keelcpp/signal.git
-        GIT_TAG        a3ca4f26485456c2558c7b6e83a178df892f1221
+        GIT_TAG        ce58b76c4a16320354d7c7f1c91b8289503810cc
     )
     FetchContent_MakeAvailable(keel_signal)
 endif()
