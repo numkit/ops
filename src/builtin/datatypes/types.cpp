@@ -679,8 +679,19 @@ Value typecast(const Value &x, keel::StringRef classname, keel::Allocator *mr)
                      0, 0, "typecast", "", "numkit:typecast:badSize");
     const keel::usize newCount = totalBytes / info.elemSize;
 
-    // Output is always a row vector (matches MATLAB).
-    Value out = Value::matrix(1, newCount, info.vt, mr);
+    // Preserve vector orientation: column vectors stay Nx1, 0x0 stays 0x0,
+    // scalars and row vectors return 1xN.
+    const Dims &xd = x.dims();
+    keel::usize outRows = 1;
+    keel::usize outCols = newCount;
+    if (xd.ndims() == 2 && xd.rows() == 0 && xd.cols() == 0) {
+        outRows = 0;
+        outCols = 0;
+    } else if (xd.ndims() == 2 && xd.cols() == 1 && xd.rows() != 1) {
+        outRows = newCount;
+        outCols = 1;
+    }
+    Value out = Value::matrix(outRows, outCols, info.vt, mr);
     if (totalBytes > 0)
         keel::mem_copy(out.rawDataMut(), x.rawData(), totalBytes);
     return out;
