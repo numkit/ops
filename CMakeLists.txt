@@ -197,7 +197,7 @@ if(NOT TARGET keel::geom)
     FetchContent_Declare(
         keel_geom
         GIT_REPOSITORY https://github.com/keelcpp/geom.git
-        GIT_TAG        f7baf480221c40328637c025d1d1ff5fdcae7c00
+        GIT_TAG        44ddb7e27ca6c8a681bba44f883c149ca1a1800b
     )
     FetchContent_MakeAvailable(keel_geom)
 endif()
