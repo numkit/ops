@@ -436,10 +436,6 @@ Value kron(const Value &a, const Value &b, keel::Allocator *mr)
                         "integers of the same class, or scalar doubles.",
                         0, 0, "kron", "", "numkit:kron:mixedClasses");
     }
-    if (a.numel() == 0 || b.numel() == 0)
-        throw Error("kron: empty inputs are rejected.",
-                    0, 0, "kron", "", "numkit:kron:badsubscript");
-
     const keel::usize rA = a.dims().rows(), cA = a.dims().cols();
     const keel::usize rB = b.dims().rows(), cB = b.dims().cols();
     const keel::usize rOut = rA * rB, cOut = cA * cB;
