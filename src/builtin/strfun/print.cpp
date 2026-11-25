@@ -2,14 +2,13 @@
 
 #include <keel/core.h>
 #include <keel/math.h>
+#include <keel/number.h>
 #include <keel/string.h>
 #include <numkit/builtin/strfun.hpp>
 
 #include <numkit/value/value.hpp>
 #include <numkit/value/shape_ops.hpp>
 #include <numkit/value/error.hpp>
-
-#include <cstdio>
 
 namespace numkit::builtin {
 
@@ -22,18 +21,15 @@ keel::String dispFormat(const Value &a)
     keel::String out;
     auto appendDouble = [&](keel::f64 v) {
         char buf[64];
-        std::snprintf(buf, sizeof(buf), "%.6g", v);
-        out.append(buf);
+        out.append(keel::format_f64_general_to(buf, v, 6));
     };
     auto appendLL = [&](keel::i64 v) {
         char buf[32];
-        std::snprintf(buf, sizeof(buf), "%lld", v);
-        out.append(buf);
+        out.append(keel::format_i64_to(buf, v));
     };
     auto appendUSize = [&](keel::usize v) {
         char buf[32];
-        std::snprintf(buf, sizeof(buf), "%zu", v);
-        out.append(buf);
+        out.append(keel::format_u64_to(buf, keel::as<keel::u64>(v)));
     };
 
     if (a.isChar()) {

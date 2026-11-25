@@ -25,7 +25,7 @@
 
 #include <numkit/ops/helpers.hpp>
 
-#include <cstdio>
+#include <keel/number.h>
 
 #include "strings_detail.hpp"
 
@@ -104,8 +104,7 @@ Value num2str(const Value &x, keel::Allocator *mr)
         prec = (e > 0 ? e : 0) + 5;
     }
     char buf[512];
-    std::snprintf(buf, sizeof(buf), "%.*g", prec, v);
-    return Value::fromString(buf, mr);
+    return Value::fromString(keel::format_f64_general_to(buf, v, prec), mr);
 }
 
 Value num2str(const Value &x, keel::i32 N, keel::Allocator *mr)
@@ -130,11 +129,8 @@ Value num2str(const Value &x, keel::i32 N, keel::Allocator *mr)
     keel::i32 n = N;
     if (n < 1)  n = 1;
     if (n > 99) n = 99;
-    char fmt[16];
-    std::snprintf(fmt, sizeof(fmt), "%%.%dg", n);
     char buf[256];
-    std::snprintf(buf, sizeof(buf), fmt, v);
-    return Value::fromString(buf, mr);
+    return Value::fromString(keel::format_f64_general_to(buf, v, n), mr);
 }
 
 Value num2str(const Value &x, keel::StringRef fmt,
@@ -315,9 +311,8 @@ Value int2str(const Value &x, keel::Allocator *mr)
         keel::i32 ndigits = 1;
         if (maxabs >= 1.0)
             ndigits = keel::as<keel::i32>(keel::floor(keel::log10(maxabs))) + 1;
-        char fmt[16];
-        std::snprintf(fmt, sizeof(fmt), "%%%d.0f", ndigits + 2);
-        return num2str(rounded, keel::StringRef(fmt), mr);
+        keel::String fmt = keel::format("%{}.0f", ndigits + 2);
+        return num2str(rounded, fmt.as_ref(), mr);
     }
     if (x.isEmpty()) return Value::fromString("", mr);
 
@@ -330,8 +325,7 @@ Value int2str(const Value &x, keel::Allocator *mr)
     keel::f64 r = keel::round(v);
     if (r == 0.0) r = 0.0;          // normalise -0 -> 0
     char buf[64];
-    std::snprintf(buf, sizeof(buf), "%.0f", r);
-    return Value::fromString(buf, mr);
+    return Value::fromString(keel::format_f64_fixed_to(buf, r, 0), mr);
 }
 
 Value validatestring(const Value &str, const Value &valid,
@@ -535,8 +529,7 @@ Value toString(const Value &x, keel::Allocator *mr)
         if (keel::is_nan(d)) return keel::String::from("NaN");
         if (keel::is_inf(d)) return keel::String::from(d < 0 ? "-Inf" : "Inf");
         char buf[64];
-        std::snprintf(buf, sizeof(buf), "%.6g", d);
-        return keel::String::from(buf);
+        return keel::String::from(keel::format_f64_general_to(buf, d, 6));
     };
     if (x.isString())
         return x;
@@ -565,8 +558,7 @@ Value toString(const Value &x, keel::Allocator *mr)
                 result.stringElemSet(i, el.asStringRef());
             else if (el.isNumeric() && el.isScalar()) {
                 char buf[64];
-                std::snprintf(buf, sizeof(buf), "%.6g", el.toScalar());
-                result.stringElemSet(i, buf);
+                result.stringElemSet(i, keel::format_f64_general_to(buf, el.toScalar(), 6));
             } else {
                 throw Error(
                     "string: cell elements must be char, string, or numeric scalar",
@@ -980,8 +972,7 @@ Value mat2str(const Value &x, keel::i32 precision, keel::Allocator *mr)
     auto appendFmt = [prec](keel::String &dst, keel::f64 v) {
         if (v == 0.0) v = 0.0;   // normalize -0 → 0 (MATLAB never prints "-0")
         char buf[64];
-        std::snprintf(buf, sizeof(buf), "%.*g", prec, v);
-        dst.append(buf);
+        dst.append(keel::format_f64_general_to(buf, v, prec));
     };
 
     // Complex: format each element INDEPENDENTLY (matches MATLAB mat2str) —
@@ -1723,15 +1714,18 @@ Value num2hex(const Value &x, keel::Allocator *mr)
     Value m = Value::matrix(n, keel::as<keel::usize>(W), ValueType::CHAR, mr);
     char *dst = static_cast<char *>(m.rawDataMut());
     char buf[24];
+    static constexpr char kHexDigits[] = "0123456789abcdef";
     for (keel::usize i = 0; i < n; ++i) {
         const keel::f64 v = x.elemAsDouble(i);
         if (single) {
             const keel::f32 f = keel::as<keel::f32>(v);
             const keel::u32 bits = keel::bit_cast<keel::u32>(f);
-            std::snprintf(buf, sizeof(buf), "%08x", bits);
+            for (keel::i32 c = 0; c < 8; ++c)
+                buf[c] = kHexDigits[(bits >> (28 - 4 * c)) & 0xFu];
         } else {
             const keel::u64 bits = keel::bit_cast<keel::u64>(v);
-            std::snprintf(buf, sizeof(buf), "%016llx", bits);
+            for (keel::i32 c = 0; c < 16; ++c)
+                buf[c] = kHexDigits[(bits >> (60 - 4 * c)) & 0xFu];
         }
         for (keel::i32 c = 0; c < W; ++c)
             dst[keel::as<keel::usize>(c) * n + i] = buf[c];
@@ -1819,21 +1813,23 @@ Value rats(const Value &x, keel::i32 len, keel::Allocator *mr)
         const keel::f64 tol = defaultRatTol(v);
         const auto exp = ratExpansion(v, tol);
         char nbuf[32];
-        const keel::i32 nlen = std::snprintf(nbuf, sizeof(nbuf), "%lld", exp.p);
+        const keel::StringRef ns = keel::format_i64_to(nbuf, exp.p);
+        const keel::i32 nlen = keel::as<keel::i32>(ns.size());
         if (exp.q == 1) {
             const keel::i32 slack = keel::max(0, field_width - nlen);
             for (keel::i32 k = 0; k < slack; ++k) dst.push_back(' ');
-            dst.append(nbuf);
+            dst.append(ns);
             return;
         }
         char dbuf[32];
-        const keel::i32 dlen = std::snprintf(dbuf, sizeof(dbuf), "%lld", exp.q);
+        const keel::StringRef ds = keel::format_i64_to(dbuf, exp.q);
+        const keel::i32 dlen = keel::as<keel::i32>(ds.size());
         const keel::i32 n_pad = keel::max(0, num_width - nlen);
         const keel::i32 d_pad = keel::max(0, den_width - dlen);
         for (keel::i32 k = 0; k < n_pad; ++k) dst.push_back(' ');
-        dst.append(nbuf);
+        dst.append(ns);
         dst.push_back('/');
-        dst.append(dbuf);
+        dst.append(ds);
         for (keel::i32 k = 0; k < d_pad; ++k) dst.push_back(' ');
     };
 
