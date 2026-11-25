@@ -80,7 +80,10 @@ public:
     void enterLegacyMode()
     {
         if (!legacyMode_) {
-            setLegacyV5Rand(0);
+            legacyMode_ = true;
+            legacyV4Rand_ = false;
+            legacyV5Rand_ = false;
+            gen_.seed(0);
             setLegacyV5Randn(0);
         }
     }
@@ -124,9 +127,7 @@ public:
     }
     void setLegacyV5Rand(keel::u64 seed)
     {
-        const bool wasLegacy = legacyMode_;
-        legacyMode_ = true;
-        if (!wasLegacy) setLegacyV5Randn(0);
+        enterLegacyMode();
         legacyV4Rand_ = false;
         legacyV5Rand_ = true;
         keel::u32 j = keel::as<keel::u32>(seed);
@@ -150,9 +151,7 @@ public:
     }
     void setLegacyV5RandState(const keel::f64 z[32], keel::usize idx, keel::f64 borrow, keel::u32 j)
     {
-        const bool wasLegacy = legacyMode_;
-        legacyMode_ = true;
-        if (!wasLegacy) setLegacyV5Randn(0);
+        enterLegacyMode();
         legacyV4Rand_ = false;
         legacyV5Rand_ = true;
         for (keel::usize i = 0; i < 32; ++i)
@@ -163,9 +162,7 @@ public:
     }
     void setLegacyV5Randn(keel::u64 seed)
     {
-        const bool wasLegacy = legacyMode_;
-        legacyMode_ = true;
-        if (!wasLegacy) setLegacyV5Rand(0);
+        enterLegacyMode();
         legacyV4Randn_ = false;
         v5Icng_ = 362436069u;
         const keel::u32 s32 = keel::as<keel::u32>(seed);
@@ -173,9 +170,7 @@ public:
     }
     void setLegacyV5RandnState(keel::u32 icng, keel::u32 jsr)
     {
-        const bool wasLegacy = legacyMode_;
-        legacyMode_ = true;
-        if (!wasLegacy) setLegacyV5Rand(0);
+        enterLegacyMode();
         legacyV4Randn_ = false;
         v5Icng_ = icng;
         v5Jsr_ = (jsr == 0u) ? 521288629u : jsr;
