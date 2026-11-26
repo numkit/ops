@@ -294,12 +294,12 @@ Value datenum(keel::ArrayRef<Value> args, keel::Allocator *mr) {
             };
             while (fi < fmt.size()) {
                 if (fAt("yyyy")) {
-                    keel::i64 v = readNum(4); if (v < 0) return false; Y = v; fi += 4;
+                    keel::i64 v = readNum(4); if (v < 0) return false; Y = keel::as<keel::f64>(v); fi += 4;
                 } else if (fAt("yy")) {
                     keel::i64 v = readNum(2); if (v < 0) return false;
                     const keel::CalendarTime nowCal = keel::local_time();
                     keel::i64 curCent = (keel::as<keel::i64>(nowCal.year) / 100) * 100;
-                    Y = curCent + v; fi += 2;
+                    Y = keel::as<keel::f64>(curCent + v); fi += 2;
                 } else if (fAt("mmmm") || fAt("mmm")) {
                     keel::usize mlen = fAt("mmmm") ? 4 : 3;
                     if (si + 3 > s.size()) return false;
@@ -307,19 +307,19 @@ Value datenum(keel::ArrayRef<Value> args, keel::Allocator *mr) {
                     keel::i32 mIdx = -1;
                     for (keel::i32 i = 0; i < 12; ++i) { if (m3.equals_ignore_ascii_case(MON3[i])) { mIdx = i + 1; break; } }
                     if (mIdx < 0) return false;
-                    Mo = mIdx; si += 3;
+                    Mo = keel::as<keel::f64>(mIdx); si += 3;
                     if (mlen == 4) { while (si < s.size() && keel::is_ascii_alpha(s[si])) ++si; }
                     fi += mlen;
                 } else if (fAt("mm")) {
-                    keel::i64 v = readNum(2); if (v < 0) return false; Mo = v; fi += 2;
+                    keel::i64 v = readNum(2); if (v < 0) return false; Mo = keel::as<keel::f64>(v); fi += 2;
                 } else if (fAt("dd")) {
-                    keel::i64 v = readNum(2); if (v < 0) return false; D = v; fi += 2;
+                    keel::i64 v = readNum(2); if (v < 0) return false; D = keel::as<keel::f64>(v); fi += 2;
                 } else if (fAt("HH")) {
-                    keel::i64 v = readNum(2); if (v < 0) return false; H = v; fi += 2;
+                    keel::i64 v = readNum(2); if (v < 0) return false; H = keel::as<keel::f64>(v); fi += 2;
                 } else if (fAt("MM")) {
-                    keel::i64 v = readNum(2); if (v < 0) return false; MI = v; fi += 2;
+                    keel::i64 v = readNum(2); if (v < 0) return false; MI = keel::as<keel::f64>(v); fi += 2;
                 } else if (fAt("SS")) {
-                    keel::i64 v = readNum(2); if (v < 0) return false; S = v; fi += 2;
+                    keel::i64 v = readNum(2); if (v < 0) return false; S = keel::as<keel::f64>(v); fi += 2;
                     if (si < s.size() && (s[si] == '.' || s[si] == ',')) {
                         ++si; keel::f64 scale = 0.1;
                         while (si < s.size() && keel::is_ascii_digit(s[si])) {
@@ -335,7 +335,7 @@ Value datenum(keel::ArrayRef<Value> args, keel::Allocator *mr) {
             return si == s.size();
         };
 
-        keel::f64 Y, Mo, D, H, MI, S;
+        keel::f64 Y = 0.0, Mo = 0.0, D = 0.0, H = 0.0, MI = 0.0, S = 0.0;
         if (args.size() >= 2 && (args[1].isChar() || args[1].isString())) {
             const keel::String fmtOwned = args[1].toString();
             const keel::StringRef fmt = fmtOwned.as_ref();
@@ -840,7 +840,7 @@ Value datevec(keel::ArrayRef<Value> args, keel::Allocator *mr) {
             }
             return si == s.size();
         };
-        keel::f64 Y, Mo, D, H, MI, S;
+        keel::f64 Y = 0.0, Mo = 0.0, D = 0.0, H = 0.0, MI = 0.0, S = 0.0;
         bool ok = false;
         if (args.size() >= 2 && (args[1].isChar() || args[1].isString())) {
             ok = tryFmt(args[1].toString(), Y, Mo, D, H, MI, S);

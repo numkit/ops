@@ -22,7 +22,7 @@ namespace numkit::builtin {
 
 namespace {
 
-keel::Array<keel::f64> interpSpline(const keel::f64 *x, const keel::f64 *y, keel::usize n,
+[[maybe_unused]] inline keel::Array<keel::f64> interpSpline(const keel::f64 *x, const keel::f64 *y, keel::usize n,
                                  const keel::f64 *xq, keel::usize nq, keel::Allocator *mr)
 {
     keel::Array<keel::f64> yq(nq, mr);
@@ -31,7 +31,7 @@ keel::Array<keel::f64> interpSpline(const keel::f64 *x, const keel::f64 *y, keel
     return yq;
 }
 
-keel::Array<keel::f64> interpPchip(const keel::f64 *x, const keel::f64 *y, keel::usize n,
+[[maybe_unused]] inline keel::Array<keel::f64> interpPchip(const keel::f64 *x, const keel::f64 *y, keel::usize n,
                                 const keel::f64 *xq, keel::usize nq, keel::Allocator *mr)
 {
     keel::Array<keel::f64> yq(nq, mr);
@@ -40,7 +40,7 @@ keel::Array<keel::f64> interpPchip(const keel::f64 *x, const keel::f64 *y, keel:
     return yq;
 }
 
-keel::Array<keel::f64> interpMakima(const keel::f64 *x, const keel::f64 *y, keel::usize n,
+[[maybe_unused]] inline keel::Array<keel::f64> interpMakima(const keel::f64 *x, const keel::f64 *y, keel::usize n,
                                  const keel::f64 *xq, keel::usize nq, keel::Allocator *mr)
 {
     if (n < 2)
