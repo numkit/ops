@@ -84,7 +84,7 @@ if(NOT TARGET keel::keel)
     FetchContent_Declare(
         keel
         GIT_REPOSITORY https://github.com/keelcpp/keel.git
-        GIT_TAG        5d80fa7d6984e7325fc8d5317c5db13830381429
+        GIT_TAG        4b37783925fe7af7a64daaff90f268df267fbbf3
     )
     FetchContent_MakeAvailable(keel)
 endif()
@@ -99,7 +99,7 @@ if(NOT TARGET keel::compress)
     FetchContent_Declare(
         keel_compress
         GIT_REPOSITORY https://github.com/keelcpp/compress.git
-        GIT_TAG        6378540afae060da68da60fe78685954a8799e6c
+        GIT_TAG        404bc3321bc0f973479b7752c9614c666d59843a
     )
     FetchContent_MakeAvailable(keel_compress)
 endif()
@@ -114,7 +114,7 @@ if(NOT TARGET keel::imagefile)
     FetchContent_Declare(
         keel_imagefile
         GIT_REPOSITORY https://github.com/keelcpp/imagefile.git
-        GIT_TAG        e2c303e0a89db6cca6c168dd9906afe3bbcbbff7
+        GIT_TAG        39a9c66caae5f0928512b469346b89279e9b6fe6
     )
     FetchContent_MakeAvailable(keel_imagefile)
 endif()
@@ -129,7 +129,7 @@ if(NOT TARGET keel::fft)
     FetchContent_Declare(
         keel_fft
         GIT_REPOSITORY https://github.com/keelcpp/fft.git
-        GIT_TAG        8f27754ba6e5671439d97d3847479bdbf7ccfee7
+        GIT_TAG        739550655dfea621d6f666d189ce3bc0ed49efa5
     )
     FetchContent_MakeAvailable(keel_fft)
 endif()
@@ -144,7 +144,7 @@ if(NOT TARGET keel::random)
     FetchContent_Declare(
         keel_random
         GIT_REPOSITORY https://github.com/keelcpp/random.git
-        GIT_TAG        cf2615e70e9ba7fc34f7dc9f3f030e8a487245f2
+        GIT_TAG        d7ae816aa9766b9df2109ec195e2b6b02c5c5370
     )
     FetchContent_MakeAvailable(keel_random)
 endif()
@@ -159,7 +159,7 @@ if(NOT TARGET keel::linalg)
     FetchContent_Declare(
         keel_linalg
         GIT_REPOSITORY https://github.com/keelcpp/linalg.git
-        GIT_TAG        1bc2798c7905a9431285c1d2617f619233c43640
+        GIT_TAG        2482bbf57d8b8778b3a51301cdac0ee26f126f97
     )
     FetchContent_MakeAvailable(keel_linalg)
 endif()
@@ -178,7 +178,7 @@ if(NOT TARGET keel::specfun)
     FetchContent_Declare(
         keel_specfun
         GIT_REPOSITORY https://github.com/keelcpp/specfun.git
-        GIT_TAG        58a88779d8f8d8a6602685201ac0397f0285a869
+        GIT_TAG        d3b434907a48f85f3103ca0f547e5781ba37a497
     )
     FetchContent_MakeAvailable(keel_specfun)
 endif()
@@ -197,7 +197,7 @@ if(NOT TARGET keel::geom)
     FetchContent_Declare(
         keel_geom
         GIT_REPOSITORY https://github.com/keelcpp/geom.git
-        GIT_TAG        faba414d2294dd247e29f5f62133da34a1d7ba8b
+        GIT_TAG        63e35ff4e34c3502a1cbfdc9680362a9649f2f21
     )
     FetchContent_MakeAvailable(keel_geom)
 endif()
@@ -216,7 +216,7 @@ if(NOT TARGET keel::interp)
     FetchContent_Declare(
         keel_interp
         GIT_REPOSITORY https://github.com/keelcpp/interp.git
-        GIT_TAG        72d23db74ec41ee929c8535ac419624461f3eb4d
+        GIT_TAG        da0c5f1f343cddfb88ee7cc259a25dbabf2303c9
     )
     FetchContent_MakeAvailable(keel_interp)
 endif()
@@ -235,7 +235,7 @@ if(NOT TARGET keel::ode)
     FetchContent_Declare(
         keel_ode
         GIT_REPOSITORY https://github.com/keelcpp/ode.git
-        GIT_TAG        4cfc9346301df92b29d04cde8fc73bb505eab5b4
+        GIT_TAG        d1d01126067ee5cc2204fb65516fe506a3060dfe
     )
     FetchContent_MakeAvailable(keel_ode)
 endif()
@@ -254,7 +254,7 @@ if(NOT TARGET keel::quad)
     FetchContent_Declare(
         keel_quad
         GIT_REPOSITORY https://github.com/keelcpp/quad.git
-        GIT_TAG        0a8b57876eddcc4e60f04a68ddaff65aad17ab3a
+        GIT_TAG        f34a4ec04e7fac1614c01c3bbcfd0bb7d4be28a1
     )
     FetchContent_MakeAvailable(keel_quad)
 endif()
@@ -273,7 +273,7 @@ if(NOT TARGET keel::optim)
     FetchContent_Declare(
         keel_optim
         GIT_REPOSITORY https://github.com/keelcpp/optim.git
-        GIT_TAG        6238376281a21f849ebc4811ec6edcf1a625124d
+        GIT_TAG        ab3b10413da0c17ed99886d7a622b8e30649889c
     )
     FetchContent_MakeAvailable(keel_optim)
 endif()
@@ -292,7 +292,7 @@ if(NOT TARGET keel::poly)
     FetchContent_Declare(
         keel_poly
         GIT_REPOSITORY https://github.com/keelcpp/poly.git
-        GIT_TAG        49f000d390c73b0cb426f41f11465aaf0f24e82a
+        GIT_TAG        4a647adc35d5e7fc0a0a06c3bcfe3a823d807c9b
     )
     FetchContent_MakeAvailable(keel_poly)
 endif()
@@ -311,7 +311,7 @@ if(NOT TARGET keel::signal)
     FetchContent_Declare(
         keel_signal
         GIT_REPOSITORY https://github.com/keelcpp/signal.git
-        GIT_TAG        fa3e723790a9715e4f07717ee299d9d6f0ea2eae
+        GIT_TAG        1f09ab4b3b668c10c9ed7ec94adc514c91f0e354
     )
     FetchContent_MakeAvailable(keel_signal)
 endif()
