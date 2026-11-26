@@ -198,8 +198,18 @@ Value sylvester(const Value &A, const Value &B, const Value &C, keel::Allocator 
     copyValueToComplex(Cw, m * n, Cc.data());
 
     auto out = Value::complexMatrix(m, n, mr);
-    if (!keel::linalg::sylvester(Ac.data(), m, Bc.data(), n, Cc.data(), out.complexDataMut(), mr))
-        throw Error("sylvester: Schur iteration failed to converge", 0, 0, "sylvester", "", "numkit:sylvester:noConverge");
+    if (!keel::linalg::sylvester(Ac.data(), m, Bc.data(), n, Cc.data(), out.complexDataMut(), mr)) {
+        const keel::f64 qnan = keel::Limits<keel::f64>::quiet_nan();
+        if (!A.isComplex() && !B.isComplex() && !C.isComplex()) {
+            Value r = Value::matrix(m, n, ValueType::DOUBLE, mr);
+            keel::f64 *rd = r.doubleDataMut();
+            for (keel::usize i = 0; i < m * n; ++i) rd[i] = qnan;
+            return wantSingle ? detail::narrowDoubleToSingle(r, mr) : r;
+        }
+        keel::c64 *cd = out.complexDataMut();
+        for (keel::usize i = 0; i < m * n; ++i) cd[i] = keel::c64(qnan, qnan);
+        return out;
+    }
 
     Value res = detail::narrow_if_real(keel::move(out), mr);
     if (!A.isComplex() && !B.isComplex() && !C.isComplex()
