@@ -129,7 +129,7 @@ if(NOT TARGET keel::fft)
     FetchContent_Declare(
         keel_fft
         GIT_REPOSITORY https://github.com/keelcpp/fft.git
-        GIT_TAG        74ff59ee47a560a6c6ec90447f29807b32a1a09c
+        GIT_TAG        8f27754ba6e5671439d97d3847479bdbf7ccfee7
     )
     FetchContent_MakeAvailable(keel_fft)
 endif()
@@ -144,7 +144,7 @@ if(NOT TARGET keel::random)
     FetchContent_Declare(
         keel_random
         GIT_REPOSITORY https://github.com/keelcpp/random.git
-        GIT_TAG        435819de0c88181a7f4e9bfa3c6578790d0defe3
+        GIT_TAG        cf2615e70e9ba7fc34f7dc9f3f030e8a487245f2
     )
     FetchContent_MakeAvailable(keel_random)
 endif()
@@ -159,7 +159,7 @@ if(NOT TARGET keel::linalg)
     FetchContent_Declare(
         keel_linalg
         GIT_REPOSITORY https://github.com/keelcpp/linalg.git
-        GIT_TAG        00ef4a339dabc811f5fb2ec452bc87c0d112fe5a
+        GIT_TAG        1bc2798c7905a9431285c1d2617f619233c43640
     )
     FetchContent_MakeAvailable(keel_linalg)
 endif()
@@ -178,7 +178,7 @@ if(NOT TARGET keel::specfun)
     FetchContent_Declare(
         keel_specfun
         GIT_REPOSITORY https://github.com/keelcpp/specfun.git
-        GIT_TAG        a8b1375a4df16314752e8be408febc5cd2232faf
+        GIT_TAG        58a88779d8f8d8a6602685201ac0397f0285a869
     )
     FetchContent_MakeAvailable(keel_specfun)
 endif()
