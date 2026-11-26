@@ -197,7 +197,7 @@ if(NOT TARGET keel::geom)
     FetchContent_Declare(
         keel_geom
         GIT_REPOSITORY https://github.com/keelcpp/geom.git
-        GIT_TAG        44ddb7e27ca6c8a681bba44f883c149ca1a1800b
+        GIT_TAG        faba414d2294dd247e29f5f62133da34a1d7ba8b
     )
     FetchContent_MakeAvailable(keel_geom)
 endif()
@@ -216,7 +216,7 @@ if(NOT TARGET keel::interp)
     FetchContent_Declare(
         keel_interp
         GIT_REPOSITORY https://github.com/keelcpp/interp.git
-        GIT_TAG        38316f1a7f899245a4a5de67a9268699c9a6113d
+        GIT_TAG        72d23db74ec41ee929c8535ac419624461f3eb4d
     )
     FetchContent_MakeAvailable(keel_interp)
 endif()
@@ -235,7 +235,7 @@ if(NOT TARGET keel::ode)
     FetchContent_Declare(
         keel_ode
         GIT_REPOSITORY https://github.com/keelcpp/ode.git
-        GIT_TAG        ba3e5e981940c91896053858e48c4ea149e86414
+        GIT_TAG        4cfc9346301df92b29d04cde8fc73bb505eab5b4
     )
     FetchContent_MakeAvailable(keel_ode)
 endif()
@@ -254,7 +254,7 @@ if(NOT TARGET keel::quad)
     FetchContent_Declare(
         keel_quad
         GIT_REPOSITORY https://github.com/keelcpp/quad.git
-        GIT_TAG        4f99edb6891abad2c76fd08d3fd381b9cd42ce92
+        GIT_TAG        0a8b57876eddcc4e60f04a68ddaff65aad17ab3a
     )
     FetchContent_MakeAvailable(keel_quad)
 endif()
@@ -273,7 +273,7 @@ if(NOT TARGET keel::optim)
     FetchContent_Declare(
         keel_optim
         GIT_REPOSITORY https://github.com/keelcpp/optim.git
-        GIT_TAG        62724dd6639140e0ff38241b4c513a109cd636bf
+        GIT_TAG        6238376281a21f849ebc4811ec6edcf1a625124d
     )
     FetchContent_MakeAvailable(keel_optim)
 endif()
@@ -292,7 +292,7 @@ if(NOT TARGET keel::poly)
     FetchContent_Declare(
         keel_poly
         GIT_REPOSITORY https://github.com/keelcpp/poly.git
-        GIT_TAG        a68dde3374259efddf5df5709b0a0fa3a4617466
+        GIT_TAG        49f000d390c73b0cb426f41f11465aaf0f24e82a
     )
     FetchContent_MakeAvailable(keel_poly)
 endif()
