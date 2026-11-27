@@ -125,6 +125,39 @@ Value sqrtm(const Value &A, keel::Allocator *mr)
     const bool wantSingle = A.type() == ValueType::SINGLE;
     if (n == 0) return Value::matrix(0, 0, wantSingle ? ValueType::SINGLE : ValueType::DOUBLE, mr);
 
+    // Closed-form fast paths for 1x1 and 2x2 real matrices with positive real principal root.
+    if (!A.isComplex()) {
+        if (n == 1) {
+            const keel::f64 a = A.elemAsDouble(0);
+            if (keel::is_finite(a) && a >= 0.0) {
+                Value out = Value::scalar(keel::sqrt(a), mr);
+                return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
+            }
+        } else if (n == 2) {
+            const keel::f64 a = A.elemAsDouble(0);
+            const keel::f64 c = A.elemAsDouble(1);
+            const keel::f64 b = A.elemAsDouble(2);
+            const keel::f64 d = A.elemAsDouble(3);
+            if (keel::is_finite(a) && keel::is_finite(b) && keel::is_finite(c) && keel::is_finite(d)) {
+                const keel::f64 det = a * d - b * c;
+                if (det >= 0.0) {
+                    const keel::f64 s = keel::sqrt(det);
+                    const keel::f64 tau = a + d + 2.0 * s;
+                    if (tau > 0.0) {
+                        const keel::f64 invT = 1.0 / keel::sqrt(tau);
+                        Value out = Value::matrix(2, 2, ValueType::DOUBLE, mr);
+                        keel::f64 *o = out.doubleDataMut();
+                        o[0] = (a + s) * invT;
+                        o[1] = c * invT;
+                        o[2] = b * invT;
+                        o[3] = (d + s) * invT;
+                        return detail::narrowDoubleToSingleIf(out, wantSingle, mr);
+                    }
+                }
+            }
+        }
+    }
+
     Value Aw = detail::widenSingleToDouble(A, mr);
     keel::ArenaTemp scratch = keel::get_scratch(mr);
     keel::Array<keel::c64> Ac(n * n, scratch.allocator());
