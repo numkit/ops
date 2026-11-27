@@ -193,22 +193,32 @@ void singularSquareSolve(T *A_lu, keel::usize n, T *B_work, keel::usize nrhs, T 
     keel::ArenaTemp arena = keel::get_scratch(mr);
 
     if (A.isComplex() || B.isComplex()) {
-keel::Array<keel::c64> A_buf(m * n, arena.allocator());
-        keel::Array<keel::c64> B_buf(m * k, arena.allocator());
+        const keel::c64 *A_ptr = nullptr;
+        const keel::c64 *B_ptr = nullptr;
+        keel::Array<keel::c64> A_buf(0, arena.allocator());
+        keel::Array<keel::c64> B_buf(0, arena.allocator());
         if (A.isComplex()) {
-            keel::copy(A.complexData(), A.complexData() + m * n, A_buf.begin());
+            A_ptr = A.complexData();
         } else {
+            A_buf.resize(m * n);
             for (keel::usize i = 0; i < m * n; ++i) A_buf[i] = keel::c64(A.elemAsDouble(i), 0.0);
+            A_ptr = A_buf.data();
         }
         if (B.isComplex()) {
-            keel::copy(B.complexData(), B.complexData() + m * k, B_buf.begin());
+            B_ptr = B.complexData();
         } else {
+            B_buf.resize(m * k);
             for (keel::usize i = 0; i < m * k; ++i) B_buf[i] = keel::c64(B.elemAsDouble(i), 0.0);
+            B_ptr = B_buf.data();
         }
         Value X = Value::complexMatrix(n, k, mr);
-        if (!numkit::ops::la_solve(A_buf.data(), m, n, B_buf.data(), k, X.complexDataMut(), arena.allocator())) {
+        if (!numkit::ops::la_solve(A_ptr, m, n, B_ptr, k, X.complexDataMut(), arena.allocator())) {
             if (m == n) {
-                singularSquareSolve(A_buf.data(), n, B_buf.data(), k, X.complexDataMut());
+                keel::Array<keel::c64> A_work(m * n, arena.allocator());
+                keel::Array<keel::c64> B_work(m * k, arena.allocator());
+                keel::copy(A_ptr, A_ptr + m * n, A_work.begin());
+                keel::copy(B_ptr, B_ptr + m * k, B_work.begin());
+                singularSquareSolve(A_work.data(), n, B_work.data(), k, X.complexDataMut());
                 return narrowIfReal(X, mr);
             }
             throw Error(keel::format("{}: matrix is singular or rank-deficient", opname),
@@ -218,16 +228,34 @@ keel::Array<keel::c64> A_buf(m * n, arena.allocator());
         return narrowIfReal(X, mr);
     }
 
-    keel::Array<keel::f64> A_buf(m * n, arena.allocator());
-    keel::Array<keel::f64> B_buf(m * k, arena.allocator());
-    copyColumnMajorDouble(A, A_buf.data());
-    copyColumnMajorDouble(B, B_buf.data());
+    const keel::f64 *A_ptr = nullptr;
+    const keel::f64 *B_ptr = nullptr;
+    keel::Array<keel::f64> A_buf(0, arena.allocator());
+    keel::Array<keel::f64> B_buf(0, arena.allocator());
+    if (A.type() == ValueType::DOUBLE) {
+        A_ptr = A.doubleData();
+    } else {
+        A_buf.resize(m * n);
+        copyColumnMajorDouble(A, A_buf.data());
+        A_ptr = A_buf.data();
+    }
+    if (B.type() == ValueType::DOUBLE) {
+        B_ptr = B.doubleData();
+    } else {
+        B_buf.resize(m * k);
+        copyColumnMajorDouble(B, B_buf.data());
+        B_ptr = B_buf.data();
+    }
 
     Value X = Value::matrix(n, k, ValueType::DOUBLE, mr);
     keel::f64 *Xd = X.doubleDataMut();
-    if (!numkit::ops::la_solve(A_buf.data(), m, n, B_buf.data(), k, Xd, arena.allocator())) {
+    if (!numkit::ops::la_solve(A_ptr, m, n, B_ptr, k, Xd, arena.allocator())) {
         if (m == n) {
-            singularSquareSolve(A_buf.data(), n, B_buf.data(), k, Xd);
+            keel::Array<keel::f64> A_work(m * n, arena.allocator());
+            keel::Array<keel::f64> B_work(m * k, arena.allocator());
+            keel::copy(A_ptr, A_ptr + m * n, A_work.begin());
+            keel::copy(B_ptr, B_ptr + m * k, B_work.begin());
+            singularSquareSolve(A_work.data(), n, B_work.data(), k, Xd);
             return X;
         }
         throw Error(keel::format("{}: matrix is singular or rank-deficient", opname),

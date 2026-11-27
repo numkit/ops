@@ -461,10 +461,11 @@ void rdivideLoop(const keel::f64 *a, const keel::f64 *b, keel::f64 *out, keel::u
     hwy::FlushStream();
 }
 
-// Threshold for parallel matmul. Below this many output columns the
-// per-worker overhead overshadows the kernel — the existing single-
-// thread MatmulLoop is faster for small N.
+// Thresholds for parallel matmul. Below either the column count or the total
+// multiply-add work (M * N * K), thread-pool wake/join overhead dwarfs the
+// compute (e.g. 2x2 * 2x64 has N = 64 but only 256 FLOPs).
 inline constexpr keel::usize kMatmulParallelThreshold = 32;
+inline constexpr keel::usize kMatmulParallelWorkThreshold = 131072;
 
 void matmulDoubleLoop(const keel::f64 *a, const keel::f64 *b, keel::f64 *c,
                       keel::usize M, keel::usize N, keel::usize K)
@@ -476,9 +477,12 @@ void matmulDoubleLoop(const keel::f64 *a, const keel::f64 *b, keel::f64 *c,
     // worker's column range (column-major: stride K for B, M for C).
     //
     // The per-target SIMD loop below handles the inner SAXPY; here we
-    // just slice the work. Below kMatmulParallelThreshold we skip the
-    // pool entirely.
-    if (N < kMatmulParallelThreshold) {
+    // just slice the work. Below the column or total-work threshold we
+    // skip the pool entirely.
+    const bool smallWork = (M == 0 || K == 0)
+        || (M <= kMatmulParallelWorkThreshold && K <= kMatmulParallelWorkThreshold
+            && N < (kMatmulParallelWorkThreshold + (M * K) - 1) / (M * K));
+    if (N < kMatmulParallelThreshold || smallWork) {
         HWY_DYNAMIC_DISPATCH(MatmulLoop)(a, b, c, M, N, K);
         return;
     }
